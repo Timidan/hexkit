@@ -1,0 +1,27 @@
+# Documentation files - never push to GitHub
+BACKLOG.md
+CLAUDE.md
+CONTINUE.md
+CURRENT_WORKING.md
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

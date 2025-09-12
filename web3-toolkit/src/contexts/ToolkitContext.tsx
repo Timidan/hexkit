@@ -1,0 +1,203 @@
+import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+// Shared data interfaces
+export interface DecodedTransactionData {
+  functionName: string;
+  functionSignature: string;
+  contractAddress?: string;
+  parameters: { name: string; type: string; value: any }[];
+  abi?: any[];
+  calldata: string;
+}
+
+export interface ContractData {
+  address: string;
+  abi: any[];
+  name?: string;
+  verified: boolean;
+  functions?: string[];
+}
+
+export interface GeneratedCalldataData {
+  contractAddress: string;
+  functionName: string;
+  calldata: string;
+  abi: any[];
+  parameters: Record<string, string>;
+  ethValue?: string;
+}
+
+// Context state interface
+interface ToolkitContextState {
+  // Cross-tool sharing
+  lastDecodedTransaction: DecodedTransactionData | null;
+  lastGeneratedCalldata: GeneratedCalldataData | null;
+  recentContractData: ContractData[];
+  globalSignatures: Record<string, string>; // selector -> signature
+  
+  // Current working context
+  currentContractAddress: string;
+  currentABI: any[] | null;
+  
+  // Actions
+  setDecodedTransaction: (data: DecodedTransactionData) => void;
+  setGeneratedCalldata: (data: GeneratedCalldataData) => void;
+  addContractData: (data: ContractData) => void;
+  addSignature: (selector: string, signature: string) => void;
+  setCurrentContract: (address: string, abi?: any[]) => void;
+  clearContext: () => void;
+  
+  // Cross-tool actions
+  transferToTransactionBuilder: (data: DecodedTransactionData | GeneratedCalldataData) => void;
+  transferToCalldataGenerator: (contractData: ContractData, functionName?: string) => void;
+  transferToDecoder: (calldata: string) => void;
+  
+  // Navigation actions
+  navigateToBuilder: () => void;
+  navigateToDecoder: () => void;
+  navigateToGenerator: () => void;
+}
+
+// Create context
+const ToolkitContext = createContext<ToolkitContextState | undefined>(undefined);
+
+// Provider component
+export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  const [lastDecodedTransaction, setLastDecodedTransaction] = useState<DecodedTransactionData | null>(null);
+  const [lastGeneratedCalldata, setLastGeneratedCalldata] = useState<GeneratedCalldataData | null>(null);
+  const [recentContractData, setRecentContractData] = useState<ContractData[]>([]);
+  const [globalSignatures, setGlobalSignatures] = useState<Record<string, string>>({});
+  const [currentContractAddress, setCurrentContractAddress] = useState('');
+  const [currentABI, setCurrentABI] = useState<any[] | null>(null);
+
+  const setDecodedTransaction = (data: DecodedTransactionData) => {
+    setLastDecodedTransaction(data);
+    
+    // Add contract to recent data if not already there
+    if (data.contractAddress && data.abi) {
+      addContractData({
+        address: data.contractAddress,
+        abi: data.abi,
+        verified: true,
+        functions: data.abi.filter((item: any) => item.type === 'function').map((f: any) => f.name)
+      });
+    }
+    
+    // Add signature to global signatures
+    const selector = data.calldata.slice(0, 10);
+    addSignature(selector, data.functionSignature);
+  };
+
+  const setGeneratedCalldata = (data: GeneratedCalldataData) => {
+    setLastGeneratedCalldata(data);
+    
+    // Add contract to recent data
+    addContractData({
+      address: data.contractAddress,
+      abi: data.abi,
+      verified: true,
+      functions: data.abi.filter((item: any) => item.type === 'function').map((f: any) => f.name)
+    });
+  };
+
+  const addContractData = (data: ContractData) => {
+    setRecentContractData(prev => {
+      // Remove existing entry with same address
+      const filtered = prev.filter(item => item.address.toLowerCase() !== data.address.toLowerCase());
+      // Add new entry at the beginning
+      return [data, ...filtered].slice(0, 10); // Keep only last 10 contracts
+    });
+  };
+
+  const addSignature = (selector: string, signature: string) => {
+    setGlobalSignatures(prev => ({
+      ...prev,
+      [selector.toLowerCase()]: signature
+    }));
+  };
+
+  const setCurrentContract = (address: string, abi?: any[]) => {
+    setCurrentContractAddress(address);
+    if (abi) {
+      setCurrentABI(abi);
+    }
+  };
+
+  const clearContext = () => {
+    setLastDecodedTransaction(null);
+    setLastGeneratedCalldata(null);
+    setCurrentContractAddress('');
+    setCurrentABI(null);
+  };
+
+  // Navigation functions
+  const navigateToBuilder = () => navigate('/builder');
+  const navigateToDecoder = () => navigate('/decoder');
+  const navigateToGenerator = () => navigate('/generator');
+
+  // Cross-tool transfer actions with auto-navigation
+  const transferToTransactionBuilder = (data: DecodedTransactionData | GeneratedCalldataData) => {
+    // Store the data first
+    if ('functionSignature' in data) {
+      // It's decoded transaction data
+      setLastDecodedTransaction(data);
+    } else {
+      // It's generated calldata data
+      setLastGeneratedCalldata(data);
+    }
+    // Auto-navigate to transaction builder
+    navigateToBuilder();
+  };
+
+  const transferToCalldataGenerator = (contractData: ContractData, functionName?: string) => {
+    addContractData(contractData);
+    setCurrentContract(contractData.address, contractData.abi);
+    navigateToGenerator();
+  };
+
+  const transferToDecoder = (calldata: string) => {
+    // Store calldata for decoder to pick up
+    // This is a simple implementation - could be enhanced
+    navigateToDecoder();
+  };
+
+  const contextValue: ToolkitContextState = {
+    lastDecodedTransaction,
+    lastGeneratedCalldata,
+    recentContractData,
+    globalSignatures,
+    currentContractAddress,
+    currentABI,
+    setDecodedTransaction,
+    setGeneratedCalldata,
+    addContractData,
+    addSignature,
+    setCurrentContract,
+    clearContext,
+    transferToTransactionBuilder,
+    transferToCalldataGenerator,
+    transferToDecoder,
+    navigateToBuilder,
+    navigateToDecoder,
+    navigateToGenerator,
+  };
+
+  return (
+    <ToolkitContext.Provider value={contextValue}>
+      {children}
+    </ToolkitContext.Provider>
+  );
+};
+
+// Custom hook to use the context
+export const useToolkit = (): ToolkitContextState => {
+  const context = useContext(ToolkitContext);
+  if (!context) {
+    throw new Error('useToolkit must be used within a ToolkitProvider');
+  }
+  return context;
+};
+
+export default ToolkitContext;
