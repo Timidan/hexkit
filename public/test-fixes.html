@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web3 Toolkit Fix Verification</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #000; 
+            color: #0f0; 
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 8px;
+        }
+        .contract-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        .success { color: #39ff14; }
+        .error { color: #ff007f; }
+        .warning { color: #ffff00; }
+        code {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Web3 Toolkit Fix Verification</h1>
+    
+    <div class="test-section">
+        <h2>📋 Test Instructions</h2>
+        <ol>
+            <li>Open <a href="/test-sourcify.html" target="_blank">Sourcify API Test</a> to verify API is working</li>
+            <li>Go to <a href="http://localhost:5173/" target="_blank">Transaction Builder</a></li>
+            <li>Test the following scenarios:</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Fix 1: Contract Data Persistence</h2>
+        <p><strong>Expected behavior:</strong> When selecting different contracts, old data should clear immediately</p>
+        <ol>
+            <li>Load Diamond contract (0x4200...0006 on Base)</li>
+            <li>Switch to USDT contract (0xdac1...31ec7 on Ethereum)</li>
+            <li>Verify all previous data is cleared before new data loads</li>
+        </ol>
+        <p class="success">✅ Fixed: Added state clearing in loadContractFromStorage</p>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Fix 2: Contract Names in Dropdown</h2>
+        <p><strong>Expected behavior:</strong> Saved contracts should show their names in the dropdown</p>
+        <ol>
+            <li>Save Diamond contract (should save with name "Diamond")</li>
+            <li>Save USDT contract (should save with name "Tether USD")</li>
+            <li>Check "Select from project" dropdown - names should be visible</li>
+        </ol>
+        <p class="success">✅ Fixed: Added name to saveContractToStorage</p>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Fix 3: Tooltip Visibility</h2>
+        <p><strong>Expected behavior:</strong> Hover over source logo should show "Verified from [Source]"</p>
+        <ol>
+            <li>Load any verified contract</li>
+            <li>Hover over the source logo next to contract name</li>
+            <li>Tooltip should appear with source information</li>
+        </ol>
+        <p class="success">✅ Fixed: Improved tooltip styling and cursor</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Contracts</h2>
+        <div class="contract-item">
+            <strong>Diamond Contract</strong><br>
+            Address: <code>0x4200000000000000000000000000000000000006</code><br>
+            Network: Base (8453)<br>
+            Expected Name: "Diamond"
+        </div>
+        <div class="contract-item">
+            <strong>USDT Contract</strong><br>
+            Address: <code>0xdac17f958d2ee523a2206206994597c13d831ec7</code><br>
+            Network: Ethereum (1)<br>
+            Expected Name: "Tether USD"
+        </div>
+    </div>
+
+    <div class="test-section warning">
+        <h2>⚠️ Next Issue: Calldata Not Updating</h2>
+        <p>To be investigated after these fixes are verified.</p>
+    </div>
+</body>
+</html>

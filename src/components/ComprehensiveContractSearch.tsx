@@ -18,6 +18,7 @@ const ComprehensiveContractSearch: React.FC<ComprehensiveContractSearchProps> = 
   const [searchResult, setSearchResult] = useState<ContractInfoResult | null>(null);
   const [error, setError] = useState<string>('');
   const [searchProgress, setSearchProgress] = useState<ContractInfoResult['searchProgress']>([]);
+  const [originalResult, setOriginalResult] = useState<ContractInfoResult | null>(null);
 
   // Supported chains
   const supportedChains: Chain[] = [
@@ -78,6 +79,19 @@ const ComprehensiveContractSearch: React.FC<ComprehensiveContractSearchProps> = 
     onLoadingChange?.(isLoading);
   }, [isLoading, onLoadingChange]);
 
+  // Debug logging for searchResult changes
+  useEffect(() => {
+    if (searchResult) {
+      console.log('🔍 [UI] searchResult updated:', {
+        success: searchResult.success,
+        contractName: searchResult.contractName,
+        tokenName: searchResult.tokenInfo?.name,
+        source: searchResult.source,
+        explorerName: searchResult.explorerName
+      });
+    }
+  }, [searchResult]);
+
   const handleSearch = async () => {
     if (!contractAddress || !selectedChain) {
       setError('Please enter a contract address and select a network');
@@ -103,6 +117,7 @@ const ComprehensiveContractSearch: React.FC<ComprehensiveContractSearchProps> = 
 
       const result = await fetchContractInfoComprehensive(contractAddress, selectedChain);
       setSearchResult(result);
+      setOriginalResult(result); // Store the original result
       setSearchProgress(result.searchProgress || []);
       
       if (result.success) {
@@ -380,38 +395,79 @@ const ComprehensiveContractSearch: React.FC<ComprehensiveContractSearchProps> = 
 
             {/* Contract Details */}
             <div style={{
-              padding: '12px 16px',
+              padding: '16px',
               backgroundColor: '#1a1a1a',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              border: '1px solid #374151'
             }}>
-              <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px' }}>
+              <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '12px' }}>
                 Contract Details
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
                 <div>
-                  <span style={{ color: '#9ca3af' }}>Network:</span>
-                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
+                  <div style={{ color: '#9ca3af', marginBottom: '4px' }}>Network</div>
+                  <div style={{ color: '#ffffff', fontWeight: '500' }}>
                     {searchResult.chain.name}
-                  </span>
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: '#9ca3af' }}>Source:</span>
-                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
-                    {searchResult.source}
-                  </span>
+                  <div style={{ color: '#9ca3af', marginBottom: '4px' }}>Data Source</div>
+                  <div style={{ 
+                    color: searchResult.source === 'sourcify' ? '#00ffff' :
+                           searchResult.source === 'blockscout' ? '#10b981' :
+                           searchResult.source === 'etherscan' ? '#3b82f6' : '#ffffff',
+                    fontWeight: '500',
+                    textTransform: 'capitalize'
+                  }}>
+                    {searchResult.source || 'Unknown'}
+                    {searchResult.source && (
+                      <span style={{ 
+                        fontSize: '12px', 
+                        color: '#6b7280', 
+                        marginLeft: '4px',
+                        fontWeight: '400'
+                      }}>
+                        ({searchResult.explorerName})
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: '#9ca3af' }}>Token Type:</span>
-                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
+                  <div style={{ color: '#9ca3af', marginBottom: '4px' }}>Token Type</div>
+                  <div style={{ color: '#ffffff', fontWeight: '500' }}>
                     {searchResult.tokenType || 'Unknown'}
-                  </span>
+                  </div>
                 </div>
                 <div>
-                  <span style={{ color: '#9ca3af' }}>Verified:</span>
-                  <span style={{ color: '#10b981', marginLeft: '4px' }}>
-                    ✓ Yes
-                  </span>
+                  <div style={{ color: '#9ca3af', marginBottom: '4px' }}>Status</div>
+                  <div style={{ color: '#10b981', fontWeight: '500' }}>
+                    ✓ Verified
+                  </div>
                 </div>
+              </div>
+              
+              {/* Debug Info */}
+              <div style={{ 
+                marginTop: '12px', 
+                paddingTop: '12px', 
+                borderTop: '1px solid #374151',
+                fontSize: '12px',
+                color: '#6b7280'
+              }}>
+                <div><strong>Debug Info:</strong></div>
+                <div>Contract Name from source: {searchResult.contractName || 'None'}</div>
+                <div>Token Name from metadata: {searchResult.tokenInfo?.name || 'None'}</div>
+                <div>Final displayed name: {searchResult.contractName || searchResult.tokenInfo?.name || 'Unknown'}</div>
+                {originalResult && (
+                  <div style={{ marginTop: '8px' }}>
+                    <div><strong>Name Change Detection:</strong></div>
+                    <div>Original contract name: {originalResult.contractName || 'None'}</div>
+                    <div>Current contract name: {searchResult.contractName || 'None'}</div>
+                    <div style={{ color: originalResult.contractName !== searchResult.contractName ? '#ef4444' : '#10b981' }}>
+                      Name changed: {originalResult.contractName !== searchResult.contractName ? 'YES' : 'NO'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

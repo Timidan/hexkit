@@ -1,27 +1,29 @@
-# Documentation files - never push to GitHub
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 BACKLOG.md
 CLAUDE.md
 CONTINUE.md
 CURRENT_WORKING.md
 
-# Node modules
-node_modules/
 
-# Build outputs
-dist/
-build/
+node_modules
+dist
+dist-ssr
+*.local
 
-# Environment files
-.env
-.env.local
-.env.production
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
-Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

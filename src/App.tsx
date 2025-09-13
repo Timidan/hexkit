@@ -15,6 +15,7 @@ import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
 import CalldataGenerator from "./components/CalldataGenerator";
 import UniversalContractInterface from "./components/UniversalContractInterface";
+import ComprehensiveContractSearch from "./components/ComprehensiveContractSearch";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
 
@@ -94,6 +95,7 @@ function App() {
             <Route path="/signatures" element={<SignatureCalculator />} />
             <Route path="/builder" element={<SimpleGridUI />} />
             <Route path="/database" element={<SignatureDatabase />} />
+            <Route path="/contract-search" element={<ComprehensiveContractSearch />} />
           </Routes>
         </main>
       </div>

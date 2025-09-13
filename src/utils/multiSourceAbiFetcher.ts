@@ -125,7 +125,7 @@ const fetchFromSourcify = async (
         // Always fetch metadata.json file for exact matches (it contains the ABI and contract name)
         try {
           const metadataUrl = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`;
-          console.log(`🔍 [Sourcify] Fetching metadata from: ${metadataUrl}`);
+          console.log(`🔍 [Sourcify] Match type: ${matchType}, fetching metadata from: ${metadataUrl}`);
           
           const metadataResponse = await axios.get(metadataUrl, {
             timeout: 10000,
@@ -136,18 +136,32 @@ const fetchFromSourcify = async (
             },
           });
           
-          if (metadataResponse.data && metadataResponse.data.output && metadataResponse.data.output.abi) {
+          if (!metadataResponse.data) {
+            console.log('🔍 [Sourcify] No metadata data received');
+          } else if (!metadataResponse.data.output) {
+            console.log('🔍 [Sourcify] No output field in metadata');
+            console.log('🔍 [Sourcify] Available fields:', Object.keys(metadataResponse.data));
+          } else if (!metadataResponse.data.output.abi) {
+            console.log('🔍 [Sourcify] No ABI in output field');
+            console.log('🔍 [Sourcify] Output fields:', Object.keys(metadataResponse.data.output));
+          } else if (metadataResponse.data && metadataResponse.data.output && metadataResponse.data.output.abi) {
             const abi = JSON.stringify(metadataResponse.data.output.abi);
+            console.log(`🔍 [Sourcify] Metadata received, ABI length: ${metadataResponse.data.output.abi.length}`);
+            console.log(`🔍 [Sourcify] Has settings.compilationTarget: ${!!metadataResponse.data.settings?.compilationTarget}`);
             
             // Extract contract name from compilation target
             let contractName: string | undefined;
             const compilationTarget = metadataResponse.data.settings?.compilationTarget;
             if (compilationTarget) {
               const targetKeys = Object.keys(compilationTarget);
+              console.log(`🔍 [Sourcify] Compilation target keys:`, targetKeys);
+              console.log(`🔍 [Sourcify] Compilation target values:`, Object.values(compilationTarget));
               if (targetKeys.length > 0) {
                 contractName = compilationTarget[targetKeys[0]];
                 console.log(`🔍 [Sourcify] Extracted contract name: ${contractName}`);
               }
+            } else {
+              console.log(`🔍 [Sourcify] No compilationTarget found in metadata`);
             }
             
             return {
@@ -160,8 +174,14 @@ const fetchFromSourcify = async (
               sourceCode: 'Available',
             };
           }
-        } catch (metadataError) {
-          console.error('Failed to fetch Sourcify metadata.json:', metadataError);
+        } catch (metadataError: any) {
+          console.error('🔍 [Sourcify] Failed to fetch metadata.json:', metadataError);
+          console.error('🔍 [Sourcify] Error details:', {
+            message: (metadataError as any).message,
+            response: (metadataError as any).response?.data,
+            status: (metadataError as any).response?.status,
+            url: `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`
+          });
           
           // Fallback: try partial_match endpoint if full_match failed
           if (matchType === 'exact_match') {

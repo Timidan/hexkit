@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web3 Toolkit Test Suite</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #000; 
+            color: #0f0; 
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-card { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #333; 
+            border-radius: 8px;
+            background: #1a1a1a;
+        }
+        .test-card h2 { 
+            color: #39ff14; 
+            margin-top: 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .fixed { background: #39ff14; color: #000; }
+        .testing { background: #ffff00; color: #000; }
+        .pending { background: #666; }
+        a {
+            color: #00ffff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        code {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .test-steps {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Web3 Toolkit Test Suite</h1>
+    
+    <div class="test-card">
+        <h2>✅ Fixed Issues <span class="status fixed">FIXED</span></h2>
+        <ul>
+            <li><strong>Contract Data Persistence</strong> - Old data no longer remains when selecting different contracts</li>
+            <li><strong>Contract Names in Dropdown</strong> - Saved contracts now show proper names in "Select from project"</li>
+            <li><strong>Tooltip Visibility</strong> - "Verified from" tooltip now shows correctly on hover</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🔧 Current Issue <span class="status testing">INVESTIGATING</span></h2>
+        <p><strong>Calldata Not Updating Properly</strong></p>
+        <div class="test-steps">
+            <li><strong>What's happening:</strong> When changing input values, the calldata doesn't update in real-time</li>
+            <li><strong>Added debug logging:</strong> Check browser console for detailed calldata update logs</li>
+            <li><strong>Test page:</strong> <a href="/calldata-debug.html" target="_blank">Open Debug Monitor</a></li>
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>🧪 Quick Test Guide</h2>
+        
+        <h3>1. Test Fixed Issues</h3>
+        <div class="test-steps">
+            <li>Open <a href="http://localhost:5173/" target="_blank">Transaction Builder</a></li>
+            <li>Load Diamond contract (0x4200...0006 on Base)</li>
+            <li>Switch to USDT contract (0xdac1...31ec7 on Ethereum)</li>
+            <li>✅ Verify: All old data clears immediately</li>
+            <li>✅ Verify: Contract names appear in dropdown</li>
+            <li>✅ Verify: Hover over source logo shows tooltip</li>
+        </div>
+
+        <h3>2. Test Calldata Issue</h3>
+        <div class="test-steps">
+            <li>Load any contract with read functions</li>
+            <li>Select a function (e.g., "name")</li>
+            <li>Type in the input field</li>
+            <li>🔍 Check: Calldata should update as you type</li>
+            <li>🔍 Check: Browser console shows debug logs</li>
+            <li>If calldata doesn't update, note the console output</li>
+        </div>
+    </div>
+
+    <div class="test-card">
+        <h2>📊 Test Data</h2>
+        <h3>Diamond Contract (Base)</h3>
+        <p>Address: <code>0x4200000000000000000000000000000000000006</code></p>
+        
+        <h3>USDT Contract (Ethereum)</h3>
+        <p>Address: <code>0xdac17f958d2ee523a2206206994597c13d831ec7</code></p>
+    </div>
+
+    <div class="test-card">
+        <h2>🔗 Quick Links</h2>
+        <ul>
+            <li><a href="http://localhost:5173/" target="_blank">Transaction Builder</a></li>
+            <li><a href="/test-sourcify.html" target="_blank">Sourcify API Test</a></li>
+            <li><a href="/test-fixes.html" target="_blank">Fix Verification</a></li>
+            <li><a href="/calldata-debug.html" target="_blank">Calldata Debug Monitor</a></li>
+        </ul>
+    </div>
+
+    <script>
+        console.log('🧪 Web3 Toolkit Test Suite loaded');
+        console.log('💡 Tip: Open Transaction Builder in another tab to test features');
+    </script>
+</body>
+</html>
