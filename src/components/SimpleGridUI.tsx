@@ -11,7 +11,12 @@ import { ethers } from "ethers";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import type { Chain, ABIFetchResult, ContractInfo } from "../types";
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
-import { SourcifyLogo, BlockscoutLogo, EtherscanLogo, ManualLogo } from "./SourceLogos";
+import {
+  SourcifyLogo,
+  BlockscoutLogo,
+  EtherscanLogo,
+  ManualLogo,
+} from "./SourceLogos";
 
 // Extended ABI fetch result with contract name
 interface ExtendedABIFetchResult extends ABIFetchResult {
@@ -21,7 +26,7 @@ interface ExtendedABIFetchResult extends ABIFetchResult {
 const SimpleGridUI: React.FC = () => {
   // Add CSS keyframes for spinning animation
   React.useEffect(() => {
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
       @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -57,9 +62,10 @@ const SimpleGridUI: React.FC = () => {
   } | null>(null);
   const [isLoadingContractInfo, setIsLoadingContractInfo] = useState(false);
   const [usePendingBlock, setUsePendingBlock] = useState(true);
-  const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | null>(null);
+  const [abiSource, setAbiSource] = useState<
+    "sourcify" | "blockscout" | "etherscan" | "manual" | null
+  >(null);
 
-  
   // Contract address and network state
   const [contractAddress, setContractAddress] = useState("");
   const [selectedNetwork, setSelectedNetwork] = useState<Chain | null>(
@@ -83,14 +89,14 @@ const SimpleGridUI: React.FC = () => {
     try {
       const url = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${address}/metadata.json`;
       console.log(`Fetching from Sourcify: ${url}`);
-      
+
       const response = await fetch(url);
       console.log(`Sourcify response status: ${response.status}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log(`Sourcify data found for chain ${chainId}`);
-        
+
         // Extract contract name from compilation target
         let contractName: string | undefined;
         const compilationTarget = data.settings?.compilationTarget;
@@ -98,14 +104,16 @@ const SimpleGridUI: React.FC = () => {
           const targetKeys = Object.keys(compilationTarget);
           if (targetKeys.length > 0) {
             contractName = compilationTarget[targetKeys[0]];
-            console.log(`🔍 [SimpleGridUI] Extracted contract name: ${contractName}`);
+            console.log(
+              `🔍 [SimpleGridUI] Extracted contract name: ${contractName}`
+            );
           }
         }
-        
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           abi: JSON.stringify(data.output.abi),
-          contractName: contractName 
+          contractName: contractName,
         };
       }
     } catch (fetchError) {
@@ -132,10 +140,10 @@ const SimpleGridUI: React.FC = () => {
 
       const url = `${blockscoutExplorer.url}/v2/smart-contracts/${address}`;
       console.log(`Fetching from Blockscout: ${url}`);
-      
+
       const response = await fetch(url);
       console.log(`Blockscout response status: ${response.status}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log(`Blockscout response for ${chain.name}:`, data);
@@ -144,13 +152,15 @@ const SimpleGridUI: React.FC = () => {
           let contractName: string | undefined;
           if (data.name) {
             contractName = data.name;
-            console.log(`🔍 [SimpleGridUI] Blockscout extracted contract name: ${contractName}`);
+            console.log(
+              `🔍 [SimpleGridUI] Blockscout extracted contract name: ${contractName}`
+            );
           }
-          
-          return { 
-            success: true, 
+
+          return {
+            success: true,
             abi: JSON.stringify(data.abi),
-            contractName: contractName
+            contractName: contractName,
           };
         } else {
           console.log(`No ABI found in Blockscout response for ${chain.name}`);
@@ -180,7 +190,7 @@ const SimpleGridUI: React.FC = () => {
 
       const url = `${etherscanExplorer.url}?module=contract&action=getabi&address=${address}`;
       console.log(`Fetching from Etherscan: ${url}`);
-      
+
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -193,22 +203,34 @@ const SimpleGridUI: React.FC = () => {
             const nameResponse = await fetch(nameUrl);
             if (nameResponse.ok) {
               const nameData = await nameResponse.json();
-              if (nameData.status === "1" && nameData.result && nameData.result[0]) {
+              if (
+                nameData.status === "1" &&
+                nameData.result &&
+                nameData.result[0]
+              ) {
                 contractName = nameData.result[0].ContractName;
-                console.log(`🔍 [SimpleGridUI] Etherscan extracted contract name: ${contractName}`);
+                console.log(
+                  `🔍 [SimpleGridUI] Etherscan extracted contract name: ${contractName}`
+                );
               }
             }
           } catch (nameError) {
-            console.log("Failed to fetch contract name from Etherscan:", nameError);
+            console.log(
+              "Failed to fetch contract name from Etherscan:",
+              nameError
+            );
           }
-          
-          return { 
-            success: true, 
+
+          return {
+            success: true,
             abi: data.result,
-            contractName: contractName
+            contractName: contractName,
           };
         } else {
-          console.log(`Etherscan error for ${chain.name}:`, data.message || data.result);
+          console.log(
+            `Etherscan error for ${chain.name}:`,
+            data.message || data.result
+          );
         }
       } else {
         console.log(`Etherscan fetch failed with status:`, response.status);
@@ -238,19 +260,21 @@ const SimpleGridUI: React.FC = () => {
     // Try sources in order: Sourcify → Blockscout → Etherscan for all networks
     let result: ExtendedABIFetchResult;
     let source: string;
-    
-    console.log("🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan");
-    
+
+    console.log(
+      "🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan"
+    );
+
     // Always try Sourcify first for best contract name extraction
     result = await fetchABIFromSourcery(address, chain.id);
     source = "Sourcify";
-    
+
     // Try Blockscout if Sourcify fails
     if (!result.success) {
       result = await fetchABIFromBlockscout(address, chain);
       source = "Blockscout";
     }
-    
+
     // Try Etherscan if Blockscout fails
     if (!result.success) {
       result = await fetchABIFromEtherscan(address, chain);
@@ -275,41 +299,63 @@ const SimpleGridUI: React.FC = () => {
         setContractInfo(contractInfoObj);
         categorizeABIFunctions(parsedABI);
         console.log(`ABI fetched successfully from ${source}`);
-        
+
         // Set ABI source
-        if (source === 'sourcify' || source === 'blockscout' || source === 'etherscan') {
+        if (
+          source === "sourcify" ||
+          source === "blockscout" ||
+          source === "etherscan"
+        ) {
           setAbiSource(source);
         }
 
         // Check if contract name was extracted from ABI fetch
         const extendedResult = result as ExtendedABIFetchResult;
         if (extendedResult.contractName) {
-          console.log(`🎯 [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`);
-          console.log(`🔍 [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`);
-          
+          console.log(
+            `🎯 [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`
+          );
+          console.log(
+            `🔍 [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`
+          );
+
           // Set the contract name and log immediately after
           setContractName(extendedResult.contractName);
-          
+
           // Use setTimeout to log the state after the state update
           setTimeout(() => {
-            console.log(`🔍 [SimpleGridUI] Contract name state AFTER set (async): ${contractName}`);
+            console.log(
+              `🔍 [SimpleGridUI] Contract name state AFTER set (async): ${contractName}`
+            );
           }, 100);
-          
+
           // Immediately update the contract info object with the correct name
           contractInfoObj.name = extendedResult.contractName;
           setContractInfo(contractInfoObj);
-          
+
           // Set functions and call detectAndFetchTokenInfo with preservation flag
-          setReadFunctions(parsedABI
-            .filter((item) => item.type === "function")
-            .filter((func) => func.stateMutability === "view" || func.stateMutability === "pure")
-            .map((func) => func as ethers.utils.FunctionFragment));
-          
-          setWriteFunctions(parsedABI
-            .filter((item) => item.type === "function")
-            .filter((func) => func.stateMutability !== "view" && func.stateMutability !== "pure")
-            .map((func) => func as ethers.utils.FunctionFragment));
-            
+          setReadFunctions(
+            parsedABI
+              .filter((item) => item.type === "function")
+              .filter(
+                (func) =>
+                  func.stateMutability === "view" ||
+                  func.stateMutability === "pure"
+              )
+              .map((func) => func as ethers.utils.FunctionFragment)
+          );
+
+          setWriteFunctions(
+            parsedABI
+              .filter((item) => item.type === "function")
+              .filter(
+                (func) =>
+                  func.stateMutability !== "view" &&
+                  func.stateMutability !== "pure"
+              )
+              .map((func) => func as ethers.utils.FunctionFragment)
+          );
+
           // Call detectAndFetchTokenInfo with preservation flag to avoid race condition
           await detectAndFetchTokenInfo(parsedABI, true); // Preserve the Sourcify name
         } else {
@@ -327,7 +373,10 @@ const SimpleGridUI: React.FC = () => {
     }
   };
 
-  const categorizeABIFunctions = (abi: ethers.utils.Fragment[], skipTokenInfoFetch: boolean = false) => {
+  const categorizeABIFunctions = (
+    abi: ethers.utils.Fragment[],
+    skipTokenInfoFetch: boolean = false
+  ) => {
     const reads: ethers.utils.FunctionFragment[] = [];
     const writes: ethers.utils.FunctionFragment[] = [];
 
@@ -354,18 +403,25 @@ const SimpleGridUI: React.FC = () => {
     }
   };
 
-  
-  const detectAndFetchTokenInfo = async (abi: ethers.utils.Fragment[], preserveContractName: boolean = false) => {
+  const detectAndFetchTokenInfo = async (
+    abi: ethers.utils.Fragment[],
+    preserveContractName: boolean = false
+  ) => {
     console.log("=== detectAndFetchTokenInfo called ===");
     console.log("Contract address:", contractAddress);
     console.log("Selected network:", selectedNetwork?.name);
     console.log("ABI length:", abi.length);
-    console.log("🔍 [SimpleGridUI] Preserve contract name flag:", preserveContractName);
+    console.log(
+      "🔍 [SimpleGridUI] Preserve contract name flag:",
+      preserveContractName
+    );
     console.log("🔍 [SimpleGridUI] Current contractName state:", contractName);
-    
+
     if (!contractAddress || !selectedNetwork) {
       console.log("Missing contract address or network, setting default name");
-      console.log("🔍 [SimpleGridUI] Setting fallback name: Unknown Contract (missing address/network)");
+      console.log(
+        "🔍 [SimpleGridUI] Setting fallback name: Unknown Contract (missing address/network)"
+      );
       setContractName("Unknown Contract");
       setTokenInfo(null);
       return;
@@ -377,38 +433,77 @@ const SimpleGridUI: React.FC = () => {
     const functionNames = abi
       .filter((item) => item.type === "function")
       .map((item) => (item as ethers.utils.FunctionFragment).name);
-    
+
     console.log("Found function names:", functionNames);
     console.log("Total functions in ABI:", functionNames.length);
 
-    const isERC20 =
-      functionNames.includes("totalSupply") &&
-      functionNames.includes("balanceOf") &&
-      functionNames.includes("transfer");
+    // Enhanced token detection with scoring system
+    const detectTokenType = (functions: string[]): { type: string; confidence: number } => {
+      // ERC20 function patterns (most important functions first)
+      const erc20Functions = [
+        "totalSupply", "balanceOf", "transfer", "transferFrom", "approve", "allowance"
+      ];
+      
+      // ERC721 function patterns
+      const erc721Functions = [
+        "ownerOf", "tokenURI", "balanceOf", "transferFrom", "approve", "safeTransferFrom"
+      ];
+      
+      // ERC1155 function patterns
+      const erc1155Functions = [
+        "balanceOf", "balanceOfBatch", "safeTransferFrom", "safeBatchTransferFrom"
+      ];
+      
+      // Calculate scores
+      const erc20Score = erc20Functions.filter(fn => functions.includes(fn)).length;
+      const erc721Score = erc721Functions.filter(fn => functions.includes(fn)).length;
+      const erc1155Score = erc1155Functions.filter(fn => functions.includes(fn)).length;
+      
+      console.log(`🔍 Token detection scores - ERC20: ${erc20Score}, ERC721: ${erc721Score}, ERC1155: ${erc1155Score}`);
+      
+      // Determine type based on highest score with minimum thresholds
+      if (erc20Score >= 3) {
+        return { type: "ERC20", confidence: erc20Score / erc20Functions.length };
+      } else if (erc721Score >= 2) {
+        return { type: "ERC721", confidence: erc721Score / erc721Functions.length };
+      } else if (erc1155Score >= 2) {
+        return { type: "ERC1155", confidence: erc1155Score / erc1155Functions.length };
+      } else if (erc20Score >= 2) {
+        return { type: "ERC20-like", confidence: erc20Score / erc20Functions.length };
+      } else if (erc721Score >= 1) {
+        return { type: "ERC721-like", confidence: erc721Score / erc721Functions.length };
+      }
+      
+      return { type: "unknown", confidence: 0 };
+    };
 
-    const isERC721 =
-      functionNames.includes("ownerOf") &&
-      functionNames.includes("tokenURI") &&
-      functionNames.includes("balanceOf");
+    const tokenDetection = detectTokenType(functionNames);
+    const isERC20 = tokenDetection.type === "ERC20" || tokenDetection.type === "ERC20-like";
+    const isERC721 = tokenDetection.type === "ERC721" || tokenDetection.type === "ERC721-like";
+    const isERC1155 = tokenDetection.type === "ERC1155";
+
+    console.log(`🔍 Detected token type: ${tokenDetection.type} (confidence: ${Math.round(tokenDetection.confidence * 100)}%)`);
 
     try {
       // Use working RPC endpoints for different networks
       let rpcUrl = selectedNetwork.rpcUrl;
       if (selectedNetwork.id === 1) {
         rpcUrl = "https://eth.llamarpc.com";
-      } else if (selectedNetwork.id === 8453) { // Base
+      } else if (selectedNetwork.id === 8453) {
+        // Base
         rpcUrl = "https://mainnet.base.org";
-      } else if (selectedNetwork.id === 137) { // Polygon
+      } else if (selectedNetwork.id === 137) {
+        // Polygon
         rpcUrl = "https://polygon-rpc.com/";
       }
-      
+
       console.log("Creating provider with RPC URL:", rpcUrl);
       const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
       const contract = new ethers.Contract(contractAddress, abi, provider);
 
       console.log("Provider created successfully");
       console.log("Contract instance created");
-      
+
       // Test the provider connection
       try {
         const blockNumber = await provider.getBlockNumber();
@@ -440,20 +535,26 @@ const SimpleGridUI: React.FC = () => {
           symbol,
           decimals,
         });
-        
+
         // Preserve contract name from ABI fetch if it was already set
-        const shouldPreserve = preserveContractName || (contractName && 
-          contractName !== "Smart Contract" && 
-          contractName !== "ERC20 Token" &&
-          contractName !== "Unknown Token" &&
-          contractName !== "Unknown Contract" &&
-          !contractName.startsWith("ERC") &&
-          !contractName.startsWith("Unknown"));
-          
+        const shouldPreserve =
+          preserveContractName ||
+          (contractName &&
+            contractName !== "Smart Contract" &&
+            contractName !== "ERC20 Token" &&
+            contractName !== "Unknown Token" &&
+            contractName !== "Unknown Contract" &&
+            !contractName.startsWith("ERC") &&
+            !contractName.startsWith("Unknown"));
+
         if (shouldPreserve) {
-          console.log(`🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`);
+          console.log(
+            `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`
+          );
         } else {
-          console.log(`🔍 [SimpleGridUI] Overriding with ERC20 name: ${name} (current: ${contractName})`);
+          console.log(
+            `🔍 [SimpleGridUI] Overriding with ERC20 name: ${name} (current: ${contractName})`
+          );
           setContractName(name);
         }
         setTokenInfo({ name, symbol, decimals });
@@ -471,46 +572,94 @@ const SimpleGridUI: React.FC = () => {
         ]);
 
         console.log("NFT info successfully fetched:", { name, symbol });
-        
+
         // Preserve contract name from ABI fetch if it was already set
-        const shouldPreserve = preserveContractName || (contractName && 
-          contractName !== "Smart Contract" && 
-          contractName !== "ERC721 NFT" &&
-          contractName !== "Unknown NFT" &&
-          contractName !== "Unknown Contract" &&
-          !contractName.startsWith("ERC") &&
-          !contractName.startsWith("Unknown"));
-          
+        const shouldPreserve =
+          preserveContractName ||
+          (contractName &&
+            contractName !== "Smart Contract" &&
+            contractName !== "ERC721 NFT" &&
+            contractName !== "Unknown NFT" &&
+            contractName !== "Unknown Contract" &&
+            !contractName.startsWith("ERC") &&
+            !contractName.startsWith("Unknown"));
+
         if (shouldPreserve) {
-          console.log(`🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC721 name: ${name})`);
+          console.log(
+            `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC721 name: ${name})`
+          );
         } else {
-          console.log(`🔍 [SimpleGridUI] Overriding with ERC721 name: ${name} (current: ${contractName})`);
+          console.log(
+            `🔍 [SimpleGridUI] Overriding with ERC721 name: ${name} (current: ${contractName})`
+          );
+          setContractName(name);
+        }
+        setTokenInfo({ name, symbol, decimals: 0 });
+      } else if (isERC1155) {
+        console.log("Detected ERC1155 Multi-Token, fetching info...");
+        const [name, symbol] = await Promise.all([
+          contract.name().catch((err: unknown) => {
+            console.error("ERC1155 name call failed:", err);
+            return "Multi-Token";
+          }),
+          contract.symbol?.().catch((err: unknown) => {
+            console.error("ERC1155 symbol call failed:", err);
+            return "MTK";
+          }) || Promise.resolve("MTK"),
+        ]);
+
+        console.log("ERC1155 info successfully fetched:", { name, symbol });
+
+        // Preserve contract name from ABI fetch if it was already set
+        const shouldPreserve =
+          preserveContractName ||
+          (contractName &&
+            contractName !== "ERC1155 Token" &&
+            contractName !== "Multi-Token" &&
+            contractName !== "Unknown Contract" &&
+            !contractName.startsWith("ERC") &&
+            !contractName.startsWith("Unknown"));
+
+        if (shouldPreserve) {
+          console.log(
+            `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC1155 name: ${name})`
+          );
+        } else {
+          console.log(
+            `🔍 [SimpleGridUI] Overriding with ERC1155 name: ${name} (current: ${contractName})`
+          );
           setContractName(name);
         }
         setTokenInfo({ name, symbol, decimals: 0 });
       } else {
         // Try to get contract name if it has a name function
         let contractNameFound = false;
-        
+
         // Check if name function exists in ABI
         const hasNameFunction = functionNames.includes("name");
-        
+
         if (hasNameFunction) {
           try {
             const name = await contract.name();
             console.log("Contract name fetched:", name);
-            
+
             // Preserve contract name from ABI fetch if it was already set
-            const shouldOverride = !preserveContractName && (!contractName || 
-                contractName === "Smart Contract" || 
+            const shouldOverride =
+              !preserveContractName &&
+              (!contractName ||
+                contractName === "Smart Contract" ||
                 contractName.startsWith("Unknown") ||
                 contractName.startsWith("ERC"));
-                
+
             if (shouldOverride) {
-              console.log(`🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`);
+              console.log(
+                `🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`
+              );
               setContractName(name || "Smart Contract");
             } else {
-              console.log(`🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`);
+              console.log(
+                `🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`
+              );
             }
             setTokenInfo(null);
             contractNameFound = true;
@@ -518,28 +667,38 @@ const SimpleGridUI: React.FC = () => {
             console.log("Name function exists but call failed:", error);
           }
         }
-        
+
         // Simplified: just try name() function if it exists
         if (!contractNameFound && !hasNameFunction) {
           console.log("No name function found in ABI, skipping name fetch");
         }
-        
+
         // Removed contract type determination logic to prevent overriding actual contract names
         // Contract names from Sourcify/Blockscout/Etherscan should be preserved
-        console.log(`🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`);
+        console.log(
+          `🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`
+        );
         setTokenInfo(null);
       }
     } catch (fetchError) {
       console.error("Failed to fetch contract info:", fetchError);
-      
+
       // Only set fallback names for token contracts, preserve other contract names
-      if (!preserveContractName && (!contractName || contractName.startsWith("Unknown") || contractName.startsWith("ERC"))) {
+      if (
+        !preserveContractName &&
+        (!contractName ||
+          contractName.startsWith("Unknown") ||
+          contractName.startsWith("ERC"))
+      ) {
         if (isERC20) {
           setContractName("ERC20 Token");
           setTokenInfo({ name: "ERC20 Token", symbol: "TOKEN", decimals: 18 });
         } else if (isERC721) {
           setContractName("ERC721 NFT");
           setTokenInfo({ name: "ERC721 NFT", symbol: "NFT", decimals: 0 });
+        } else if (isERC1155) {
+          setContractName("ERC1155 Multi-Token");
+          setTokenInfo({ name: "ERC1155 Multi-Token", symbol: "MTK", decimals: 0 });
         } else {
           // Don't override with "Smart Contract" - preserve existing name or leave unset
           if (!contractName) {
@@ -558,38 +717,38 @@ const SimpleGridUI: React.FC = () => {
     }, 800);
   };
 
-  const generateCallData = useCallback((
-    functionSignature: string,
-    inputs: string[] = []
-  ) => {
-    try {
-      if (!contractInfo?.abi) return "0x";
+  const generateCallData = useCallback(
+    (functionSignature: string, inputs: string[] = []) => {
+      try {
+        if (!contractInfo?.abi) return "0x";
 
-      const parsedABI = JSON.parse(contractInfo.abi);
-      const targetFunction = parsedABI.find(
-        (item: {
-          type: string;
-          name?: string;
-          inputs?: { type: string }[];
-        }) => {
-          if (item.type === "function" && item.name) {
-            const sig = `${item.name}(${item.inputs?.map((input) => input.type).join(",") || ""})`;
-            return sig === functionSignature;
+        const parsedABI = JSON.parse(contractInfo.abi);
+        const targetFunction = parsedABI.find(
+          (item: {
+            type: string;
+            name?: string;
+            inputs?: { type: string }[];
+          }) => {
+            if (item.type === "function" && item.name) {
+              const sig = `${item.name}(${item.inputs?.map((input) => input.type).join(",") || ""})`;
+              return sig === functionSignature;
+            }
+            return false;
           }
-          return false;
-        }
-      );
+        );
 
-      if (!targetFunction || !targetFunction.name) return "0x";
+        if (!targetFunction || !targetFunction.name) return "0x";
 
-      const iface = new ethers.utils.Interface([targetFunction]);
-      const calldata = iface.encodeFunctionData(targetFunction.name, inputs);
-      return calldata;
-    } catch (error) {
-      console.error("Calldata generation error:", error);
-      return "0x";
-    }
-  }, [contractInfo?.abi]);
+        const iface = new ethers.utils.Interface([targetFunction]);
+        const calldata = iface.encodeFunctionData(targetFunction.name, inputs);
+        return calldata;
+      } catch (error) {
+        console.error("Calldata generation error:", error);
+        return "0x";
+      }
+    },
+    [contractInfo?.abi]
+  );
 
   const handleFunctionSelect = (value: string) => {
     setSelectedFunction(value);
@@ -622,34 +781,39 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const updateCallData = useCallback(() => {
-    console.log('🔄 updateCallData called');
-    console.log('🔄 selectedFunctionObj:', selectedFunctionObj?.name);
-    console.log('🔄 functionInputs keys:', Object.keys(functionInputs));
-    console.log('🔄 has ABI:', !!contractInfo?.abi);
-    
+    console.log("🔄 updateCallData called");
+    console.log("🔄 selectedFunctionObj:", selectedFunctionObj?.name);
+    console.log("🔄 functionInputs keys:", Object.keys(functionInputs));
+    console.log("🔄 has ABI:", !!contractInfo?.abi);
+
     if (selectedFunctionObj && contractInfo?.abi) {
       const signature = `${selectedFunctionObj.name}(${selectedFunctionObj.inputs?.map((input) => input.type).join(",")})`;
-      console.log('🔄 Function signature:', signature);
-      
+      console.log("🔄 Function signature:", signature);
+
       const params =
-        selectedFunctionObj.inputs?.map(
-          (input, idx) => {
-            const key = `${selectedFunctionObj.name}_${idx}`;
-            const value = functionInputs[key] || "";
-            console.log(`🔄 Parameter ${idx} (${input.type}): ${key} = "${value}"`);
-            return value;
-          }
-        ) || [];
-      
-      console.log('🔄 Final params array:', params);
+        selectedFunctionObj.inputs?.map((input, idx) => {
+          const key = `${selectedFunctionObj.name}_${idx}`;
+          const value = functionInputs[key] || "";
+          console.log(
+            `🔄 Parameter ${idx} (${input.type}): ${key} = "${value}"`
+          );
+          return value;
+        }) || [];
+
+      console.log("🔄 Final params array:", params);
       const calldata = generateCallData(signature, params);
-      console.log('🔄 Generated calldata:', calldata);
-      console.log('🔄 Setting calldata state...');
+      console.log("🔄 Generated calldata:", calldata);
+      console.log("🔄 Setting calldata state...");
       setGeneratedCallData(calldata);
     } else {
-      console.log('🔄 Cannot update calldata - missing function or ABI');
+      console.log("🔄 Cannot update calldata - missing function or ABI");
     }
-  }, [selectedFunctionObj, functionInputs, contractInfo?.abi, generateCallData]);
+  }, [
+    selectedFunctionObj,
+    functionInputs,
+    contractInfo?.abi,
+    generateCallData,
+  ]);
 
   const handleInputChange = (inputKey: string, value: string) => {
     setFunctionInputs((prev) => {
@@ -671,7 +835,7 @@ const SimpleGridUI: React.FC = () => {
     }
 
     // Validate address format
-    if (!contractAddress.startsWith('0x') || contractAddress.length !== 42) {
+    if (!contractAddress.startsWith("0x") || contractAddress.length !== 42) {
       setAbiError("Invalid contract address format");
       return;
     }
@@ -681,14 +845,17 @@ const SimpleGridUI: React.FC = () => {
     setAbiSource(null);
 
     try {
-      console.log('🔍 Starting comprehensive contract fetch...');
-      
+      console.log("🔍 Starting comprehensive contract fetch...");
+
       // Use the comprehensive contract fetcher
-      const result = await fetchContractInfoComprehensive(contractAddress, selectedNetwork);
-      
+      const result = await fetchContractInfoComprehensive(
+        contractAddress,
+        selectedNetwork
+      );
+
       if (result.success && result.abi) {
-        console.log('✅ Contract found via comprehensive search');
-        
+        console.log("✅ Contract found via comprehensive search");
+
         try {
           const parsedABI = JSON.parse(result.abi);
           const contractInfoObj: ContractInfo = {
@@ -697,53 +864,68 @@ const SimpleGridUI: React.FC = () => {
             abi: result.abi,
             verified: true,
           };
-          
+
           setContractInfo(contractInfoObj);
           setAbiError(null);
           categorizeABIFunctions(parsedABI, true); // Skip token info fetch since we already have it from comprehensive search
-          
+
           // Set contract name from search result
           if (result.contractName) {
-            console.log('🔍 [SimpleGridUI] Setting contract name from search result:', result.contractName);
+            console.log(
+              "🔍 [SimpleGridUI] Setting contract name from search result:",
+              result.contractName
+            );
             setContractName(result.contractName);
           }
-          
+
           // Set token info if available
           if (result.tokenInfo) {
-            console.log('🔍 [SimpleGridUI] Setting token info from search result:', result.tokenInfo);
+            console.log(
+              "🔍 [SimpleGridUI] Setting token info from search result:",
+              result.tokenInfo
+            );
             setTokenInfo(result.tokenInfo);
           }
-          
+
           // Set ABI source
           if (result.source) {
-            console.log('🔍 [SimpleGridUI] Setting ABI source from search result:', result.source);
+            console.log(
+              "🔍 [SimpleGridUI] Setting ABI source from search result:",
+              result.source
+            );
             setAbiSource(result.source);
           }
-          
-          console.log('✅ Contract loaded successfully from comprehensive search');
-          
+
+          console.log(
+            "✅ Contract loaded successfully from comprehensive search"
+          );
+
           // Add a timeout to check if contract name changes
           setTimeout(() => {
-            console.log('🔍 [SimpleGridUI] Contract name check after 1s - should still be:', result.contractName);
+            console.log(
+              "🔍 [SimpleGridUI] Contract name check after 1s - should still be:",
+              result.contractName
+            );
           }, 1000);
         } catch (parseError) {
-          console.error('Error parsing ABI from search result:', parseError);
-          setAbiError('Failed to parse contract ABI');
+          console.error("Error parsing ABI from search result:", parseError);
+          setAbiError("Failed to parse contract ABI");
         }
       } else {
         // Fallback to original ABI fetch if comprehensive search fails
-        console.log('⚠️ Comprehensive search failed, falling back to original ABI fetch');
+        console.log(
+          "⚠️ Comprehensive search failed, falling back to original ABI fetch"
+        );
         await fetchContractABI(contractAddress, selectedNetwork);
       }
     } catch (error) {
-      console.error('Error in comprehensive contract fetch:', error);
-      setAbiError('Network error occurred while fetching contract information');
+      console.error("Error in comprehensive contract fetch:", error);
+      setAbiError("Network error occurred while fetching contract information");
     } finally {
       setIsLoadingABI(false);
     }
   };
 
-  
   const handleManualABI = async () => {
     if (!manualAbi.trim() || !contractAddress || !selectedNetwork) {
       setAbiError("Please provide a valid ABI JSON and contract address");
@@ -753,61 +935,74 @@ const SimpleGridUI: React.FC = () => {
     try {
       // Validate ABI by trying to parse it
       const parsedABI = JSON.parse(manualAbi.trim());
-      
+
       const contractInfoObj: ContractInfo = {
         address: contractAddress,
         chain: selectedNetwork,
         abi: manualAbi.trim(),
-        verified: false // Mark as manually added
+        verified: false, // Mark as manually added
       };
-      
+
       setContractInfo(contractInfoObj);
       setAbiError(null);
       setShowAbiUpload(false);
       categorizeABIFunctions(parsedABI);
-      setAbiSource('manual'); // Set source as manual
+      setAbiSource("manual"); // Set source as manual
       console.log("Manual ABI processed successfully");
-      
+
       // Fetch token info with manual ABI
       await detectAndFetchTokenInfo(parsedABI, false); // Don't preserve - this is a manual ABI input
     } catch (parseError) {
       console.error("Manual ABI parsing error:", parseError);
-      setAbiError("Invalid ABI JSON format. Please check your ABI and try again.");
+      setAbiError(
+        "Invalid ABI JSON format. Please check your ABI and try again."
+      );
     }
   };
 
   // Local storage functions
   const SAVED_CONTRACTS_KEY = "web3-toolkit-saved-contracts";
 
-  const saveContractToStorage = useCallback((contractInfo: ContractInfo) => {
-    try {
-      const existing = JSON.parse(
-        localStorage.getItem(SAVED_CONTRACTS_KEY) || "[]"
-      );
-      const contractKey = `${contractInfo.address.toLowerCase()}-${contractInfo.chain.id}`;
+  const saveContractToStorage = useCallback(
+    (contractInfo: ContractInfo) => {
+      try {
+        const existing = JSON.parse(
+          localStorage.getItem(SAVED_CONTRACTS_KEY) || "[]"
+        );
+        const contractKey = `${contractInfo.address.toLowerCase()}-${contractInfo.chain.id}`;
 
-      const updated = existing.filter(
-        (c: ContractInfo & { address: string; chain: { id: number } }) => 
-        `${c.address.toLowerCase()}-${c.chain.id}` !== contractKey
-      );
+        const updated = existing.filter(
+          (c: ContractInfo & { address: string; chain: { id: number } }) =>
+            `${c.address.toLowerCase()}-${c.chain.id}` !== contractKey
+        );
 
-      updated.unshift({
-        ...contractInfo,
-        name: contractName, // Save the contract name
-        abiSource, // Save the ABI source
-        tokenInfo, // Save token info if available
-        savedAt: new Date().toISOString(),
-      });
+        // Use the best available name for saving (priority: actual name > fallback name)
+        const nameToSave = contractName && 
+          !contractName.startsWith("Smart Contract") && 
+          !contractName.startsWith("Unknown") &&
+          !contractName.startsWith("ERC")
+          ? contractName 
+          : (contractInfo as any).name || contractName;
 
-      // Keep only the last 50 contracts
-      const trimmed = updated.slice(0, 50);
-      localStorage.setItem(SAVED_CONTRACTS_KEY, JSON.stringify(trimmed));
+        updated.unshift({
+          ...contractInfo,
+          name: nameToSave, // Save the best contract name
+          abiSource, // Save the ABI source
+          tokenInfo, // Save token info if available
+          savedAt: new Date().toISOString(),
+        });
 
-      console.log("Contract saved to local storage with name:", contractName);
-    } catch (saveError) {
-      console.error("Failed to save contract:", saveError);
-    }
-  }, [contractName, abiSource, tokenInfo]);
+        // Keep only the last 50 contracts
+        const trimmed = updated.slice(0, 50);
+        localStorage.setItem(SAVED_CONTRACTS_KEY, JSON.stringify(trimmed));
+
+        console.log("Contract saved to local storage with name:", nameToSave);
+      } catch (saveError) {
+        console.error("Failed to save contract:", saveError);
+      }
+    },
+    [contractName, abiSource, tokenInfo]
+  );
 
   const loadSavedContracts = (): ContractInfo[] => {
     try {
@@ -819,7 +1014,11 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const loadContractFromStorage = async (
-    savedContract: ContractInfo & { savedAt?: string; abiSource?: string; tokenInfo?: typeof tokenInfo }
+    savedContract: ContractInfo & {
+      savedAt?: string;
+      abiSource?: string;
+      tokenInfo?: typeof tokenInfo;
+    }
   ) => {
     // Clear all previous data first
     setContractAddress("");
@@ -834,33 +1033,40 @@ const SimpleGridUI: React.FC = () => {
     setWriteFunctions([]);
     setContractInfo(null);
     setAbiError(null);
-    
+
     // Load new contract data
     setContractAddress(savedContract.address);
     setSelectedNetwork(savedContract.chain);
     setContractInfo(savedContract);
     setAbiError(null);
-    
+
     // Restore contract name if available
     if (savedContract.name) {
       setContractName(savedContract.name);
     }
-    
+
     // Restore token info if available
     if (savedContract.tokenInfo) {
       setTokenInfo(savedContract.tokenInfo);
     }
-    
+
     // Restore ABI source if available
     if (savedContract.abiSource) {
-      setAbiSource(savedContract.abiSource as 'sourcify' | 'blockscout' | 'etherscan' | 'manual' | null);
+      setAbiSource(
+        savedContract.abiSource as
+          | "sourcify"
+          | "blockscout"
+          | "etherscan"
+          | "manual"
+          | null
+      );
     }
 
     if (savedContract.abi) {
       try {
         const parsedABI = JSON.parse(savedContract.abi);
         categorizeABIFunctions(parsedABI, true); // Skip token info fetch for saved contracts
-        
+
         // Only fetch token info if we don't have it already
         if (!savedContract.tokenInfo) {
           console.log("Fetching token info for saved contract...");
@@ -1281,10 +1487,10 @@ const SimpleGridUI: React.FC = () => {
                       color: "#22c55e",
                     }}
                   >
-                    <Loader2 
-                      size={16} 
+                    <Loader2
+                      size={16}
                       style={{
-                        animation: "spin 1s linear infinite"
+                        animation: "spin 1s linear infinite",
                       }}
                     />
                     <span style={{ fontSize: "14px" }}>
@@ -1495,7 +1701,13 @@ const SimpleGridUI: React.FC = () => {
                             animation: "spin 1s linear infinite",
                           }}
                         />
-                        <span style={{ fontSize: "14px", color: "#22c55e", fontWeight: "500" }}>
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            color: "#22c55e",
+                            fontWeight: "500",
+                          }}
+                        >
                           Fetching contract details...
                         </span>
                       </div>
@@ -1547,23 +1759,23 @@ const SimpleGridUI: React.FC = () => {
                       >
                         {contractName}
                         {abiSource && (
-                          <div 
-                            style={{ 
-                              width: "20px", 
+                          <div
+                            style={{
+                              width: "20px",
                               height: "20px",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               position: "relative",
                               cursor: "help",
-                              marginLeft: "4px"
+                              marginLeft: "4px",
                             }}
                             title={`Verified from ${abiSource.charAt(0).toUpperCase() + abiSource.slice(1)}`}
                           >
-                            {abiSource === 'sourcify' && <SourcifyLogo />}
-                            {abiSource === 'blockscout' && <BlockscoutLogo />}
-                            {abiSource === 'etherscan' && <EtherscanLogo />}
-                            {abiSource === 'manual' && <ManualLogo />}
+                            {abiSource === "sourcify" && <SourcifyLogo />}
+                            {abiSource === "blockscout" && <BlockscoutLogo />}
+                            {abiSource === "etherscan" && <EtherscanLogo />}
+                            {abiSource === "manual" && <ManualLogo />}
                           </div>
                         )}
                       </div>
@@ -1622,7 +1834,7 @@ const SimpleGridUI: React.FC = () => {
                             width: "fit-content",
                           }}
                         >
-                          📋 Smart Contract
+                          Smart Contract
                         </div>
                       )}
                     </div>
@@ -2442,7 +2654,6 @@ const SimpleGridUI: React.FC = () => {
         </div>
       </div>
 
-      
       {/* Action Button */}
       <div style={{ textAlign: "center" }}>
         <button
