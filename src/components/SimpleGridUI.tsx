@@ -881,7 +881,7 @@ const SimpleGridUI: React.FC = () => {
   // Update calldata when function inputs change
   useEffect(() => {
     updateCallData();
-  }, [functionInputs, selectedFunctionObj, updateCallData]);
+  }, [functionInputs, selectedFunctionObj]);
 
   const [savedContracts] = useState<ContractInfo[]>(loadSavedContracts());
   const [showSavedContracts, setShowSavedContracts] = useState(false);
