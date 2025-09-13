@@ -2326,7 +2326,7 @@ const SimpleGridUI: React.FC = () => {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
                       }}
                     >
-                      {(contractName.includes("Diamond") || (tokenInfo?.name?.includes("Diamond")) || (tokenInfo?.symbol?.includes("Diamond")))
+                      {(isDiamond || contractName.includes("Diamond") || (tokenInfo?.name?.includes("Diamond")) || (tokenInfo?.symbol?.includes("Diamond")))
                         ? "💎"
                         : tokenInfo
                           ? (tokenInfo.decimals || 0) === 0
