@@ -590,22 +590,31 @@ const SimpleGridUI: React.FC = () => {
       let confidence = 0;
       let detectionMethod = "none";
 
-      // Priority-based interface detection
-      if (supportedInterfaces.includes("ERC721")) {
+      // Priority-based interface detection - prioritize more specific types first
+      if (supportedInterfaces.includes("ERC1155")) {
+        detectedType = "ERC1155";
+        confidence = 0.95;
+        detectionMethod = "erc165-interface";
+        console.log("🎭 ERC1155 interface detected (prioritized over ERC721 for multi-interface contracts)");
+        if (isDiamond) {
+          console.log("💎 Multi-standard contract: ERC1155 + Diamond proxy detected");
+        }
+      } else if (supportedInterfaces.includes("ERC721")) {
         detectedType = "ERC721";
         confidence = 0.95;
         detectionMethod = "erc165-interface";
         console.log("🎨 ERC721 interface detected");
-      } else if (supportedInterfaces.includes("ERC1155")) {
-        detectedType = "ERC1155";
-        confidence = 0.95;
-        detectionMethod = "erc165-interface";
-        console.log("🎭 ERC1155 interface detected");
+        if (isDiamond) {
+          console.log("💎 Multi-standard contract: ERC721 + Diamond proxy detected");
+        }
       } else if (supportedInterfaces.includes("ERC20")) {
         detectedType = "ERC20";
         confidence = 0.95;
         detectionMethod = "erc165-interface";
         console.log("💰 ERC20 interface detected");
+        if (isDiamond) {
+          console.log("💎 Multi-standard contract: ERC20 + Diamond proxy detected");
+        }
       } else if (supportedInterfaces.includes("ERC777")) {
         detectedType = "ERC777";
         confidence = 0.95;
@@ -634,10 +643,46 @@ const SimpleGridUI: React.FC = () => {
         );
 
         if (isDiamondProxy) {
-          detectedType = "Diamond";
-          confidence = 0.8;
-          detectionMethod = "diamond-pattern";
-          console.log("💎 Diamond/EIP-2535 proxy pattern detected");
+          // For Diamond proxies, check if they have ERC1155 functions
+          const hasERC1155Functions = functionsParam.some((func: string) => 
+            func.includes('safeTransferFrom(address,address,uint256,uint256,bytes)') ||
+            func.includes('safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)') ||
+            func.includes('balanceOfBatch(address[],uint256[])') ||
+            func.includes('uri(uint256)')
+          );
+          
+          const hasERC721Functions = functionsParam.some((func: string) => 
+            func.includes('tokenOfOwnerByIndex(address,uint256)') ||
+            func.includes('tokenByIndex(uint256)') ||
+            func.includes('ownerOf(uint256)')
+          );
+          
+          const hasERC20Functions = functionsParam.some((func: string) => 
+            func.includes('allowance(address,address)') ||
+            func.includes('decimals()')
+          );
+          
+          if (hasERC1155Functions) {
+            detectedType = "ERC1155";
+            confidence = 0.9;
+            detectionMethod = "diamond-erc1155";
+            console.log("💎 Diamond proxy with ERC1155 functionality detected");
+          } else if (hasERC721Functions) {
+            detectedType = "ERC721";
+            confidence = 0.9;
+            detectionMethod = "diamond-erc721";
+            console.log("💎 Diamond proxy with ERC721 functionality detected");
+          } else if (hasERC20Functions) {
+            detectedType = "ERC20";
+            confidence = 0.9;
+            detectionMethod = "diamond-erc20";
+            console.log("💎 Diamond proxy with ERC20 functionality detected");
+          } else {
+            detectedType = "Diamond";
+            confidence = 0.8;
+            detectionMethod = "diamond-pattern";
+            console.log("💎 Diamond/EIP-2535 proxy pattern detected (generic)");
+          }
         } else {
           // Use the old function-based scoring as fallback
           const scores: Record<string, number> = {};
@@ -764,7 +809,7 @@ const SimpleGridUI: React.FC = () => {
         detectedInterfaces.push("ERC165");
       }
 
-      // Check for Diamond/EIP-2535 proxy pattern first
+      // Check for Diamond/EIP-2535 proxy pattern
       const isDiamondProxy = functionsParam.some((func: string) => 
         func.includes('facet') || 
         func.includes('diamond') || 
@@ -773,13 +818,10 @@ const SimpleGridUI: React.FC = () => {
       );
 
       if (isDiamondProxy) {
-        console.log("🔍 [DETECT] Diamond/EIP-2535 proxy pattern detected");
-        return { 
-          type: "Diamond", 
-          confidence: 0.9, 
-          interfaces: detectedInterfaces,
-          detectionMethod: "diamond-pattern"
-        };
+        console.log("🔍 [DETECT] Diamond/EIP-2535 proxy pattern detected - continuing with token type scoring");
+        detectedInterfaces.push("Diamond");
+        // Add a score for Diamond but don't return early - let scoring determine final type
+        scores["Diamond"] = (scores["Diamond"] || 0) + 0.5;
       }
 
       // Score functions
