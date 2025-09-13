@@ -296,11 +296,6 @@ const SimpleGridUI: React.FC = () => {
       source = "Etherscan";
     }
 
-    // Add a minimum delay to ensure loading animation is visible
-    setTimeout(() => {
-      setIsLoadingABI(false);
-    }, 500);
-
     if (result.success && result.abi) {
       try {
         const parsedABI = JSON.parse(result.abi);
@@ -404,6 +399,9 @@ const SimpleGridUI: React.FC = () => {
         "Contract ABI not found on any source (Sourcify → Blockscout → Etherscan)"
       );
     }
+    
+    // Always reset loading state after all processing is complete
+    setIsLoadingABI(false);
   };
 
   const categorizeABIFunctions = (
@@ -482,6 +480,8 @@ const SimpleGridUI: React.FC = () => {
 
     setIsLoadingContractInfo(true);
     console.log("Starting contract info fetch...");
+
+    try {
 
     console.log("Found function names:", functionsParam);
     console.log("Total functions in ABI:", functionsParam.length);
@@ -1300,11 +1300,13 @@ const SimpleGridUI: React.FC = () => {
         setTokenInfo(null);
       }
     }
-
-    // Add a small delay to ensure loading state is visible
-    setTimeout(() => {
+    } catch (error) {
+      console.error("Error in detectAndFetchTokenInfo:", error);
+      setTokenInfo(null);
+    } finally {
+      // Always reset loading state
       setIsLoadingContractInfo(false);
-    }, 800);
+    }
   };
 
   const generateCallData = useCallback(
