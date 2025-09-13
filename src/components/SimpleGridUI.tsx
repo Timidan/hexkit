@@ -354,12 +354,7 @@ const SimpleGridUI: React.FC = () => {
     }
   };
 
-  const determineContractType = (functionNames: string[]): string => {
-    // For now, just return a generic type
-    // This function is only called as a fallback when no specific type is detected
-    return "Smart Contract";
-  };
-
+  
   const detectAndFetchTokenInfo = async (abi: ethers.utils.Fragment[], preserveContractName: boolean = false) => {
     console.log("=== detectAndFetchTokenInfo called ===");
     console.log("Contract address:", contractAddress);
@@ -370,8 +365,8 @@ const SimpleGridUI: React.FC = () => {
     
     if (!contractAddress || !selectedNetwork) {
       console.log("Missing contract address or network, setting default name");
-      console.log("🔍 [SimpleGridUI] Setting fallback name: Smart Contract (missing address/network)");
-      setContractName("Smart Contract");
+      console.log("🔍 [SimpleGridUI] Setting fallback name: Unknown Contract (missing address/network)");
+      setContractName("Unknown Contract");
       setTokenInfo(null);
       return;
     }
@@ -529,42 +524,16 @@ const SimpleGridUI: React.FC = () => {
           console.log("No name function found in ABI, skipping name fetch");
         }
         
-        if (!contractNameFound) {
-          // Try to determine contract type based on functions
-          const contractType = determineContractType(functionNames);
-          console.log("Determined contract type:", contractType);
-          console.log(`🔍 [SimpleGridUI] About to set contract type - current name: ${contractName}, preserve flag: ${preserveContractName}`);
-          
-          // Only set contract name if it hasn't been set from ABI fetch or is a generic name
-          const shouldSetGenericName = !preserveContractName && (!contractName || 
-              contractName === "Smart Contract" || 
-              contractName.startsWith("Unknown") ||
-              contractName.startsWith("ERC"));
-              
-          console.log(`🔍 [SimpleGridUI] Should set generic name: ${shouldSetGenericName}`);
-          
-          if (shouldSetGenericName) {
-            console.log(`🔍 [SimpleGridUI] SETTING GENERIC NAME: ${contractType} (overriding: ${contractName})`);
-            // For Diamond contracts, try to get a more specific name
-            if (contractType === "Diamond Contract") {
-              setContractName("Diamond Proxy Contract");
-            } else {
-              setContractName(contractType);
-            }
-          } else {
-            console.log(`🔍 [SimpleGridUI] PRESERVING existing name: ${contractName} (not setting generic: ${contractType})`);
-          }
-          setTokenInfo(null);
-        }
+        // Removed contract type determination logic to prevent overriding actual contract names
+        // Contract names from Sourcify/Blockscout/Etherscan should be preserved
+        console.log(`🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`);
+        setTokenInfo(null);
       }
     } catch (fetchError) {
       console.error("Failed to fetch contract info:", fetchError);
       
-      // Only set fallback names if contract name hasn't been set from ABI fetch or is generic
-      if (!preserveContractName && (!contractName || 
-          contractName === "Smart Contract" || 
-          contractName.startsWith("Unknown") ||
-          contractName.startsWith("ERC"))) {
+      // Only set fallback names for token contracts, preserve other contract names
+      if (!preserveContractName && (!contractName || contractName.startsWith("Unknown") || contractName.startsWith("ERC"))) {
         if (isERC20) {
           setContractName("ERC20 Token");
           setTokenInfo({ name: "ERC20 Token", symbol: "TOKEN", decimals: 18 });
@@ -572,7 +541,10 @@ const SimpleGridUI: React.FC = () => {
           setContractName("ERC721 NFT");
           setTokenInfo({ name: "ERC721 NFT", symbol: "NFT", decimals: 0 });
         } else {
-          setContractName("Smart Contract");
+          // Don't override with "Smart Contract" - preserve existing name or leave unset
+          if (!contractName) {
+            setContractName("Unknown Contract");
+          }
           setTokenInfo(null);
         }
       } else {
