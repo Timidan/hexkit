@@ -1,0 +1,525 @@
+import React, { useState, useEffect } from 'react';
+import { fetchContractInfoComprehensive, type ContractInfoResult } from '../utils/comprehensiveContractFetcher';
+import type { Chain } from '../types';
+import { Loader2, CheckCircle, XCircle, Search, Coins, Image, FileText, ChevronRight, Radio, Wifi } from 'lucide-react';
+
+interface ComprehensiveContractSearchProps {
+  onContractFound?: (result: ContractInfoResult) => void;
+  onLoadingChange?: (loading: boolean) => void;
+}
+
+const ComprehensiveContractSearch: React.FC<ComprehensiveContractSearchProps> = ({
+  onContractFound,
+  onLoadingChange
+}) => {
+  const [contractAddress, setContractAddress] = useState('');
+  const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchResult, setSearchResult] = useState<ContractInfoResult | null>(null);
+  const [error, setError] = useState<string>('');
+  const [searchProgress, setSearchProgress] = useState<ContractInfoResult['searchProgress']>([]);
+
+  // Supported chains
+  const supportedChains: Chain[] = [
+    {
+      id: 1,
+      name: 'Ethereum',
+      rpcUrl: 'https://mainnet.infura.io/v3/YOUR-PROJECT-ID',
+      explorerUrl: 'https://etherscan.io',
+      blockExplorer: 'https://etherscan.io',
+      apiUrl: 'https://api.etherscan.io/api',
+      explorers: [
+        { name: 'Etherscan', url: 'https://api.etherscan.io/api', type: 'etherscan' }
+      ],
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
+    },
+    {
+      id: 8453,
+      name: 'Base',
+      rpcUrl: 'https://mainnet.base.org',
+      explorerUrl: 'https://basescan.org',
+      blockExplorer: 'https://basescan.org',
+      apiUrl: 'https://api.basescan.org/api',
+      explorers: [
+        { name: 'BaseScan', url: 'https://api.basescan.org/api', type: 'etherscan' },
+        { name: 'Base Blockscout', url: 'https://base-mainnet.blockscout.com/api', type: 'blockscout' }
+      ],
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
+    },
+    {
+      id: 137,
+      name: 'Polygon',
+      rpcUrl: 'https://polygon-rpc.com/',
+      explorerUrl: 'https://polygonscan.com',
+      blockExplorer: 'https://polygonscan.com',
+      apiUrl: 'https://api.polygonscan.com/api',
+      explorers: [
+        { name: 'PolygonScan', url: 'https://api.polygonscan.com/api', type: 'etherscan' },
+        { name: 'Polygon Blockscout', url: 'https://polygon.blockscout.com/api', type: 'blockscout' }
+      ],
+      nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 }
+    },
+    {
+      id: 42161,
+      name: 'Arbitrum',
+      rpcUrl: 'https://arb1.arbitrum.io/rpc',
+      explorerUrl: 'https://arbiscan.io',
+      blockExplorer: 'https://arbiscan.io',
+      apiUrl: 'https://api.arbiscan.io/api',
+      explorers: [
+        { name: 'Arbiscan', url: 'https://api.arbiscan.io/api', type: 'etherscan' },
+        { name: 'Arbitrum Blockscout', url: 'https://arbitrum.blockscout.com/api', type: 'blockscout' }
+      ],
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
+    }
+  ];
+
+  useEffect(() => {
+    onLoadingChange?.(isLoading);
+  }, [isLoading, onLoadingChange]);
+
+  const handleSearch = async () => {
+    if (!contractAddress || !selectedChain) {
+      setError('Please enter a contract address and select a network');
+      return;
+    }
+
+    // Validate address format
+    if (!contractAddress.startsWith('0x') || contractAddress.length !== 42) {
+      setError('Invalid contract address format');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setSearchResult(null);
+    setSearchProgress([]);
+
+    try {
+      // Create a promise that resolves with updates to progress
+      const progressCallback = (progress: ContractInfoResult['searchProgress']) => {
+        setSearchProgress(progress || []);
+      };
+
+      const result = await fetchContractInfoComprehensive(contractAddress, selectedChain);
+      setSearchResult(result);
+      setSearchProgress(result.searchProgress || []);
+      
+      if (result.success) {
+        onContractFound?.(result);
+      } else {
+        setError(result.error || 'Failed to fetch contract information');
+      }
+    } catch (err) {
+      setError('Network error occurred while fetching contract information');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getProgressIcon = (status: string) => {
+    switch (status) {
+      case 'searching':
+        return <Radio className="w-4 h-4 animate-pulse text-blue-500" />;
+      case 'found':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'not_found':
+        return <XCircle className="w-4 h-4 text-gray-400" />;
+      case 'error':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <Search className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getTokenIcon = (tokenType?: string) => {
+    switch (tokenType) {
+      case 'ERC20':
+        return <Coins className="w-5 h-5 text-amber-500" />;
+      case 'ERC721':
+        return <Image className="w-5 h-5 text-purple-500" />;
+      case 'ERC1155':
+        return <FileText className="w-5 h-5 text-emerald-500" />;
+      default:
+        return <FileText className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  return (
+    <div style={{
+      backgroundColor: '#0a0a0a',
+      border: '1px solid #2a2a2a',
+      borderRadius: '12px',
+      padding: '24px',
+      maxWidth: '600px',
+      margin: '0 auto'
+    }}>
+      <h3 style={{
+        fontSize: '20px',
+        fontWeight: '600',
+        color: '#ffffff',
+        marginBottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <Search className="w-5 h-5" />
+        Comprehensive Contract Search
+      </h3>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{
+          display: 'block',
+          fontSize: '14px',
+          fontWeight: '500',
+          color: '#9ca3af',
+          marginBottom: '6px'
+        }}>
+          Contract Address
+        </label>
+        <input
+          type="text"
+          value={contractAddress}
+          onChange={(e) => setContractAddress(e.target.value)}
+          placeholder="0x..."
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #374151',
+            borderRadius: '8px',
+            color: '#ffffff',
+            fontSize: '15px',
+            fontFamily: 'monospace'
+          }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{
+          display: 'block',
+          fontSize: '14px',
+          fontWeight: '500',
+          color: '#9ca3af',
+          marginBottom: '6px'
+        }}>
+          Network
+        </label>
+        <select
+          value={selectedChain?.id || ''}
+          onChange={(e) => {
+            const chain = supportedChains.find(c => c.id === parseInt(e.target.value));
+            setSelectedChain(chain || null);
+          }}
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #374151',
+            borderRadius: '8px',
+            color: '#ffffff',
+            fontSize: '15px',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="">Select a network...</option>
+          {supportedChains.map(chain => (
+            <option key={chain.id} value={chain.id}>
+              {chain.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        onClick={handleSearch}
+        disabled={isLoading || !contractAddress || !selectedChain}
+        style={{
+          width: '100%',
+          padding: '12px 24px',
+          backgroundColor: isLoading ? '#374151' : '#3b82f6',
+          border: 'none',
+          borderRadius: '8px',
+          color: '#ffffff',
+          fontSize: '15px',
+          fontWeight: '500',
+          cursor: isLoading ? 'not-allowed' : 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px'
+        }}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Searching...
+          </>
+        ) : (
+          <>
+            <Search className="w-4 h-4" />
+            Search Contract
+          </>
+        )}
+      </button>
+
+      {error && (
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 16px',
+          backgroundColor: '#dc262620',
+          border: '1px solid #dc2626',
+          borderRadius: '8px',
+          color: '#ef4444',
+          fontSize: '14px'
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Search Progress */}
+      {(isLoading || (searchProgress && searchProgress.length > 0)) && (
+        <div style={{ marginTop: '20px' }}>
+          <h4 style={{
+            fontSize: '16px',
+            fontWeight: '500',
+            color: '#ffffff',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <Wifi className="w-4 h-4" />
+            Search Progress
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {searchProgress!.map((progress, index) => (
+              <div key={index} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                backgroundColor: progress.status === 'found' ? '#064e3b20' : 
+                                 progress.status === 'error' ? '#7f1d1d20' : '#1a1a1a',
+                border: progress.status === 'found' ? '1px solid #10b981' :
+                         progress.status === 'error' ? '1px solid #ef4444' : '1px solid #374151',
+                borderRadius: '6px',
+                transition: 'all 0.3s ease'
+              }}>
+                {getProgressIcon(progress.status)}
+                <span style={{ 
+                  fontSize: '14px', 
+                  color: progress.status === 'found' ? '#10b981' : 
+                          progress.status === 'error' ? '#ef4444' : '#9ca3af',
+                  flex: 1
+                }}>
+                  {progress.source}
+                </span>
+                <span style={{ 
+                  fontSize: '12px', 
+                  color: progress.status === 'found' ? '#34d399' : 
+                          progress.status === 'error' ? '#fca5a5' : '#6b7280',
+                  maxWidth: '200px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {progress.message}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {searchResult && searchResult.success && (
+        <div style={{ marginTop: '20px' }}>
+          <h4 style={{
+            fontSize: '16px',
+            fontWeight: '500',
+            color: '#ffffff',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <CheckCircle className="w-4 h-4 text-green-500" />
+            Contract Found
+          </h4>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+          }}>
+            {/* Contract Name */}
+            <div style={{
+              padding: '16px',
+              backgroundColor: '#1a1a1a',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              border: '1px solid #374151'
+            }}>
+              {getTokenIcon(searchResult.tokenType)}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>Contract Name</div>
+                <div style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff' }}>
+                  {searchResult.contractName || searchResult.tokenInfo?.name || 'Unknown Contract'}
+                </div>
+                {searchResult.tokenInfo?.symbol && (
+                  <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '2px' }}>
+                    Symbol: {searchResult.tokenInfo.symbol}
+                  </div>
+                )}
+              </div>
+              <CheckCircle className="w-5 h-5 text-green-500" />
+            </div>
+
+            {/* Contract Details */}
+            <div style={{
+              padding: '12px 16px',
+              backgroundColor: '#1a1a1a',
+              borderRadius: '8px'
+            }}>
+              <div style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '8px' }}>
+                Contract Details
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '14px' }}>
+                <div>
+                  <span style={{ color: '#9ca3af' }}>Network:</span>
+                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
+                    {searchResult.chain.name}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: '#9ca3af' }}>Source:</span>
+                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
+                    {searchResult.source}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: '#9ca3af' }}>Token Type:</span>
+                  <span style={{ color: '#ffffff', marginLeft: '4px' }}>
+                    {searchResult.tokenType || 'Unknown'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: '#9ca3af' }}>Verified:</span>
+                  <span style={{ color: '#10b981', marginLeft: '4px' }}>
+                    ✓ Yes
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Token Info */}
+            {searchResult.tokenType !== 'UNKNOWN' && searchResult.tokenInfo && (
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#1a1a1a',
+                borderRadius: '8px',
+                border: searchResult.tokenType === 'ERC20' ? '1px solid #f59e0b' :
+                         searchResult.tokenType === 'ERC721' ? '1px solid #a855f7' :
+                         searchResult.tokenType === 'ERC1155' ? '1px solid #10b981' : '1px solid #374151'
+              }}>
+                <div style={{ 
+                  fontSize: '14px', 
+                  color: '#9ca3af', 
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  {getTokenIcon(searchResult.tokenType)}
+                  Token Information ({searchResult.tokenType})
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '14px' }}>
+                  <div>
+                    <div style={{ color: '#9ca3af', marginBottom: '2px' }}>Name</div>
+                    <div style={{ color: '#ffffff', fontWeight: '500' }}>
+                      {searchResult.tokenInfo.name || 'Unknown'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#9ca3af', marginBottom: '2px' }}>Symbol</div>
+                    <div style={{ color: '#ffffff', fontWeight: '500' }}>
+                      {searchResult.tokenInfo.symbol || 'UNKNOWN'}
+                    </div>
+                  </div>
+                  {searchResult.tokenInfo.decimals !== undefined && (
+                    <div>
+                      <div style={{ color: '#9ca3af', marginBottom: '2px' }}>Decimals</div>
+                      <div style={{ color: '#ffffff', fontWeight: '500' }}>
+                        {searchResult.tokenInfo.decimals}
+                      </div>
+                    </div>
+                  )}
+                  {searchResult.tokenInfo.totalSupply && (
+                    <div>
+                      <div style={{ color: '#9ca3af', marginBottom: '2px' }}>Total Supply</div>
+                      <div style={{ color: '#ffffff', fontWeight: '500', fontFamily: 'monospace' }}>
+                        {searchResult.tokenInfo.totalSupply}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Functions Summary */}
+            {searchResult.externalFunctions && (
+              <div style={{
+                padding: '12px 16px',
+                backgroundColor: '#1a1a1a',
+                borderRadius: '8px'
+              }}>
+                <div style={{ 
+                  fontSize: '14px', 
+                  color: '#9ca3af', 
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <span>External Functions</span>
+                  <span style={{ color: '#ffffff' }}>
+                    {searchResult.externalFunctions.length} found
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {searchResult.externalFunctions.slice(0, 5).map((func, index) => (
+                    <div key={index} style={{
+                      fontSize: '13px',
+                      color: '#9ca3af',
+                      fontFamily: 'monospace',
+                      padding: '4px 8px',
+                      backgroundColor: '#0a0a0a',
+                      borderRadius: '4px'
+                    }}>
+                      {func.signature}
+                    </div>
+                  ))}
+                  {searchResult.externalFunctions.length > 5 && (
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#6b7280',
+                      fontStyle: 'italic',
+                      padding: '4px 8px'
+                    }}>
+                      +{searchResult.externalFunctions.length - 5} more functions...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ComprehensiveContractSearch;
