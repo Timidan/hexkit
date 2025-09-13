@@ -44,12 +44,31 @@ interface DiamondContractInfo {
 
 interface MultiNetworkContractSearchProps {
   onContractFound?: (results: ContractSearchResult[], diamondInfo?: DiamondContractInfo) => void;
+  onContractSelected?: (address: string, chain: Chain, abi: string, contractMetadata?: { 
+    name?: string; 
+    compilerVersion?: string;
+    tokenInfo?: {
+      name?: string;
+      symbol?: string;
+      decimals?: string;
+      totalSupply?: string;
+      tokenType?: string;
+      divisor?: string;
+    };
+    isDiamond?: boolean;
+    facetAddresses?: string[];
+  }) => void;
+  etherscanApiKey?: string;
+  initialAddress?: string;
 }
 
 const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({ 
-  onContractFound 
+  onContractFound,
+  onContractSelected,
+  etherscanApiKey,
+  initialAddress
 }) => {
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(initialAddress || '');
   const [selectedChains, setSelectedChains] = useState<number[]>(SUPPORTED_CHAINS.map(c => c.id));
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<ContractSearchResult[]>([]);
@@ -132,7 +151,7 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
         );
 
         // Try to fetch ABI for the facet
-        const facetAbiResult = await fetchContractABIMultiSource(facetAddress, [chain]);
+        const facetAbiResult = await fetchContractABIMultiSource(facetAddress, chain);
         
         const facetDetails: FacetDetails = {
           address: facetAddress,
@@ -191,7 +210,15 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
         try {
           // Fetch contract info
-          const contractInfo = await fetchContractABIMultiSource(address, [chain]);
+          const contractInfo = await fetchContractABIMultiSource(address, chain, etherscanApiKey);
+          
+          console.log(`🔍 [${chain.name}] Contract info for ${address}:`, {
+            success: contractInfo.success,
+            contractName: contractInfo.contractName,
+            source: contractInfo.source,
+            explorerName: contractInfo.explorerName,
+            error: contractInfo.error
+          });
           
           const result: ContractSearchResult = {
             chain,
@@ -450,7 +477,20 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
                   <div className="flex gap-2">
                     <button 
                       className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                      onClick={() => onContractFound?.(searchResults, diamondInfo || undefined)}
+                      onClick={() => {
+                        if (result.abi && result.chain) {
+                          onContractSelected?.(
+                            address, 
+                            result.chain, 
+                            result.abi, 
+                            {
+                              name: result.name,
+                              isDiamond: result.isDiamond,
+                              facetAddresses: result.facetAddresses
+                            }
+                          );
+                        }
+                      }}
                     >
                       <Building2 size={14} className="inline mr-1" />
                       Use in Builder

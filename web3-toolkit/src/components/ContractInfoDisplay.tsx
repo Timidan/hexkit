@@ -445,7 +445,7 @@ const ContractInfoDisplay: React.FC<ContractInfoDisplayProps> = ({
                     
                     if (totalSupply && decimals) {
                       // Convert from wei to human readable format
-                      const divisor = Math.pow(10, parseInt(decimals));
+                      const divisor = Math.pow(10, parseInt(decimals.toString()));
                       const humanReadable = (parseInt(totalSupply) / divisor).toLocaleString();
                       return `${humanReadable} ${symbol || ''}`;
                     }

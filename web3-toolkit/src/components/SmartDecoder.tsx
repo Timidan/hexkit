@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import type { JSX } from 'react';
 import { ethers } from 'ethers';
 import { 
   CheckCircle, 
@@ -1312,16 +1313,18 @@ const SmartDecoder: React.FC = () => {
             });
 
             // Share with toolkit context
-            toolkit.setDecodedTransaction({
-              functionName: heuristicResults.bestGuess.description.split('(')[0].trim(),
-              functionSignature: heuristicResults.bestGuess.description,
-              parameters: (heuristicResults.bestGuess.values || []).map((arg: any, index: number) => ({
-                name: `param_${index}`,
-                type: heuristicResults.bestGuess.types?.[index] || 'unknown',
-                value: arg
-              })),
-              calldata: calldata.trim()
-            });
+            if (heuristicResults.bestGuess) {
+              toolkit.setDecodedTransaction({
+                functionName: heuristicResults.bestGuess.description.split('(')[0].trim(),
+                functionSignature: heuristicResults.bestGuess.description,
+                parameters: (heuristicResults.bestGuess.values || []).map((arg: any, index: number) => ({
+                  name: `param_${index}`,
+                  type: heuristicResults.bestGuess.types?.[index] || 'unknown',
+                  value: arg
+                })),
+                calldata: calldata.trim()
+              });
+            }
             
             if (heuristicResults.decodedAttempts && heuristicResults.decodedAttempts.length > 1) {
               setShowAlternativeResults(true);

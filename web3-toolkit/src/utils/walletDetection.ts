@@ -15,6 +15,7 @@ export const detectWallets = (): WalletInfo[] => {
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
+        address: ethereum.selectedAddress || '',
         chainId: ethereum.chainId || '0x1',
         provider: ethereum,
       });
@@ -28,6 +29,7 @@ export const detectWallets = (): WalletInfo[] => {
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
+        address: ethereum.selectedAddress || '',
         chainId: ethereum.chainId || '0x1',
         provider: ethereum,
       });
@@ -41,6 +43,7 @@ export const detectWallets = (): WalletInfo[] => {
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
+        address: ethereum.selectedAddress || '',
         chainId: ethereum.chainId || '0x1',
         provider: ethereum,
       });
@@ -56,6 +59,7 @@ export const detectWallets = (): WalletInfo[] => {
       isInstalled: true,
       isConnected: false, // Would need to check connection status
       accounts: [],
+      address: '',
       chainId: '0x1',
       provider: coinbase,
     });

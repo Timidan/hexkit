@@ -9,6 +9,7 @@ interface ExtendedABIFetchResult extends ABIFetchResult {
   contractName?: string;
   compilerVersion?: string;
   sourceCode?: string;
+  contractType?: string;
   tokenInfo?: {
     name?: string;
     symbol?: string;
@@ -116,71 +117,92 @@ const fetchFromSourcify = async (
       },
     });
 
-    if (response.data && response.data.match) {
+    if (response.data && (response.data.creationMatch || response.data.runtimeMatch)) {
       // Check if contract is verified (has match)
-      const matchType = response.data.match;
+      const matchType = response.data.creationMatch || response.data.runtimeMatch;
       
-      if (matchType === 'exact_match' || matchType === 'match') {
-        // Try to get ABI from metadata
-        if (response.data.metadata?.output?.abi) {
-          const abi = JSON.stringify(response.data.metadata.output.abi);
+      if (matchType === 'exact_match' || matchType === 'match' || matchType === 'partial_match') {
+        // Always fetch metadata.json file for exact matches (it contains the ABI and contract name)
+        try {
+          const metadataUrl = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`;
+          console.log(`🔍 [Sourcify] Fetching metadata from: ${metadataUrl}`);
           
-          // Extract contract name from compilation target
-          let contractName: string | undefined;
-          if (response.data.compilation?.target) {
-            const targetParts = response.data.compilation.target.split(':');
-            contractName = targetParts[targetParts.length - 1];
-          } else if (response.data.compilation?.name) {
-            contractName = response.data.compilation.name;
-          }
+          const metadataResponse = await axios.get(metadataUrl, {
+            timeout: 10000,
+            maxRedirects: 5, // Follow redirects
+            headers: {
+              'User-Agent': 'Web3-Toolkit/1.0',
+              'Accept': 'application/json',
+            },
+          });
           
-          return {
-            success: true,
-            abi: abi,
-            source: 'sourcify',
-            explorerName: 'Sourcify',
-            contractName: contractName,
-            compilerVersion: response.data.compilation?.compiler?.version,
-            sourceCode: response.data.sources ? 'Available' : undefined,
-          };
-        } else {
-          // Try to fetch metadata.json directly
-          try {
-            const metadataUrl = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`;
-            const metadataResponse = await axios.get(metadataUrl, {
-              timeout: 10000,
-              maxRedirects: 5, // Follow redirects
-              headers: {
-                'User-Agent': 'Web3-Toolkit/1.0',
-                'Accept': 'application/json',
-              },
-            });
+          if (metadataResponse.data && metadataResponse.data.output && metadataResponse.data.output.abi) {
+            const abi = JSON.stringify(metadataResponse.data.output.abi);
             
-            if (metadataResponse.data && metadataResponse.data.output && metadataResponse.data.output.abi) {
-              const abi = JSON.stringify(metadataResponse.data.output.abi);
-              
-              // Extract contract name from compilation target
-              let contractName: string | undefined;
-              const compilationTarget = metadataResponse.data.settings?.compilationTarget;
-              if (compilationTarget) {
-                const targetKeys = Object.keys(compilationTarget);
-                if (targetKeys.length > 0) {
-                  contractName = compilationTarget[targetKeys[0]];
-                }
+            // Extract contract name from compilation target
+            let contractName: string | undefined;
+            const compilationTarget = metadataResponse.data.settings?.compilationTarget;
+            if (compilationTarget) {
+              const targetKeys = Object.keys(compilationTarget);
+              if (targetKeys.length > 0) {
+                contractName = compilationTarget[targetKeys[0]];
+                console.log(`🔍 [Sourcify] Extracted contract name: ${contractName}`);
               }
-              
-              return {
-                success: true,
-                abi: abi,
-                source: 'sourcify',
-                explorerName: 'Sourcify',
-                contractName: contractName,
-                compilerVersion: metadataResponse.data.compiler?.version,
-                sourceCode: 'Available',
-              };
             }
-          } catch (metadataError) {
-            console.log('Failed to fetch Sourcify metadata.json:', metadataError);
+            
+            return {
+              success: true,
+              abi: abi,
+              source: 'sourcify',
+              explorerName: 'Sourcify',
+              contractName: contractName,
+              compilerVersion: metadataResponse.data.compiler?.version || metadataResponse.data.compilation?.compiler?.version,
+              sourceCode: 'Available',
+            };
+          }
+        } catch (metadataError) {
+          console.error('Failed to fetch Sourcify metadata.json:', metadataError);
+          
+          // Fallback: try partial_match endpoint if full_match failed
+          if (matchType === 'exact_match') {
+            try {
+              const partialMetadataUrl = `https://repo.sourcify.dev/contracts/partial_match/${chainId}/${contractAddress}/metadata.json`;
+              console.log(`🔍 [Sourcify] Trying partial match metadata: ${partialMetadataUrl}`);
+              
+              const partialResponse = await axios.get(partialMetadataUrl, {
+                timeout: 10000,
+                maxRedirects: 5,
+                headers: {
+                  'User-Agent': 'Web3-Toolkit/1.0',
+                  'Accept': 'application/json',
+                },
+              });
+              
+              if (partialResponse.data && partialResponse.data.output && partialResponse.data.output.abi) {
+                const abi = JSON.stringify(partialResponse.data.output.abi);
+                
+                let contractName: string | undefined;
+                const compilationTarget = partialResponse.data.settings?.compilationTarget;
+                if (compilationTarget) {
+                  const targetKeys = Object.keys(compilationTarget);
+                  if (targetKeys.length > 0) {
+                    contractName = compilationTarget[targetKeys[0]];
+                  }
+                }
+                
+                return {
+                  success: true,
+                  abi: abi,
+                  source: 'sourcify',
+                  explorerName: 'Sourcify',
+                  contractName: contractName,
+                  compilerVersion: partialResponse.data.compiler?.version,
+                  sourceCode: 'Available',
+                };
+              }
+            } catch (partialError) {
+              console.warn('Partial match metadata also failed:', partialError);
+            }
           }
         }
       }
@@ -332,6 +354,11 @@ const fetchContractSourceInfoFromBlockscout = async (
         // Handle Etherscan-style response from Blockscout
         if (response.data.status === '1' && response.data.result && response.data.result.length > 0) {
           const sourceInfo = response.data.result[0];
+          console.log(`🔍 [${explorerName}] Blockscout source info:`, {
+            contractName: sourceInfo.ContractName,
+            compilerVersion: sourceInfo.CompilerVersion,
+            fileName: sourceInfo.FileName
+          });
           return {
             contractName: sourceInfo.ContractName || undefined,
             compilerVersion: sourceInfo.CompilerVersion || undefined,
@@ -539,6 +566,7 @@ const fetchFromBlockscout = async (
     
     for (const endpoint of endpoints) {
       try {
+        console.log(`🔍 [${explorerName}] Trying Blockscout endpoint: ${endpoint}`);
         const response = await axios.get(endpoint, {
           timeout: 15000,
           headers: {

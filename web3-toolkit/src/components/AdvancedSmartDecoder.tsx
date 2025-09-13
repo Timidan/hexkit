@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { JSX } from 'react';
 import { ethers } from 'ethers';
 import { 
   CheckCircle, 

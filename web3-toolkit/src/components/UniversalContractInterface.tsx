@@ -68,7 +68,7 @@ const UniversalContractInterface: React.FC = () => {
     
     for (const facetAddr of facetAddresses) {
       try {
-        const facetInfo = await fetchContractABIMultiSource(facetAddr, [chain]);
+        const facetInfo = await fetchContractABIMultiSource(facetAddr, chain);
         
         // Get function count
         const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
@@ -112,7 +112,7 @@ const UniversalContractInterface: React.FC = () => {
 
     try {
       // Fetch contract info
-      const result = await fetchContractABIMultiSource(address, [selectedChain]);
+      const result = await fetchContractABIMultiSource(address, selectedChain);
       
       const info: ContractInfo = {
         address,
