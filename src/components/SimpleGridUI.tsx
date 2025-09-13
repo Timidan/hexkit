@@ -235,39 +235,26 @@ const SimpleGridUI: React.FC = () => {
     setWriteFunctions([]);
     setAbiSource(null);
 
-    // For Base network, try Etherscan (BaseScan) first as it often has more complete ABIs
-    let result: ABIFetchResult;
+    // Try sources in order: Sourcify → Blockscout → Etherscan for all networks
+    let result: ExtendedABIFetchResult;
     let source: string;
     
-    if (chain.id === 8453) { // Base network
+    console.log("🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan");
+    
+    // Always try Sourcify first for best contract name extraction
+    result = await fetchABIFromSourcery(address, chain.id);
+    source = "Sourcify";
+    
+    // Try Blockscout if Sourcify fails
+    if (!result.success) {
+      result = await fetchABIFromBlockscout(address, chain);
+      source = "Blockscout";
+    }
+    
+    // Try Etherscan if Blockscout fails
+    if (!result.success) {
       result = await fetchABIFromEtherscan(address, chain);
-      source = "Etherscan (BaseScan)";
-      
-      // Try Sourcify if Etherscan fails
-      if (!result.success) {
-        result = await fetchABIFromSourcery(address, chain.id);
-        source = "Sourcify";
-      }
-      
-      // Try Blockscout if Sourcify fails
-      if (!result.success) {
-        result = await fetchABIFromBlockscout(address, chain);
-        source = "Blockscout";
-      }
-    } else {
-      // For other networks, use original order
-      result = await fetchABIFromSourcery(address, chain.id);
-      source = "Sourcify";
-      
-      if (!result.success) {
-        result = await fetchABIFromBlockscout(address, chain);
-        source = "Blockscout";
-      }
-      
-      if (!result.success) {
-        result = await fetchABIFromEtherscan(address, chain);
-        source = "Etherscan";
-      }
+      source = "Etherscan";
     }
 
     // Add a minimum delay to ensure loading animation is visible
@@ -300,6 +287,10 @@ const SimpleGridUI: React.FC = () => {
           console.log(`🎯 [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`);
           setContractName(extendedResult.contractName);
           console.log(`🔍 [SimpleGridUI] Contract name state should now be: ${extendedResult.contractName}`);
+          
+          // Immediately update the contract info object with the correct name
+          contractInfoObj.name = extendedResult.contractName;
+          setContractInfo(contractInfoObj);
         }
 
         // Fetch token info after setting contract info
@@ -444,7 +435,9 @@ const SimpleGridUI: React.FC = () => {
           contractName !== "Smart Contract" && 
           contractName !== "ERC20 Token" &&
           contractName !== "Unknown Token" &&
-          contractName !== "Unknown Contract");
+          contractName !== "Unknown Contract" &&
+          !contractName.startsWith("ERC") &&
+          !contractName.startsWith("Unknown"));
           
         if (shouldPreserve) {
           console.log(`🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`);
@@ -473,7 +466,9 @@ const SimpleGridUI: React.FC = () => {
           contractName !== "Smart Contract" && 
           contractName !== "ERC721 NFT" &&
           contractName !== "Unknown NFT" &&
-          contractName !== "Unknown Contract");
+          contractName !== "Unknown Contract" &&
+          !contractName.startsWith("ERC") &&
+          !contractName.startsWith("Unknown"));
           
         if (shouldPreserve) {
           console.log(`🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC721 name: ${name})`);
@@ -518,8 +513,11 @@ const SimpleGridUI: React.FC = () => {
           const contractType = determineContractType(functionNames);
           console.log("Determined contract type:", contractType);
           
-          // Only set contract name if it hasn't been set from ABI fetch
-          if (!preserveContractName && (!contractName || contractName === "Smart Contract")) {
+          // Only set contract name if it hasn't been set from ABI fetch or is a generic name
+          if (!preserveContractName && (!contractName || 
+              contractName === "Smart Contract" || 
+              contractName.startsWith("Unknown") ||
+              contractName.startsWith("ERC"))) {
             // For Diamond contracts, try to get a more specific name
             if (contractType === "Diamond Contract") {
               setContractName("Diamond Proxy Contract");
@@ -533,8 +531,11 @@ const SimpleGridUI: React.FC = () => {
     } catch (fetchError) {
       console.error("Failed to fetch contract info:", fetchError);
       
-      // Only set fallback names if contract name hasn't been set from ABI fetch
-      if (!preserveContractName && (!contractName || contractName === "Smart Contract")) {
+      // Only set fallback names if contract name hasn't been set from ABI fetch or is generic
+      if (!preserveContractName && (!contractName || 
+          contractName === "Smart Contract" || 
+          contractName.startsWith("Unknown") ||
+          contractName.startsWith("ERC"))) {
         if (isERC20) {
           setContractName("ERC20 Token");
           setTokenInfo({ name: "ERC20 Token", symbol: "TOKEN", decimals: 18 });
