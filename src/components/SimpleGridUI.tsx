@@ -285,8 +285,15 @@ const SimpleGridUI: React.FC = () => {
         const extendedResult = result as ExtendedABIFetchResult;
         if (extendedResult.contractName) {
           console.log(`🎯 [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`);
+          console.log(`🔍 [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`);
+          
+          // Set the contract name and log immediately after
           setContractName(extendedResult.contractName);
-          console.log(`🔍 [SimpleGridUI] Contract name state should now be: ${extendedResult.contractName}`);
+          
+          // Use setTimeout to log the state after the state update
+          setTimeout(() => {
+            console.log(`🔍 [SimpleGridUI] Contract name state AFTER set (async): ${contractName}`);
+          }, 100);
           
           // Immediately update the contract info object with the correct name
           contractInfoObj.name = extendedResult.contractName;
@@ -490,11 +497,16 @@ const SimpleGridUI: React.FC = () => {
             console.log("Contract name fetched:", name);
             
             // Preserve contract name from ABI fetch if it was already set
-            if (!preserveContractName && (!contractName || contractName === "Smart Contract")) {
+            const shouldOverride = !preserveContractName && (!contractName || 
+                contractName === "Smart Contract" || 
+                contractName.startsWith("Unknown") ||
+                contractName.startsWith("ERC"));
+                
+            if (shouldOverride) {
               console.log(`🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`);
               setContractName(name || "Smart Contract");
             } else {
-              console.log(`🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with contract.name(): ${name})`);
+              console.log(`🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`);
             }
             setTokenInfo(null);
             contractNameFound = true;
@@ -512,18 +524,26 @@ const SimpleGridUI: React.FC = () => {
           // Try to determine contract type based on functions
           const contractType = determineContractType(functionNames);
           console.log("Determined contract type:", contractType);
+          console.log(`🔍 [SimpleGridUI] About to set contract type - current name: ${contractName}, preserve flag: ${preserveContractName}`);
           
           // Only set contract name if it hasn't been set from ABI fetch or is a generic name
-          if (!preserveContractName && (!contractName || 
+          const shouldSetGenericName = !preserveContractName && (!contractName || 
               contractName === "Smart Contract" || 
               contractName.startsWith("Unknown") ||
-              contractName.startsWith("ERC"))) {
+              contractName.startsWith("ERC"));
+              
+          console.log(`🔍 [SimpleGridUI] Should set generic name: ${shouldSetGenericName}`);
+          
+          if (shouldSetGenericName) {
+            console.log(`🔍 [SimpleGridUI] SETTING GENERIC NAME: ${contractType} (overriding: ${contractName})`);
             // For Diamond contracts, try to get a more specific name
             if (contractType === "Diamond Contract") {
               setContractName("Diamond Proxy Contract");
             } else {
               setContractName(contractType);
             }
+          } else {
+            console.log(`🔍 [SimpleGridUI] PRESERVING existing name: ${contractName} (not setting generic: ${contractType})`);
           }
           setTokenInfo(null);
         }
