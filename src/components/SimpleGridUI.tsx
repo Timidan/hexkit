@@ -98,7 +98,9 @@ const SimpleGridUI: React.FC = () => {
     chainId: number
   ): Promise<ExtendedABIFetchResult> => {
     try {
-      const url = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${address}/metadata.json`;
+      // Use checksum address for Sourcify URL (required for proper matching)
+      const checksumAddress = ethers.utils.getAddress(address);
+      const url = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${checksumAddress}/metadata.json`;
       console.log(`Fetching from Sourcify: ${url}`);
 
       const response = await fetch(url);
@@ -602,7 +604,7 @@ const SimpleGridUI: React.FC = () => {
         console.log("🔍 [DETECT] No ERC165 interfaces found, falling back to function detection...");
         
         // Check for Diamond/EIP-2535 proxy pattern
-        const isDiamondProxy = functions.some(func => 
+        const isDiamondProxy = functionsParam.some((func: string) => 
           func.includes('facet') || 
           func.includes('diamond') || 
           func.includes('getDefaultFacetAddresses') ||
