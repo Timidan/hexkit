@@ -542,7 +542,7 @@ const SimpleGridUI: React.FC = () => {
     };
 
     // Enhanced token detection with multi-factor analysis
-    const detectTokenType = async (functions: string[], events: string[] = [], contract: ethers.Contract): Promise<{ 
+    const detectTokenType = async (functionsParam: string[], eventsParam: string[] = [], contract: ethers.Contract): Promise<{ 
       type: string; 
       confidence: number;
       interfaces: string[];
@@ -619,7 +619,7 @@ const SimpleGridUI: React.FC = () => {
           const scores: Record<string, number> = {};
           
           // Score functions (simplified version)
-          functions.forEach(func => {
+          functionsParam.forEach((func: string) => {
             const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
             if (funcInfo) {
               if (funcInfo.type === "SHARED") {
@@ -735,13 +735,13 @@ const SimpleGridUI: React.FC = () => {
       const detectedInterfaces: string[] = [];
       
       // Check for supportsInterface function to detect ERC165
-      const hasSupportsInterface = functions.includes("supportsInterface(bytes4)");
+      const hasSupportsInterface = functionsParam.includes("supportsInterface(bytes4)");
       if (hasSupportsInterface) {
         detectedInterfaces.push("ERC165");
       }
 
       // Check for Diamond/EIP-2535 proxy pattern first
-      const isDiamondProxy = functions.some(func => 
+      const isDiamondProxy = functionsParam.some((func: string) => 
         func.includes('facet') || 
         func.includes('diamond') || 
         func.includes('getDefaultFacetAddresses') ||
@@ -760,7 +760,7 @@ const SimpleGridUI: React.FC = () => {
 
       // Score functions
       console.log("🔍 [DETECT] Scoring functions...");
-      functions.forEach(func => {
+      functionsParam.forEach((func: string) => {
         const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
         if (funcInfo) {
           console.log(`🔍 [DETECT] Matched function: ${func} -> ${funcInfo.type} (${funcInfo.weight})`);
@@ -783,7 +783,7 @@ const SimpleGridUI: React.FC = () => {
       });
 
       // Score events
-      events.forEach(event => {
+      eventsParam.forEach((event: string) => {
         const eventInfo = EVENTS[event as keyof typeof EVENTS];
         if (eventInfo) {
           const type = eventInfo.type === "ERC20/ERC721" ? "ERC20" : 
@@ -886,7 +886,7 @@ const SimpleGridUI: React.FC = () => {
       setIsERC777(tokenDetection.type === "ERC777");
       setIsERC4626(tokenDetection.type === "ERC4626");
       setIsERC2981(tokenDetection.type === "ERC2981");
-      setIsDiamond(tokenDetection.type === "Diamond" || tokenDetection.isDiamond);
+      setIsDiamond(!!(tokenDetection.type === "Diamond" || tokenDetection.isDiamond));
 
       console.log(`🔍 Enhanced Token Detection:`);
       console.log(`   Type: ${tokenDetection.type}`);
