@@ -371,8 +371,26 @@ const SimpleGridUI: React.FC = () => {
               .map((func: any) => func as ethers.utils.FunctionFragment)
           );
 
+          // Extract function names and event signatures for token detection
+          const functionNames = parsedABI
+            .filter((item: any) => item.type === "function")
+            .map((item: any) => (item as ethers.utils.FunctionFragment).name);
+          
+          const eventSignatures = parsedABI
+            .filter((item: any) => item.type === "event")
+            .map((item: any) => {
+              const event = item as ethers.utils.EventFragment;
+              const inputs = event.inputs.map(input => {
+                if (input.type === 'tuple') {
+                  return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(',')})`;
+                }
+                return input.type;
+              }).join(',');
+              return `${event.name}(${inputs})`;
+            });
+
           // Call detectAndFetchTokenInfo with preservation flag to avoid race condition
-          await detectAndFetchTokenInfo(parsedABI, true); // Preserve the Sourcify name
+          await detectAndFetchTokenInfo(parsedABI, true, functionNames, eventSignatures); // Preserve the Sourcify name
         } else {
           // No contract name from ABI fetch, proceed normally
           categorizeABIFunctions(parsedABI);
@@ -414,13 +432,33 @@ const SimpleGridUI: React.FC = () => {
 
     // Check if it's a token contract and fetch basic info
     if (!skipTokenInfoFetch) {
-      detectAndFetchTokenInfo(abi, false); // Don't preserve - this is a manual ABI input
+      // Extract function names and event signatures for token detection
+      const functionNames = abi
+        .filter((item: any) => item.type === "function")
+        .map((item: any) => (item as ethers.utils.FunctionFragment).name);
+      
+      const eventSignatures = abi
+        .filter((item: any) => item.type === "event")
+        .map((item: any) => {
+          const event = item as ethers.utils.EventFragment;
+          const inputs = event.inputs.map(input => {
+            if (input.type === 'tuple') {
+              return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(',')})`;
+            }
+            return input.type;
+          }).join(',');
+          return `${event.name}(${inputs})`;
+        });
+
+      detectAndFetchTokenInfo(abi, false, functionNames, eventSignatures); // Don't preserve - this is a manual ABI input
     }
   };
 
   const detectAndFetchTokenInfo = async (
     abi: ethers.utils.Fragment[],
-    preserveContractName: boolean = false
+    preserveContractName: boolean = false,
+    functionsParam: string[] = [],
+    eventsParam: string[] = []
   ) => {
     console.log("=== detectAndFetchTokenInfo called ===");
     console.log("Contract address:", contractAddress);
@@ -445,28 +483,10 @@ const SimpleGridUI: React.FC = () => {
     setIsLoadingContractInfo(true);
     console.log("Starting contract info fetch...");
 
-    const functionNames = abi
-      .filter((item: any) => item.type === "function")
-      .map((item: any) => (item as ethers.utils.FunctionFragment).name);
-
-    // Extract event signatures for enhanced detection
-    const eventSignatures = abi
-      .filter((item: any) => item.type === "event")
-      .map((item: any) => {
-        const event = item as ethers.utils.EventFragment;
-        const inputs = event.inputs.map(input => {
-          if (input.type === 'tuple') {
-            return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(',')})`;
-          }
-          return input.type;
-        }).join(',');
-        return `${event.name}(${inputs})`;
-      });
-
-    console.log("Found function names:", functionNames);
-    console.log("Total functions in ABI:", functionNames.length);
-    console.log("Found event signatures:", eventSignatures);
-    console.log("Total events in ABI:", eventSignatures.length);
+    console.log("Found function names:", functionsParam);
+    console.log("Total functions in ABI:", functionsParam.length);
+    console.log("Found event signatures:", eventsParam);
+    console.log("Total events in ABI:", eventsParam.length);
     
     // Debug: Show full function signatures for analysis
     console.log("🔍 Full function signatures from ABI:");
@@ -883,7 +903,7 @@ const SimpleGridUI: React.FC = () => {
       }
 
       // Perform enhanced token detection with contract instance
-      const tokenDetection = await detectTokenType(functionNames, eventSignatures, contract);
+      const tokenDetection = await detectTokenType(functionsParam, eventsParam, contract);
       setIsERC20(tokenDetection.type === "ERC20");
       setIsERC721(tokenDetection.type === "ERC721");
       setIsERC1155(tokenDetection.type === "ERC1155");
@@ -1121,12 +1141,12 @@ const SimpleGridUI: React.FC = () => {
         
         try {
           // Try to get token info - this will call through to the facets
-          if (functionNames.includes("symbol")) {
+          if (functionsParam.includes("symbol")) {
             tokenSymbol = await contract.symbol();
             console.log(`🔍 [Diamond] Fetched symbol: ${tokenSymbol}`);
           }
           
-          if (functionNames.includes("decimals")) {
+          if (functionsParam.includes("decimals")) {
             tokenDecimals = await contract.decimals();
             console.log(`🔍 [Diamond] Fetched decimals: ${tokenDecimals}`);
           }
@@ -1171,7 +1191,7 @@ const SimpleGridUI: React.FC = () => {
         let contractNameFound = false;
 
         // Check if name function exists in ABI
-        const hasNameFunction = functionNames.includes("name");
+        const hasNameFunction = functionsParam.includes("name");
         if (hasNameFunction) {
           try {
             const name = await contract.name();
@@ -1194,7 +1214,7 @@ const SimpleGridUI: React.FC = () => {
         let contractNameFound = false;
 
         // Check if name function exists in ABI
-        const hasNameFunction = functionNames.includes("name");
+        const hasNameFunction = functionsParam.includes("name");
 
         if (hasNameFunction) {
           try {
@@ -1520,8 +1540,26 @@ const SimpleGridUI: React.FC = () => {
       setAbiSource("manual"); // Set source as manual
       console.log("Manual ABI processed successfully");
 
+      // Extract function names and event signatures for token detection
+      const functionNames = parsedABI
+        .filter((item: any) => item.type === "function")
+        .map((item: any) => (item as ethers.utils.FunctionFragment).name);
+      
+      const eventSignatures = parsedABI
+        .filter((item: any) => item.type === "event")
+        .map((item: any) => {
+          const event = item as ethers.utils.EventFragment;
+          const inputs = event.inputs.map(input => {
+            if (input.type === 'tuple') {
+              return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(',')})`;
+            }
+            return input.type;
+          }).join(',');
+          return `${event.name}(${inputs})`;
+        });
+
       // Fetch token info with manual ABI
-      await detectAndFetchTokenInfo(parsedABI, false); // Don't preserve - this is a manual ABI input
+      await detectAndFetchTokenInfo(parsedABI, false, functionNames, eventSignatures); // Don't preserve - this is a manual ABI input
     } catch (parseError) {
       console.error("Manual ABI parsing error:", parseError);
       setAbiError(
@@ -1654,7 +1692,25 @@ const SimpleGridUI: React.FC = () => {
         // Only fetch token info if we don't have it already
         if (!savedContract.tokenInfo) {
           console.log("Fetching token info for saved contract...");
-          await detectAndFetchTokenInfo(parsedABI, true); // Preserve the name from saved contract
+          // Extract function names and event signatures for token detection
+          const functionNames = parsedABI
+            .filter((item: any) => item.type === "function")
+            .map((item: any) => (item as ethers.utils.FunctionFragment).name);
+          
+          const eventSignatures = parsedABI
+            .filter((item: any) => item.type === "event")
+            .map((item: any) => {
+              const event = item as ethers.utils.EventFragment;
+              const inputs = event.inputs.map(input => {
+                if (input.type === 'tuple') {
+                  return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(',')})`;
+                }
+                return input.type;
+              }).join(',');
+              return `${event.name}(${inputs})`;
+            });
+
+          await detectAndFetchTokenInfo(parsedABI, true, functionNames, eventSignatures); // Preserve the name from saved contract
         }
       } catch (parseError) {
         console.error("Saved ABI parsing error:", parseError);
