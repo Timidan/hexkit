@@ -61,6 +61,16 @@ const SimpleGridUI: React.FC = () => {
     decimals?: number;
     assetAddress?: string;
   } | null>(null);
+  
+  // Token detection state
+  const [isERC20, setIsERC20] = useState(false);
+  const [isERC721, setIsERC721] = useState(false);
+  const [isERC1155, setIsERC1155] = useState(false);
+  const [isERC777, setIsERC777] = useState(false);
+  const [isERC4626, setIsERC4626] = useState(false);
+  const [isERC2981, setIsERC2981] = useState(false);
+  const [isDiamond, setIsDiamond] = useState(false);
+  
   const [isLoadingContractInfo, setIsLoadingContractInfo] = useState(false);
   const [usePendingBlock, setUsePendingBlock] = useState(true);
   const [abiSource, setAbiSource] = useState<
@@ -838,40 +848,7 @@ const SimpleGridUI: React.FC = () => {
           interfaces: detectedInterfaces,
           detectionMethod: "function+event+interface"
         };
-      } else if ((scores.ERC2981 || 0) >= minConfidence * maxScores.ERC2981) {
-        const confidence = Math.min((scores.ERC2981 || 0) / maxScores.ERC2981, 1.0);
-        return { 
-          type: "ERC2981", 
-          confidence, 
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface"
-        };
       }
-      
-      return { 
-        type: "unknown", 
-        confidence: 0, 
-        interfaces: detectedInterfaces,
-        detectionMethod: "none"
-      };
-    };
-
-    // Perform enhanced token detection with contract instance
-    const tokenDetection = await detectTokenType(functionNames, eventSignatures, contract);
-    const isERC20 = tokenDetection.type === "ERC20";
-    const isERC721 = tokenDetection.type === "ERC721";
-    const isERC1155 = tokenDetection.type === "ERC1155";
-    const isERC777 = tokenDetection.type === "ERC777";
-    const isERC4626 = tokenDetection.type === "ERC4626";
-    const isERC2981 = tokenDetection.type === "ERC2981";
-    const isDiamond = tokenDetection.type === "Diamond" || tokenDetection.isDiamond;
-
-    console.log(`🔍 Enhanced Token Detection:`);
-    console.log(`   Type: ${tokenDetection.type}`);
-    console.log(`   Confidence: ${Math.round(tokenDetection.confidence * 100)}%`);
-    console.log(`   Detection Method: ${tokenDetection.detectionMethod}`);
-    console.log(`   Interfaces: ${tokenDetection.interfaces.join(', ') || 'None'}`);
-    console.log(`   Is Diamond: ${tokenDetection.isDiamond || false}`);
 
     try {
       // Use working RPC endpoints for different networks
@@ -900,6 +877,23 @@ const SimpleGridUI: React.FC = () => {
       } catch (providerError) {
         console.error("Provider connection failed:", providerError);
       }
+
+      // Perform enhanced token detection with contract instance
+      const tokenDetection = await detectTokenType(functionNames, eventSignatures, contract);
+      setIsERC20(tokenDetection.type === "ERC20");
+      setIsERC721(tokenDetection.type === "ERC721");
+      setIsERC1155(tokenDetection.type === "ERC1155");
+      setIsERC777(tokenDetection.type === "ERC777");
+      setIsERC4626(tokenDetection.type === "ERC4626");
+      setIsERC2981(tokenDetection.type === "ERC2981");
+      setIsDiamond(tokenDetection.type === "Diamond" || tokenDetection.isDiamond);
+
+      console.log(`🔍 Enhanced Token Detection:`);
+      console.log(`   Type: ${tokenDetection.type}`);
+      console.log(`   Confidence: ${Math.round(tokenDetection.confidence * 100)}%`);
+      console.log(`   Detection Method: ${tokenDetection.detectionMethod}`);
+      console.log(`   Interfaces: ${tokenDetection.interfaces.join(', ') || 'None'}`);
+      console.log(`   Is Diamond: ${tokenDetection.isDiamond || false}`);
 
       if (isERC20) {
         console.log("Detected ERC20 token, fetching info...");
