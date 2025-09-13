@@ -23,6 +23,7 @@
     "framer-motion": "^12.23.12",
     "json-edit-react": "^1.28.2",
     "lucide-react": "^0.542.0",
+    "playwright": "^1.55.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^6.28.1",
