@@ -961,7 +961,7 @@ const SimpleGridUI: React.FC = () => {
       console.log(`   Interfaces: ${tokenDetection.interfaces.join(', ') || 'None'}`);
       console.log(`   Is Diamond: ${tokenDetection.isDiamond || false}`);
 
-      if (isERC20) {
+      if (tokenDetection.type === "ERC20") {
         console.log("Detected ERC20 token, fetching info...");
         console.log("Calling contract methods...");
         const [name, symbol, decimals] = await Promise.all([
@@ -1009,7 +1009,7 @@ const SimpleGridUI: React.FC = () => {
           setContractName(formattedName);
         }
         setTokenInfo({ name, symbol, decimals });
-      } else if (isERC721) {
+      } else if (tokenDetection.type === "ERC721") {
         console.log("Detected ERC721 NFT, fetching info...");
         const [name, symbol] = await Promise.all([
           contract.name().catch((err: unknown) => {
@@ -1048,7 +1048,7 @@ const SimpleGridUI: React.FC = () => {
           setContractName(formattedName);
         }
         setTokenInfo({ name, symbol, decimals: 0 });
-      } else if (isERC1155) {
+      } else if (tokenDetection.type === "ERC1155") {
         console.log("Detected ERC1155 Multi-Token, fetching info...");
         const [name, symbol] = await Promise.all([
           contract.name().catch((err: unknown) => {
@@ -1086,7 +1086,7 @@ const SimpleGridUI: React.FC = () => {
           setContractName(formattedName);
         }
         setTokenInfo({ name, symbol, decimals: 0 });
-      } else if (isERC777) {
+      } else if (tokenDetection.type === "ERC777") {
         console.log("Detected ERC777 Token, fetching info...");
         const [name, symbol, decimals] = await Promise.all([
           contract.name().catch((err: unknown) => {
@@ -1127,7 +1127,7 @@ const SimpleGridUI: React.FC = () => {
           setContractName(formattedName);
         }
         setTokenInfo({ name, symbol, decimals });
-      } else if (isERC4626) {
+      } else if (tokenDetection.type === "ERC4626") {
         console.log("Detected ERC4626 Tokenized Vault, fetching info...");
         const [name, symbol, decimals, assetAddress] = await Promise.all([
           contract.name().catch((err: unknown) => {
@@ -1173,7 +1173,7 @@ const SimpleGridUI: React.FC = () => {
           setContractName(formattedName);
         }
         setTokenInfo({ name, symbol, decimals, assetAddress });
-      } else if (isDiamond) {
+      } else if (tokenDetection.isDiamond || tokenDetection.type === "Diamond") {
         console.log("💎 Detected Diamond/EIP-2535 proxy contract");
         
         // For Diamond contracts, fetch token info from the facets if it's also a token
