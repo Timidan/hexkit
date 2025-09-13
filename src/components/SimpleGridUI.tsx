@@ -151,7 +151,8 @@ const SimpleGridUI: React.FC = () => {
         };
       }
 
-      const url = `${blockscoutExplorer.url}/v2/smart-contracts/${address}`;
+      const checksumAddress = ethers.utils.getAddress(address);
+      const url = `${blockscoutExplorer.url}/v2/smart-contracts/${checksumAddress}`;
       console.log(`Fetching from Blockscout: ${url}`);
 
       const response = await fetch(url);
@@ -201,7 +202,8 @@ const SimpleGridUI: React.FC = () => {
         };
       }
 
-      const url = `${etherscanExplorer.url}?module=contract&action=getabi&address=${address}`;
+      const checksumAddress = ethers.utils.getAddress(address);
+      const url = `${etherscanExplorer.url}?module=contract&action=getabi&address=${checksumAddress}`;
       console.log(`Fetching from Etherscan: ${url}`);
 
       const response = await fetch(url);
@@ -212,7 +214,7 @@ const SimpleGridUI: React.FC = () => {
           // Also try to get contract name from Etherscan
           let contractName: string | undefined;
           try {
-            const nameUrl = `${etherscanExplorer.url}?module=contract&action=getsourcecode&address=${address}`;
+            const nameUrl = `${etherscanExplorer.url}?module=contract&action=getsourcecode&address=${checksumAddress}`;
             const nameResponse = await fetch(nameUrl);
             if (nameResponse.ok) {
               const nameData = await nameResponse.json();
