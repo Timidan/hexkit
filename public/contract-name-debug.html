@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Contract Name Debug Test</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #000; 
+            color: #0f0; 
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .debug-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 8px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            background: #1a1a1a;
+            border-left: 3px solid #0f0;
+            font-size: 12px;
+        }
+        .error {
+            border-left-color: #f00;
+            color: #f88;
+        }
+        .warning {
+            border-left-color: #ff0;
+            color: #ff8;
+        }
+        .success {
+            border-left-color: #0f0;
+        }
+        .test-button {
+            background: #333;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Contract Name Debug Test</h1>
+    
+    <div class="debug-section">
+        <h2>Test Diamond Contract Name Issue</h2>
+        <p>This test will help debug why the Diamond contract name is being overridden.</p>
+        
+        <div style="margin: 20px 0;">
+            <h3>Contract Details:</h3>
+            <ul>
+                <li><strong>Address:</strong> 0xa99c4b08201f2913db8d28e71d020c4298f29dbf</li>
+                <li><strong>Network:</strong> Base (8453)</li>
+                <li><strong>Expected Name:</strong> Diamond</li>
+                <li><strong>Actual Name:</strong> Smart Contract (being overridden)</li>
+            </ul>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <h3>Debug Steps:</h3>
+            <ol>
+                <li>
+                    <button class="test-button" onclick="openTransactionBuilder()">
+                        Open Transaction Builder
+                    </button>
+                    <p>Click to open the Transaction Builder in a new tab</p>
+                </li>
+                <li>
+                    <button class="test-button" onclick="loadDiamondContract()">
+                        Load Diamond Contract
+                    </button>
+                    <p>Auto-load the Diamond contract for testing</p>
+                </li>
+                <li>
+                    <button class="test-button" onclick="clearLog()">
+                        Clear Debug Log
+                    </button>
+                    <p>Clear the console log below</p>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="debug-section">
+        <h2>Expected Console Log Pattern</h2>
+        <div style="background: #1a1a1a; padding: 10px; border-radius: 4px;">
+            <code>
+                🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan<br>
+                🎯 [SimpleGridUI] Setting contract name from fetch result: Diamond<br>
+                🔍 [SimpleGridUI] Current contractName state BEFORE set: undefined<br>
+                === detectAndFetchTokenInfo called ===<br>
+                🔍 [SimpleGridUI] Preserve contract name flag: true<br>
+                🔍 [SimpleGridUI] PRESERVING Sourcify name: Diamond (ignoring contract.name())<br>
+                🔍 [SimpleGridUI] PRESERVING existing name: Diamond (not setting generic: Smart Contract)
+            </code>
+        </div>
+    </div>
+
+    <div class="debug-section">
+        <h2>🔍 Console Log Monitor</h2>
+        <div id="debug-log"></div>
+        <button class="test-button" onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        // Monitor console logs from the main app
+        const debugLog = document.getElementById('debug-log');
+        
+        // Override console.log to capture messages
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLogEntry(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLogEntry(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLogEntry(args.join(' '), 'warning');
+        };
+        
+        function addLogEntry(message, type = 'log') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            entry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            
+            debugLog.appendChild(entry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            
+            // Keep only last 200 entries
+            while (debugLog.children.length > 200) {
+                debugLog.removeChild(debugLog.firstChild);
+            }
+        }
+        
+        function clearLog() {
+            debugLog.innerHTML = '';
+            addLogEntry('Debug log cleared.', 'success');
+        }
+        
+        function openTransactionBuilder() {
+            window.open('http://localhost:5173/', '_blank');
+            addLogEntry('Opened Transaction Builder in new tab.', 'success');
+        }
+        
+        function loadDiamondContract() {
+            addLogEntry('Auto-loading Diamond contract...', 'warning');
+            addLogEntry('Please manually load contract: 0xa99c4b08201f2913db8d28e71d020c4298f29dbf on Base network', 'warning');
+        }
+        
+        // Add initial message
+        addLogEntry('🔧 Contract Name Debug Monitor Started', 'success');
+        addLogEntry('🎯 Expected behavior: Contract name should remain "Diamond" from Sourcify', 'success');
+        addLogEntry('🚨 Issue: Name is being overridden with "Smart Contract"', 'warning');
+        
+        // Add specific patterns to watch for
+        setTimeout(() => {
+            addLogEntry('🔍 Watch for these patterns in the console:', 'warning');
+            addLogEntry('   - "🎯 [SimpleGridUI] Setting contract name from fetch result: Diamond"', 'warning');
+            addLogEntry('   - "🔍 [SimpleGridUI] PRESERVING Sourcify name: Diamond"', 'warning');
+            addLogEntry('   - "🔍 [SimpleGridUI] SETTING GENERIC NAME: Smart Contract" (THIS IS THE BUG)', 'error');
+            addLogEntry('   - "🔍 [SimpleGridUI] Contract name state AFTER set"', 'warning');
+        }, 1000);
+    </script>
+</body>
+</html>

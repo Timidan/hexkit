@@ -298,15 +298,24 @@ const SimpleGridUI: React.FC = () => {
           // Immediately update the contract info object with the correct name
           contractInfoObj.name = extendedResult.contractName;
           setContractInfo(contractInfoObj);
+          
+          // Set functions and call detectAndFetchTokenInfo with preservation flag
+          setReadFunctions(parsedABI
+            .filter((item) => item.type === "function")
+            .filter((func) => func.stateMutability === "view" || func.stateMutability === "pure")
+            .map((func) => func as ethers.utils.FunctionFragment));
+          
+          setWriteFunctions(parsedABI
+            .filter((item) => item.type === "function")
+            .filter((func) => func.stateMutability !== "view" && func.stateMutability !== "pure")
+            .map((func) => func as ethers.utils.FunctionFragment));
+            
+          // Call detectAndFetchTokenInfo with preservation flag to avoid race condition
+          await detectAndFetchTokenInfo(parsedABI, true); // Preserve the Sourcify name
+        } else {
+          // No contract name from ABI fetch, proceed normally
+          categorizeABIFunctions(parsedABI);
         }
-
-        // Fetch token info after setting contract info
-        console.log(
-          "Calling detectAndFetchTokenInfo with ABI length:",
-          parsedABI.length
-        );
-        // Fetch token info immediately after setting contract info
-        await detectAndFetchTokenInfo(parsedABI, true); // Preserve contract name from ABI fetch
       } catch (parseError) {
         console.error("ABI parsing error:", parseError);
         setAbiError("Failed to parse ABI JSON");
