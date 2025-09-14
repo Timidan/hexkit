@@ -15,7 +15,7 @@ export interface ContractInfoResult {
   source?: 'sourcify' | 'blockscout' | 'etherscan';
   explorerName?: string;
   verified?: boolean;
-  tokenType?: 'ERC20' | 'ERC721' | 'ERC1155' | 'UNKNOWN';
+  // NOTE: tokenType is now determined exclusively by ERC165 supportsInterface() calls in the main component
   tokenInfo?: {
     name?: string;
     symbol?: string;
@@ -39,13 +39,26 @@ export interface ContractInfoResult {
 
 // Sourcify API response interface
 interface SourcifyResponse {
-  matchId?: string;
-  creationMatch?: string;
-  runtimeMatch?: string;
+  match?: any; // Can be "match", "exact_match", or null
+  creationMatch?: any;
+  runtimeMatch?: any;
   verifiedAt?: string;
-  match?: string;
   chainId?: string;
   address?: string;
+  abi?: any[];
+  metadata?: {
+    settings?: {
+      compilationTarget?: Record<string, string>;
+    };
+    name?: string;
+    compiler?: {
+      version?: string;
+    };
+    language?: string;
+    output?: {
+      abi?: any[];
+    };
+  };
 }
 
 // Enhanced search function with comprehensive progress tracking
@@ -93,6 +106,7 @@ export const fetchContractInfoComprehensive = async (
 
     // Priority 2: Blockscout (only if Sourcify failed)
     if (!finalResult.success) {
+      console.log(`🔍 [DEBUG] Sourcify failed, trying Blockscout...`);
       addProgress('Blockscout', 'searching', 'Searching Blockscout for verified contract...');
       const blockscoutResult = await fetchFromBlockscout(address, chain);
       
@@ -106,6 +120,7 @@ export const fetchContractInfoComprehensive = async (
 
     // Priority 3: Etherscan (only if both Sourcify and Blockscout failed)
     if (!finalResult.success) {
+      console.log(`🔍 [DEBUG] Both Sourcify and Blockscout failed, trying Etherscan...`);
       addProgress('Etherscan', 'searching', 'Searching Etherscan for verified contract...');
       const etherscanResult = await fetchFromEtherscan(address, chain);
       
@@ -126,13 +141,13 @@ export const fetchContractInfoComprehensive = async (
         const externalFunctions = extractExternalFunctions(parsedABI);
         console.log(`🔍 Extracted ${externalFunctions?.length || 0} external functions`);
         
-        // Detect token type
-        const tokenType = detectTokenType(parsedABI);
-        console.log(`🔍 Detected token type: ${tokenType}`);
+        // NOTE: Token type detection should only be done via ERC165 supportsInterface() calls in the main component
+        // This ABI-based detection is deprecated and removed
         
-        // If it's a token, fetch token info
+        // NOTE: Token type detection should only be done via ERC165 supportsInterface() calls in the main component
+        // We'll fetch token info for any contract that might have token metadata functions
         let tokenInfo;
-        if (tokenType !== 'UNKNOWN') {
+        if (true) { // Always attempt to fetch token info - ERC165 detection in main component will determine actual type
           addProgress('Token API', 'searching', 'Fetching token metadata...');
           tokenInfo = await fetchTokenInfo(address, parsedABI, chain);
           if (tokenInfo) {
@@ -145,7 +160,6 @@ export const fetchContractInfoComprehensive = async (
         finalResult = {
           ...finalResult,
           externalFunctions,
-          tokenType,
           tokenInfo,
           searchProgress: [...searchProgress] // Copy to prevent reference issues
         };
@@ -168,8 +182,8 @@ export const fetchContractInfoComprehensive = async (
             finalResult.contractName = contractABI.name;
             console.log(`🔍 [DEBUG] Using constructor name: "${contractABI.name}"`);
           } else {
-            // Use a generic name based on token type
-            const genericName = tokenType !== 'UNKNOWN' ? `${tokenType} Token` : 'Unknown Contract';
+            // Use a generic name - token type will be determined by ERC165 detection in main component
+            const genericName = 'Smart Contract';
             finalResult.contractName = genericName;
             console.log(`🔍 [DEBUG] Using generic name: "${genericName}"`);
           }
@@ -203,27 +217,44 @@ const fetchFromSourcify = async (address: string, chainId: number): Promise<Part
   try {
     console.log(`🔍 [Sourcify] Fetching contract: ${address} on chain ${chainId}`);
     
-    // Step 1: Check if contract is verified
-    const checkUrl = `/api/sourcify/server/v2/contract/${chainId}/${address}`;
+    // Step 1: Check if contract is verified and fetch ABI/metadata in one call
+    const checkUrl = `/api/sourcify/server/v2/contract/${chainId}/${address}?fields=abi,metadata`;
     const response = await axios.get<SourcifyResponse>(checkUrl, {
       timeout: 10000,
       headers: { 'User-Agent': 'Web3-Toolkit/1.0' }
     });
 
-    if (response.data.creationMatch || response.data.runtimeMatch) {
-      const matchType = response.data.creationMatch || response.data.runtimeMatch;
-      console.log(`🔍 [Sourcify] Contract verified with match: ${matchType}`);
+    // Check if contract is verified (has match, creationMatch, or runtimeMatch)
+    console.log(`🔍 [Sourcify] Response status: ${response.status}`);
+    console.log(`🔍 [Sourcify] Response data:`, {
+      match: !!response.data.match,
+      creationMatch: !!response.data.creationMatch,
+      runtimeMatch: !!response.data.runtimeMatch,
+      hasAbi: !!(response.data.abi && Array.isArray(response.data.abi)),
+      abiLength: response.data.abi?.length || 0
+    });
+    
+    // Handle 304 Not Modified responses - they should have the data
+    const hasValidData = response.data.match || response.data.creationMatch || response.data.runtimeMatch || 
+                         (response.status === 304 && response.data.abi && Array.isArray(response.data.abi));
+    
+    if (hasValidData) {
+      console.log(`🔍 [Sourcify] Contract verified on Sourcify`);
       
-      // Use the actual match type from the response
-      const metadataUrl = `/api/repo/contracts/${matchType}/${chainId}/${address}/metadata.json`;
-      console.log(`🔍 [Sourcify] Fetching metadata from: ${matchType}`);
-      
-      const metadataResponse = await fetchWithFallback(metadataUrl);
+      // Extract ABI from response if available
+      let abi = null;
+      if (response.data.abi && Array.isArray(response.data.abi)) {
+        abi = JSON.stringify(response.data.abi);
+        console.log(`🔍 [Sourcify] ABI found in response, ${response.data.abi.length} functions`);
+      }
 
-      if (metadataResponse?.data?.output?.abi) {
+      // Extract metadata if available
+      let contractName: string | undefined;
+      if (response.data.metadata) {
+        const metadata = response.data.metadata;
+        
         // Extract contract name from compilation target
-        let contractName: string | undefined;
-        const compilationTarget = metadataResponse.data.settings?.compilationTarget;
+        const compilationTarget = metadata.settings?.compilationTarget;
         if (compilationTarget) {
           const targetKeys = Object.keys(compilationTarget);
           if (targetKeys.length > 0) {
@@ -232,16 +263,15 @@ const fetchFromSourcify = async (address: string, chainId: number): Promise<Part
           }
         }
 
-        // Also try to get name from contract name field if available
-        if (!contractName && metadataResponse.data.name) {
-          contractName = metadataResponse.data.name;
+        // Try to get name from contract name field if available
+        if (!contractName && metadata.name) {
+          contractName = metadata.name;
           console.log(`🔍 [Sourcify] Contract name from metadata: ${contractName}`);
         }
 
         // Additional fallback: try to extract from contract name in settings
-        if (!contractName && metadataResponse.data.settings) {
-          const settings = metadataResponse.data.settings;
-          // Some contracts have the name in different format
+        if (!contractName && metadata.settings) {
+          const settings = metadata.settings;
           if (settings.compilationTarget) {
             const filenames = Object.keys(settings.compilationTarget);
             if (filenames.length > 0) {
@@ -258,20 +288,23 @@ const fetchFromSourcify = async (address: string, chainId: number): Promise<Part
             }
           }
         }
+      }
 
+      if (abi) {
         return {
           success: true,
           contractName,
-          abi: JSON.stringify(metadataResponse.data.output.abi),
+          abi,
           source: 'sourcify',
           explorerName: 'Sourcify',
           verified: true
         };
       } else {
-        console.log(`🔍 [Sourcify] No ABI found in metadata for match type: ${matchType}`);
+        console.log(`🔍 [Sourcify] No ABI found in response`);
       }
     } else {
       console.log(`🔍 [Sourcify] Contract not verified - no matches found`);
+      console.log(`🔍 [Sourcify] Full response data:`, JSON.stringify(response.data, null, 2));
     }
 
     return { success: false, error: 'Contract not verified on Sourcify' };
@@ -497,32 +530,9 @@ const extractExternalFunctions = (abi: any[]): ContractInfoResult['externalFunct
     }));
 };
 
-// Detect token type from ABI
-const detectTokenType = (abi: any[]): 'ERC20' | 'ERC721' | 'ERC1155' | 'UNKNOWN' => {
-  const functions = abi
-    .filter(item => item.type === 'function')
-    .map(item => item.name);
-
-  // ERC20 detection
-  const erc20Functions = ['totalSupply', 'balanceOf', 'transfer', 'allowance', 'approve', 'transferFrom'];
-  if (erc20Functions.every(func => functions.includes(func))) {
-    return 'ERC20';
-  }
-
-  // ERC721 detection
-  const erc721Functions = ['ownerOf', 'tokenURI', 'balanceOf', 'transferFrom', 'approve'];
-  if (erc721Functions.every(func => functions.includes(func))) {
-    return 'ERC721';
-  }
-
-  // ERC1155 detection
-  const erc1155Functions = ['balanceOf', 'balanceOfBatch', 'setApprovalForAll', 'isApprovedForAll'];
-  if (erc1155Functions.every(func => functions.includes(func))) {
-    return 'ERC1155';
-  }
-
-  return 'UNKNOWN';
-};
+// NOTE: Token type detection should only be done via ERC165 supportsInterface() calls
+// This ABI-based function is deprecated and should not be used
+// ERC165 interface detection is handled in the main component with proper contract calls
 
 // Fetch token information using ABI with multiple fallback strategies
 const fetchTokenInfo = async (
