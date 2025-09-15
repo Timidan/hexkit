@@ -13,6 +13,14 @@ import { ethers } from "ethers";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
 import type { Chain, ABIFetchResult, ContractInfo } from "../types";
+import {
+  fetchDiamondFacets,
+  getDiamondFacetAddresses,
+  type DiamondFacet,
+  type FacetProgressCallback,
+} from "../utils/diamondFacetFetcher";
+import { InlineFacetLoader } from "./InlineFacetLoader";
+
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { detectTokenType } from "../utils/universalTokenDetector";
 import {
@@ -84,6 +92,17 @@ const SimpleGridUI: React.FC = () => {
     error?: string;
   } | null>(null);
 
+  // Enhanced parameter validation state
+  const [enhancedParameters, setEnhancedParameters] = useState<{
+    [key: string]: any;
+  }>({});
+  const [useEnhancedUI, setUseEnhancedUI] = useState(true);
+
+  // Diamond facet state
+  const [selectedFacet, setSelectedFacet] = useState<string | null>(null);
+  const [diamondFacets, setDiamondFacets] = useState<DiamondFacet[]>([]);
+  const [showFacetSidebar, setShowFacetSidebar] = useState(false);
+
   const [isLoadingContractInfo, setIsLoadingContractInfo] = useState(false);
   const [usePendingBlock, setUsePendingBlock] = useState(true);
   const [abiSource, setAbiSource] = useState<
@@ -104,6 +123,49 @@ const SimpleGridUI: React.FC = () => {
   const [writeFunctions, setWriteFunctions] = useState<
     ethers.utils.FunctionFragment[]
   >([]);
+
+  // Derived: filtered functions when Diamond + a facet is selected
+  const filteredReadFunctions: ethers.utils.FunctionFragment[] =
+    React.useMemo(() => {
+      if (!isDiamond || !selectedFacet) return readFunctions;
+      const facet = diamondFacets.find(
+        (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+      );
+      if (!facet || !Array.isArray(facet.abi)) return readFunctions;
+      const reads: ethers.utils.FunctionFragment[] = [];
+      (facet.abi as unknown[]).forEach((item) => {
+        const entry = item as { type?: string; stateMutability?: string };
+        if (
+          entry?.type === "function" &&
+          (entry.stateMutability === "view" || entry.stateMutability === "pure")
+        ) {
+          reads.push(item as unknown as ethers.utils.FunctionFragment);
+        }
+      });
+      return reads.length > 0 ? reads : readFunctions;
+    }, [isDiamond, selectedFacet, diamondFacets, readFunctions]);
+
+  const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
+    React.useMemo(() => {
+      if (!isDiamond || !selectedFacet) return writeFunctions;
+      const facet = diamondFacets.find(
+        (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+      );
+      if (!facet || !Array.isArray(facet.abi)) return writeFunctions;
+      const writes: ethers.utils.FunctionFragment[] = [];
+      (facet.abi as unknown[]).forEach((item) => {
+        const entry = item as { type?: string; stateMutability?: string };
+        if (
+          entry?.type === "function" &&
+          !(
+            entry.stateMutability === "view" || entry.stateMutability === "pure"
+          )
+        ) {
+          writes.push(item as unknown as ethers.utils.FunctionFragment);
+        }
+      });
+      return writes.length > 0 ? writes : writeFunctions;
+    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions]);
 
   // ABI fetching functions
   const fetchABIFromSourcery = async (
@@ -2784,7 +2846,6 @@ const SimpleGridUI: React.FC = () => {
             setIsDiamond(result.isDiamond);
 
             if (result.isDiamond) {
-              await loadDiamondFacets(contractAddress, selectedNetwork);
             }
           } catch (e) {
             console.log("Universal detector failed:", (e as Error)?.message);
@@ -2794,11 +2855,43 @@ const SimpleGridUI: React.FC = () => {
           setAbiError("Failed to parse contract ABI");
         }
       } else {
-        // Fallback to original ABI fetch if comprehensive search fails
-        console.log(
-          "⚠️ Comprehensive search failed, falling back to original ABI fetch"
-        );
-        await fetchContractABI(contractAddress, selectedNetwork);
+        // Even if no verified ABI was found, run universal detection to get token/diamond info
+        try {
+          // Prefer raw-probe token name as contract title if available
+          if (result?.tokenInfo?.name) {
+            setContractName(result.tokenInfo.name);
+          } else {
+            setContractName("Unknown Contract");
+          }
+          if (result?.tokenInfo) {
+            setTokenInfo({
+              name: result.tokenInfo.name,
+              symbol: result.tokenInfo.symbol,
+              decimals: result.tokenInfo.decimals,
+            });
+          }
+
+          const rpcUrl = selectedNetwork.rpcUrl;
+          const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+          const det = await detectTokenType(provider, contractAddress);
+          setTokenDetection({
+            type: det.type,
+            confidence: det.type === "unknown" ? 0 : 0.95,
+            detectionMethod: det.method,
+            isDiamond: det.isDiamond,
+            tokenInfo: {
+              name: det.name,
+              symbol: det.symbol,
+              decimals: det.decimals,
+            },
+          });
+          setIsERC20(det.type === "ERC20");
+          setIsERC721(det.type === "ERC721");
+          setIsERC1155(det.type === "ERC1155");
+          setIsDiamond(det.isDiamond);
+        } catch (e) {
+          console.log("Universal detector failed:", (e as Error)?.message);
+        }
       }
     } catch (error) {
       console.error("Error in comprehensive contract fetch:", error);
@@ -3051,72 +3144,40 @@ const SimpleGridUI: React.FC = () => {
     transition: "all 0.2s ease",
   });
 
-  const loadDiamondFacets = useCallback(
-    async (diamondAddress: string, chain: Chain) => {
+  // ignore facet fetch errors
+
+  // Facet sidebar handlers
+  const handleFacetSelect = useCallback((facetAddress: string) => {
+    setSelectedFacet(facetAddress);
+  }, []);
+
+  const handleSidebarFunctionSelect = useCallback(
+    (
+      facetAddress: string,
+      functionName: string,
+      functionType: "read" | "write"
+    ) => {
       try {
-        const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
-          name: chain.name,
-          chainId: chain.id,
-        });
-        const loupe = new ethers.Contract(
-          diamondAddress,
-          [
-            "function facetAddresses() view returns (address[])",
-            "function facetFunctionSelectors(address) view returns (bytes4[])",
-          ],
-          provider
+        const facet = diamondFacets.find(
+          (f) => f.address.toLowerCase() === facetAddress.toLowerCase()
         );
-        const facets: string[] = await loupe.facetAddresses();
-        if (!Array.isArray(facets) || facets.length === 0) return;
-
-        // Map: facet -> selectors
-        const facetToSelectors: Record<string, string[]> = {};
-        for (const f of facets) {
-          try {
-            const sel: string[] = await loupe.facetFunctionSelectors(f);
-            facetToSelectors[f] = sel || [];
-          } catch {
-            facetToSelectors[f] = [];
-          }
-        }
-
-        // For each facet, try fetch ABI and split into read/write
-        const newRead: ethers.utils.FunctionFragment[] = [];
-        const newWrite: ethers.utils.FunctionFragment[] = [];
-
-        for (const f of facets) {
-          try {
-            const res = await fetchContractInfoComprehensive(f, chain);
-            if (res.success && res.abi) {
-              const parsed = JSON.parse(res.abi).filter(
-                (i: any) => i.type === "function"
-              );
-              for (const item of parsed) {
-                const frag = item as ethers.utils.FunctionFragment;
-                if (
-                  frag.stateMutability === "view" ||
-                  frag.stateMutability === "pure"
-                ) {
-                  newRead.push(frag);
-                } else {
-                  newWrite.push(frag);
-                }
-              }
-            }
-          } catch {
-            // ignore facet fetch errors
-          }
-        }
-
-        if (newRead.length > 0 || newWrite.length > 0) {
-          setReadFunctions(newRead);
-          setWriteFunctions(newWrite);
-        }
+        if (!facet) return;
+        const funcs =
+          functionType === "read"
+            ? facet.functions.read
+            : facet.functions.write;
+        const target = funcs.find((fn: any) => fn?.name === functionName);
+        if (!target) return;
+        setSelectedFacet(facetAddress);
+        setSelectedFunction(functionName);
+        setSelectedFunctionObj(
+          target as unknown as ethers.utils.FunctionFragment
+        );
       } catch (e) {
-        console.log("Diamond facet load failed:", (e as Error)?.message);
+        console.warn("Sidebar function select failed:", e);
       }
     },
-    []
+    [diamondFacets]
   );
 
   return (
@@ -3639,6 +3700,97 @@ const SimpleGridUI: React.FC = () => {
                 </div>
               )}
 
+              {!contractInfo && (tokenDetection || isDiamond || tokenInfo) && (
+                <div
+                  style={{
+                    position: "relative",
+                    padding: "16px",
+                    background: isDiamond ? "#1a1025" : "#1a1a1a",
+                    border: isDiamond ? "1px solid #7c3aed" : "1px solid #333",
+                    borderRadius: "12px",
+                    marginBottom: "16px",
+                    opacity: isLoadingContractInfo || isLoadingABI ? 0.6 : 1,
+                    filter:
+                      isLoadingContractInfo || isLoadingABI
+                        ? "grayscale(0.2)"
+                        : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "12px",
+                        background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "24px",
+                        border: "2px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      <span style={{ fontSize: 14, color: "#fff" }}>SC</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          fontSize: "18px",
+                          color: "#fff",
+                          marginBottom: "6px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        {contractName || "Unknown Contract"}
+                        {isDiamond && (
+                          <span
+                            title="Diamond contract"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "18px",
+                              height: "18px",
+                              borderRadius: "50%",
+                              background: "rgba(124, 58, 237, 0.15)",
+                              border: "1px solid rgba(124, 58, 237, 0.4)",
+                              color: "#a78bfa",
+                            }}
+                          >
+                            <Gem size={12} />
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#ccc",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Symbol:{" "}
+                        {tokenDetection?.tokenInfo?.symbol ||
+                          tokenInfo?.symbol ||
+                          "Unknown"}
+                        {(tokenDetection?.tokenInfo?.decimals !== undefined
+                          ? tokenDetection.tokenInfo.decimals
+                          : tokenInfo?.decimals || 0) > 0 &&
+                          ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {contractInfo && (
                 <div
                   style={{
@@ -4067,28 +4219,27 @@ const SimpleGridUI: React.FC = () => {
                               }
                             })()}
                           </div>
-                          {tokenDetection?.type &&
-                            tokenDetection.type !== "unknown" && (
-                              <div
-                                style={{
-                                  fontSize: "13px",
-                                  color: "#ccc",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                Symbol:{" "}
-                                {tokenDetection?.tokenInfo?.symbol ||
-                                  tokenInfo?.symbol ||
-                                  (contractName?.includes(".")
-                                    ? contractName.split(".").pop()
-                                    : "Unknown")}
-                                {(tokenDetection?.tokenInfo?.decimals !==
-                                undefined
-                                  ? tokenDetection.tokenInfo.decimals
-                                  : tokenInfo?.decimals || 0) > 0 &&
-                                  ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
-                              </div>
-                            )}
+                          {(tokenDetection?.type ? true : false) && (
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#ccc",
+                                fontWeight: "500",
+                              }}
+                            >
+                              Symbol:{" "}
+                              {tokenDetection?.tokenInfo?.symbol ||
+                                tokenInfo?.symbol ||
+                                (contractName?.includes(".")
+                                  ? contractName.split(".").pop()
+                                  : "Unknown")}
+                              {(tokenDetection?.tokenInfo?.decimals !==
+                              undefined
+                                ? tokenDetection.tokenInfo.decimals
+                                : tokenInfo?.decimals || 0) > 0 &&
+                                ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div
@@ -4140,7 +4291,11 @@ const SimpleGridUI: React.FC = () => {
                           gap: "4px",
                         }}
                       >
-                        📖 {readFunctions.length} read functions
+                        📖{" "}
+                        {diamondFacets
+                          .reduce((acc, f) => acc + f.functions.read.length, 0)
+                          .toString()}{" "}
+                        read functions
                       </span>
                       <span
                         style={{
@@ -4150,7 +4305,11 @@ const SimpleGridUI: React.FC = () => {
                           gap: "4px",
                         }}
                       >
-                        ✍️ {writeFunctions.length} write functions
+                        ✍️{" "}
+                        {diamondFacets
+                          .reduce((acc, f) => acc + f.functions.write.length, 0)
+                          .toString()}{" "}
+                        write functions
                       </span>
                     </div>
                     <div style={{ fontSize: "11px", color: "#666" }}>
@@ -4161,7 +4320,9 @@ const SimpleGridUI: React.FC = () => {
               )}
 
               {/* Contract Function Selection - Inside Contract Container */}
-              {(readFunctions.length > 0 || writeFunctions.length > 0) && (
+              {(readFunctions.length > 0 ||
+                writeFunctions.length > 0 ||
+                (isDiamond && diamondFacets.length > 0)) && (
                 <div
                   style={{
                     marginTop: "16px",
@@ -4175,9 +4336,54 @@ const SimpleGridUI: React.FC = () => {
                       fontWeight: "600",
                       color: "#ccc",
                       marginBottom: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
                     }}
                   >
-                    Contract Function
+                    <span>Contract Function</span>
+                    {isDiamond && diamondFacets.length > 0 && (
+                      <>
+                        <select
+                          value={selectedFacet || ""}
+                          onChange={(e) => setSelectedFacet(e.target.value)}
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #444",
+                            borderRadius: "6px",
+                            background: "#151515",
+                            color: "#ddd",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <option value="">Select Facet</option>
+                          {diamondFacets.map((facet) => (
+                            <option key={facet.address} value={facet.address}>
+                              {facet.name ||
+                                `Facet ${facet.address.slice(0, 8)}`}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={selectedFunctionType || "read"}
+                          onChange={(e) =>
+                            setSelectedFunctionType(e.target.value as any)
+                          }
+                          style={{
+                            padding: "6px 8px",
+                            border: "1px solid #444",
+                            borderRadius: "6px",
+                            background: "#151515",
+                            color: "#ddd",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <option value="read">Read</option>
+                          <option value="write">Write</option>
+                        </select>
+                      </>
+                    )}
                   </h4>
 
                   {/* Function Mode Selection */}
@@ -4305,7 +4511,7 @@ const SimpleGridUI: React.FC = () => {
                             gap: "6px",
                           }}
                         >
-                          {readFunctions.length > 0 && (
+                          {filteredReadFunctions.length > 0 && (
                             <div
                               style={{
                                 padding: "6px 8px",
@@ -4330,11 +4536,11 @@ const SimpleGridUI: React.FC = () => {
                                       : "#ccc",
                                 }}
                               >
-                                📖 Read ({readFunctions.length})
+                                📖 Read ({filteredReadFunctions.length})
                               </div>
                             </div>
                           )}
-                          {writeFunctions.length > 0 && (
+                          {filteredWriteFunctions.length > 0 && (
                             <div
                               style={{
                                 padding: "6px 8px",
@@ -4359,7 +4565,7 @@ const SimpleGridUI: React.FC = () => {
                                       : "#ccc",
                                 }}
                               >
-                                ✍️ Write ({writeFunctions.length})
+                                ✍️ Write ({filteredWriteFunctions.length})
                               </div>
                             </div>
                           )}
@@ -4388,8 +4594,8 @@ const SimpleGridUI: React.FC = () => {
                           >
                             <option value="">Choose function...</option>
                             {selectedFunctionType === "read" &&
-                              readFunctions.length > 0 &&
-                              readFunctions.map((func, index) => (
+                              filteredReadFunctions.length > 0 &&
+                              filteredReadFunctions.map((func, index) => (
                                 <option
                                   key={`read-${index}`}
                                   value={`read-${index}`}
@@ -4404,8 +4610,8 @@ const SimpleGridUI: React.FC = () => {
                                 </option>
                               ))}
                             {selectedFunctionType === "write" &&
-                              writeFunctions.length > 0 &&
-                              writeFunctions.map((func, index) => (
+                              filteredWriteFunctions.length > 0 &&
+                              filteredWriteFunctions.map((func, index) => (
                                 <option
                                   key={`write-${index}`}
                                   value={`write-${index}`}
@@ -4552,6 +4758,19 @@ const SimpleGridUI: React.FC = () => {
                   )}
                 </div>
               )}
+              {/* Diamond Facet Loader */}
+              {isDiamond && selectedNetwork && (
+                <InlineFacetLoader
+                  chain={selectedNetwork}
+                  diamondAddress={contractAddress}
+                  onFacetsLoaded={(facets) => {
+                    setDiamondFacets(facets);
+                    setShowFacetSidebar(true);
+                  }}
+                />
+              )}
+
+              {/* Diamond Facets controls removed to reuse the existing universal function UI */}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import {
   Play,
@@ -38,7 +38,7 @@ interface FunctionCall {
 
 interface FunctionCallResult {
   success: boolean;
-  result?: any;
+  result?: unknown;
   error?: string;
   gasUsed?: string;
   transactionHash?: string;
@@ -54,14 +54,64 @@ interface Props {
   connectedWallet?: {
     isConnected: boolean;
     address?: string;
-    provider?: any;
+    provider?: unknown;
     signer?: ethers.Signer;
   };
 }
 
+// Light inline function selector grouped by facet
+function FunctionSelector({
+  functions,
+  getKey,
+  selectedKey,
+  onSelect,
+}: {
+  functions: FunctionCall[];
+  getKey: (f: FunctionCall) => string;
+  selectedKey: string | null;
+  onSelect: (key: string) => void;
+}) {
+  const groups = new Map<string, FunctionCall[]>();
+  functions.forEach((f) => {
+    const group = f.facetName || "Functions";
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group)!.push(f);
+  });
+
+  return (
+    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <label style={{ fontSize: "12px", color: "#6b7280" }}>Function:</label>
+      <select
+        value={selectedKey || ""}
+        onChange={(e) => onSelect(e.target.value)}
+        style={{
+          flex: 1,
+          padding: "8px",
+          border: "1px solid rgba(59, 130, 246, 0.3)",
+          borderRadius: "4px",
+          fontSize: "13px",
+          fontFamily: "Monaco, Menlo, monospace",
+        }}
+      >
+        {[...groups.entries()].map(([group, items]) => (
+          <optgroup key={group} label={group}>
+            {items.map((f) => {
+              const key = getKey(f);
+              return (
+                <option key={key} value={key}>{`${f.name}(${f.inputs
+                  .map((i) => i.type)
+                  .join(",")})`}</option>
+              );
+            })}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 const DiamondFunctionCaller: React.FC<Props> = ({
   contractAddress,
-  chain,
   functions,
   provider,
   connectedWallet,
@@ -77,13 +127,28 @@ const DiamondFunctionCaller: React.FC<Props> = ({
   >({});
   const [loadingCalls, setLoadingCalls] = useState<Set<string>>(new Set());
 
-  // Separate read-only and write functions
-  const readOnlyFunctions = functions.filter(
-    (f) => f.stateMutability === "view" || f.stateMutability === "pure"
+  const [selectedFunctionKey, setSelectedFunctionKey] = useState<string | null>(
+    null
   );
-  const writeFunctions = functions.filter(
-    (f) => f.stateMutability === "nonpayable" || f.stateMutability === "payable"
+
+  useEffect(() => {
+    if (!selectedFunctionKey && functions.length > 0) {
+      const firstKey = getFunctionKey(functions[0]);
+      setSelectedFunctionKey(firstKey);
+      setExpandedFunctions(new Set([firstKey]));
+    }
+  }, [functions, selectedFunctionKey]);
+
+  // Categorization helpers (optional)
+  // Note: with the dropdown UI, we don't render full lists anymore.
+
+  const selectedFunction = functions.find(
+    (f) => getFunctionKey(f) === selectedFunctionKey
   );
+  const selectedIsReadOnly = selectedFunction
+    ? selectedFunction.stateMutability === "view" ||
+      selectedFunction.stateMutability === "pure"
+    : true;
 
   const toggleFunctionExpansion = (functionKey: string) => {
     const newExpanded = new Set(expandedFunctions);
@@ -113,7 +178,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     return `${func.name}_${func.inputs.map((i) => i.type).join("_")}`;
   };
 
-  const parseInputValue = (value: string, type: string): any => {
+  const parseInputValue = (value: string, type: string): unknown => {
     if (!value.trim()) {
       if (type.includes("[]")) return [];
       if (type === "bool") return false;
@@ -158,18 +223,28 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
       return value;
     } catch (error: unknown) {
-      const msg = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+      const msg =
+        error instanceof Error
+          ? error instanceof Error
+            ? error.message
+            : String(error)
+          : String(error);
       throw new Error(`Invalid value for type ${type}: ${msg}`);
     }
   };
 
-  const formatOutputValue = (value: any, type: string): string => {
+  const formatOutputValue = (value: unknown): string => {
     if (value === null || value === undefined) return "null";
 
     try {
-      // Handle BigNumber
-      if (ethers.BigNumber.isBigNumber(value)) {
-        return value.toString();
+      // BigNumber detection without using any
+      const isBigNumber = (
+        ethers.BigNumber as unknown as {
+          isBigNumber: (x: unknown) => x is ethers.BigNumber;
+        }
+      ).isBigNumber(value);
+      if (isBigNumber) {
+        return (value as ethers.BigNumber).toString();
       }
 
       // Handle arrays
@@ -187,9 +262,9 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         return value.toString();
       }
 
-      return value.toString();
+      return String(value);
     } catch (error: unknown) {
-      return `[Error formatting: ${(error instanceof Error ? error.message : String(error))}]`;
+      return `[Error formatting: ${error instanceof Error ? error.message : String(error)}]`;
     }
   };
 
@@ -212,7 +287,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     try {
       // Parse input parameters
       const inputs = functionInputs[functionKey] || {};
-      const parsedArgs: any[] = [];
+      const parsedArgs: unknown[] = [];
 
       for (const input of func.inputs) {
         const value = inputs[input.name] || "";
@@ -220,7 +295,9 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           const parsedValue = parseInputValue(value, input.type);
           parsedArgs.push(parsedValue);
         } catch (parseError: unknown) {
-          throw new Error(`Parameter "${input.name}": ${(parseError instanceof Error ? parseError.message : String(parseError))}`);
+          throw new Error(
+            `Parameter "${input.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`
+          );
         }
       }
 
@@ -229,9 +306,13 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
       console.log(`📞 Calling ${func.name} with args:`, parsedArgs);
 
-      // Call the function
+      // Call the function using a typed index accessor
       const startTime = Date.now();
-      const result = await contract[func.name](...parsedArgs);
+      const contractFns = contract as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<unknown>
+      >;
+      const result = await contractFns[func.name](...parsedArgs);
       const endTime = Date.now();
 
       console.log(`✅ ${func.name} result:`, result);
@@ -244,14 +325,16 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           timestamp: endTime - startTime,
         },
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`❌ Error calling ${func.name}:`, error);
 
       setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: (error instanceof Error ? error.message : String(error)) || "Unknown error occurred",
+          error:
+            (error instanceof Error ? error.message : String(error)) ||
+            "Unknown error occurred",
         },
       }));
     } finally {
@@ -283,7 +366,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     try {
       // Parse input parameters
       const inputs = functionInputs[functionKey] || {};
-      const parsedArgs: any[] = [];
+      const parsedArgs: unknown[] = [];
 
       for (const input of func.inputs) {
         const value = inputs[input.name] || "";
@@ -291,7 +374,9 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           const parsedValue = parseInputValue(value, input.type);
           parsedArgs.push(parsedValue);
         } catch (parseError: unknown) {
-          throw new Error(`Parameter "${input.name}": ${(parseError instanceof Error ? parseError.message : String(parseError))}`);
+          throw new Error(
+            `Parameter "${input.name}": ${parseError instanceof Error ? parseError.message : String(parseError)}`
+          );
         }
       }
 
@@ -305,9 +390,13 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       console.log(`🚀 Executing ${func.name} with args:`, parsedArgs);
 
       // Estimate gas first
-      let gasEstimate;
+      let gasEstimate: ethers.BigNumber | undefined;
       try {
-        gasEstimate = await contract.estimateGas[func.name](...parsedArgs);
+        const estimateFns = contract.estimateGas as unknown as Record<
+          string,
+          (...args: unknown[]) => Promise<ethers.BigNumber>
+        >;
+        gasEstimate = await estimateFns[func.name](...parsedArgs);
         console.log(
           `⛽ Gas estimate for ${func.name}:`,
           gasEstimate.toString()
@@ -318,7 +407,19 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
       // Execute the transaction
       const startTime = Date.now();
-      const tx = await contract[func.name](...parsedArgs, {
+      const writeFns = contract as unknown as Record<
+        string,
+        (...args: unknown[]) => Promise<{
+          hash: string;
+          wait: () => Promise<{
+            transactionHash: string;
+            gasUsed?: ethers.BigNumber;
+            blockNumber: number;
+            events?: unknown[];
+          }>;
+        }>
+      >;
+      const tx = await writeFns[func.name](...parsedArgs, {
         gasLimit: gasEstimate ? gasEstimate.mul(120).div(100) : undefined, // Add 20% buffer
       });
 
@@ -334,27 +435,33 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         ...prev,
         [functionKey]: {
           success: true,
-          result: receipt.events || [],
+          result: (receipt.events || []) as unknown[],
           gasUsed: receipt.gasUsed?.toString(),
           transactionHash: receipt.transactionHash,
           blockNumber: receipt.blockNumber,
           timestamp: endTime - startTime,
         },
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`❌ Error executing ${func.name}:`, error);
 
-      let errorMessage = (error instanceof Error ? error.message : String(error)) || "Unknown error occurred";
+      let errorMessage =
+        (error instanceof Error ? error.message : String(error)) ||
+        "Unknown error occurred";
 
       // Parse common error types
-      if (error.code === 4001) {
+      if ((error as { code?: number }).code === 4001) {
         errorMessage = "Transaction rejected by user";
-      } else if (error.code === -32603) {
+      } else if ((error as { code?: number }).code === -32603) {
         errorMessage = "Transaction failed - check contract requirements";
-      } else if (error.reason) {
-        errorMessage = `Contract reverted: ${error.reason}`;
-      } else if (error.data && error.data.message) {
-        errorMessage = error.data.message;
+      } else if ((error as { reason?: string }).reason) {
+        errorMessage = `Contract reverted: ${(error as { reason?: string }).reason}`;
+      } else if (
+        (error as { data?: { message?: string } }).data &&
+        (error as { data?: { message?: string } }).data!.message
+      ) {
+        errorMessage = (error as { data?: { message?: string } }).data!
+          .message!;
       }
 
       setCallResults((prev) => ({
@@ -373,7 +480,10 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     }
   };
 
-  const renderParameterInput = (param: any, functionKey: string) => {
+  const renderParameterInput = (
+    param: { name: string; type: string },
+    functionKey: string
+  ) => {
     const value = functionInputs[functionKey]?.[param.name] || "";
 
     return (
@@ -458,10 +568,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     );
   };
 
-  const renderFunctionResult = (
-    result: FunctionCallResult,
-    func: FunctionCall
-  ) => {
+  const renderFunctionResult = (result: FunctionCallResult) => {
     if (!result) return null;
 
     return (
@@ -613,14 +720,15 @@ const DiamondFunctionCaller: React.FC<Props> = ({
             >
               {result.transactionHash ? (
                 // Show events for write functions
-                Array.isArray(result.result) && result.result.length > 0 ? (
-                  result.result.map((event: any, index: number) => (
+                Array.isArray(result.result) &&
+                (result.result as unknown[]).length > 0 ? (
+                  (result.result as unknown[]).map((event, index) => (
                     <div key={index} style={{ marginBottom: "8px" }}>
                       <div style={{ color: "#3b82f6", fontWeight: "600" }}>
-                        {event.event || "Event"}:
+                        Event
                       </div>
                       <div style={{ marginLeft: "12px" }}>
-                        {JSON.stringify(event.args || event, null, 2)}
+                        {JSON.stringify(event, null, 2)}
                       </div>
                     </div>
                   ))
@@ -630,25 +738,21 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                   </div>
                 )
               ) : // Show return values for read functions
-              func.outputs.length > 1 ? (
-                func.outputs.map((output, index) => (
+              selectedFunction && selectedFunction.outputs.length > 1 ? (
+                selectedFunction.outputs.map((output, index) => (
                   <div key={index} style={{ marginBottom: "4px" }}>
                     <span style={{ color: "#6b7280" }}>
                       {output.name || `output${index}`} ({output.type}):
                     </span>{" "}
                     {formatOutputValue(
                       Array.isArray(result.result)
-                        ? result.result[index]
-                        : result.result,
-                      output.type
+                        ? (result.result as unknown[])[index]
+                        : result.result
                     )}
                   </div>
                 ))
               ) : (
-                formatOutputValue(
-                  result.result,
-                  func.outputs[0]?.type || "unknown"
-                )
+                formatOutputValue(result.result)
               )}
             </div>
           </div>
@@ -926,7 +1030,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
             )}
 
             {/* Results */}
-            {renderFunctionResult(result, func)}
+            {renderFunctionResult(result)}
           </div>
         )}
       </div>
@@ -979,75 +1083,28 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           style={{
             fontSize: "13px",
             color: "#6b7280",
-            margin: "0",
+            margin: "0 0 12px 0",
           }}
         >
-          Execute contract functions directly from the interface. Read-only
-          functions are called immediately, while write functions require wallet
-          connection.
+          Select a function, enter arguments, then execute. Read-only functions
+          call instantly; write functions require a connected wallet.
         </p>
+
+        {/* Function dropdown (grouped by facet) */}
+        <FunctionSelector
+          functions={functions}
+          getKey={getFunctionKey}
+          onSelect={(key) => {
+            setSelectedFunctionKey(key);
+            setExpandedFunctions(new Set([key]));
+          }}
+          selectedKey={selectedFunctionKey}
+        />
       </div>
 
-      {/* Read-only functions */}
-      {readOnlyFunctions.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <h5
-            style={{
-              color: "#3b82f6",
-              fontSize: "14px",
-              fontWeight: "600",
-              marginBottom: "12px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <Eye size={16} />
-            Read-Only Functions ({readOnlyFunctions.length})
-          </h5>
-          {readOnlyFunctions.map((func) => renderFunction(func, true))}
-        </div>
-      )}
-
-      {/* Write functions */}
-      {writeFunctions.length > 0 && (
-        <div>
-          <h5
-            style={{
-              color: "#f59e0b",
-              fontSize: "14px",
-              fontWeight: "600",
-              marginBottom: "12px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <Zap size={16} />
-            Write Functions ({writeFunctions.length})
-          </h5>
-          <div
-            style={{
-              background: "rgba(245, 158, 11, 0.05)",
-              border: "1px solid rgba(245, 158, 11, 0.2)",
-              borderRadius: "6px",
-              padding: "12px",
-              marginBottom: "12px",
-            }}
-          >
-            <p
-              style={{
-                fontSize: "12px",
-                color: "#92400e",
-                margin: "0",
-              }}
-            >
-              ⚠️ Write functions require wallet connection and will create
-              transactions on the blockchain.
-            </p>
-          </div>
-          {writeFunctions.map((func) => renderFunction(func, false))}
-        </div>
+      {/* Selected function panel */}
+      {selectedFunction && (
+        <div>{renderFunction(selectedFunction, selectedIsReadOnly)}</div>
       )}
     </div>
   );

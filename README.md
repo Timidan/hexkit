@@ -67,3 +67,31 @@ export default tseslint.config([
   },
 ])
 ```
+
+## 🔥 Hot Reloading Development
+
+The development server is configured with Hot Module Replacement (HMR) for instant updates:
+
+### Features:
+- **Instant Updates**: Changes to React components update immediately without page refresh
+- **State Preservation**: Component state is preserved during updates when possible
+- **File Watching**: Automatic detection of file changes with polling for better reliability
+- **HMR Port**: Hot reloading runs on port 24678 for optimal performance
+
+### Usage:
+```bash
+# Standard development server
+npm run dev
+
+# Enhanced hot reloading (force refresh dependencies)
+npm run dev:hot
+
+# Using the helper script
+./dev-server.sh
+```
+
+### Configuration:
+- HMR is configured in `vite.config.ts` with optimized settings
+- File watching uses polling (1000ms interval) for better cross-platform compatibility
+- React Fast Refresh is enabled for optimal development experience
+

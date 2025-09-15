@@ -14,10 +14,10 @@ import SimpleGridUI from "./components/SimpleGridUI";
 import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
 import CalldataGenerator from "./components/CalldataGenerator";
-import UniversalContractInterface from "./components/UniversalContractInterface";
 import ComprehensiveContractSearch from "./components/ComprehensiveContractSearch";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Signature Calculator Component
 const SignatureCalculator: React.FC = () => {
@@ -29,7 +29,8 @@ const SignatureCalculator: React.FC = () => {
       const hash = ethers.utils.id(signature);
       setSelector(hash.slice(0, 10));
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       alert("Error: " + errorMessage);
     }
   };
@@ -76,7 +77,9 @@ function App() {
         <header>
           <div className="header-content">
             <div className="header-title">
-              <h1><Wrench size={24} className="inline mr-2" /> Web3 Toolkit</h1>
+              <h1>
+                <Wrench size={24} className="inline mr-2" /> Web3 Toolkit
+              </h1>
               <p>Ethereum Development Tools</p>
             </div>
             <div className="header-wallet">
@@ -88,15 +91,20 @@ function App() {
         <Navigation />
 
         <main className="content">
-          <Routes>
-            <Route path="/" element={<Navigate to="/generator" replace />} />
-            <Route path="/generator" element={<CalldataGenerator />} />
-            <Route path="/decoder" element={<SmartDecoder />} />
-            <Route path="/signatures" element={<SignatureCalculator />} />
-            <Route path="/builder" element={<SimpleGridUI />} />
-            <Route path="/database" element={<SignatureDatabase />} />
-            <Route path="/contract-search" element={<ComprehensiveContractSearch />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/generator" replace />} />
+              <Route path="/generator" element={<CalldataGenerator />} />
+              <Route path="/decoder" element={<SmartDecoder />} />
+              <Route path="/signatures" element={<SignatureCalculator />} />
+              <Route path="/builder" element={<SimpleGridUI />} />
+              <Route path="/database" element={<SignatureDatabase />} />
+              <Route
+                path="/contract-search"
+                element={<ComprehensiveContractSearch />}
+              />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </ToolkitProvider>

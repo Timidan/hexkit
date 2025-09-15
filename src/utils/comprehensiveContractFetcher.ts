@@ -1,10 +1,14 @@
-const API_KEY = (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string }).API_KEY || (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string }).VITE_API_KEY || "";
+const API_KEY =
+  (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
+    .API_KEY ||
+  (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
+    .VITE_API_KEY ||
+  "";
 import axios from "axios";
 import { ethers } from "ethers";
 import type { Chain } from "../types";
 
-// CORS proxy for development
-const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
+// CORS proxy not used in browser; proxies are configured in Vite
 
 // Enhanced contract information interface
 export interface ContractInfoResult {
@@ -38,6 +42,26 @@ export interface ContractInfoResult {
     status: "searching" | "found" | "not_found" | "error";
     message?: string;
   }>;
+}
+
+// Simple retry helper
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delayMs = 300
+): Promise<T> {
+  let lastErr: any;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 // Sourcify API response interface
@@ -267,6 +291,98 @@ export const fetchContractInfoComprehensive = async (
       }
     }
 
+    // RAW FALLBACK: If still not successful (no verified ABI), probe minimal on-chain data
+    if (!finalResult.success) {
+      try {
+        addProgress(
+          "RawProbe",
+          "searching",
+          "Probing ERC165 and token metadata..."
+        );
+        const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+
+        // Probe ERC165
+        let supports165 = false;
+        try {
+          const erc165 = new ethers.Contract(
+            address,
+            [
+              {
+                inputs: [
+                  {
+                    internalType: "bytes4",
+                    name: "interfaceId",
+                    type: "bytes4",
+                  },
+                ],
+                name: "supportsInterface",
+                outputs: [{ internalType: "bool", name: "", type: "bool" }],
+                stateMutability: "view",
+                type: "function",
+              },
+            ],
+            provider
+          );
+          supports165 = await erc165
+            .supportsInterface("0x01ffc9a7")
+            .catch(() => false);
+        } catch {}
+
+        // Probe token metadata directly
+        const metaIface = new ethers.utils.Interface([
+          "function name() view returns (string)",
+          "function symbol() view returns (string)",
+          "function decimals() view returns (uint8)",
+        ]);
+        const meta = new ethers.Contract(address, metaIface, provider);
+        const [name, symbol, decimals] = await Promise.all([
+          meta.name().catch(() => undefined),
+          meta.symbol().catch(() => undefined),
+          meta.decimals().catch(() => undefined),
+        ]);
+
+        const tokenInfo = {
+          name: typeof name === "string" ? name : undefined,
+          symbol: typeof symbol === "string" ? symbol : undefined,
+          decimals: typeof decimals === "number" ? decimals : undefined,
+        };
+
+        // If we obtained any token metadata, surface it and use name as contractName
+        if (
+          tokenInfo.name ||
+          tokenInfo.symbol ||
+          tokenInfo.decimals !== undefined
+        ) {
+          addProgress(
+            "RawProbe",
+            "found",
+            `Token metadata: ${tokenInfo.name || "Unknown"}`
+          );
+          finalResult = {
+            ...finalResult,
+            success: false, // Not verified; ABI still missing
+            contractName:
+              finalResult.contractName ||
+              tokenInfo.name ||
+              finalResult.contractName,
+            tokenInfo,
+            verified: false,
+            searchProgress: [...searchProgress],
+          };
+        } else {
+          addProgress(
+            "RawProbe",
+            "not_found",
+            supports165
+              ? "ERC165 supported, no token metadata"
+              : "No ERC165 or token metadata"
+          );
+        }
+      } catch (rawErr) {
+        addProgress("RawProbe", "error", String(rawErr));
+      }
+    }
+
     console.log(`🔍 Search completed. Success: ${finalResult.success}`);
     return finalResult;
   } catch (error) {
@@ -290,13 +406,57 @@ const fetchFromSourcify = async (
       `🔍 [Sourcify] Fetching contract: ${address} on chain ${chainId}`
     );
 
-    // Step 1: Check if contract is verified and fetch ABI/metadata in one call
-    const checkUrl = `/api/sourcify/server/v2/contract/${chainId}/${address}?fields=abi,metadata`;
-    const response = await axios.get<SourcifyResponse>(checkUrl, {
-      timeout: 10000,
-    });
+    // Prefer repo endpoints (full_match, partial_match)
+    const repoEndpoints = [
+      `/api/repo/contracts/full_match/${chainId}/${address}/metadata.json`,
+      `/api/repo/contracts/partial_match/${chainId}/${address}/metadata.json`,
+    ];
 
-    // Check if contract is verified (has match, creationMatch, or runtimeMatch)
+    for (const url of repoEndpoints) {
+      try {
+        const res = await withRetry(() =>
+          axios.get<SourcifyResponse>(url, { timeout: 15000 })
+        );
+        const metadata: any = res.data;
+        const abi = Array.isArray(metadata?.output?.abi)
+          ? metadata.output.abi
+          : [];
+        if (abi.length > 0) {
+          let contractName: string | undefined;
+          const compilationTarget = metadata?.settings?.compilationTarget;
+          if (compilationTarget) {
+            const keys = Object.keys(compilationTarget);
+            if (keys.length > 0) contractName = compilationTarget[keys[0]];
+          }
+          if (!contractName && metadata?.metadata?.name) {
+            contractName = metadata.metadata.name;
+          }
+          if (!contractName && metadata?.name) {
+            contractName = metadata.name;
+          }
+          return {
+            success: true,
+            contractName,
+            abi: JSON.stringify(abi),
+            source: "sourcify",
+            explorerName: "Sourcify",
+            verified: true,
+          };
+        }
+      } catch (e) {
+        // try next repo endpoint
+        continue;
+      }
+    }
+
+    // Fallback: server v2 contract endpoint as a secondary check
+    const checkUrl = `/api/sourcify/server/v2/contract/${chainId}/${address}?fields=abi,metadata`;
+    const response = await withRetry(() =>
+      axios.get<SourcifyResponse>(checkUrl, {
+        timeout: 15000,
+      })
+    );
+
     console.log(`🔍 [Sourcify] Response status: ${response.status}`);
     console.log(`🔍 [Sourcify] Response data:`, {
       match: !!response.data.match,
@@ -306,7 +466,6 @@ const fetchFromSourcify = async (
       abiLength: response.data.abi?.length || 0,
     });
 
-    // Handle 304 Not Modified responses - they should have the data
     const hasValidData =
       response.data.match ||
       response.data.creationMatch ||
@@ -316,62 +475,23 @@ const fetchFromSourcify = async (
         Array.isArray(response.data.abi));
 
     if (hasValidData) {
-      console.log(`🔍 [Sourcify] Contract verified on Sourcify`);
-
-      // Extract ABI from response if available
-      let abi = null;
+      let abi: string | null = null;
       if (response.data.abi && Array.isArray(response.data.abi)) {
         abi = JSON.stringify(response.data.abi);
-        console.log(
-          `🔍 [Sourcify] ABI found in response, ${response.data.abi.length} functions`
-        );
       }
 
-      // Extract metadata if available
       let contractName: string | undefined;
-      if (response.data.metadata) {
-        const metadata = response.data.metadata;
-
-        // Extract contract name from compilation target
-        const compilationTarget = metadata.settings?.compilationTarget;
+      const metadata = response.data.metadata as any;
+      if (metadata) {
+        const compilationTarget = metadata?.settings?.compilationTarget;
         if (compilationTarget) {
           const targetKeys = Object.keys(compilationTarget);
           if (targetKeys.length > 0) {
             contractName = compilationTarget[targetKeys[0]];
-            console.log(
-              `🔍 [Sourcify] Contract name from compilation target: ${contractName}`
-            );
           }
         }
-
-        // Try to get name from contract name field if available
-        if (!contractName && metadata.name) {
+        if (!contractName && metadata?.name) {
           contractName = metadata.name;
-          console.log(
-            `🔍 [Sourcify] Contract name from metadata: ${contractName}`
-          );
-        }
-
-        // Additional fallback: try to extract from contract name in settings
-        if (!contractName && metadata.settings) {
-          const settings = metadata.settings;
-          if (settings.compilationTarget) {
-            const filenames = Object.keys(settings.compilationTarget);
-            if (filenames.length > 0) {
-              const filename = filenames[0];
-              // Extract contract name from filename if it ends with .sol
-              if (filename.endsWith(".sol")) {
-                const nameParts = filename.split("/");
-                const lastPart = nameParts[nameParts.length - 1];
-                if (lastPart.endsWith(".sol")) {
-                  contractName = lastPart.slice(0, -4);
-                  console.log(
-                    `🔍 [Sourcify] Contract name from filename: ${contractName}`
-                  );
-                }
-              }
-            }
-          }
         }
       }
 
@@ -384,15 +504,7 @@ const fetchFromSourcify = async (
           explorerName: "Sourcify",
           verified: true,
         };
-      } else {
-        console.log(`🔍 [Sourcify] No ABI found in response`);
       }
-    } else {
-      console.log(`🔍 [Sourcify] Contract not verified - no matches found`);
-      console.log(
-        `🔍 [Sourcify] Full response data:`,
-        JSON.stringify(response.data, null, 2)
-      );
     }
 
     return { success: false, error: "Contract not verified on Sourcify" };
@@ -409,8 +521,7 @@ const fetchFromSourcify = async (
 const fetchWithFallback = async (url: string) => {
   try {
     const response = await axios.get(url, {
-      timeout: 10000,
-      headers: { "User-Agent": "Web3-Toolkit/1.0" },
+      timeout: 15000,
     });
     return response;
   } catch (error) {
@@ -449,7 +560,7 @@ const fetchFromBlockscout = async (
 
     const abiEndpoints = [
       `${blockscoutProxy}?module=contract&action=getabi&address=${address}`,
-      `${blockscoutProxy}/v2/smart-contracts/${address}`,
+      `${blockscoutProxy}/api/v2/smart-contracts/${address}`,
     ];
 
     let abiResult: { abi: string; contractName?: string } | null = null;
@@ -457,9 +568,11 @@ const fetchFromBlockscout = async (
     for (const endpoint of abiEndpoints) {
       try {
         console.log(`🔍 [Blockscout] Trying ABI endpoint: ${endpoint}`);
-        const response = await axios.get(endpoint, {
-          timeout: 10000,
-        });
+        const response = await withRetry(() =>
+          axios.get(endpoint, {
+            timeout: 15000,
+          })
+        );
 
         // Handle Etherscan-style response
         if (response.data.status === "1" && response.data.result) {
@@ -491,14 +604,16 @@ const fetchFromBlockscout = async (
         console.log(`🔍 [Blockscout] Fetching contract name separately...`);
         const nameEndpoints = [
           `${blockscoutProxy}?module=contract&action=getsourcecode&address=${address}`,
-          `${blockscoutProxy}/v2/smart-contracts/${address}`,
+          `${blockscoutProxy}/api/v2/smart-contracts/${address}`,
         ];
 
         for (const nameEndpoint of nameEndpoints) {
           try {
-            const nameResponse = await axios.get(nameEndpoint, {
-              timeout: 10000,
-            });
+            const nameResponse = await withRetry(() =>
+              axios.get(nameEndpoint, {
+                timeout: 15000,
+              })
+            );
 
             // Handle Etherscan-style response
             if (
@@ -568,15 +683,13 @@ const fetchFromEtherscan = async (
       axios.get(
         `/api/${etherscanExplorer.type === "etherscan" && chain.id === 8453 ? "basescan" : etherscanExplorer.type === "etherscan" && chain.id === 1 ? "etherscan" : etherscanExplorer.type === "etherscan" && chain.id === 137 ? "polygonscan" : etherscanExplorer.type}?module=contract&action=getabi&address=${address}`,
         {
-          timeout: 10000,
-          headers: { "User-Agent": "Web3-Toolkit/1.0" },
+          timeout: 15000,
         }
       ),
       axios.get(
         `/api/${etherscanExplorer.type === "etherscan" && chain.id === 8453 ? "basescan" : etherscanExplorer.type === "etherscan" && chain.id === 1 ? "etherscan" : etherscanExplorer.type === "etherscan" && chain.id === 137 ? "polygonscan" : etherscanExplorer.type}?module=contract&action=getsourcecode&address=${address}`,
         {
-          timeout: 10000,
-          headers: { "User-Agent": "Web3-Toolkit/1.0" },
+          timeout: 15000,
         }
       ),
     ]);
@@ -603,30 +716,6 @@ const fetchFromEtherscan = async (
 
       // Also try to get token info if available
       let tokenInfo: ContractInfoResult["tokenInfo"] | undefined;
-      try {
-        const tokenResponse = await axios.get(
-          `/api/${etherscanExplorer.type === "etherscan" && chain.id === 8453 ? "basescan" : etherscanExplorer.type === "etherscan" && chain.id === 1 ? "etherscan" : etherscanExplorer.type === "etherscan" && chain.id === 137 ? "polygonscan" : etherscanExplorer.type}?module=token&action=tokeninfo&contractaddress=${address}`,
-          {
-            timeout: 10000,
-            headers: { "User-Agent": "Web3-Toolkit/1.0" },
-          }
-        );
-
-        if (tokenResponse.data.status === "1" && tokenResponse.data.result) {
-          const tokenData = tokenResponse.data.result;
-          tokenInfo = {
-            name: tokenData.tokenName,
-            symbol: tokenData.symbol,
-            decimals: parseInt(tokenData.divisor || "18"),
-            totalSupply: tokenData.totalSupply,
-          };
-          console.log(
-            `🔍 [Etherscan] Token info: ${tokenInfo.name} (${tokenInfo.symbol})`
-          );
-        }
-      } catch (tokenError) {
-        console.log("Could not fetch token info from Etherscan");
-      }
 
       return {
         success: true,
@@ -775,67 +864,7 @@ const fetchTokenInfo = async (
     }
 
     // Strategy 3: Try to get from explorer APIs as fallback
-    console.log(`🔍 [Token] Trying explorer APIs as fallback...`);
-    for (const explorer of chain.explorers || []) {
-      try {
-        if (explorer.type === "etherscan") {
-          const tokenResponse = await axios.get(
-            `/api/${chain.id === 8453 ? "basescan" : chain.id === 1 ? "etherscan" : chain.id === 137 ? "polygonscan" : explorer.type}?module=token&action=tokeninfo&contractaddress=${address}`,
-            {
-              timeout: 5000,
-              headers: { "User-Agent": "Web3-Toolkit/1.0" },
-            }
-          );
-
-          if (tokenResponse.data.status === "1" && tokenResponse.data.result) {
-            const tokenData = tokenResponse.data.result;
-            const tokenInfo = {
-              name: tokenData.tokenName,
-              symbol: tokenData.symbol,
-              decimals: parseInt(tokenData.divisor || "18"),
-              totalSupply: tokenData.totalSupply,
-            };
-            console.log(
-              `🔍 [Token] Got from ${explorer.name}: ${tokenInfo.name} (${tokenInfo.symbol})`
-            );
-            return tokenInfo;
-          }
-        } else if (explorer.type === "blockscout") {
-          const blockscoutProxy =
-            chain.id === 137
-              ? "/api/polygon-blockscout"
-              : chain.id === 42161
-                ? "/api/arbitrum-blockscout"
-                : "/api/blockscout";
-          const tokenResponse = await axios.get(
-            `${blockscoutProxy}?module=token&action=getToken&contractaddress=${address}`,
-            {
-              timeout: 5000,
-              headers: { "User-Agent": "Web3-Toolkit/1.0" },
-            }
-          );
-
-          if (tokenResponse.data.result) {
-            const tokenData = tokenResponse.data.result;
-            const tokenInfo = {
-              name: tokenData.name,
-              symbol: tokenData.symbol,
-              decimals: parseInt(tokenData.decimals || "18"),
-              totalSupply: tokenData.totalSupply,
-            };
-            console.log(
-              `🔍 [Token] Got from ${explorer.name}: ${tokenInfo.name} (${tokenInfo.symbol})`
-            );
-            return tokenInfo;
-          }
-        }
-      } catch (explorerError) {
-        console.warn(
-          `🔍 [Token] Explorer ${explorer.name} failed:`,
-          explorerError
-        );
-      }
-    }
+    // Explorer token fallbacks disabled to avoid proxy 404s
 
     console.log(`🔍 [Token] Could not fetch token info for ${address}`);
     return undefined;

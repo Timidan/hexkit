@@ -5,7 +5,15 @@ import react from "@vitejs/plugin-react";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
-    plugins: [react()],
+    plugins: [
+      react({
+        fastRefresh: true,
+        include: "**/*.{jsx,tsx}",
+      }),
+    ],
+    esbuild: {
+      logOverride: { "this-is-undefined-in-esm": "silent" },
+    },
     define: {
       global: "globalThis",
       "import.meta.env.API_KEY": JSON.stringify(env.API_KEY),
@@ -20,6 +28,16 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      hmr: {
+        overlay: false,
+        port: 24678,
+        host: "localhost",
+      },
+      watch: {
+        usePolling: false,
+        interval: 100,
+        ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+      },
       proxy: {
         // Proxy for Sourcify API
         "/api/sourcify": {
@@ -49,7 +67,7 @@ export default defineConfig(({ mode }) => {
         },
         // Proxy for Blockscout APIs
         "/api/blockscout": {
-          target: "https://base-mainnet.blockscout.com",
+          target: "https://base.blockscout.com",
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api\/blockscout/, ""),
