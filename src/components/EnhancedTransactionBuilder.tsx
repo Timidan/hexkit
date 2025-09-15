@@ -341,8 +341,8 @@ const EnhancedTransactionBuilder: React.FC = () => {
   };
 
   const functions = getCurrentFunctions();
-  const readFunctions = functions.filter(f => ['view', 'pure'].includes(f.stateMutability));
-  const writeFunctions = functions.filter(f => ['nonpayable', 'payable'].includes(f.stateMutability));
+  const readFunctions = functions.filter((f: any) => ['view', 'pure'].includes(f.stateMutability));
+  const writeFunctions = functions.filter((f: any) => ['nonpayable', 'payable'].includes(f.stateMutability));
 
   return (
     <div className="panel">
@@ -558,7 +558,7 @@ const EnhancedTransactionBuilder: React.FC = () => {
                   className="w-full md:w-auto"
                 >
                   <option value="">Choose a facet...</option>
-                  {facets.filter(f => f.verified).map(facet => (
+                  {facets.filter((f: any) => f.verified).map(facet => (
                     <option key={facet.address} value={facet.address}>
                       {facet.name || `Facet ${facet.address.slice(0, 8)}`} ({facet.functionCount} functions)
                     </option>
@@ -588,7 +588,7 @@ const EnhancedTransactionBuilder: React.FC = () => {
           
           {functions.length > 0 ? (
             <div className="space-y-4">
-              {readFunctions.slice(0, 5).map((func, index) => (
+              {readFunctions.slice(0, 5).map((func: any, index: number) => (
                 <div key={index} className="clean-card">
                   <div className="flex items-center gap-2 mb-2">
                     <Eye size={16} className="text-blue-600" />

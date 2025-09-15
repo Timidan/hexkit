@@ -1,10 +1,14 @@
-import React from 'react';
-import { DynamicContextProvider } from '@dynamic-labs/sdk-react-core';
-import { DynamicWagmiConnector } from '@dynamic-labs/wagmi-connector';
-import { WagmiProvider } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { config } from '../config/web3';
-import { dynamicConfig, isDynamicConfigured, DYNAMIC_CHAINS } from '../config/dynamic';
+import React from "react";
+import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
+import { DynamicWagmiConnector } from "@dynamic-labs/wagmi-connector";
+import { WagmiProvider } from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { config } from "../config/web3";
+import {
+  dynamicConfig,
+  
+  DYNAMIC_CHAINS,
+} from "../config/dynamic";
 
 const queryClient = new QueryClient();
 
@@ -12,10 +16,11 @@ interface DynamicWeb3ProviderProps {
   children: React.ReactNode;
 }
 
-export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({ children }) => {
+export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({
+  children,
+}) => {
   // Check if Dynamic is properly configured
   React.useEffect(() => {
-    isDynamicConfigured();
   }, []);
 
   return (
@@ -26,10 +31,7 @@ export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({ childr
         overrides: {
           evmNetworks: DYNAMIC_CHAINS,
         },
-        
-        // Basic theming
-        theme: 'dark',
-        
+
         // Enhanced UI settings for cyberpunk theme
         cssOverrides: `
           /* Cyberpunk theme overrides for Dynamic widgets */
@@ -77,17 +79,17 @@ export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({ childr
             box-shadow: 0 0 15px rgba(0, 255, 255, 0.3) !important;
           }
         `,
-        
+
         // Event handlers for logging
         events: {
-          onAuthSuccess: (user: any) => {
-            console.log('🚀 Dynamic: User authenticated', user);
+          onAuthSuccess: (user: unknown) => {
+            console.log("🚀 Dynamic: User authenticated", user);
           },
           onAuthFlowCancel: () => {
-            console.log('❌ Dynamic: Auth flow cancelled');
+            console.log("❌ Dynamic: Auth flow cancelled");
           },
           onLogout: () => {
-            console.log('🔌 Dynamic: User logged out');
+            console.log("🔌 Dynamic: User logged out");
           },
         },
       }}

@@ -106,8 +106,8 @@ export async function detectDiamondContract(
       contract.facets().then(() => {
         console.log('✅ facets() function works');
         return true;
-      }).catch((err) => {
-        console.log('❌ facets() function failed:', err.message);
+      }).catch((err: unknown) => {
+        console.log('❌ facets() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
@@ -115,8 +115,8 @@ export async function detectDiamondContract(
       contract.facetFunctionSelectors(contractAddress).then(() => {
         console.log('✅ facetFunctionSelectors() function works');
         return true;
-      }).catch((err) => {
-        console.log('❌ facetFunctionSelectors() function failed:', err.message);
+      }).catch((err: unknown) => {
+        console.log('❌ facetFunctionSelectors() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
@@ -124,8 +124,8 @@ export async function detectDiamondContract(
       contract.facetAddresses().then(() => {
         console.log('✅ facetAddresses() function works');
         return true;
-      }).catch((err) => {
-        console.log('❌ facetAddresses() function failed:', err.message);
+      }).catch((err: unknown) => {
+        console.log('❌ facetAddresses() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
@@ -133,8 +133,8 @@ export async function detectDiamondContract(
       contract.facetAddress(DIAMOND_LOUPE_SIGNATURES.facets).then(() => {
         console.log('✅ facetAddress() function works');
         return true;
-      }).catch((err) => {
-        console.log('❌ facetAddress() function failed:', err.message);
+      }).catch((err: unknown) => {
+        console.log('❌ facetAddress() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
@@ -142,8 +142,8 @@ export async function detectDiamondContract(
       contract.supportsInterface('0x01ffc9a7').then(() => {
         console.log('✅ supportsInterface() function works');
         return true;
-      }).catch((err) => {
-        console.log('❌ supportsInterface() function failed:', err.message);
+      }).catch((err: unknown) => {
+        console.log('❌ supportsInterface() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       })
     ]);

@@ -6,11 +6,15 @@ import {
   XCircle,
   Search,
   Loader2,
+  Gem,
 } from "lucide-react";
 import { ethers } from "ethers";
+// import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
+import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
 import type { Chain, ABIFetchResult, ContractInfo } from "../types";
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
+import { detectTokenType } from "../utils/universalTokenDetector";
 import {
   SourcifyLogo,
   BlockscoutLogo,
@@ -38,6 +42,7 @@ const SimpleGridUI: React.FC = () => {
       document.head.removeChild(style);
     };
   }, []);
+
   const [contractSource, setContractSource] = useState<"project" | "address">(
     "project"
   );
@@ -576,42 +581,59 @@ const SimpleGridUI: React.FC = () => {
 
             // Check other interfaces in priority order, return first match
             const interfaceCheckOrder = [
-              "ERC20",     // Most common token type - highest priority
-              "ERC721",    // NFT type
-              "ERC1155",   // Multi-token standard
-              "ERC777",    // Advanced token standard
-              "ERC4626",   // Tokenized vaults
-              "ERC2981",   // Royalty standard
+              "ERC20", // Most common token type - highest priority
+              "ERC721", // NFT type
+              "ERC1155", // Multi-token standard
+              "ERC777", // Advanced token standard
+              "ERC4626", // Tokenized vaults
+              "ERC2981", // Royalty standard
               "ERC721Metadata",
               "ERC721Enumerable",
               "ERC1155MetadataURI",
             ];
 
-            console.log(`🔍 [ERC165] Checking interfaces for ${contractAddress} in priority order:`);
-            
+            console.log(
+              `🔍 [ERC165] Checking interfaces for ${contractAddress} in priority order:`
+            );
+
             for (const interfaceName of interfaceCheckOrder) {
               try {
                 const interfaceId =
                   interfaceIds[interfaceName as keyof typeof interfaceIds];
-                console.log(`🔍 [ERC165] Testing ${interfaceName} (${interfaceId})...`);
+                console.log(
+                  `🔍 [ERC165] Testing ${interfaceName} (${interfaceId})...`
+                );
                 let isSupported = false;
                 try {
-                  isSupported = await erc165Contract.supportsInterface(interfaceId);
-                  console.log(`🔍 [ERC165] ${interfaceName} support: ${isSupported}`);
+                  isSupported =
+                    await erc165Contract.supportsInterface(interfaceId);
+                  console.log(
+                    `🔍 [ERC165] ${interfaceName} support: ${isSupported}`
+                  );
                 } catch (error) {
-                  console.log(`🔍 [ERC165] ${interfaceName} supportsInterface call failed:`, error);
+                  console.log(
+                    `🔍 [ERC165] ${interfaceName} supportsInterface call failed:`,
+                    error
+                  );
                   // For debugging, let's check if the contract exists and is responsive
                   try {
                     const code = await provider.getCode(contractAddress);
-                    console.log(`🔍 [ERC165] Contract code length: ${code.length} bytes`);
+                    console.log(
+                      `🔍 [ERC165] Contract code length: ${code.length} bytes`
+                    );
                     if (code.length <= 2) {
-                      console.log(`🔍 [ERC165] Contract appears to be non-existent or empty!`);
+                      console.log(
+                        `🔍 [ERC165] Contract appears to be non-existent or empty!`
+                      );
                     }
                   } catch (codeError) {
-                    console.log(`🔍 [ERC165] Failed to get contract code:`, codeError);
+                    console.log(
+                      `🔍 [ERC165] Failed to get contract code:`,
+                      codeError
+                    );
                   }
                 }
-                
+
                 if (isSupported) {
                   supportedInterfaces.push(interfaceName);
                   console.log(
@@ -645,11 +667,13 @@ const SimpleGridUI: React.FC = () => {
       const universalABI = [
         // ERC165 supportsInterface
         {
-          inputs: [{ internalType: "bytes4", name: "interfaceId", type: "bytes4" }],
+          inputs: [
+            { internalType: "bytes4", name: "interfaceId", type: "bytes4" },
+          ],
           name: "supportsInterface",
           outputs: [{ internalType: "bool", name: "", type: "bool" }],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         // Token metadata functions
         {
@@ -657,29 +681,37 @@ const SimpleGridUI: React.FC = () => {
           name: "name",
           outputs: [{ internalType: "string", name: "", type: "string" }],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         {
           inputs: [],
           name: "symbol",
           outputs: [{ internalType: "string", name: "", type: "string" }],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         {
           inputs: [],
           name: "decimals",
           outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         // Diamond standard functions
         {
-          inputs: [{ internalType: "address", name: "_facet", type: "address" }],
+          inputs: [
+            { internalType: "address", name: "_facet", type: "address" },
+          ],
           name: "facetFunctionSelectors",
-          outputs: [{ internalType: "bytes4[]", name: "_functionSelectors", type: "bytes4[]" }],
+          outputs: [
+            {
+              internalType: "bytes4[]",
+              name: "_functionSelectors",
+              type: "bytes4[]",
+            },
+          ],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         {
           inputs: [],
@@ -687,24 +719,38 @@ const SimpleGridUI: React.FC = () => {
           outputs: [
             {
               components: [
-                { internalType: "address", name: "facetAddress", type: "address" },
-                { internalType: "bytes4[]", name: "functionSelectors", type: "bytes4[]" }
+                {
+                  internalType: "address",
+                  name: "facetAddress",
+                  type: "address",
+                },
+                {
+                  internalType: "bytes4[]",
+                  name: "functionSelectors",
+                  type: "bytes4[]",
+                },
               ],
               internalType: "struct IDiamondLoupe.Facet[]",
               name: "_facets",
-              type: "tuple[]"
-            }
+              type: "tuple[]",
+            },
           ],
           stateMutability: "view",
-          type: "function"
+          type: "function",
         },
         {
           inputs: [],
           name: "facetAddresses",
-          outputs: [{ internalType: "address[]", name: "_facetAddresses", type: "address[]" }],
+          outputs: [
+            {
+              internalType: "address[]",
+              name: "_facetAddresses",
+              type: "address[]",
+            },
+          ],
           stateMutability: "view",
-          type: "function"
-        }
+          type: "function",
+        },
       ];
 
       // Interface IDs for all token standards
@@ -733,11 +779,17 @@ const SimpleGridUI: React.FC = () => {
         tokenInfo?: { name?: string; symbol?: string; decimals?: number };
         error?: string;
       }> => {
-        console.log(`🔍 [UNIVERSAL] Starting universal token detection for ${contractAddress}...`);
-        
+        console.log(
+          `🔍 [UNIVERSAL] Starting universal token detection for ${contractAddress}...`
+        );
+
         // Create contract instance with universal ABI
-        const universalContract = new ethers.Contract(contractAddress, universalABI, provider);
-        
+        const universalContract = new ethers.Contract(
+          contractAddress,
+          universalABI,
+          provider
+        );
+
         let detectedType = "unknown";
         let confidence = 0;
         let detectionMethod = "none";
@@ -750,46 +802,59 @@ const SimpleGridUI: React.FC = () => {
           console.log(`🔍 [UNIVERSAL] Testing ERC165 support...`);
           let supportsERC165 = false;
           try {
-            supportsERC165 = await universalContract.supportsInterface(interfaceIds.ERC165);
+            supportsERC165 = await universalContract.supportsInterface(
+              interfaceIds.ERC165
+            );
           } catch (erc165Error) {
-            console.log(`❌ [UNIVERSAL] ERC165 call failed, trying fallback detection...`, (erc165Error as Error)?.message);
+            console.log(
+              `❌ [UNIVERSAL] ERC165 call failed, trying fallback detection...`,
+              (erc165Error as Error)?.message
+            );
           }
-          
+
           if (!supportsERC165) {
-            console.log(`❌ [UNIVERSAL] Contract does not support ERC165 - trying fallback detection...`);
-            
+            console.log(
+              `❌ [UNIVERSAL] Contract does not support ERC165 - trying fallback detection...`
+            );
+
             // For contracts that don't support ERC165, try to detect ERC20 tokens
             // This handles older tokens like USDT that don't implement ERC165
             try {
               const [name, symbol, decimals] = await Promise.all([
                 universalContract.name().catch(() => undefined),
                 universalContract.symbol().catch(() => undefined),
-                universalContract.decimals().catch(() => undefined)
+                universalContract.decimals().catch(() => undefined),
               ]);
-              
+
               if (name && symbol && decimals !== undefined) {
-                console.log(`✅ [UNIVERSAL] Detected ERC20 token via fallback (no ERC165): ${name} (${symbol})`);
+                console.log(
+                  `✅ [UNIVERSAL] Detected ERC20 token via fallback (no ERC165): ${name} (${symbol})`
+                );
                 return {
                   type: "ERC20",
                   confidence: 0.8,
                   detectionMethod: "fallback-erc20",
                   isDiamond: false,
-                  tokenInfo: { name, symbol, decimals: Number(decimals) }
+                  tokenInfo: { name, symbol, decimals: Number(decimals) },
                 };
               }
             } catch (fallbackError) {
-              console.log(`❌ [UNIVERSAL] Fallback detection failed:`, (fallbackError as Error)?.message);
+              console.log(
+                `❌ [UNIVERSAL] Fallback detection failed:`,
+                (fallbackError as Error)?.message
+              );
             }
-            
+
             return {
               type: "unknown",
               confidence: 0.1,
               detectionMethod: "no-erc165",
               isDiamond: false,
-              error: "Contract does not support ERC165 and fallback detection failed"
+              error:
+                "Contract does not support ERC165 and fallback detection failed",
             };
           }
-          
+
           console.log(`✅ [UNIVERSAL] Contract supports ERC165`);
           confidence = 0.5;
           detectionMethod = "erc165-supported";
@@ -802,41 +867,54 @@ const SimpleGridUI: React.FC = () => {
             { name: "ERC20", id: interfaceIds.ERC20, type: "ERC20" },
             { name: "ERC777", id: interfaceIds.ERC777, type: "ERC777" },
             { name: "ERC4626", id: interfaceIds.ERC4626, type: "ERC4626" },
-            { name: "ERC2981", id: interfaceIds.ERC2981, type: "ERC2981" }
+            { name: "ERC2981", id: interfaceIds.ERC2981, type: "ERC2981" },
           ];
 
           for (const interfaceTest of interfaceTests) {
             try {
-              const isSupported = await universalContract.supportsInterface(interfaceTest.id);
-              console.log(`🔍 [UNIVERSAL] ${interfaceTest.name} support: ${isSupported}`);
-              
+              const isSupported = await universalContract.supportsInterface(
+                interfaceTest.id
+              );
+              console.log(
+                `🔍 [UNIVERSAL] ${interfaceTest.name} support: ${isSupported}`
+              );
+
               if (isSupported) {
                 detectedType = interfaceTest.type;
                 confidence = 0.95;
                 detectionMethod = `erc165-${interfaceTest.name.toLowerCase()}`;
-                console.log(`✅ [UNIVERSAL] Detected ${interfaceTest.type} token`);
+                console.log(
+                  `✅ [UNIVERSAL] Detected ${interfaceTest.type} token`
+                );
                 break;
               }
             } catch (interfaceError) {
-              console.log(`❌ [UNIVERSAL] ${interfaceTest.name} test failed:`, interfaceError);
+              console.log(
+                `❌ [UNIVERSAL] ${interfaceTest.name} test failed:`,
+                interfaceError
+              );
             }
           }
 
           // Step 3: Fetch token metadata if token type detected
           if (detectedType !== "unknown") {
-            console.log(`🔍 [UNIVERSAL] Fetching token metadata for ${detectedType}...`);
-            
+            console.log(
+              `🔍 [UNIVERSAL] Fetching token metadata for ${detectedType}...`
+            );
+
             try {
               const [name, symbol] = await Promise.all([
                 universalContract.name().catch(() => undefined),
-                universalContract.symbol().catch(() => undefined)
+                universalContract.symbol().catch(() => undefined),
               ]);
-              
+
               if (name) tokenInfo.name = name;
               if (symbol) tokenInfo.symbol = symbol;
-              
-              console.log(`✅ [UNIVERSAL] Token metadata: ${name || 'Unknown'} (${symbol || 'Unknown'})`);
-              
+
+              console.log(
+                `✅ [UNIVERSAL] Token metadata: ${name || "Unknown"} (${symbol || "Unknown"})`
+              );
+
               // Fetch decimals for ERC20/ERC777 tokens
               if (detectedType === "ERC20" || detectedType === "ERC777") {
                 try {
@@ -844,14 +922,20 @@ const SimpleGridUI: React.FC = () => {
                   tokenInfo.decimals = Number(decimals);
                   console.log(`✅ [UNIVERSAL] Decimals: ${tokenInfo.decimals}`);
                 } catch (decimalsError) {
-                  console.log(`❌ [UNIVERSAL] Failed to fetch decimals:`, decimalsError);
+                  console.log(
+                    `❌ [UNIVERSAL] Failed to fetch decimals:`,
+                    decimalsError
+                  );
                   tokenInfo.decimals = 18; // Default for ERC20
                 }
               } else {
                 tokenInfo.decimals = 0; // Non-fungible tokens
               }
             } catch (metadataError) {
-              console.log(`❌ [UNIVERSAL] Failed to fetch token metadata:`, metadataError);
+              console.log(
+                `❌ [UNIVERSAL] Failed to fetch token metadata:`,
+                metadataError
+              );
             }
           }
 
@@ -859,57 +943,254 @@ const SimpleGridUI: React.FC = () => {
           console.log(`🔍 [UNIVERSAL] Testing Diamond standard...`);
           try {
             // Try multiple Diamond detection methods
-            const functionSelectors = await universalContract.facetFunctionSelectors("0x0000000000000000000000000000000000000000");
-            if (Array.isArray(functionSelectors) && functionSelectors.length > 0) {
+            const functionSelectors =
+              await universalContract.facetFunctionSelectors(
+                "0x0000000000000000000000000000000000000000"
+              );
+            if (
+              Array.isArray(functionSelectors) &&
+              functionSelectors.length > 0
+            ) {
               isDiamond = true;
-              console.log(`✅ [UNIVERSAL] Diamond proxy detected via facetFunctionSelectors (${functionSelectors.length} selectors)`);
+              console.log(
+                `✅ [UNIVERSAL] Diamond proxy detected via facetFunctionSelectors (${functionSelectors.length} selectors)`
+              );
             } else {
               // Try facets function
               try {
                 const facets = await universalContract.facets();
                 if (Array.isArray(facets) && facets.length > 0) {
                   isDiamond = true;
-                  console.log(`✅ [UNIVERSAL] Diamond proxy detected via facets function (${facets.length} facets)`);
+                  console.log(
+                    `✅ [UNIVERSAL] Diamond proxy detected via facets function (${facets.length} facets)`
+                  );
                 }
               } catch (facetsError) {
                 // Try facetAddresses function
                 try {
-                  const facetAddresses = await universalContract.facetAddresses();
-                  if (Array.isArray(facetAddresses) && facetAddresses.length > 0) {
+                  const facetAddresses =
+                    await universalContract.facetAddresses();
+                  if (
+                    Array.isArray(facetAddresses) &&
+                    facetAddresses.length > 0
+                  ) {
                     isDiamond = true;
-                    console.log(`✅ [UNIVERSAL] Diamond proxy detected via facetAddresses (${facetAddresses.length} addresses)`);
+                    console.log(
+                      `✅ [UNIVERSAL] Diamond proxy detected via facetAddresses (${facetAddresses.length} addresses)`
+                    );
                   }
                 } catch (addressesError) {
-                  console.log(`🔍 [UNIVERSAL] Not a Diamond proxy - all Diamond functions failed`);
+                  console.log(
+                    `🔍 [UNIVERSAL] Not a Diamond proxy - all Diamond functions failed`
+                  );
                 }
               }
             }
           } catch (diamondError) {
-            console.log(`🔍 [UNIVERSAL] Not a Diamond proxy:`, (diamondError as Error)?.message);
+            console.log(
+              `🔍 [UNIVERSAL] Not a Diamond proxy:`,
+              (diamondError as Error)?.message
+            );
           }
 
+          // Extra fallback for Diamonds: infer token type from facet selectors
+          if (isDiamond && detectedType === "unknown") {
+            try {
+              const facetAddresses = await universalContract.facetAddresses();
+              const allSelectors: string[] = [];
+              for (const facetAddr of facetAddresses) {
+                try {
+                  const sel =
+                    await universalContract.facetFunctionSelectors(facetAddr);
+                  if (Array.isArray(sel))
+                    allSelectors.push(
+                      ...sel.map((s: string) => s.toLowerCase())
+                    );
+                } catch {}
+              }
+
+              const selectorSet = new Set(allSelectors);
+
+              // Common selectors
+              const has = (sig: string) => selectorSet.has(sig.toLowerCase());
+              const ERC20 =
+                has("0x70a08231") /* balanceOf(address) */ ||
+                has("0xa9059cbb") /* transfer(address,uint256) */ ||
+                has("0xdd62ed3e"); /* allowance(address,address) */
+
+              const ERC721Core =
+                has("0x6352211e") /* ownerOf(uint256) */ &&
+                has("0x23b872dd"); /* transferFrom(address,address,uint256) */
+
+              const ERC1155Core =
+                has(
+                  "0xf242432a"
+                ) /* safeTransferFrom(address,address,uint256,uint256,bytes) */ ||
+                has(
+                  "0x2eb2c2d6"
+                ) /* safeBatchTransferFrom(address,address,uint256[],uint256[],bytes) */ ||
+                has("0xe985e9c5"); /* isApprovedForAll(address,address) */
+
+              if (ERC721Core) {
+                detectedType = "ERC721";
+                confidence = Math.max(confidence, 0.9);
+                detectionMethod = "diamond-selectors-erc721";
+                console.log("💎 Inferred ERC721 via diamond facet selectors");
+              } else if (ERC1155Core) {
+                detectedType = "ERC1155";
+                confidence = Math.max(confidence, 0.9);
+                detectionMethod = "diamond-selectors-erc1155";
+                console.log("💎 Inferred ERC1155 via diamond facet selectors");
+              } else if (ERC20) {
+                detectedType = "ERC20";
+                confidence = Math.max(confidence, 0.8);
+                detectionMethod = "diamond-selectors-erc20";
+                console.log("💎 Inferred ERC20 via diamond facet selectors");
+              }
+            } catch (diamondScanError) {
+              console.log("💎 Diamond selector scan failed:", diamondScanError);
+            }
+          }
+
+          // Extra probe for EIP-1967 proxies: read implementation and test there
+          if (detectedType === "unknown") {
+            try {
+              // EIP-1967 implementation slot: keccak256("eip1967.proxy.implementation") - 1
+              const implSlot =
+                "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+              const raw = await provider.getStorageAt(
+                contractAddress,
+                implSlot
+              );
+              if (raw && raw !== "0x" && raw !== "0x00") {
+                const addr = "0x" + raw.slice(26); // last 20 bytes
+                if (ethers.utils.isAddress(addr)) {
+                  console.log(
+                    `🔍 [UNIVERSAL] EIP-1967 implementation: ${addr}`
+                  );
+                  const impl = new ethers.Contract(
+                    addr,
+                    universalABI,
+                    provider
+                  );
+
+                  // Re-run ERC165 tests against implementation
+                  try {
+                    const implERC165 = await impl.supportsInterface(
+                      interfaceIds.ERC165
+                    );
+                    if (implERC165) {
+                      if (
+                        await impl
+                          .supportsInterface(interfaceIds.ERC1155)
+                          .catch(() => false)
+                      ) {
+                        detectedType = "ERC1155";
+                        confidence = 0.95;
+                        detectionMethod = "impl-erc165-erc1155";
+                      } else if (
+                        await impl
+                          .supportsInterface(interfaceIds.ERC721)
+                          .catch(() => false)
+                      ) {
+                        detectedType = "ERC721";
+                        confidence = 0.95;
+                        detectionMethod = "impl-erc165-erc721";
+                      } else if (
+                        await impl
+                          .supportsInterface(interfaceIds.ERC20)
+                          .catch(() => false)
+                      ) {
+                        detectedType = "ERC20";
+                        confidence = 0.9;
+                        detectionMethod = "impl-erc165-erc20";
+                      }
+                    }
+                  } catch {}
+
+                  // Function probe if still unknown
+                  if (detectedType === "unknown") {
+                    try {
+                      const [name, symbol] = await Promise.all([
+                        impl.name().catch(() => undefined),
+                        impl.symbol().catch(() => undefined),
+                      ]);
+                      if (name && symbol) {
+                        detectedType = "ERC20"; // could be ERC721/777; rely on decimals below
+                        tokenInfo.name = name;
+                        tokenInfo.symbol = symbol;
+                        detectionMethod = "impl-function-probe";
+                        try {
+                          const decimals = await impl.decimals();
+                          if (decimals !== undefined) {
+                            detectedType = "ERC20";
+                            tokenInfo.decimals = Number(decimals);
+                          }
+                        } catch {}
+                        // Heuristic for ERC721: ownerOf selector presence
+                        try {
+                          const ownerOf = await impl
+                            .ownerOf(1)
+                            .then(() => true)
+                            .catch(() => false);
+                          if (ownerOf) {
+                            detectedType = "ERC721";
+                            tokenInfo.decimals = 0;
+                          }
+                        } catch {}
+                        confidence = 0.7;
+                      }
+                    } catch {}
+                  }
+                }
+              }
+            } catch (e) {
+              console.log(
+                "❔ [UNIVERSAL] EIP-1967 probe skipped:",
+                (e as Error)?.message
+              );
+            }
+          }
+
+          // Final result
+          return {
+            type: detectedType,
+            confidence,
+            detectionMethod,
+            isDiamond,
+            tokenInfo:
+              Object.keys(tokenInfo).length > 0 ? tokenInfo : undefined,
+            error,
+          };
         } catch (universalError) {
-          console.error(`❌ [UNIVERSAL] Universal detection failed:`, universalError);
+          console.error(
+            `❌ [UNIVERSAL] Universal detection failed:`,
+            universalError
+          );
           error = (universalError as Error)?.message;
           confidence = 0;
+          return {
+            type: "unknown",
+            confidence,
+            detectionMethod: "universal-error",
+            isDiamond,
+            tokenInfo: undefined,
+            error,
+          };
         }
-
-        return {
-          type: detectedType,
-          confidence,
-          detectionMethod,
-          isDiamond,
-          tokenInfo: Object.keys(tokenInfo).length > 0 ? tokenInfo : undefined,
-          error
-        };
       };
 
       // Diamond verification function
-      const verifyDiamondStandard = async (contractAddress: string, provider: ethers.providers.Provider) => {
+      const verifyDiamondStandard = async (
+        contractAddress: string,
+        provider: ethers.providers.Provider
+      ) => {
         try {
           const diamondContract = new ethers.Contract(
             contractAddress,
-            ["function facetAddresses() external view returns (address[] memory facetAddresses_)"],
+            [
+              "function facetAddresses() external view returns (address[] memory facetAddresses_)",
+            ],
             provider
           );
           const facetAddresses = await diamondContract.facetAddresses();
@@ -936,7 +1217,10 @@ const SimpleGridUI: React.FC = () => {
         console.log("🔍 [DETECT] Starting enhanced token detection...");
 
         // Step 1: Check for Diamond standard first (using minimal ABI approach)
-        const isDiamond = await verifyDiamondStandard(contractAddress, provider);
+        const isDiamond = await verifyDiamondStandard(
+          contractAddress,
+          provider
+        );
         if (isDiamond) {
           console.log("💎 Diamond standard verified!");
         }
@@ -1006,31 +1290,43 @@ const SimpleGridUI: React.FC = () => {
           console.log(
             "🔍 [DETECT] No ERC165 interfaces found, falling back to function detection..."
           );
-          console.log(`🔍 [DETECT] Available functions for analysis:`, functionsParam.slice(0, 10));
+          console.log(
+            `🔍 [DETECT] Available functions for analysis:`,
+            functionsParam.slice(0, 10)
+          );
 
           // Enhanced ERC721 detection - check for core NFT functions with multiple patterns
-          const hasOwnerOf = functionsParam.some((func: string) => 
-            func.includes("ownerOf(uint256)") || func.includes("ownerOf(uint256,address)")
+          const hasOwnerOf = functionsParam.some(
+            (func: string) =>
+              func.includes("ownerOf(uint256)") ||
+              func.includes("ownerOf(uint256,address)")
           );
-          const hasTokenURI = functionsParam.some((func: string) => 
-            func.includes("tokenURI(uint256)") || func.includes("tokenUrl(uint256)")
+          const hasTokenURI = functionsParam.some(
+            (func: string) =>
+              func.includes("tokenURI(uint256)") ||
+              func.includes("tokenUrl(uint256)")
           );
-          const hasBalanceOf = functionsParam.some((func: string) => 
-            func.includes("balanceOf(address)") || func.includes("balanceOf(address,uint256)")
+          const hasBalanceOf = functionsParam.some(
+            (func: string) =>
+              func.includes("balanceOf(address)") ||
+              func.includes("balanceOf(address,uint256)")
           );
-          const hasTransferFrom = functionsParam.some((func: string) => 
+          const hasTransferFrom = functionsParam.some((func: string) =>
             func.includes("transferFrom(address,address,uint256)")
           );
-          
+
           // More flexible ERC721 detection - require ownerOf and at least 2 other core functions
-          const hasERC721CoreFunctions = hasOwnerOf && hasTokenURI && (hasBalanceOf || hasTransferFrom);
-          
+          const hasERC721CoreFunctions =
+            hasOwnerOf && hasTokenURI && (hasBalanceOf || hasTransferFrom);
+
           console.log(`🔍 [DETECT] ERC721 function analysis:`);
           console.log(`  - ownerOf: ${hasOwnerOf}`);
           console.log(`  - tokenURI: ${hasTokenURI}`);
           console.log(`  - balanceOf: ${hasBalanceOf}`);
           console.log(`  - transferFrom: ${hasTransferFrom}`);
-          console.log(`  - Overall ERC721 detection: ${hasERC721CoreFunctions}`);
+          console.log(
+            `  - Overall ERC721 detection: ${hasERC721CoreFunctions}`
+          );
 
           const hasERC20CoreFunctions = functionsParam.some(
             (func: string) =>
@@ -1042,32 +1338,43 @@ const SimpleGridUI: React.FC = () => {
           const hasERC1155CoreFunctions = functionsParam.some(
             (func: string) =>
               func.includes("balanceOf(address,uint256)") &&
-              func.includes("safeTransferFrom(address,address,uint256,uint256,bytes)")
+              func.includes(
+                "safeTransferFrom(address,address,uint256,uint256,bytes)"
+              )
           );
 
           // Additional check for ERC721 - look for common NFT patterns
-          const hasNFTFunctions = hasOwnerOf && functionsParam.some((func: string) => 
-            func.includes("approve(address,uint256)") || 
-            func.includes("setApprovalForAll(address,bool)") ||
-            func.includes("getApproved(uint256)")
-          );
-          
+          const hasNFTFunctions =
+            hasOwnerOf &&
+            functionsParam.some(
+              (func: string) =>
+                func.includes("approve(address,uint256)") ||
+                func.includes("setApprovalForAll(address,bool)") ||
+                func.includes("getApproved(uint256)")
+            );
+
           // Prioritize direct function detection for contracts that don't implement ERC165
           if (hasERC721CoreFunctions || (hasOwnerOf && hasNFTFunctions)) {
             detectedType = "ERC721";
             confidence = hasERC721CoreFunctions ? 0.8 : 0.7;
             detectionMethod = "function-detection";
-            console.log(`🎨 ERC721 detected via function presence (confidence: ${confidence})`);
+            console.log(
+              `🎨 ERC721 detected via function presence (confidence: ${confidence})`
+            );
           } else if (hasERC20CoreFunctions) {
             detectedType = "ERC20";
             confidence = 0.8;
             detectionMethod = "function-detection";
-            console.log("💰 ERC20 detected via core function presence (non-ERC165 contract)");
+            console.log(
+              "💰 ERC20 detected via core function presence (non-ERC165 contract)"
+            );
           } else if (hasERC1155CoreFunctions) {
             detectedType = "ERC1155";
             confidence = 0.8;
             detectionMethod = "function-detection";
-            console.log("🎭 ERC1155 detected via core function presence (non-ERC165 contract)");
+            console.log(
+              "🎭 ERC1155 detected via core function presence (non-ERC165 contract)"
+            );
           } else {
             // Check for Diamond/EIP-2535 proxy pattern
             const isDiamondProxy = functionsParam.some(
@@ -1079,1084 +1386,1148 @@ const SimpleGridUI: React.FC = () => {
             );
 
             if (isDiamondProxy) {
-            // For Diamond proxies, check if they have ERC1155 functions
-            const hasERC1155Functions = functionsParam.some(
-              (func: string) =>
-                func.includes(
-                  "safeTransferFrom(address,address,uint256,uint256,bytes)"
-                ) ||
-                func.includes(
-                  "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)"
-                ) ||
-                func.includes("balanceOfBatch(address[],uint256[])") ||
-                func.includes("uri(uint256)")
-            );
-
-            const hasERC721Functions = functionsParam.some(
-              (func: string) =>
-                func.includes("tokenOfOwnerByIndex(address,uint256)") ||
-                func.includes("tokenByIndex(uint256)") ||
-                func.includes("ownerOf(uint256)")
-            );
-
-            const hasERC20Functions = functionsParam.some(
-              (func: string) =>
-                func.includes("allowance(address,address)") ||
-                func.includes("decimals()")
-            );
-
-            if (hasERC1155Functions) {
-              detectedType = "ERC1155";
-              confidence = 0.9;
-              detectionMethod = "diamond-erc1155";
-              console.log(
-                "💎 Diamond proxy with ERC1155 functionality detected"
+              // For Diamond proxies, check if they have ERC1155 functions
+              const hasERC1155Functions = functionsParam.some(
+                (func: string) =>
+                  func.includes(
+                    "safeTransferFrom(address,address,uint256,uint256,bytes)"
+                  ) ||
+                  func.includes(
+                    "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)"
+                  ) ||
+                  func.includes("balanceOfBatch(address[],uint256[])") ||
+                  func.includes("uri(uint256)")
               );
-            } else if (hasERC721Functions) {
-              detectedType = "ERC721";
-              confidence = 0.9;
-              detectionMethod = "diamond-erc721";
-              console.log(
-                "💎 Diamond proxy with ERC721 functionality detected"
+
+              const hasERC721Functions = functionsParam.some(
+                (func: string) =>
+                  func.includes("tokenOfOwnerByIndex(address,uint256)") ||
+                  func.includes("tokenByIndex(uint256)") ||
+                  func.includes("ownerOf(uint256)")
               );
-            } else if (hasERC20Functions) {
-              detectedType = "ERC20";
-              confidence = 0.9;
-              detectionMethod = "diamond-erc20";
-              console.log("💎 Diamond proxy with ERC20 functionality detected");
+
+              const hasERC20Functions = functionsParam.some(
+                (func: string) =>
+                  func.includes("allowance(address,address)") ||
+                  func.includes("decimals()")
+              );
+
+              if (hasERC1155Functions) {
+                detectedType = "ERC1155";
+                confidence = 0.9;
+                detectionMethod = "diamond-erc1155";
+                console.log(
+                  "💎 Diamond proxy with ERC1155 functionality detected"
+                );
+              } else if (hasERC721Functions) {
+                detectedType = "ERC721";
+                confidence = 0.9;
+                detectionMethod = "diamond-erc721";
+                console.log(
+                  "💎 Diamond proxy with ERC721 functionality detected"
+                );
+              } else if (hasERC20Functions) {
+                detectedType = "ERC20";
+                confidence = 0.9;
+                detectionMethod = "diamond-erc20";
+                console.log(
+                  "💎 Diamond proxy with ERC20 functionality detected"
+                );
+              } else {
+                detectedType = "Diamond";
+                confidence = 0.8;
+                detectionMethod = "diamond-pattern";
+                console.log(
+                  "💎 Diamond/EIP-2535 proxy pattern detected (generic)"
+                );
+              }
             } else {
-              detectedType = "Diamond";
-              confidence = 0.8;
-              detectionMethod = "diamond-pattern";
-              console.log(
-                "💎 Diamond/EIP-2535 proxy pattern detected (generic)"
-              );
-            }
-          } else {
-            // Use the old function-based scoring as fallback
-            const scores: Record<string, number> = {};
+              // Use the old function-based scoring as fallback
+              const scores: Record<string, number> = {};
 
-            // Score functions (simplified version)
-            functionsParam.forEach((func: string) => {
-              const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
-              if (funcInfo) {
-                if (funcInfo.type === "SHARED") {
-                  funcInfo.sharedTypes?.forEach((sharedType: string) => {
-                    scores[sharedType] =
-                      (scores[sharedType] || 0) + funcInfo.weight;
-                  });
-                } else {
-                  scores[funcInfo.type] =
-                    (scores[funcInfo.type] || 0) + funcInfo.weight;
+              // Score functions (simplified version)
+              functionsParam.forEach((func: string) => {
+                const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
+                if (funcInfo) {
+                  if (funcInfo.type === "SHARED") {
+                    funcInfo.sharedTypes?.forEach((sharedType: string) => {
+                      scores[sharedType] =
+                        (scores[sharedType] || 0) + funcInfo.weight;
+                    });
+                  } else {
+                    scores[funcInfo.type] =
+                      (scores[funcInfo.type] || 0) + funcInfo.weight;
+                  }
+                }
+              });
+
+              // Determine type based on highest score
+              const maxScore = Math.max(...Object.values(scores));
+              if (maxScore > 0) {
+                const topType = Object.entries(scores).find(
+                  ([_, score]) => score === maxScore
+                )?.[0];
+                if (topType) {
+                  detectedType = topType;
+                  confidence = Math.min(maxScore / 5, 0.8); // Normalize confidence
+                  detectionMethod = "function-scoring";
                 }
               }
-            });
-
-            // Determine type based on highest score
-            const maxScore = Math.max(...Object.values(scores));
-            if (maxScore > 0) {
-              const topType = Object.entries(scores).find(
-                ([_, score]) => score === maxScore
-              )?.[0];
-              if (topType) {
-                detectedType = topType;
-                confidence = Math.min(maxScore / 5, 0.8); // Normalize confidence
-                detectionMethod = "function-scoring";
-              }
             }
           }
+
+          return {
+            type: detectedType,
+            confidence,
+            interfaces: supportedInterfaces,
+            detectionMethod,
+            isDiamond,
+          };
         }
 
-        return {
-          type: detectedType,
-          confidence,
-          interfaces: supportedInterfaces,
-          detectionMethod,
-          isDiamond,
+        // Define function info type for fallback detection
+        type FunctionInfo = {
+          type: string;
+          weight: number;
+          sharedTypes?: string[];
         };
-      };
 
-      // Define function info type for fallback detection
-      type FunctionInfo = {
-        type: string;
-        weight: number;
-        sharedTypes?: string[];
-      };
+        // Function signatures for fallback detection
+        const FUNCTIONS: Record<string, FunctionInfo> = {
+          // Highly specific functions (unique to token types)
+          "ownerOf(uint256)": { type: "ERC721", weight: 1.0 },
+          "tokenURI(uint256)": { type: "ERC721", weight: 0.8 },
+          "balanceOf(address,uint256)": { type: "ERC1155", weight: 1.0 },
+          "balanceOfBatch(address[],uint256[])": {
+            type: "ERC1155",
+            weight: 1.0,
+          },
+          "safeTransferFrom(address,address,uint256,uint256,bytes)": {
+            type: "ERC1155",
+            weight: 1.0,
+          },
+          "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)": {
+            type: "ERC1155",
+            weight: 1.0,
+          },
+          "uri(uint256)": { type: "ERC1155", weight: 0.8 },
+          "send(address,uint256,bytes)": { type: "ERC777", weight: 1.0 },
+          "burn(uint256,bytes)": { type: "ERC777", weight: 1.0 },
+          "isOperatorFor(address,address)": { type: "ERC777", weight: 0.8 },
+          "authorizeOperator(address)": { type: "ERC777", weight: 0.8 },
+          "revokeOperator(address)": { type: "ERC777", weight: 0.8 },
+          "asset()": { type: "ERC4626", weight: 1.0 },
+          "totalAssets()": { type: "ERC4626", weight: 1.0 },
+          "convertToShares(uint256)": { type: "ERC4626", weight: 0.8 },
+          "convertToAssets(uint256)": { type: "ERC4626", weight: 0.8 },
+          "maxDeposit(address)": { type: "ERC4626", weight: 0.8 },
+          "previewDeposit(uint256)": { type: "ERC4626", weight: 0.8 },
+          "deposit(uint256,address)": { type: "ERC4626", weight: 0.8 },
+          "maxMint(address)": { type: "ERC4626", weight: 0.8 },
+          "previewMint(uint256)": { type: "ERC4626", weight: 0.8 },
+          "mint(uint256,address)": { type: "ERC4626", weight: 0.8 },
+          "maxWithdraw(address)": { type: "ERC4626", weight: 0.8 },
+          "previewWithdraw(uint256)": { type: "ERC4626", weight: 0.8 },
+          "withdraw(uint256,address,address)": { type: "ERC4626", weight: 0.8 },
+          "maxRedeem(address)": { type: "ERC4626", weight: 0.8 },
+          "previewRedeem(uint256)": { type: "ERC4626", weight: 0.8 },
+          "redeem(uint256,address,address)": { type: "ERC4626", weight: 0.8 },
+          "royaltyInfo(uint256,uint256)": { type: "ERC2981", weight: 1.0 },
 
-      // Function signatures for fallback detection
-      const FUNCTIONS: Record<string, FunctionInfo> = {
-        // Highly specific functions (unique to token types)
-        "ownerOf(uint256)": { type: "ERC721", weight: 1.0 },
-        "tokenURI(uint256)": { type: "ERC721", weight: 0.8 },
-        "balanceOf(address,uint256)": { type: "ERC1155", weight: 1.0 },
-        "balanceOfBatch(address[],uint256[])": { type: "ERC1155", weight: 1.0 },
-        "safeTransferFrom(address,address,uint256,uint256,bytes)": {
-          type: "ERC1155",
-          weight: 1.0,
-        },
-        "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)": {
-          type: "ERC1155",
-          weight: 1.0,
-        },
-        "uri(uint256)": { type: "ERC1155", weight: 0.8 },
-        "send(address,uint256,bytes)": { type: "ERC777", weight: 1.0 },
-        "burn(uint256,bytes)": { type: "ERC777", weight: 1.0 },
-        "isOperatorFor(address,address)": { type: "ERC777", weight: 0.8 },
-        "authorizeOperator(address)": { type: "ERC777", weight: 0.8 },
-        "revokeOperator(address)": { type: "ERC777", weight: 0.8 },
-        "asset()": { type: "ERC4626", weight: 1.0 },
-        "totalAssets()": { type: "ERC4626", weight: 1.0 },
-        "convertToShares(uint256)": { type: "ERC4626", weight: 0.8 },
-        "convertToAssets(uint256)": { type: "ERC4626", weight: 0.8 },
-        "maxDeposit(address)": { type: "ERC4626", weight: 0.8 },
-        "previewDeposit(uint256)": { type: "ERC4626", weight: 0.8 },
-        "deposit(uint256,address)": { type: "ERC4626", weight: 0.8 },
-        "maxMint(address)": { type: "ERC4626", weight: 0.8 },
-        "previewMint(uint256)": { type: "ERC4626", weight: 0.8 },
-        "mint(uint256,address)": { type: "ERC4626", weight: 0.8 },
-        "maxWithdraw(address)": { type: "ERC4626", weight: 0.8 },
-        "previewWithdraw(uint256)": { type: "ERC4626", weight: 0.8 },
-        "withdraw(uint256,address,address)": { type: "ERC4626", weight: 0.8 },
-        "maxRedeem(address)": { type: "ERC4626", weight: 0.8 },
-        "previewRedeem(uint256)": { type: "ERC4626", weight: 0.8 },
-        "redeem(uint256,address,address)": { type: "ERC4626", weight: 0.8 },
-        "royaltyInfo(uint256,uint256)": { type: "ERC2981", weight: 1.0 },
+          // Shared functions with multiple token types (weighted by context)
+          "totalSupply()": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20", "ERC721"],
+          },
+          "balanceOf(address)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20", "ERC721", "ERC1155"],
+          },
+          "transfer(address,uint256)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20"],
+          },
+          "transferFrom(address,address,uint256)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20", "ERC721"],
+          },
+          "approve(address,uint256)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20", "ERC721"],
+          },
+          "allowance(address,address)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC20"],
+          },
+          "name()": {
+            type: "SHARED",
+            weight: 0.5,
+            sharedTypes: ["ERC20", "ERC721"],
+          },
+          "symbol()": {
+            type: "SHARED",
+            weight: 0.5,
+            sharedTypes: ["ERC20", "ERC721"],
+          },
+          "decimals()": {
+            type: "SHARED",
+            weight: 0.8,
+            sharedTypes: ["ERC20", "ERC4626"],
+          },
+          "safeTransferFrom(address,address,uint256)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC721", "ERC1155"],
+          },
+          "safeTransferFrom(address,address,uint256,bytes)": {
+            type: "SHARED",
+            weight: 1.0,
+            sharedTypes: ["ERC721"],
+          },
+          "setApprovalForAll(address,bool)": {
+            type: "SHARED",
+            weight: 0.8,
+            sharedTypes: ["ERC721", "ERC1155"],
+          },
+          "isApprovedForAll(address,address)": {
+            type: "SHARED",
+            weight: 0.8,
+            sharedTypes: ["ERC721", "ERC1155"],
+          },
+          "tokenByIndex(uint256)": {
+            type: "SHARED",
+            weight: 0.5,
+            sharedTypes: ["ERC721"],
+          },
+          "tokenOfOwnerByIndex(address,uint256)": {
+            type: "SHARED",
+            weight: 0.5,
+            sharedTypes: ["ERC721"],
+          },
+          "defaultOperators()": {
+            type: "SHARED",
+            weight: 0.5,
+            sharedTypes: ["ERC777"],
+          },
 
-        // Shared functions with multiple token types (weighted by context)
-        "totalSupply()": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20", "ERC721"],
-        },
-        "balanceOf(address)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20", "ERC721", "ERC1155"],
-        },
-        "transfer(address,uint256)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20"],
-        },
-        "transferFrom(address,address,uint256)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20", "ERC721"],
-        },
-        "approve(address,uint256)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20", "ERC721"],
-        },
-        "allowance(address,address)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC20"],
-        },
-        "name()": {
-          type: "SHARED",
-          weight: 0.5,
-          sharedTypes: ["ERC20", "ERC721"],
-        },
-        "symbol()": {
-          type: "SHARED",
-          weight: 0.5,
-          sharedTypes: ["ERC20", "ERC721"],
-        },
-        "decimals()": {
-          type: "SHARED",
-          weight: 0.8,
-          sharedTypes: ["ERC20", "ERC4626"],
-        },
-        "safeTransferFrom(address,address,uint256)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC721", "ERC1155"],
-        },
-        "safeTransferFrom(address,address,uint256,bytes)": {
-          type: "SHARED",
-          weight: 1.0,
-          sharedTypes: ["ERC721"],
-        },
-        "setApprovalForAll(address,bool)": {
-          type: "SHARED",
-          weight: 0.8,
-          sharedTypes: ["ERC721", "ERC1155"],
-        },
-        "isApprovedForAll(address,address)": {
-          type: "SHARED",
-          weight: 0.8,
-          sharedTypes: ["ERC721", "ERC1155"],
-        },
-        "tokenByIndex(uint256)": {
-          type: "SHARED",
-          weight: 0.5,
-          sharedTypes: ["ERC721"],
-        },
-        "tokenOfOwnerByIndex(address,uint256)": {
-          type: "SHARED",
-          weight: 0.5,
-          sharedTypes: ["ERC721"],
-        },
-        "defaultOperators()": {
-          type: "SHARED",
-          weight: 0.5,
-          sharedTypes: ["ERC777"],
-        },
+          // Common utility functions (lower weight)
+          "supportsInterface(bytes4)": { type: "UTILITY", weight: 0.2 },
+        };
 
-        // Common utility functions (lower weight)
-        "supportsInterface(bytes4)": { type: "UTILITY", weight: 0.2 },
-      };
+        // Event signatures with importance weights
+        const EVENTS = {
+          "Transfer(address,address,uint256)": { type: "ERC20", weight: 0.8 },
+          "Transfer(address,address,uint256,bytes)": {
+            type: "ERC777",
+            weight: 0.8,
+          },
+          "Transfer(address,address,uint256,uint256,bytes)": {
+            type: "ERC1155",
+            weight: 0.8,
+          },
+          "TransferSingle(address,address,address,uint256,uint256)": {
+            type: "ERC1155",
+            weight: 0.8,
+          },
+          "TransferBatch(address,address,address,uint256[],uint256[])": {
+            type: "ERC1155",
+            weight: 0.8,
+          },
+          "Approval(address,address,uint256)": {
+            type: "ERC20/ERC721",
+            weight: 0.6,
+          },
+          "ApprovalForAll(address,address,bool)": {
+            type: "ERC721/ERC1155",
+            weight: 0.7,
+          },
+          "Mint(address,uint256)": { type: "ERC20/ERC721", weight: 0.5 },
+          "Burn(address,uint256)": { type: "ERC20/ERC721", weight: 0.5 },
+          "URI(string,uint256)": { type: "ERC1155", weight: 0.6 },
+        };
 
-      // Event signatures with importance weights
-      const EVENTS = {
-        "Transfer(address,address,uint256)": { type: "ERC20", weight: 0.8 },
-        "Transfer(address,address,uint256,bytes)": {
-          type: "ERC777",
-          weight: 0.8,
-        },
-        "Transfer(address,address,uint256,uint256,bytes)": {
-          type: "ERC1155",
-          weight: 0.8,
-        },
-        "TransferSingle(address,address,address,uint256,uint256)": {
-          type: "ERC1155",
-          weight: 0.8,
-        },
-        "TransferBatch(address,address,address,uint256[],uint256[])": {
-          type: "ERC1155",
-          weight: 0.8,
-        },
-        "Approval(address,address,uint256)": {
-          type: "ERC20/ERC721",
-          weight: 0.6,
-        },
-        "ApprovalForAll(address,address,bool)": {
-          type: "ERC721/ERC1155",
-          weight: 0.7,
-        },
-        "Mint(address,uint256)": { type: "ERC20/ERC721", weight: 0.5 },
-        "Burn(address,uint256)": { type: "ERC20/ERC721", weight: 0.5 },
-        "URI(string,uint256)": { type: "ERC1155", weight: 0.6 },
-      };
+        // Calculate scores by type
+        const scores: Record<string, number> = {};
+        const detectedInterfaces: string[] = [];
 
-      // Calculate scores by type
-      const scores: Record<string, number> = {};
-      const detectedInterfaces: string[] = [];
-
-      // Check for supportsInterface function to detect ERC165
-      const hasSupportsInterface = functionsParam.includes(
-        "supportsInterface(bytes4)"
-      );
-      if (hasSupportsInterface) {
-        detectedInterfaces.push("ERC165");
-      }
-
-      // Check for Diamond/EIP-2535 proxy pattern
-      const isDiamondProxy = functionsParam.some(
-        (func: string) =>
-          func.includes("facet") ||
-          func.includes("diamond") ||
-          func.includes("getDefaultFacetAddresses") ||
-          func.includes("facets")
-      );
-
-      if (isDiamondProxy) {
-        console.log(
-          "🔍 [DETECT] Diamond/EIP-2535 proxy pattern detected - continuing with token type scoring"
+        // Check for supportsInterface function to detect ERC165
+        const hasSupportsInterface = functionsParam.includes(
+          "supportsInterface(bytes4)"
         );
-        detectedInterfaces.push("Diamond");
-        // Add a score for Diamond but don't return early - let scoring determine final type
-        scores["Diamond"] = (scores["Diamond"] || 0) + 0.5;
-      }
+        if (hasSupportsInterface) {
+          detectedInterfaces.push("ERC165");
+        }
 
-      // Score functions
-      console.log("🔍 [DETECT] Scoring functions...");
-      functionsParam.forEach((func: string) => {
-        const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
-        if (funcInfo) {
+        // Check for Diamond/EIP-2535 proxy pattern
+        const isDiamondProxy = functionsParam.some(
+          (func: string) =>
+            func.includes("facet") ||
+            func.includes("diamond") ||
+            func.includes("getDefaultFacetAddresses") ||
+            func.includes("facets")
+        );
+
+        if (isDiamondProxy) {
           console.log(
-            `🔍 [DETECT] Matched function: ${func} -> ${funcInfo.type} (${funcInfo.weight})`
+            "🔍 [DETECT] Diamond/EIP-2535 proxy pattern detected - continuing with token type scoring"
           );
-          if (funcInfo.type === "SHARED") {
-            // Add weight to all shared types
-            funcInfo.sharedTypes?.forEach((sharedType: string) => {
-              scores[sharedType] = (scores[sharedType] || 0) + funcInfo.weight;
-              console.log(
-                `🔍 [DETECT] Added to shared type: ${sharedType} = ${scores[sharedType]}`
-              );
-            });
-          } else {
-            scores[funcInfo.type] =
-              (scores[funcInfo.type] || 0) + funcInfo.weight;
-            console.log(
-              `🔍 [DETECT] Added to type: ${funcInfo.type} = ${scores[funcInfo.type]}`
-            );
-          }
-        } else {
-          // Log unmatched functions for debugging
-          if (
-            func.includes("transfer") ||
-            func.includes("balance") ||
-            func.includes("owner") ||
-            func.includes("token")
-          ) {
-            console.log(`🔍 [DETECT] Unmatched token-like function: ${func}`);
-          }
-        }
-      });
-
-      // Score events
-      eventsParam.forEach((event: string) => {
-        const eventInfo = EVENTS[event as keyof typeof EVENTS];
-        if (eventInfo) {
-          const type =
-            eventInfo.type === "ERC20/ERC721"
-              ? "ERC20"
-              : eventInfo.type === "ERC721/ERC1155"
-                ? "ERC721"
-                : eventInfo.type;
-          scores[type] = (scores[type] || 0) + eventInfo.weight;
-        }
-      });
-
-      // Calculate maximum possible scores for confidence calculation
-      const maxScores: Record<string, number> = {
-        ERC20: 6.5, // Core functions + important optional
-        ERC721: 6.8, // Core functions + metadata + enumerable
-        ERC1155: 6.8, // Core functions + metadata
-        ERC777: 5.1, // Core functions + operators
-        ERC4626: 10.4, // All vault functions
-        ERC2981: 1.0, // Only royaltyInfo
-      };
-
-      console.log("🔍 Token Detection Scores:", scores);
-      console.log("🔍 Detected Interfaces:", detectedInterfaces);
-
-      // Determine type with confidence thresholds
-      const minConfidence = 0.4; // 40% minimum confidence
-
-      if ((scores.ERC20 || 0) >= minConfidence * maxScores.ERC20) {
-        const confidence = Math.min((scores.ERC20 || 0) / maxScores.ERC20, 1.0);
-        return {
-          type: "ERC20",
-          confidence,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      } else if ((scores.ERC721 || 0) >= minConfidence * maxScores.ERC721) {
-        const confidence = Math.min(
-          (scores.ERC721 || 0) / maxScores.ERC721,
-          1.0
-        );
-        return {
-          type: "ERC721",
-          confidence,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      } else if ((scores.ERC1155 || 0) >= minConfidence * maxScores.ERC1155) {
-        const confidence = Math.min(
-          (scores.ERC1155 || 0) / maxScores.ERC1155,
-          1.0
-        );
-        return {
-          type: "ERC1155",
-          confidence,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      } else if ((scores.ERC777 || 0) >= minConfidence * maxScores.ERC777) {
-        const confidence = Math.min(
-          (scores.ERC777 || 0) / maxScores.ERC777,
-          1.0
-        );
-        return {
-          type: "ERC777",
-          confidence,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      } else if ((scores.ERC4626 || 0) >= minConfidence * maxScores.ERC4626) {
-        const confidence = Math.min(
-          (scores.ERC4626 || 0) / maxScores.ERC4626,
-          1.0
-        );
-        return {
-          type: "ERC4626",
-          confidence,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      } else {
-        // Default case - unknown token type
-        return {
-          type: "unknown",
-          confidence: 0,
-          interfaces: detectedInterfaces,
-          detectionMethod: "function+event+interface",
-        };
-      }
-
-      try {
-        // Use working RPC endpoints for different networks
-        let rpcUrl = selectedNetwork?.rpcUrl || SUPPORTED_CHAINS[0].rpcUrl;
-        if (selectedNetwork?.id === 1) {
-          rpcUrl = "https://eth.llamarpc.com";
-        } else if (selectedNetwork?.id === 8453) {
-          // Base
-          rpcUrl = "https://mainnet.base.org";
-        } else if (selectedNetwork?.id === 137) {
-          // Polygon
-          rpcUrl = "https://polygon-rpc.com/";
+          detectedInterfaces.push("Diamond");
+          // Add a score for Diamond but don't return early - let scoring determine final type
+          scores["Diamond"] = (scores["Diamond"] || 0) + 0.5;
         }
 
-        console.log("Creating provider with RPC URL:", rpcUrl);
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-
-        console.log("Provider created successfully");
-        console.log("Contract instance created");
-
-        // Test the provider connection
-        try {
-          const blockNumber = await provider.getBlockNumber();
-          console.log("Provider connection test - current block:", blockNumber);
-        } catch (providerError) {
-          console.error("Provider connection failed:", providerError);
-        }
-
-        // Perform universal token detection with our universal ABI
-        console.log("🔍 Using universal token detection approach...");
-        const tokenDetection = await detectTokenTypeUniversal(
-          contractAddress,
-          provider
-        );
-        
-        // Enhanced detection specifically for Diamond contracts
-        console.log("🔍 Performing enhanced Diamond contract detection...");
-        let enhancedDetection = { ...tokenDetection };
-        
-        // If Diamond detected but no token type, try additional detection methods
-        if (tokenDetection.isDiamond && tokenDetection.type === "unknown") {
-          console.log("🔍 Diamond detected but no token type - trying enhanced detection...");
-          
-          // Try direct function calls for ERC721 detection
-          try {
-            const testContract = new ethers.Contract(contractAddress, [
-              "function name() view returns (string)",
-              "function symbol() view returns (string)",
-              "function ownerOf(uint256) view returns (address)",
-              "function tokenURI(uint256) view returns (string)"
-            ], provider);
-            
-            const [name, symbol] = await Promise.all([
-              testContract.name().catch(() => null),
-              testContract.symbol().catch(() => null)
-            ]);
-            
-            if (name && symbol) {
-              console.log(`✅ Enhanced detection found token: ${name} (${symbol})`);
-              
-              // Try ERC721 specific functions
-              try {
-                await testContract.ownerOf(1);
-                console.log("✅ ERC721 ownerOf() succeeded - contract is ERC721");
-                enhancedDetection.type = "ERC721";
-                enhancedDetection.confidence = 0.9;
-                enhancedDetection.detectionMethod = "enhanced-erc721-detection";
-                enhancedDetection.tokenInfo = { name, symbol, decimals: 0 };
-              } catch (ownerOfError) {
-                console.log("❌ ownerOf() failed - not ERC721");
-              }
-            }
-          } catch (enhancedError) {
-            console.log("❌ Enhanced detection failed:", enhancedError);
-          }
-        }
-        
-        const erc20 = enhancedDetection.type === "ERC20";
-        const erc721 = enhancedDetection.type === "ERC721";
-        const erc1155 = enhancedDetection.type === "ERC1155";
-        const erc777 = enhancedDetection.type === "ERC777";
-        const erc4626 = enhancedDetection.type === "ERC4626";
-        const erc2981 = enhancedDetection.type === "ERC2981";
-        const diamond = !!(enhancedDetection.type === "Diamond" || enhancedDetection.isDiamond);
-        
-        // Store the full detection result for UI display
-        setTokenDetection(enhancedDetection);
-        
-        console.log("🎯 SETTING TOKEN DETECTION STATE:", {
-          erc20,
-          erc721,
-          erc1155,
-          erc777,
-          erc4626,
-          erc2981,
-          diamond,
-          detectionType: enhancedDetection.type,
-          confidence: enhancedDetection.confidence,
-          detectionMethod: enhancedDetection.detectionMethod,
-          isDiamond: enhancedDetection.isDiamond,
-          tokenInfo: enhancedDetection.tokenInfo
-        });
-        
-        setIsERC20(erc20);
-        setIsERC721(erc721);
-        setIsERC1155(erc1155);
-        setIsERC777(erc777);
-        setIsERC4626(erc4626);
-        setIsERC2981(erc2981);
-        setIsDiamond(diamond);
-
-        console.log(`🔍 Enhanced Token Detection:`);
-        console.log(`   Type: ${enhancedDetection.type}`);
-        console.log(
-          `   Confidence: ${Math.round(enhancedDetection.confidence * 100)}%`
-        );
-        console.log(`   Detection Method: ${enhancedDetection.detectionMethod}`);
-        console.log(
-          `   Interfaces: ${enhancedDetection.type ? [enhancedDetection.type].join(", ") : "None"}`
-        );
-        console.log(`   Is Diamond: ${enhancedDetection.isDiamond || false}`);
-        console.log(`   Token Info:`, enhancedDetection.tokenInfo);
-        console.log(`   Error:`, enhancedDetection.error);
-        
-        // Additional debugging for Diamond contracts
-        if (enhancedDetection.isDiamond) {
-          console.log(`🔍 Diamond Contract Debug:`);
-          console.log(`   Address: ${contractAddress}`);
-          console.log(`   Network: ${selectedNetwork?.name} (ID: ${selectedNetwork?.id})`);
-          console.log(`   Token Type Detection: ${enhancedDetection.type}`);
-          console.log(`   Enhanced Detection Used: ${enhancedDetection.detectionMethod.includes('enhanced')}`);
-        }
-
-        // Universal token detection results processing
-        if (tokenDetection.type !== "unknown" && tokenDetection.tokenInfo) {
-          console.log(`🎯 [UNIVERSAL] Processing detected ${tokenDetection.type} token...`);
-          
-          const { name, symbol, decimals } = tokenDetection.tokenInfo || { name: undefined, symbol: undefined, decimals: undefined };
-          console.log(`🎯 [UNIVERSAL] Token info:`, { name, symbol, decimals, isDiamond: tokenDetection.isDiamond });
-          
-          // Format contract name based on token type
-          let formattedName = contractName;
-          if (!preserveContractName && symbol) {
-            formattedName = `${tokenDetection.type}.${symbol}`;
-            console.log(`🎯 [UNIVERSAL] Setting formatted name: ${formattedName}`);
-            setContractName(formattedName);
-          }
-          
-          // Set token info
-          setTokenInfo({ 
-            name: name || `${tokenDetection.type} Token`, 
-            symbol: symbol || tokenDetection.type, 
-            decimals: decimals || (tokenDetection.type === "ERC20" || tokenDetection.type === "ERC777" ? 18 : 0)
-          });
-          
-          console.log(`✅ [UNIVERSAL] Token detection and processing complete!`);
-          return { type: "unknown", confidence: 0, interfaces: [], detectionMethod: "universal-skipped" }; // Skip all old token handling logic
-        }
-        
-        // Fallback to old logic only if universal detection failed
-        if (tokenDetection.type === "ERC20") {
-          console.log("Detected ERC20 token, fetching info...");
-          console.log("Calling contract methods...");
-          const [name, symbol, decimals] = await Promise.all([
-            contract.name().catch((err: unknown) => {
-              console.error("Name call failed:", err);
-              return "Unknown Token";
-            }),
-            contract.symbol().catch((err: unknown) => {
-              console.error("Symbol call failed:", err);
-              return "UNKNOWN";
-            }),
-            contract.decimals().catch((err: unknown) => {
-              console.error("Decimals call failed:", err);
-              return 18;
-            }),
-          ]);
-
-          console.log("Token info successfully fetched:", {
-            name,
-            symbol,
-            decimals,
-          });
-
-          // Preserve contract name from ABI fetch if it was already set
-          const shouldPreserve =
-            preserveContractName ||
-            (contractName &&
-              contractName !== "Smart Contract" &&
-              contractName !== "ERC20 Token" &&
-              contractName !== "Unknown Token" &&
-              contractName !== "Unknown Contract" &&
-              !contractName.startsWith("ERC") &&
-              !contractName.startsWith("Unknown"));
-
-          if (shouldPreserve) {
+        // Score functions
+        console.log("🔍 [DETECT] Scoring functions...");
+        functionsParam.forEach((func: string) => {
+          const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
+          if (funcInfo) {
             console.log(
-              `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`
+              `🔍 [DETECT] Matched function: ${func} -> ${funcInfo.type} (${funcInfo.weight})`
             );
-          } else {
-            // Format as ERC20.SYMBOL.DECIMALS
-            const formattedName = `ERC20.${symbol}.${decimals}`;
-            console.log(
-              `🔍 [SimpleGridUI] Overriding with ERC20 name: ${formattedName} (current: ${contractName})`
-            );
-            setContractName(formattedName);
-          }
-          setTokenInfo({ name, symbol, decimals });
-        } else if (tokenDetection.type === "ERC721") {
-          console.log("🎨 Detected ERC721 NFT, fetching info...");
-          console.log("🎨 Available contract functions:", Object.keys(contract.functions || {}));
-          
-          // Check if name and symbol functions exist in the ABI
-          const hasNameFunction = abi.some((item: any) => 
-            item.type === 'function' && item.name === 'name'
-          );
-          const hasSymbolFunction = abi.some((item: any) => 
-            item.type === 'function' && item.name === 'symbol'
-          );
-          
-          console.log("🎨 ABI has name function:", hasNameFunction);
-          console.log("🎨 ABI has symbol function:", hasSymbolFunction);
-          
-          let name = "Unknown NFT";
-          let symbol = "NFT";
-          
-          // Try to get name and symbol, with enhanced fallbacks
-          if (hasNameFunction && hasSymbolFunction) {
-            try {
-              const [fetchedName, fetchedSymbol] = await Promise.all([
-                contract.name().catch((err: unknown) => {
-                  console.error("❌ NFT name call failed:", err);
-                  return null;
-                }),
-                contract.symbol().catch((err: unknown) => {
-                  console.error("❌ NFT symbol call failed:", err);
-                  return null;
-                }),
-              ]);
-              
-              name = fetchedName || name;
-              symbol = fetchedSymbol || symbol;
-              console.log("✅ NFT info successfully fetched:", { name, symbol });
-            } catch (error) {
-              console.error("❌ Failed to fetch NFT info:", error);
-            }
-          } else {
-            console.log("🎨 Missing name/symbol functions in ABI, using defaults");
-          }
-
-          // Preserve contract name from ABI fetch if it was already set
-          const shouldPreserve =
-            preserveContractName ||
-            (contractName &&
-              contractName !== "Smart Contract" &&
-              contractName !== "ERC721 NFT" &&
-              contractName !== "Unknown NFT" &&
-              contractName !== "Unknown Contract" &&
-              !contractName.startsWith("ERC") &&
-              !contractName.startsWith("Unknown"));
-
-          if (shouldPreserve) {
-            console.log(
-              `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (ERC721 detected: ${name})`
-            );
-          } else {
-            // Format as ERC721.SYMBOL
-            const formattedName = `ERC721.${symbol}`;
-            console.log(
-              `🔍 [SimpleGridUI] Setting ERC721 name: ${formattedName} (was: ${contractName})`
-            );
-            setContractName(formattedName);
-          }
-          setTokenInfo({ name, symbol, decimals: 0 });
-        } else if (tokenDetection.type === "ERC1155") {
-          console.log("🎭 Detected ERC1155 Multi-Token, fetching info...");
-          console.log(
-            "🎭 Contract instance functions available:",
-            Object.keys(contract.functions || {})
-          );
-          console.log("🎭 Current contractName state:", contractName);
-          console.log("🎭 Current tokenInfo state:", tokenInfo);
-
-          // For ERC1155, we need to ensure we have the token functions
-          // Some ABIs might not include all token functions, so create a fallback contract
-          let erc1155Contract = contract;
-
-          // Check if current contract has token functions, if not create a new one with minimal token ABI
-          const hasTokenFunctions =
-            contract.functions?.name && contract.functions?.symbol;
-          if (!hasTokenFunctions) {
-            console.log(
-              "🎭 Token functions not available in current ABI, creating fallback contract..."
-            );
-
-            const erc1155ABI = [
-              "function name() view returns (string)",
-              "function symbol() view returns (string)",
-              "function uri(uint256) view returns (string)",
-            ];
-
-            erc1155Contract = new ethers.Contract(
-              contractAddress,
-              erc1155ABI,
-              provider
-            );
-
-            console.log(await erc1155Contract.name());
-            console.log(
-              "🎭 Created fallback ERC1155 contract with token functions"
-            );
-          }
-
-          // Try to fetch token info with better error handling
-          let name = "Multi-Token";
-          let symbol = "MTK";
-
-          try {
-            const tokenName = await contract.name();
-            const tokenSymbol = await contract.symbol();
-            if (tokenName) name = tokenName;
-            if (tokenSymbol) symbol = tokenSymbol;
-          } catch (err) {
-            console.error("🎭 ERC1155 name call failed:", err);
-          }
-
-          try {
-            if (
-              erc1155Contract.functions?.symbol &&
-              typeof erc1155Contract.functions.symbol === "function"
-            ) {
-              const tokenSymbol = await erc1155Contract.symbol();
-              if (tokenSymbol) symbol = tokenSymbol;
-              console.log("🎭 ERC1155 symbol fetched successfully:", tokenSymbol);
+            if (funcInfo.type === "SHARED") {
+              // Add weight to all shared types
+              funcInfo.sharedTypes?.forEach((sharedType: string) => {
+                scores[sharedType] =
+                  (scores[sharedType] || 0) + funcInfo.weight;
+                console.log(
+                  `🔍 [DETECT] Added to shared type: ${sharedType} = ${scores[sharedType]}`
+                );
+              });
             } else {
-              console.log("🎭 symbol() function not available in contract");
+              scores[funcInfo.type] =
+                (scores[funcInfo.type] || 0) + funcInfo.weight;
+              console.log(
+                `🔍 [DETECT] Added to type: ${funcInfo.type} = ${scores[funcInfo.type]}`
+              );
             }
-          } catch (err) {
-            console.error("🎭 ERC1155 symbol call failed:", err);
-          }
-
-          console.log("🎭 ERC1155 info result:", { name, symbol });
-          console.log("🎭 About to setTokenInfo and contractName...");
-
-          // Preserve contract name from ABI fetch if it was already set
-          const shouldPreserve =
-            preserveContractName ||
-            (contractName &&
-              contractName !== "ERC1155 Token" &&
-              contractName !== "Multi-Token" &&
-              contractName !== "Unknown Contract" &&
-              !contractName.startsWith("ERC") &&
-              !contractName.startsWith("Unknown"));
-
-          if (shouldPreserve) {
-            console.log(
-              `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC1155 name: ${name})`
-            );
           } else {
-            // Format as ERC1155.SYMBOL
-            const formattedName = `ERC1155.${symbol}`;
-            console.log(
-              `🔍 [SimpleGridUI] Overriding with ERC1155 name: ${formattedName} (current: ${contractName})`
-            );
-            setContractName(formattedName);
+            // Log unmatched functions for debugging
+            if (
+              func.includes("transfer") ||
+              func.includes("balance") ||
+              func.includes("owner") ||
+              func.includes("token")
+            ) {
+              console.log(`🔍 [DETECT] Unmatched token-like function: ${func}`);
+            }
           }
+        });
 
-          const finalTokenInfo = { name, symbol, decimals: 0 };
-          console.log("🎭 Setting tokenInfo to:", finalTokenInfo);
-          setTokenInfo(finalTokenInfo);
-          console.log("🎭 tokenInfo set completed");
-        } else if (tokenDetection.type === "ERC777") {
-          console.log("Detected ERC777 Token, fetching info...");
-          const [name, symbol, decimals] = await Promise.all([
-            contract.name().catch((err: unknown) => {
-              console.error("ERC777 name call failed:", err);
-              return "ERC777 Token";
-            }),
-            contract.symbol().catch((err: unknown) => {
-              console.error("ERC777 symbol call failed:", err);
-              return "777";
-            }),
-            contract.decimals().catch((err: unknown) => {
-              console.error("ERC777 decimals call failed:", err);
-              return 18;
-            }),
-          ]);
-
-          console.log("ERC777 info successfully fetched:", {
-            name,
-            symbol,
-            decimals,
-          });
-
-          // Preserve contract name from ABI fetch if it was already set
-          const shouldPreserve =
-            preserveContractName ||
-            (contractName &&
-              contractName !== "ERC777 Token" &&
-              contractName !== "Unknown Contract" &&
-              !contractName.startsWith("ERC") &&
-              !contractName.startsWith("Unknown"));
-
-          if (shouldPreserve) {
-            console.log(
-              `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC777 name: ${name})`
-            );
-          } else {
-            // Format as ERC777.SYMBOL.DECIMALS
-            const formattedName = `ERC777.${symbol}.${decimals}`;
-            console.log(
-              `🔍 [SimpleGridUI] Overriding with ERC777 name: ${formattedName} (current: ${contractName})`
-            );
-            setContractName(formattedName);
+        // Score events
+        eventsParam.forEach((event: string) => {
+          const eventInfo = EVENTS[event as keyof typeof EVENTS];
+          if (eventInfo) {
+            const type =
+              eventInfo.type === "ERC20/ERC721"
+                ? "ERC20"
+                : eventInfo.type === "ERC721/ERC1155"
+                  ? "ERC721"
+                  : eventInfo.type;
+            scores[type] = (scores[type] || 0) + eventInfo.weight;
           }
-          setTokenInfo({ name, symbol, decimals });
-        } else if (tokenDetection.type === "ERC4626") {
-          console.log("Detected ERC4626 Tokenized Vault, fetching info...");
-          const [name, symbol, decimals, assetAddress] = await Promise.all([
-            contract.name().catch((err: unknown) => {
-              console.error("ERC4626 name call failed:", err);
-              return "Tokenized Vault";
-            }),
-            contract.symbol().catch((err: unknown) => {
-              console.error("ERC4626 symbol call failed:", err);
-              return "VAULT";
-            }),
-            contract.decimals().catch((err: unknown) => {
-              console.error("ERC4626 decimals call failed:", err);
-              return 18;
-            }),
-            contract.asset().catch((err: unknown) => {
-              console.error("ERC4626 asset call failed:", err);
-              return "0x0000000000000000000000000000000000000000";
-            }),
-          ]);
+        });
 
-          console.log("ERC4626 info successfully fetched:", {
-            name,
-            symbol,
-            decimals,
-            assetAddress,
-          });
+        // Calculate maximum possible scores for confidence calculation
+        const maxScores: Record<string, number> = {
+          ERC20: 6.5, // Core functions + important optional
+          ERC721: 6.8, // Core functions + metadata + enumerable
+          ERC1155: 6.8, // Core functions + metadata
+          ERC777: 5.1, // Core functions + operators
+          ERC4626: 10.4, // All vault functions
+          ERC2981: 1.0, // Only royaltyInfo
+        };
 
-          // Preserve contract name from ABI fetch if it was already set
-          const shouldPreserve =
-            preserveContractName ||
-            (contractName &&
-              contractName !== "ERC4626 Vault" &&
-              contractName !== "Tokenized Vault" &&
-              contractName !== "Unknown Contract" &&
-              !contractName.startsWith("ERC") &&
-              !contractName.startsWith("Unknown"));
+        console.log("🔍 Token Detection Scores:", scores);
+        console.log("🔍 Detected Interfaces:", detectedInterfaces);
 
-          if (shouldPreserve) {
-            console.log(
-              `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC4626 name: ${name})`
-            );
-          } else {
-            // Format as ERC4626.SYMBOL.DECIMALS
-            const formattedName = `ERC4626.${symbol}.${decimals}`;
-            console.log(
-              `🔍 [SimpleGridUI] Overriding with ERC4626 name: ${formattedName} (current: ${contractName})`
-            );
-            setContractName(formattedName);
-          }
-          setTokenInfo({ name, symbol, decimals, assetAddress });
-        } else if (
-          tokenDetection.isDiamond ||
-          tokenDetection.type === "Diamond"
-        ) {
-          console.log("💎 Detected Diamond/EIP-2535 proxy contract");
+        // Determine type with confidence thresholds
+        const minConfidence = 0.4; // 40% minimum confidence
 
-          // For Diamond contracts, fetch token info from the facets if it's also a token
-          let finalName = contractName;
-          let tokenSymbol: string | undefined;
-          let tokenDecimals: number | undefined;
+        if ((scores.ERC20 || 0) >= minConfidence * maxScores.ERC20) {
+          const confidence = Math.min(
+            (scores.ERC20 || 0) / maxScores.ERC20,
+            1.0
+          );
+          return {
+            type: "ERC20",
+            confidence,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        } else if ((scores.ERC721 || 0) >= minConfidence * maxScores.ERC721) {
+          const confidence = Math.min(
+            (scores.ERC721 || 0) / maxScores.ERC721,
+            1.0
+          );
+          return {
+            type: "ERC721",
+            confidence,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        } else if ((scores.ERC1155 || 0) >= minConfidence * maxScores.ERC1155) {
+          const confidence = Math.min(
+            (scores.ERC1155 || 0) / maxScores.ERC1155,
+            1.0
+          );
+          return {
+            type: "ERC1155",
+            confidence,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        } else if ((scores.ERC777 || 0) >= minConfidence * maxScores.ERC777) {
+          const confidence = Math.min(
+            (scores.ERC777 || 0) / maxScores.ERC777,
+            1.0
+          );
+          return {
+            type: "ERC777",
+            confidence,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        } else if ((scores.ERC4626 || 0) >= minConfidence * maxScores.ERC4626) {
+          const confidence = Math.min(
+            (scores.ERC4626 || 0) / maxScores.ERC4626,
+            1.0
+          );
+          return {
+            type: "ERC4626",
+            confidence,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        } else {
+          // Default case - unknown token type
+          return {
+            type: "unknown",
+            confidence: 0,
+            interfaces: detectedInterfaces,
+            detectionMethod: "function+event+interface",
+          };
+        }
 
+        try {
+          // Use working RPC endpoints for different networks
+          const rpcUrl = selectedNetwork?.rpcUrl || SUPPORTED_CHAINS[0].rpcUrl;
+
+          console.log("Creating provider with RPC URL:", rpcUrl);
+          const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+          const contract = new ethers.Contract(contractAddress, abi, provider);
+
+          console.log("Provider created successfully");
+          console.log("Contract instance created");
+
+          // Test the provider connection
           try {
-            // Try to get token info - this will call through to the facets
-            if (functionsParam.includes("symbol")) {
-              tokenSymbol = await contract.symbol();
-              console.log(`🔍 [Diamond] Fetched symbol: ${tokenSymbol}`);
+            const blockNumber = await provider.getBlockNumber();
+            console.log(
+              "Provider connection test - current block:",
+              blockNumber
+            );
+          } catch (providerError) {
+            console.error("Provider connection failed:", providerError);
+          }
+
+          // Perform universal token detection with our universal ABI
+          console.log("🔍 Using universal token detection approach...");
+          const tokenDetection = await detectTokenTypeUniversal(
+            contractAddress,
+            provider
+          );
+
+          // Enhanced detection specifically for Diamond contracts
+          console.log("🔍 Performing enhanced Diamond contract detection...");
+          let enhancedDetection = { ...tokenDetection };
+
+          // If Diamond detected but no token type, try additional detection methods
+          if (tokenDetection.isDiamond && tokenDetection.type === "unknown") {
+            console.log(
+              "🔍 Diamond detected but no token type - trying enhanced detection..."
+            );
+
+            // Try direct function calls for ERC721 detection
+            try {
+              const testContract = new ethers.Contract(
+                contractAddress,
+                [
+                  "function name() view returns (string)",
+                  "function symbol() view returns (string)",
+                  "function ownerOf(uint256) view returns (address)",
+                  "function tokenURI(uint256) view returns (string)",
+                ],
+                provider
+              );
+
+              const [name, symbol] = await Promise.all([
+                testContract.name().catch(() => null),
+                testContract.symbol().catch(() => null),
+              ]);
+
+              if (name && symbol) {
+                console.log(
+                  `✅ Enhanced detection found token: ${name} (${symbol})`
+                );
+
+                // Try ERC721 specific functions
+                try {
+                  await testContract.ownerOf(1);
+                  console.log(
+                    "✅ ERC721 ownerOf() succeeded - contract is ERC721"
+                  );
+                  enhancedDetection.type = "ERC721";
+                  enhancedDetection.confidence = 0.9;
+                  enhancedDetection.detectionMethod =
+                    "enhanced-erc721-detection";
+                  enhancedDetection.tokenInfo = { name, symbol, decimals: 0 };
+                } catch (ownerOfError) {
+                  console.log("❌ ownerOf() failed - not ERC721");
+                }
+              }
+            } catch (enhancedError) {
+              console.log("❌ Enhanced detection failed:", enhancedError);
+            }
+          }
+
+          const erc20 = enhancedDetection.type === "ERC20";
+          const erc721 = enhancedDetection.type === "ERC721";
+          const erc1155 = enhancedDetection.type === "ERC1155";
+          const erc777 = enhancedDetection.type === "ERC777";
+          const erc4626 = enhancedDetection.type === "ERC4626";
+          const erc2981 = enhancedDetection.type === "ERC2981";
+          const diamond = !!(
+            enhancedDetection.type === "Diamond" || enhancedDetection.isDiamond
+          );
+
+          // Prefer ERC165-based universal detection elsewhere; only set here if we still don't know
+          if (!tokenDetection || tokenDetection.type === "unknown") {
+            setTokenDetection(enhancedDetection);
+            setIsERC20(erc20);
+            setIsERC721(erc721);
+            setIsERC1155(erc1155);
+            setIsERC777(erc777);
+            setIsERC4626(erc4626);
+            setIsERC2981(erc2981);
+          }
+          // Always reflect diamond styling if detected
+          setIsDiamond(diamond);
+
+          console.log("🎯 ENHANCED token snapshot (non-authoritative):", {
+            erc20,
+            erc721,
+            erc1155,
+            erc777,
+            erc4626,
+            erc2981,
+            diamond,
+            detectionType: enhancedDetection.type,
+            confidence: enhancedDetection.confidence,
+            detectionMethod: enhancedDetection.detectionMethod,
+            isDiamond: enhancedDetection.isDiamond,
+            tokenInfo: enhancedDetection.tokenInfo,
+          });
+
+          console.log(`🔍 Enhanced Token Detection:`);
+          console.log(`   Type: ${enhancedDetection.type}`);
+          console.log(
+            `   Confidence: ${Math.round(enhancedDetection.confidence * 100)}%`
+          );
+          console.log(
+            `   Detection Method: ${enhancedDetection.detectionMethod}`
+          );
+          console.log(
+            `   Interfaces: ${enhancedDetection.type ? [enhancedDetection.type].join(", ") : "None"}`
+          );
+          console.log(`   Is Diamond: ${enhancedDetection.isDiamond || false}`);
+          console.log(`   Token Info:`, enhancedDetection.tokenInfo);
+          console.log(`   Error:`, enhancedDetection.error);
+
+          // Additional debugging for Diamond contracts
+          if (enhancedDetection.isDiamond) {
+            console.log(`🔍 Diamond Contract Debug:`);
+            console.log(`   Address: ${contractAddress}`);
+            console.log(
+              `   Network: ${selectedNetwork?.name} (ID: ${selectedNetwork?.id})`
+            );
+            console.log(`   Token Type Detection: ${enhancedDetection.type}`);
+            console.log(
+              `   Enhanced Detection Used: ${enhancedDetection.detectionMethod.includes("enhanced")}`
+            );
+          }
+
+          // Universal token detection results processing
+          if (tokenDetection.type !== "unknown" && tokenDetection.tokenInfo) {
+            console.log(
+              `🎯 [UNIVERSAL] Processing detected ${tokenDetection.type} token...`
+            );
+
+            const { name, symbol, decimals } = tokenDetection.tokenInfo || {
+              name: undefined,
+              symbol: undefined,
+              decimals: undefined,
+            };
+            console.log(`🎯 [UNIVERSAL] Token info:`, {
+              name,
+              symbol,
+              decimals,
+              isDiamond: tokenDetection.isDiamond,
+            });
+
+            // Format contract name based on token type
+            let formattedName = contractName;
+            if (!preserveContractName && symbol) {
+              formattedName = `${tokenDetection.type}.${symbol}`;
+              console.log(
+                `🎯 [UNIVERSAL] Setting formatted name: ${formattedName}`
+              );
+              setContractName(formattedName);
             }
 
-            if (functionsParam.includes("decimals")) {
-              tokenDecimals = await contract.decimals();
-              console.log(`🔍 [Diamond] Fetched decimals: ${tokenDecimals}`);
+            // Set token info
+            setTokenInfo({
+              name: name || `${tokenDetection.type} Token`,
+              symbol: symbol || tokenDetection.type,
+              decimals:
+                decimals ||
+                (tokenDetection.type === "ERC20" ||
+                tokenDetection.type === "ERC777"
+                  ? 18
+                  : 0),
+            });
+
+            console.log(
+              `✅ [UNIVERSAL] Token detection and processing complete!`
+            );
+            return {
+              type: "unknown",
+              confidence: 0,
+              interfaces: [],
+              detectionMethod: "universal-skipped",
+            }; // Skip all old token handling logic
+          }
+
+          // Fallback to old logic only if universal detection failed
+          if (tokenDetection.type === "ERC20") {
+            console.log("Detected ERC20 token, fetching info...");
+            console.log("Calling contract methods...");
+            const [name, symbol, decimals] = await Promise.all([
+              contract.name().catch((err: unknown) => {
+                console.error("Name call failed:", err);
+                return "Unknown Token";
+              }),
+              contract.symbol().catch((err: unknown) => {
+                console.error("Symbol call failed:", err);
+                return "UNKNOWN";
+              }),
+              contract.decimals().catch((err: unknown) => {
+                console.error("Decimals call failed:", err);
+                return 18;
+              }),
+            ]);
+
+            console.log("Token info successfully fetched:", {
+              name,
+              symbol,
+              decimals,
+            });
+
+            // Preserve contract name from ABI fetch if it was already set
+            const shouldPreserve =
+              preserveContractName ||
+              (contractName &&
+                contractName !== "Smart Contract" &&
+                contractName !== "ERC20 Token" &&
+                contractName !== "Unknown Token" &&
+                contractName !== "Unknown Contract" &&
+                !contractName.startsWith("ERC") &&
+                !contractName.startsWith("Unknown"));
+
+            if (shouldPreserve) {
+              console.log(
+                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`
+              );
+            } else {
+              // Format as ERC20.SYMBOL.DECIMALS
+              const formattedName = `ERC20.${symbol}.${decimals}`;
+              console.log(
+                `🔍 [SimpleGridUI] Overriding with ERC20 name: ${formattedName} (current: ${contractName})`
+              );
+              setContractName(formattedName);
+            }
+            setTokenInfo({ name, symbol, decimals });
+          } else if (tokenDetection.type === "ERC721") {
+            console.log("🎨 Detected ERC721 NFT, fetching info...");
+            console.log(
+              "🎨 Available contract functions:",
+              Object.keys(contract.functions || {})
+            );
+
+            // Check if name and symbol functions exist in the ABI
+            const hasNameFunction = abi.some(
+              (item: any) => item.type === "function" && item.name === "name"
+            );
+            const hasSymbolFunction = abi.some(
+              (item: any) => item.type === "function" && item.name === "symbol"
+            );
+
+            console.log("🎨 ABI has name function:", hasNameFunction);
+            console.log("🎨 ABI has symbol function:", hasSymbolFunction);
+
+            let name = "Unknown NFT";
+            let symbol = "NFT";
+
+            // Try to get name and symbol, with enhanced fallbacks
+            if (hasNameFunction && hasSymbolFunction) {
+              try {
+                const [fetchedName, fetchedSymbol] = await Promise.all([
+                  contract.name().catch((err: unknown) => {
+                    console.error("❌ NFT name call failed:", err);
+                    return null;
+                  }),
+                  contract.symbol().catch((err: unknown) => {
+                    console.error("❌ NFT symbol call failed:", err);
+                    return null;
+                  }),
+                ]);
+
+                name = fetchedName || name;
+                symbol = fetchedSymbol || symbol;
+                console.log("✅ NFT info successfully fetched:", {
+                  name,
+                  symbol,
+                });
+              } catch (error) {
+                console.error("❌ Failed to fetch NFT info:", error);
+              }
+            } else {
+              console.log(
+                "🎨 Missing name/symbol functions in ABI, using defaults"
+              );
             }
 
-            // Format name as TOKEN_TYPE.SYMBOL if we have the info
-            if (tokenSymbol && finalName) {
-              // If it's also a token, format accordingly
-              if (isERC721) {
-                finalName = `ERC721.${tokenSymbol}`;
-              } else if (isERC20) {
-                finalName = `ERC20.${tokenSymbol}.${tokenDecimals}`;
-              } else if (isERC1155) {
-                finalName = `ERC1155.${tokenSymbol}`;
+            // Preserve contract name from ABI fetch if it was already set
+            const shouldPreserve =
+              preserveContractName ||
+              (contractName &&
+                contractName !== "Smart Contract" &&
+                contractName !== "ERC721 NFT" &&
+                contractName !== "Unknown NFT" &&
+                contractName !== "Unknown Contract" &&
+                !contractName.startsWith("ERC") &&
+                !contractName.startsWith("Unknown"));
+
+            if (shouldPreserve) {
+              console.log(
+                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (ERC721 detected: ${name})`
+              );
+            } else {
+              // Format as ERC721.SYMBOL
+              const formattedName = `ERC721.${symbol}`;
+              console.log(
+                `🔍 [SimpleGridUI] Setting ERC721 name: ${formattedName} (was: ${contractName})`
+              );
+              setContractName(formattedName);
+            }
+            setTokenInfo({ name, symbol, decimals: 0 });
+          } else if (tokenDetection.type === "ERC1155") {
+            console.log("🎭 Detected ERC1155 Multi-Token, fetching info...");
+            console.log(
+              "🎭 Contract instance functions available:",
+              Object.keys(contract.functions || {})
+            );
+            console.log("🎭 Current contractName state:", contractName);
+            console.log("🎭 Current tokenInfo state:", tokenInfo);
+
+            // For ERC1155, we need to ensure we have the token functions
+            // Some ABIs might not include all token functions, so create a fallback contract
+            let erc1155Contract = contract;
+
+            // Check if current contract has token functions, if not create a new one with minimal token ABI
+            const hasTokenFunctions =
+              contract.functions?.name && contract.functions?.symbol;
+            if (!hasTokenFunctions) {
+              console.log(
+                "🎭 Token functions not available in current ABI, creating fallback contract..."
+              );
+
+              const erc1155ABI = [
+                "function name() view returns (string)",
+                "function symbol() view returns (string)",
+                "function uri(uint256) view returns (string)",
+              ];
+
+              erc1155Contract = new ethers.Contract(
+                contractAddress,
+                erc1155ABI,
+                provider
+              );
+
+              console.log(await erc1155Contract.name());
+              console.log(
+                "🎭 Created fallback ERC1155 contract with token functions"
+              );
+            }
+
+            // Try to fetch token info with better error handling
+            let name = "Multi-Token";
+            let symbol = "MTK";
+
+            try {
+              const tokenName = await contract.name();
+              const tokenSymbol = await contract.symbol();
+              if (tokenName) name = tokenName;
+              if (tokenSymbol) symbol = tokenSymbol;
+            } catch (err) {
+              console.error("🎭 ERC1155 name call failed:", err);
+            }
+
+            try {
+              if (
+                erc1155Contract.functions?.symbol &&
+                typeof erc1155Contract.functions.symbol === "function"
+              ) {
+                const tokenSymbol = await erc1155Contract.symbol();
+                if (tokenSymbol) symbol = tokenSymbol;
+                console.log(
+                  "🎭 ERC1155 symbol fetched successfully:",
+                  tokenSymbol
+                );
               } else {
-                finalName = `Diamond.${tokenSymbol}`;
+                console.log("🎭 symbol() function not available in contract");
+              }
+            } catch (err) {
+              console.error("🎭 ERC1155 symbol call failed:", err);
+            }
+
+            console.log("🎭 ERC1155 info result:", { name, symbol });
+            console.log("🎭 About to setTokenInfo and contractName...");
+
+            // Preserve contract name from ABI fetch if it was already set
+            const shouldPreserve =
+              preserveContractName ||
+              (contractName &&
+                contractName !== "ERC1155 Token" &&
+                contractName !== "Multi-Token" &&
+                contractName !== "Unknown Contract" &&
+                !contractName.startsWith("ERC") &&
+                !contractName.startsWith("Unknown"));
+
+            if (shouldPreserve) {
+              console.log(
+                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC1155 name: ${name})`
+              );
+            } else {
+              // Format as ERC1155.SYMBOL
+              const formattedName = `ERC1155.${symbol}`;
+              console.log(
+                `🔍 [SimpleGridUI] Overriding with ERC1155 name: ${formattedName} (current: ${contractName})`
+              );
+              setContractName(formattedName);
+            }
+
+            const finalTokenInfo = { name, symbol, decimals: 0 };
+            console.log("🎭 Setting tokenInfo to:", finalTokenInfo);
+            setTokenInfo(finalTokenInfo);
+            console.log("🎭 tokenInfo set completed");
+          } else if (tokenDetection.type === "ERC777") {
+            console.log("Detected ERC777 Token, fetching info...");
+            const [name, symbol, decimals] = await Promise.all([
+              contract.name().catch((err: unknown) => {
+                console.error("ERC777 name call failed:", err);
+                return "ERC777 Token";
+              }),
+              contract.symbol().catch((err: unknown) => {
+                console.error("ERC777 symbol call failed:", err);
+                return "777";
+              }),
+              contract.decimals().catch((err: unknown) => {
+                console.error("ERC777 decimals call failed:", err);
+                return 18;
+              }),
+            ]);
+
+            console.log("ERC777 info successfully fetched:", {
+              name,
+              symbol,
+              decimals,
+            });
+
+            // Preserve contract name from ABI fetch if it was already set
+            const shouldPreserve =
+              preserveContractName ||
+              (contractName &&
+                contractName !== "ERC777 Token" &&
+                contractName !== "Unknown Contract" &&
+                !contractName.startsWith("ERC") &&
+                !contractName.startsWith("Unknown"));
+
+            if (shouldPreserve) {
+              console.log(
+                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC777 name: ${name})`
+              );
+            } else {
+              // Format as ERC777.SYMBOL.DECIMALS
+              const formattedName = `ERC777.${symbol}.${decimals}`;
+              console.log(
+                `🔍 [SimpleGridUI] Overriding with ERC777 name: ${formattedName} (current: ${contractName})`
+              );
+              setContractName(formattedName);
+            }
+            setTokenInfo({ name, symbol, decimals });
+          } else if (tokenDetection.type === "ERC4626") {
+            console.log("Detected ERC4626 Tokenized Vault, fetching info...");
+            const [name, symbol, decimals, assetAddress] = await Promise.all([
+              contract.name().catch((err: unknown) => {
+                console.error("ERC4626 name call failed:", err);
+                return "Tokenized Vault";
+              }),
+              contract.symbol().catch((err: unknown) => {
+                console.error("ERC4626 symbol call failed:", err);
+                return "VAULT";
+              }),
+              contract.decimals().catch((err: unknown) => {
+                console.error("ERC4626 decimals call failed:", err);
+                return 18;
+              }),
+              contract.asset().catch((err: unknown) => {
+                console.error("ERC4626 asset call failed:", err);
+                return "0x0000000000000000000000000000000000000000";
+              }),
+            ]);
+
+            console.log("ERC4626 info successfully fetched:", {
+              name,
+              symbol,
+              decimals,
+              assetAddress,
+            });
+
+            // Preserve contract name from ABI fetch if it was already set
+            const shouldPreserve =
+              preserveContractName ||
+              (contractName &&
+                contractName !== "ERC4626 Vault" &&
+                contractName !== "Tokenized Vault" &&
+                contractName !== "Unknown Contract" &&
+                !contractName.startsWith("ERC") &&
+                !contractName.startsWith("Unknown"));
+
+            if (shouldPreserve) {
+              console.log(
+                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC4626 name: ${name})`
+              );
+            } else {
+              // Format as ERC4626.SYMBOL.DECIMALS
+              const formattedName = `ERC4626.${symbol}.${decimals}`;
+              console.log(
+                `🔍 [SimpleGridUI] Overriding with ERC4626 name: ${formattedName} (current: ${contractName})`
+              );
+              setContractName(formattedName);
+            }
+            setTokenInfo({ name, symbol, decimals, assetAddress });
+          } else if (
+            tokenDetection.isDiamond ||
+            tokenDetection.type === "Diamond"
+          ) {
+            console.log("💎 Detected Diamond/EIP-2535 proxy contract");
+
+            // For Diamond contracts, fetch token info from the facets if it's also a token
+            let finalName = contractName;
+            let tokenSymbol: string | undefined;
+            let tokenDecimals: number | undefined;
+
+            try {
+              // Try to get token info - this will call through to the facets
+              if (functionsParam.includes("symbol")) {
+                tokenSymbol = await contract.symbol();
+                console.log(`🔍 [Diamond] Fetched symbol: ${tokenSymbol}`);
+              }
+
+              if (functionsParam.includes("decimals")) {
+                tokenDecimals = await contract.decimals();
+                console.log(`🔍 [Diamond] Fetched decimals: ${tokenDecimals}`);
+              }
+
+              // Format name as TOKEN_TYPE.SYMBOL if we have the info
+              if (tokenSymbol && finalName) {
+                // If it's also a token, format accordingly
+                if (isERC721) {
+                  finalName = `ERC721.${tokenSymbol}`;
+                } else if (isERC20) {
+                  finalName = `ERC20.${tokenSymbol}.${tokenDecimals}`;
+                } else if (isERC1155) {
+                  finalName = `ERC1155.${tokenSymbol}`;
+                } else {
+                  finalName = `Diamond.${tokenSymbol}`;
+                }
+              }
+            } catch (error) {
+              console.log(
+                "🔍 [Diamond] Could not fetch token info from facets:",
+                error
+              );
+              // Fall back to original name or default
+              if (!finalName || finalName === "Unknown Contract") {
+                finalName = "Diamond Contract";
               }
             }
-          } catch (error) {
-            console.log(
-              "🔍 [Diamond] Could not fetch token info from facets:",
-              error
-            );
-            // Fall back to original name or default
-            if (!finalName || finalName === "Unknown Contract") {
-              finalName = "Diamond Contract";
+
+            setContractName(finalName);
+
+            // Set token info if available
+            if (tokenSymbol !== undefined) {
+              setTokenInfo({
+                name: finalName,
+                symbol: tokenSymbol,
+                decimals: tokenDecimals || 0,
+              });
+            } else {
+              setTokenInfo(null);
             }
-          }
+          } else if (isERC2981) {
+            console.log("Detected ERC2981 Royalty Standard contract");
+            // ERC2981 is just a royalty standard, not a token standard itself
+            // So we should treat it as a regular contract with royalty support
+            let contractNameFound = false;
 
-          setContractName(finalName);
+            // Check if name function exists in ABI
+            const hasNameFunction = functionsParam.includes("name");
+            if (hasNameFunction) {
+              try {
+                const name = await contract.name();
+                if (name && name !== "Unknown Contract") {
+                  setContractName(name);
+                  contractNameFound = true;
+                  console.log("ERC2981 contract name found:", name);
+                }
+              } catch (error) {
+                console.error("Error fetching ERC2981 contract name:", error);
+              }
+            }
 
-          // Set token info if available
-          if (tokenSymbol !== undefined) {
-            setTokenInfo({
-              name: finalName,
-              symbol: tokenSymbol,
-              decimals: tokenDecimals || 0,
-            });
+            if (!contractNameFound && !contractName) {
+              setContractName("Royalty Contract");
+            }
+            setTokenInfo(null);
           } else {
+            // Try to get contract name if it has a name function
+            let contractNameFound = false;
+
+            // Check if name function exists in ABI
+            const hasNameFunction = functionsParam.includes("name");
+
+            if (hasNameFunction) {
+              try {
+                const name = await contract.name();
+                console.log("Contract name fetched:", name);
+
+                // Preserve contract name from ABI fetch if it was already set
+                const shouldOverride =
+                  !preserveContractName &&
+                  (!contractName ||
+                    contractName === "Smart Contract" ||
+                    contractName.startsWith("Unknown") ||
+                    contractName.startsWith("ERC"));
+
+                if (shouldOverride) {
+                  console.log(
+                    `🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`
+                  );
+                  setContractName(name || "Smart Contract");
+                } else {
+                  console.log(
+                    `🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`
+                  );
+                }
+                setTokenInfo(null);
+                contractNameFound = true;
+              } catch (error) {
+                console.log("Name function exists but call failed:", error);
+              }
+            }
+
+            // Simplified: just try name() function if it exists
+            if (!contractNameFound && !hasNameFunction) {
+              console.log("No name function found in ABI, skipping name fetch");
+            }
+
+            // Removed contract type determination logic to prevent overriding actual contract names
+            // Contract names from Sourcify/Blockscout/Etherscan should be preserved
+            console.log(
+              `🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`
+            );
             setTokenInfo(null);
           }
-        } else if (isERC2981) {
-          console.log("Detected ERC2981 Royalty Standard contract");
-          // ERC2981 is just a royalty standard, not a token standard itself
-          // So we should treat it as a regular contract with royalty support
-          let contractNameFound = false;
+        } catch (fetchError) {
+          console.error("Failed to fetch contract info:", fetchError);
 
-          // Check if name function exists in ABI
-          const hasNameFunction = functionsParam.includes("name");
-          if (hasNameFunction) {
-            try {
-              const name = await contract.name();
-              if (name && name !== "Unknown Contract") {
-                setContractName(name);
-                contractNameFound = true;
-                console.log("ERC2981 contract name found:", name);
-              }
-            } catch (error) {
-              console.error("Error fetching ERC2981 contract name:", error);
-            }
-          }
-
-          if (!contractNameFound && !contractName) {
-            setContractName("Royalty Contract");
-          }
-          setTokenInfo(null);
-        } else {
-          // Try to get contract name if it has a name function
-          let contractNameFound = false;
-
-          // Check if name function exists in ABI
-          const hasNameFunction = functionsParam.includes("name");
-
-          if (hasNameFunction) {
-            try {
-              const name = await contract.name();
-              console.log("Contract name fetched:", name);
-
-              // Preserve contract name from ABI fetch if it was already set
-              const shouldOverride =
-                !preserveContractName &&
-                (!contractName ||
-                  contractName === "Smart Contract" ||
-                  contractName.startsWith("Unknown") ||
-                  contractName.startsWith("ERC"));
-
-              if (shouldOverride) {
-                console.log(
-                  `🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`
-                );
-                setContractName(name || "Smart Contract");
-              } else {
-                console.log(
-                  `🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`
-                );
+          // Only set fallback names for token contracts, preserve other contract names
+          if (
+            !preserveContractName &&
+            (!contractName ||
+              contractName.startsWith("Unknown") ||
+              contractName.startsWith("ERC"))
+          ) {
+            if (isERC20) {
+              setContractName("ERC20 Token");
+              setTokenInfo({
+                name: "ERC20 Token",
+                symbol: "TOKEN",
+                decimals: 18,
+              });
+            } else if (isERC721) {
+              setContractName("ERC721 NFT");
+              setTokenInfo({ name: "ERC721 NFT", symbol: "NFT", decimals: 0 });
+            } else if (isERC1155) {
+              setContractName("ERC1155 Multi-Token");
+              setTokenInfo({
+                name: "ERC1155 Multi-Token",
+                symbol: "MTK",
+                decimals: 0,
+              });
+            } else if (isERC777) {
+              setContractName("ERC777 Token");
+              setTokenInfo({
+                name: "ERC777 Token",
+                symbol: "777",
+                decimals: 18,
+              });
+            } else if (isERC4626) {
+              setContractName("ERC4626 Vault");
+              setTokenInfo({
+                name: "ERC4626 Vault",
+                symbol: "VAULT",
+                decimals: 18,
+              });
+            } else if (isDiamond) {
+              setContractName("Diamond Proxy");
+              setTokenInfo(null);
+            } else if (isERC2981) {
+              setContractName("Royalty Contract");
+              setTokenInfo({
+                name: "Royalty Contract",
+                symbol: "ROYALTY",
+                decimals: 0,
+              });
+            } else {
+              // Don't override with "Smart Contract" - preserve existing name or leave unset
+              if (!contractName) {
+                setContractName("Unknown Contract");
               }
               setTokenInfo(null);
-              contractNameFound = true;
-            } catch (error) {
-              console.log("Name function exists but call failed:", error);
             }
-          }
-
-          // Simplified: just try name() function if it exists
-          if (!contractNameFound && !hasNameFunction) {
-            console.log("No name function found in ABI, skipping name fetch");
-          }
-
-          // Removed contract type determination logic to prevent overriding actual contract names
-          // Contract names from Sourcify/Blockscout/Etherscan should be preserved
-          console.log(
-            `🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`
-          );
-          setTokenInfo(null);
-        }
-      } catch (fetchError) {
-        console.error("Failed to fetch contract info:", fetchError);
-
-        // Only set fallback names for token contracts, preserve other contract names
-        if (
-          !preserveContractName &&
-          (!contractName ||
-            contractName.startsWith("Unknown") ||
-            contractName.startsWith("ERC"))
-        ) {
-          if (isERC20) {
-            setContractName("ERC20 Token");
-            setTokenInfo({
-              name: "ERC20 Token",
-              symbol: "TOKEN",
-              decimals: 18,
-            });
-          } else if (isERC721) {
-            setContractName("ERC721 NFT");
-            setTokenInfo({ name: "ERC721 NFT", symbol: "NFT", decimals: 0 });
-          } else if (isERC1155) {
-            setContractName("ERC1155 Multi-Token");
-            setTokenInfo({
-              name: "ERC1155 Multi-Token",
-              symbol: "MTK",
-              decimals: 0,
-            });
-          } else if (isERC777) {
-            setContractName("ERC777 Token");
-            setTokenInfo({ name: "ERC777 Token", symbol: "777", decimals: 18 });
-          } else if (isERC4626) {
-            setContractName("ERC4626 Vault");
-            setTokenInfo({
-              name: "ERC4626 Vault",
-              symbol: "VAULT",
-              decimals: 18,
-            });
-          } else if (isDiamond) {
-            setContractName("Diamond Proxy");
-            setTokenInfo(null);
-          } else if (isERC2981) {
-            setContractName("Royalty Contract");
-            setTokenInfo({
-              name: "Royalty Contract",
-              symbol: "ROYALTY",
-              decimals: 0,
-            });
           } else {
-            // Don't override with "Smart Contract" - preserve existing name or leave unset
-            if (!contractName) {
-              setContractName("Unknown Contract");
-            }
             setTokenInfo(null);
           }
-        } else {
-          setTokenInfo(null);
         }
-      }
-    }
+      };
     } catch (error) {
       console.error("Error in detectAndFetchTokenInfo:", error);
       setTokenInfo(null);
@@ -2316,7 +2687,36 @@ const SimpleGridUI: React.FC = () => {
 
           setContractInfo(contractInfoObj);
           setAbiError(null);
-          categorizeABIFunctions(parsedABI, true); // Skip token info fetch since we already have it from comprehensive search
+          categorizeABIFunctions(parsedABI, true);
+
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          // Run token standard detection even when ABI comes from comprehensive search
+          const functionNames = parsedABI
+            .filter((item: any) => item.type === "function")
+            .map((item: any) => (item as ethers.utils.FunctionFragment).name);
+
+          const eventSignatures = parsedABI
+            .filter((item: any) => item.type === "event")
+            .map((item: any) => {
+              const event = item as ethers.utils.EventFragment;
+              const inputs = event.inputs
+                .map((input) => {
+                  if (input.type === "tuple") {
+                    return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(",")})`;
+                  }
+                  return input.type;
+                })
+                .join(",");
+              return `${event.name}(${inputs})`;
+            });
+          /* eslint-enable @typescript-eslint/no-explicit-any */
+
+          await detectAndFetchTokenInfo(
+            parsedABI,
+            true,
+            functionNames,
+            eventSignatures
+          );
 
           // Set contract name from search result
           if (result.contractName) {
@@ -2356,6 +2756,39 @@ const SimpleGridUI: React.FC = () => {
               result.contractName
             );
           }, 1000);
+
+          // Universal token detection independent of ABI (robust RPC + non-destructive)
+          try {
+            // Use chain RPC directly (env-backed)
+            const rpcUrl = selectedNetwork.rpcUrl;
+
+            const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+            // Always run ERC165 universal detection and prefer its result
+            const result = await detectTokenType(provider, contractAddress);
+
+            setTokenDetection({
+              type: result.type,
+              confidence: result.type === "unknown" ? 0 : 0.95,
+              detectionMethod: result.method,
+              isDiamond: result.isDiamond,
+              tokenInfo: {
+                name: result.name,
+                symbol: result.symbol,
+                decimals: result.decimals,
+              },
+            });
+            setIsERC20(result.type === "ERC20");
+            setIsERC721(result.type === "ERC721");
+            setIsERC1155(result.type === "ERC1155");
+            setIsDiamond(result.isDiamond);
+
+            if (result.isDiamond) {
+              await loadDiamondFacets(contractAddress, selectedNetwork);
+            }
+          } catch (e) {
+            console.log("Universal detector failed:", (e as Error)?.message);
+          }
         } catch (parseError) {
           console.error("Error parsing ABI from search result:", parseError);
           setAbiError("Failed to parse contract ABI");
@@ -2513,8 +2946,7 @@ const SimpleGridUI: React.FC = () => {
       tokenInfo?: typeof tokenInfo;
     }
   ) => {
-    // Clear all previous data first
-    setContractAddress("");
+    // Clear previous detection and functions; keep card clean until fetch
     setContractName("");
     setTokenInfo(null);
     setAbiSource(null);
@@ -2527,74 +2959,16 @@ const SimpleGridUI: React.FC = () => {
     setContractInfo(null);
     setAbiError(null);
 
-    // Load new contract data
+    // Only set address and network from saved entry
     setContractAddress(savedContract.address);
     setSelectedNetwork(savedContract.chain);
-    setContractInfo(savedContract);
-    setAbiError(null);
 
-    // Restore contract name if available
+    // Optional display name only
     if (savedContract.name) {
       setContractName(savedContract.name);
     }
 
-    // Restore token info if available
-    if (savedContract.tokenInfo) {
-      setTokenInfo(savedContract.tokenInfo);
-    }
-
-    // Restore ABI source if available
-    if (savedContract.abiSource) {
-      setAbiSource(
-        savedContract.abiSource as
-          | "sourcify"
-          | "blockscout"
-          | "etherscan"
-          | "manual"
-          | null
-      );
-    }
-
-    if (savedContract.abi) {
-      try {
-        const parsedABI = JSON.parse(savedContract.abi);
-        categorizeABIFunctions(parsedABI, true); // Skip token info fetch for saved contracts
-
-        // Only fetch token info if we don't have it already
-        if (!savedContract.tokenInfo) {
-          console.log("Fetching token info for saved contract...");
-          // Extract function names and event signatures for token detection
-          const functionNames = parsedABI
-            .filter((item: any) => item.type === "function")
-            .map((item: any) => (item as ethers.utils.FunctionFragment).name);
-
-          const eventSignatures = parsedABI
-            .filter((item: any) => item.type === "event")
-            .map((item: any) => {
-              const event = item as ethers.utils.EventFragment;
-              const inputs = event.inputs
-                .map((input) => {
-                  if (input.type === "tuple") {
-                    return `(${input.components?.map((comp: ethers.utils.ParamType) => comp.type).join(",")})`;
-                  }
-                  return input.type;
-                })
-                .join(",");
-              return `${event.name}(${inputs})`;
-            });
-
-          await detectAndFetchTokenInfo(
-            parsedABI,
-            true,
-            functionNames,
-            eventSignatures
-          ); // Preserve the name from saved contract
-        }
-      } catch (parseError) {
-        console.error("Saved ABI parsing error:", parseError);
-        setAbiError("Failed to parse saved ABI");
-      }
-    }
+    // Do not restore token info, abi source, or run detection here.
   };
 
   // Auto-save when contract info is successfully loaded
@@ -2676,6 +3050,74 @@ const SimpleGridUI: React.FC = () => {
     marginBottom: "12px",
     transition: "all 0.2s ease",
   });
+
+  const loadDiamondFacets = useCallback(
+    async (diamondAddress: string, chain: Chain) => {
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
+          name: chain.name,
+          chainId: chain.id,
+        });
+        const loupe = new ethers.Contract(
+          diamondAddress,
+          [
+            "function facetAddresses() view returns (address[])",
+            "function facetFunctionSelectors(address) view returns (bytes4[])",
+          ],
+          provider
+        );
+        const facets: string[] = await loupe.facetAddresses();
+        if (!Array.isArray(facets) || facets.length === 0) return;
+
+        // Map: facet -> selectors
+        const facetToSelectors: Record<string, string[]> = {};
+        for (const f of facets) {
+          try {
+            const sel: string[] = await loupe.facetFunctionSelectors(f);
+            facetToSelectors[f] = sel || [];
+          } catch {
+            facetToSelectors[f] = [];
+          }
+        }
+
+        // For each facet, try fetch ABI and split into read/write
+        const newRead: ethers.utils.FunctionFragment[] = [];
+        const newWrite: ethers.utils.FunctionFragment[] = [];
+
+        for (const f of facets) {
+          try {
+            const res = await fetchContractInfoComprehensive(f, chain);
+            if (res.success && res.abi) {
+              const parsed = JSON.parse(res.abi).filter(
+                (i: any) => i.type === "function"
+              );
+              for (const item of parsed) {
+                const frag = item as ethers.utils.FunctionFragment;
+                if (
+                  frag.stateMutability === "view" ||
+                  frag.stateMutability === "pure"
+                ) {
+                  newRead.push(frag);
+                } else {
+                  newWrite.push(frag);
+                }
+              }
+            }
+          } catch {
+            // ignore facet fetch errors
+          }
+        }
+
+        if (newRead.length > 0 || newWrite.length > 0) {
+          setReadFunctions(newRead);
+          setWriteFunctions(newWrite);
+        }
+      } catch (e) {
+        console.log("Diamond facet load failed:", (e as Error)?.message);
+      }
+    },
+    []
+  );
 
   return (
     <div
@@ -2965,7 +3407,25 @@ const SimpleGridUI: React.FC = () => {
                     type="text"
                     placeholder="0x..."
                     value={contractAddress}
-                    onChange={(e) => setContractAddress(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setContractAddress(v);
+                      // Reset all derived state to avoid stale data bleed
+                      setTokenInfo(null);
+                      setTokenDetection(null);
+                      setIsERC20(false);
+                      setIsERC721(false);
+                      setIsERC1155(false);
+                      setIsERC777(false);
+                      setIsERC4626(false);
+                      setIsERC2981(false);
+                      setIsDiamond(false);
+                      setReadFunctions([]);
+                      setWriteFunctions([]);
+                      setContractInfo(null);
+                      setAbiSource(null);
+                      setAbiError(null);
+                    }}
                     style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }}
                   />
                   <button
@@ -3184,10 +3644,15 @@ const SimpleGridUI: React.FC = () => {
                   style={{
                     position: "relative",
                     padding: "16px",
-                    background: "#1a1a1a",
-                    border: "1px solid #333",
+                    background: isDiamond ? "#1a1025" : "#1a1a1a",
+                    border: isDiamond ? "1px solid #7c3aed" : "1px solid #333",
                     borderRadius: "12px",
                     marginBottom: "16px",
+                    opacity: isLoadingContractInfo || isLoadingABI ? 0.6 : 1,
+                    filter:
+                      isLoadingContractInfo || isLoadingABI
+                        ? "grayscale(0.2)"
+                        : "none",
                   }}
                 >
                   {isLoadingContractInfo && (
@@ -3262,16 +3727,50 @@ const SimpleGridUI: React.FC = () => {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
                       }}
                     >
-                      {isDiamond ||
-                      contractName.includes("Diamond") ||
-                      tokenInfo?.name?.includes("Diamond") ||
-                      tokenInfo?.symbol?.includes("Diamond")
-                        ? "💎"
-                        : tokenInfo
-                          ? (tokenInfo.decimals || 0) === 0
-                            ? "🎨"
-                            : "💰"
-                          : "📋"}
+                      {(() => {
+                        const badgeMap: Record<
+                          number,
+                          { label: string; color: string }
+                        > = {
+                          1: { label: "ETH", color: "#627EEA" },
+                          8453: { label: "BASE", color: "#0052FF" },
+                          137: { label: "POLY", color: "#8247E5" },
+                          42161: { label: "ARB", color: "#28A0F0" },
+                          10: { label: "OP", color: "#FF0420" },
+                          56: { label: "BSC", color: "#F3BA2F" },
+                          100: { label: "GNO", color: "#48A9A6" },
+                        };
+                        const badge = selectedNetwork
+                          ? badgeMap[selectedNetwork.id]
+                          : undefined;
+                        const label =
+                          badge?.label ||
+                          (selectedNetwork?.name
+                            ? selectedNetwork.name
+                                .split(" ")[0]
+                                .toUpperCase()
+                                .slice(0, 3)
+                            : "NET");
+                        const color = badge?.color || "#9CA3AF";
+                        return (
+                          <span style={{ lineHeight: 0 }}>
+                            <ChainIcon
+                              chain={
+                                (badge?.label as
+                                  | "ETH"
+                                  | "BASE"
+                                  | "POLY"
+                                  | "ARB"
+                                  | "OP"
+                                  | "BSC"
+                                  | "GNO") || "ETH"
+                              }
+                              size={24}
+                              rounded={8}
+                            />
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div
@@ -3286,6 +3785,24 @@ const SimpleGridUI: React.FC = () => {
                         }}
                       >
                         {contractName}
+                        {isDiamond && (
+                          <span
+                            title="Diamond contract"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "18px",
+                              height: "18px",
+                              borderRadius: "50%",
+                              background: "rgba(124, 58, 237, 0.15)",
+                              border: "1px solid rgba(124, 58, 237, 0.4)",
+                              color: "#a78bfa",
+                            }}
+                          >
+                            <Gem size={12} />
+                          </span>
+                        )}
                         {abiSource && (
                           <div
                             style={{
@@ -3344,12 +3861,7 @@ const SimpleGridUI: React.FC = () => {
                         )}
                       </div>
                       {tokenInfo ||
-                      isERC20 ||
-                      isERC721 ||
-                      isERC1155 ||
-                      isERC777 ||
-                      isERC4626 ||
-                      isERC2981 ||
+                      isDiamond ||
                       tokenDetection?.type !== "unknown" ? (
                         <div
                           style={{
@@ -3377,98 +3889,141 @@ const SimpleGridUI: React.FC = () => {
                             }}
                           >
                             {(() => {
-                              console.log("🎯 UI RENDER - Token detection state:", {
-                                tokenInfo: !!tokenInfo,
-                                isERC20,
-                                isERC721,
-                                isERC1155,
-                                isERC777,
-                                isERC4626,
-                                isERC2981,
-                                contractName,
-                                tokenSymbol: tokenInfo?.symbol
-                              });
-                              
+                              console.log(
+                                "🎯 UI RENDER - Token detection state:",
+                                {
+                                  tokenInfo: !!tokenInfo,
+                                  isERC20,
+                                  isERC721,
+                                  isERC1155,
+                                  isERC777,
+                                  isERC4626,
+                                  isERC2981,
+                                  contractName,
+                                  tokenSymbol: tokenInfo?.symbol,
+                                }
+                              );
+
                               const typeName = tokenInfo?.name || "";
                               const contractDisplayName = contractName || "";
 
                               // Use universal detection results
                               if (tokenDetection?.type) {
-                                const confidence = Math.round(tokenDetection.confidence * 100);
-                                const confidenceColor = confidence >= 90 ? '#22c55e' : confidence >= 70 ? '#f59e0b' : '#ef4444';
-                                
-                                let typeLabel = '';
-                                let typeIcon = '';
-                                
+                                const confidence = Math.round(
+                                  tokenDetection.confidence * 100
+                                );
+                                const confidenceColor =
+                                  confidence >= 90
+                                    ? "#22c55e"
+                                    : confidence >= 70
+                                      ? "#f59e0b"
+                                      : "#ef4444";
+
+                                let typeLabel = "";
+                                let typeIcon = "";
+
                                 switch (tokenDetection.type) {
-                                  case 'ERC1155':
-                                    typeLabel = 'ERC1155 Multi-Token';
-                                    typeIcon = '🎭';
+                                  case "ERC1155":
+                                    typeLabel = "ERC1155 Multi-Token";
+                                    typeIcon = "🎭";
                                     break;
-                                  case 'ERC721':
-                                    typeLabel = 'ERC721 NFT';
-                                    typeIcon = '🎨';
+                                  case "ERC721":
+                                    typeLabel = "ERC721 NFT";
+                                    typeIcon = "🎨";
                                     break;
-                                  case 'ERC20':
-                                    typeLabel = 'ERC20 Token';
-                                    typeIcon = '💰';
+                                  case "ERC20":
+                                    typeLabel = "ERC20 Token";
+                                    typeIcon = "💰";
                                     break;
-                                  case 'ERC777':
-                                    typeLabel = 'ERC777 Token';
-                                    typeIcon = '⚡';
+                                  case "ERC777":
+                                    typeLabel = "ERC777 Token";
+                                    typeIcon = "⚡";
                                     break;
-                                  case 'ERC4626':
-                                    typeLabel = 'ERC4626 Vault';
-                                    typeIcon = '🏦';
+                                  case "ERC4626":
+                                    typeLabel = "ERC4626 Vault";
+                                    typeIcon = "🏦";
                                     break;
-                                  case 'ERC2981':
-                                    typeLabel = 'Royalty Contract';
-                                    typeIcon = '👑';
+                                  case "ERC2981":
+                                    typeLabel = "Royalty Contract";
+                                    typeIcon = "👑";
                                     break;
                                   default:
-                                    typeLabel = 'Unknown Token';
-                                    typeIcon = '❓';
+                                    typeLabel = "Unknown Token";
+                                    typeIcon = "❓";
                                 }
-                                
+
                                 if (tokenDetection.isDiamond) {
                                   typeLabel = `💎 Diamond Proxy (${typeLabel})`;
                                 } else {
                                   typeLabel = `${typeIcon} ${typeLabel}`;
                                 }
-                                
+
                                 return (
                                   <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      {typeLabel}
-                                      <span 
-                                        style={{
-                                          fontSize: '10px',
-                                          fontWeight: '600',
-                                          padding: '1px 4px',
-                                          borderRadius: '3px',
-                                          backgroundColor: `${confidenceColor}20`,
-                                          color: confidenceColor,
-                                          marginLeft: '4px'
-                                        }}
-                                        title={`Detection confidence: ${confidence}% via ${tokenDetection.detectionMethod}`}
-                                      >
-                                        {confidence}%
-                                      </span>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                      }}
+                                    >
+                                      {tokenDetection.type &&
+                                        (() => {
+                                          const dec =
+                                            tokenDetection?.tokenInfo
+                                              ?.decimals ?? tokenInfo?.decimals;
+                                          const effectiveType =
+                                            tokenDetection.type;
+                                          const bg =
+                                            effectiveType === "ERC721"
+                                              ? "rgba(139, 92, 246, 0.12)"
+                                              : effectiveType === "ERC1155"
+                                                ? "rgba(16, 185, 129, 0.12)"
+                                                : effectiveType === "ERC20"
+                                                  ? "rgba(245, 158, 11, 0.12)"
+                                                  : "rgba(107, 114, 128, 0.12)";
+                                          const fg =
+                                            effectiveType === "ERC721"
+                                              ? "#8b5cf6"
+                                              : effectiveType === "ERC1155"
+                                                ? "#10b981"
+                                                : effectiveType === "ERC20"
+                                                  ? "#f59e0b"
+                                                  : "#6b7280";
+                                          return (
+                                            <span
+                                              style={{
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                padding: "2px 8px",
+                                                borderRadius: 12,
+                                                backgroundColor: bg,
+                                                color: fg,
+                                                border:
+                                                  "1px solid rgba(255,255,255,0.12)",
+                                              }}
+                                            >
+                                              {effectiveType}
+                                            </span>
+                                          );
+                                        })()}
                                     </div>
                                     {tokenDetection.error && (
-                                      <div style={{ 
-                                        fontSize: '11px', 
-                                        color: '#ef4444', 
-                                        marginTop: '2px',
-                                        fontStyle: 'italic' 
-                                      }}>
+                                      <div
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#ef4444",
+                                          marginTop: "2px",
+                                          fontStyle: "italic",
+                                        }}
+                                      >
                                         Warning: {tokenDetection.error}
                                       </div>
                                     )}
                                   </div>
                                 );
                               }
-                              
+
                               // Fallback to old detection logic
                               if (
                                 isDiamond ||
@@ -3512,40 +4067,55 @@ const SimpleGridUI: React.FC = () => {
                               }
                             })()}
                           </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              color: "#ccc",
-                              fontWeight: "500",
-                            }}
-                          >
-                            Symbol: {tokenDetection?.tokenInfo?.symbol || tokenInfo?.symbol ||
-                              (contractName?.includes(".")
-                                ? contractName.split(".").pop()
-                                : "Unknown")}
-                            {(tokenDetection?.tokenInfo?.decimals !== undefined ? tokenDetection.tokenInfo.decimals : tokenInfo?.decimals || 0) > 0 &&
-                              ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
-                            {tokenDetection?.detectionMethod && (
-                              <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-                                Method: {tokenDetection.detectionMethod}
+                          {tokenDetection?.type &&
+                            tokenDetection.type !== "unknown" && (
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  color: "#ccc",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                Symbol:{" "}
+                                {tokenDetection?.tokenInfo?.symbol ||
+                                  tokenInfo?.symbol ||
+                                  (contractName?.includes(".")
+                                    ? contractName.split(".").pop()
+                                    : "Unknown")}
+                                {(tokenDetection?.tokenInfo?.decimals !==
+                                undefined
+                                  ? tokenDetection.tokenInfo.decimals
+                                  : tokenInfo?.decimals || 0) > 0 &&
+                                  ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
                               </div>
                             )}
-                          </div>
                         </div>
                       ) : (
                         <div
                           style={{
                             fontSize: "13px",
-                            color: tokenDetection?.type === "unknown" ? "#ef4444" : "#6366f1",
+                            color: isDiamond
+                              ? "#a78bfa"
+                              : tokenDetection?.type === "unknown"
+                                ? "#ef4444"
+                                : "#6366f1",
                             fontWeight: "500",
                             padding: "2px 8px",
-                            background: tokenDetection?.type === "unknown" ? "rgba(239, 68, 68, 0.1)" : "rgba(99, 102, 241, 0.1)",
+                            background: isDiamond
+                              ? "rgba(124, 58, 237, 0.15)"
+                              : tokenDetection?.type === "unknown"
+                                ? "rgba(239, 68, 68, 0.1)"
+                                : "rgba(99, 102, 241, 0.1)",
                             borderRadius: "6px",
                             display: "inline-block",
                             width: "fit-content",
                           }}
                         >
-                          {tokenDetection?.type === "unknown" ? "❌ Unknown Contract Type" : "Smart Contract"}
+                          {tokenDetection?.type === "unknown"
+                            ? isDiamond
+                              ? ""
+                              : "Unknown Contract Type"
+                            : "Smart Contract"}
                         </div>
                       )}
                     </div>

@@ -178,8 +178,8 @@ const UniversalContractInterface: React.FC = () => {
   };
 
   const functions = getFunctions();
-  const readFunctions = functions.filter(f => ['view', 'pure'].includes(f.stateMutability));
-  const writeFunctions = functions.filter(f => ['nonpayable', 'payable'].includes(f.stateMutability));
+  const readFunctions = functions.filter((f: any) => ['view', 'pure'].includes(f.stateMutability));
+  const writeFunctions = functions.filter((f: any) => ['nonpayable', 'payable'].includes(f.stateMutability));
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -298,7 +298,7 @@ const UniversalContractInterface: React.FC = () => {
                       className="appearance-none bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pr-8 text-white focus:outline-none focus:border-blue-500 w-full"
                     >
                       <option value="">Choose Facet</option>
-                      {facets.filter(f => f.verified).map(facet => (
+                      {facets.filter((f: any) => f.verified).map(facet => (
                         <option key={facet.address} value={facet.address}>
                           {facet.name || `Facet ${facet.address.slice(0, 8)}`} ({facet.functionCount} functions)
                         </option>
@@ -309,7 +309,7 @@ const UniversalContractInterface: React.FC = () => {
                 </div>
                 
                 <div className="text-xs text-gray-400">
-                  {facets.filter(f => f.verified).length} verified facets • {facets.length} total facets
+                  {facets.filter((f: any) => f.verified).length} verified facets • {facets.length} total facets
                 </div>
               </div>
             )}

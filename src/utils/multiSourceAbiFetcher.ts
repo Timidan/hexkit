@@ -1,6 +1,6 @@
-import axios from 'axios';
-import { fetchFromWhatsABI, type WhatsABIResult } from './whatsabiFetcher';
-import type { Chain, ABIFetchResult, ExplorerAPI } from '../types';
+import axios from "axios";
+import { fetchFromWhatsABI, type WhatsABIResult } from "./whatsabiFetcher";
+import type { Chain, ABIFetchResult, ExplorerAPI } from "../types";
 
 // Extended result with comprehensive token/contract information
 interface ExtendedABIFetchResult extends ABIFetchResult {
@@ -104,179 +104,221 @@ const fetchFromSourcify = async (
   chainId: number
 ): Promise<ExtendedABIFetchResult> => {
   try {
-    console.log(`Fetching ABI from Sourcify: ${contractAddress} on chain ${chainId}`);
-    
+    console.log(
+      `Fetching ABI from Sourcify: ${contractAddress} on chain ${chainId}`
+    );
+
     // Use Sourcify APIv2 contract lookup endpoint
     const url = `https://sourcify.dev/server/v2/contract/${chainId}/${contractAddress}`;
-    
+
     const response = await axios.get<SourcifyContractResponse>(url, {
       timeout: 15000,
       headers: {
-        'User-Agent': 'Web3-Toolkit/1.0',
-        'Accept': 'application/json',
+        Accept: "application/json",
       },
     });
 
-    if (response.data && (response.data.creationMatch || response.data.runtimeMatch)) {
+    if (
+      response.data &&
+      (response.data.creationMatch || response.data.runtimeMatch)
+    ) {
       // Check if contract is verified (has match)
-      const matchType = response.data.creationMatch || response.data.runtimeMatch;
-      
-      if (matchType === 'exact_match' || matchType === 'match' || matchType === 'partial_match') {
+      const matchType =
+        response.data.creationMatch || response.data.runtimeMatch;
+
+      if (
+        matchType === "exact_match" ||
+        matchType === "match" ||
+        matchType === "partial_match"
+      ) {
         // Always fetch metadata.json file for exact matches (it contains the ABI and contract name)
         try {
           const metadataUrl = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`;
-          console.log(`🔍 [Sourcify] Match type: ${matchType}, fetching metadata from: ${metadataUrl}`);
-          
+          console.log(
+            `🔍 [Sourcify] Match type: ${matchType}, fetching metadata from: ${metadataUrl}`
+          );
+
           const metadataResponse = await axios.get(metadataUrl, {
             timeout: 10000,
             maxRedirects: 5, // Follow redirects
             headers: {
-              'User-Agent': 'Web3-Toolkit/1.0',
-              'Accept': 'application/json',
+              Accept: "application/json",
             },
           });
-          
+
           if (!metadataResponse.data) {
-            console.log('🔍 [Sourcify] No metadata data received');
+            console.log("🔍 [Sourcify] No metadata data received");
           } else if (!metadataResponse.data.output) {
-            console.log('🔍 [Sourcify] No output field in metadata');
-            console.log('🔍 [Sourcify] Available fields:', Object.keys(metadataResponse.data));
+            console.log("🔍 [Sourcify] No output field in metadata");
+            console.log(
+              "🔍 [Sourcify] Available fields:",
+              Object.keys(metadataResponse.data)
+            );
           } else if (!metadataResponse.data.output.abi) {
-            console.log('🔍 [Sourcify] No ABI in output field');
-            console.log('🔍 [Sourcify] Output fields:', Object.keys(metadataResponse.data.output));
-          } else if (metadataResponse.data && metadataResponse.data.output && metadataResponse.data.output.abi) {
+            console.log("🔍 [Sourcify] No ABI in output field");
+            console.log(
+              "🔍 [Sourcify] Output fields:",
+              Object.keys(metadataResponse.data.output)
+            );
+          } else if (
+            metadataResponse.data &&
+            metadataResponse.data.output &&
+            metadataResponse.data.output.abi
+          ) {
             const abi = JSON.stringify(metadataResponse.data.output.abi);
-            console.log(`🔍 [Sourcify] Metadata received, ABI length: ${metadataResponse.data.output.abi.length}`);
-            console.log(`🔍 [Sourcify] Has settings.compilationTarget: ${!!metadataResponse.data.settings?.compilationTarget}`);
-            
+            console.log(
+              `🔍 [Sourcify] Metadata received, ABI length: ${metadataResponse.data.output.abi.length}`
+            );
+            console.log(
+              `🔍 [Sourcify] Has settings.compilationTarget: ${!!metadataResponse.data.settings?.compilationTarget}`
+            );
+
             // Extract contract name from compilation target
             let contractName: string | undefined;
-            const compilationTarget = metadataResponse.data.settings?.compilationTarget;
+            const compilationTarget =
+              metadataResponse.data.settings?.compilationTarget;
             if (compilationTarget) {
               const targetKeys = Object.keys(compilationTarget);
               console.log(`🔍 [Sourcify] Compilation target keys:`, targetKeys);
-              console.log(`🔍 [Sourcify] Compilation target values:`, Object.values(compilationTarget));
+              console.log(
+                `🔍 [Sourcify] Compilation target values:`,
+                Object.values(compilationTarget)
+              );
               if (targetKeys.length > 0) {
                 contractName = compilationTarget[targetKeys[0]];
-                console.log(`🔍 [Sourcify] Extracted contract name: ${contractName}`);
+                console.log(
+                  `🔍 [Sourcify] Extracted contract name: ${contractName}`
+                );
               }
             } else {
-              console.log(`🔍 [Sourcify] No compilationTarget found in metadata`);
+              console.log(
+                `🔍 [Sourcify] No compilationTarget found in metadata`
+              );
             }
-            
+
             return {
               success: true,
               abi: abi,
-              source: 'sourcify',
-              explorerName: 'Sourcify',
+              source: "sourcify",
+              explorerName: "Sourcify",
               contractName: contractName,
-              compilerVersion: metadataResponse.data.compiler?.version || metadataResponse.data.compilation?.compiler?.version,
-              sourceCode: 'Available',
+              compilerVersion:
+                metadataResponse.data.compiler?.version ||
+                metadataResponse.data.compilation?.compiler?.version,
+              sourceCode: "Available",
             };
           }
         } catch (metadataError: any) {
-          console.error('🔍 [Sourcify] Failed to fetch metadata.json:', metadataError);
-          console.error('🔍 [Sourcify] Error details:', {
+          console.error(
+            "🔍 [Sourcify] Failed to fetch metadata.json:",
+            metadataError
+          );
+          console.error("🔍 [Sourcify] Error details:", {
             message: (metadataError as any).message,
             response: (metadataError as any).response?.data,
             status: (metadataError as any).response?.status,
-            url: `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`
+            url: `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`,
           });
-          
+
           // Fallback: try partial_match endpoint if full_match failed
-          if (matchType === 'exact_match') {
+          if (matchType === "exact_match") {
             try {
               const partialMetadataUrl = `https://repo.sourcify.dev/contracts/partial_match/${chainId}/${contractAddress}/metadata.json`;
-              console.log(`🔍 [Sourcify] Trying partial match metadata: ${partialMetadataUrl}`);
-              
+              console.log(
+                `🔍 [Sourcify] Trying partial match metadata: ${partialMetadataUrl}`
+              );
+
               const partialResponse = await axios.get(partialMetadataUrl, {
                 timeout: 10000,
                 maxRedirects: 5,
                 headers: {
-                  'User-Agent': 'Web3-Toolkit/1.0',
-                  'Accept': 'application/json',
+                  Accept: "application/json",
                 },
               });
-              
-              if (partialResponse.data && partialResponse.data.output && partialResponse.data.output.abi) {
+
+              if (
+                partialResponse.data &&
+                partialResponse.data.output &&
+                partialResponse.data.output.abi
+              ) {
                 const abi = JSON.stringify(partialResponse.data.output.abi);
-                
+
                 let contractName: string | undefined;
-                const compilationTarget = partialResponse.data.settings?.compilationTarget;
+                const compilationTarget =
+                  partialResponse.data.settings?.compilationTarget;
                 if (compilationTarget) {
                   const targetKeys = Object.keys(compilationTarget);
                   if (targetKeys.length > 0) {
                     contractName = compilationTarget[targetKeys[0]];
                   }
                 }
-                
+
                 return {
                   success: true,
                   abi: abi,
-                  source: 'sourcify',
-                  explorerName: 'Sourcify',
+                  source: "sourcify",
+                  explorerName: "Sourcify",
                   contractName: contractName,
                   compilerVersion: partialResponse.data.compiler?.version,
-                  sourceCode: 'Available',
+                  sourceCode: "Available",
                 };
               }
             } catch (partialError) {
-              console.warn('Partial match metadata also failed:', partialError);
+              console.warn("Partial match metadata also failed:", partialError);
             }
           }
         }
       }
-      
+
       return {
         success: false,
         error: `Contract found on Sourcify but no ABI available (match: ${matchType})`,
-        source: 'sourcify',
-        explorerName: 'Sourcify',
+        source: "sourcify",
+        explorerName: "Sourcify",
       };
     }
 
     return {
       success: false,
-      error: 'Contract not verified on Sourcify',
-      source: 'sourcify',
-      explorerName: 'Sourcify',
+      error: "Contract not verified on Sourcify",
+      source: "sourcify",
+      explorerName: "Sourcify",
     };
-
   } catch (error: any) {
-    console.error('Error fetching from Sourcify:', error);
+    console.error("Error fetching from Sourcify:", error);
 
     if (error.response?.status === 404) {
       return {
         success: false,
-        error: 'Contract not found on Sourcify',
-        source: 'sourcify',
-        explorerName: 'Sourcify',
+        error: "Contract not found on Sourcify",
+        source: "sourcify",
+        explorerName: "Sourcify",
       };
     }
 
-    if (error.code === 'ECONNABORTED') {
+    if (error.code === "ECONNABORTED") {
       return {
         success: false,
-        error: 'Sourcify request timeout',
-        source: 'sourcify',
-        explorerName: 'Sourcify',
+        error: "Sourcify request timeout",
+        source: "sourcify",
+        explorerName: "Sourcify",
       };
     }
 
     if (error.response?.status === 429) {
       return {
         success: false,
-        error: 'Sourcify rate limit exceeded',
-        source: 'sourcify',
-        explorerName: 'Sourcify',
+        error: "Sourcify rate limit exceeded",
+        source: "sourcify",
+        explorerName: "Sourcify",
       };
     }
 
     return {
       success: false,
       error: `Sourcify connection error: ${error.message}`,
-      source: 'sourcify',
-      explorerName: 'Sourcify',
+      source: "sourcify",
+      explorerName: "Sourcify",
     };
   }
 };
@@ -287,29 +329,36 @@ const fetchContractSourceInfo = async (
   apiUrl: string,
   explorerName: string,
   apiKey?: string
-): Promise<{ contractName?: string; compilerVersion?: string; sourceCode?: string }> => {
+): Promise<{
+  contractName?: string;
+  compilerVersion?: string;
+  sourceCode?: string;
+}> => {
   try {
-    const url = `${apiUrl}?module=contract&action=getsourcecode&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ''}`;
-    
+    const url = `${apiUrl}?module=contract&action=getsourcecode&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
+
     const response = await axios.get<EtherscanSourceResponse>(url, {
       timeout: 10000,
-      headers: {
-        'User-Agent': 'Web3-Toolkit/1.0',
-      },
     });
 
-    if (response.data.status === '1' && response.data.result && response.data.result.length > 0) {
+    if (
+      response.data.status === "1" &&
+      response.data.result &&
+      response.data.result.length > 0
+    ) {
       const sourceInfo = response.data.result[0];
       return {
         contractName: sourceInfo.ContractName || undefined,
         compilerVersion: sourceInfo.CompilerVersion || undefined,
-        sourceCode: sourceInfo.SourceCode ? sourceInfo.SourceCode.slice(0, 100) + '...' : undefined // Truncate for memory
+        sourceCode: sourceInfo.SourceCode
+          ? sourceInfo.SourceCode.slice(0, 100) + "..."
+          : undefined, // Truncate for memory
       };
     }
   } catch (error) {
     console.warn(`Failed to fetch source info from ${explorerName}:`, error);
   }
-  
+
   return {};
 };
 
@@ -319,18 +368,22 @@ const fetchTokenInfoFromEtherscan = async (
   apiUrl: string,
   explorerName: string,
   apiKey?: string
-): Promise<{ name?: string; symbol?: string; decimals?: string; totalSupply?: string; tokenType?: string; divisor?: string }> => {
+): Promise<{
+  name?: string;
+  symbol?: string;
+  decimals?: string;
+  totalSupply?: string;
+  tokenType?: string;
+  divisor?: string;
+}> => {
   try {
-    const url = `${apiUrl}?module=token&action=tokeninfo&contractaddress=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ''}`;
-    
+    const url = `${apiUrl}?module=token&action=tokeninfo&contractaddress=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
+
     const response = await axios.get<EtherscanTokenInfoResponse>(url, {
       timeout: 10000,
-      headers: {
-        'User-Agent': 'Web3-Toolkit/1.0',
-      },
     });
 
-    if (response.data.status === '1' && response.data.result) {
+    if (response.data.status === "1" && response.data.result) {
       const tokenData = response.data.result;
       return {
         name: tokenData.tokenName || undefined,
@@ -344,7 +397,7 @@ const fetchTokenInfoFromEtherscan = async (
   } catch (error) {
     console.warn(`Failed to fetch token info from ${explorerName}:`, error);
   }
-  
+
   return {};
 };
 
@@ -360,24 +413,27 @@ const fetchContractSourceInfoFromBlockscout = async (
       `${apiUrl}?module=contract&action=getsourcecode&address=${contractAddress}`,
       `${apiUrl}/v2/smart-contracts/${contractAddress}`,
     ];
-    
+
     for (const endpoint of endpoints) {
       try {
         const response = await axios.get(endpoint, {
           timeout: 10000,
           headers: {
-            'User-Agent': 'Web3-Toolkit/1.0',
-            'Accept': 'application/json',
+            Accept: "application/json",
           },
         });
 
         // Handle Etherscan-style response from Blockscout
-        if (response.data.status === '1' && response.data.result && response.data.result.length > 0) {
+        if (
+          response.data.status === "1" &&
+          response.data.result &&
+          response.data.result.length > 0
+        ) {
           const sourceInfo = response.data.result[0];
           console.log(`🔍 [${explorerName}] Blockscout source info:`, {
             contractName: sourceInfo.ContractName,
             compilerVersion: sourceInfo.CompilerVersion,
-            fileName: sourceInfo.FileName
+            fileName: sourceInfo.FileName,
           });
           return {
             contractName: sourceInfo.ContractName || undefined,
@@ -388,27 +444,36 @@ const fetchContractSourceInfoFromBlockscout = async (
         // Handle Blockscout v2 API response
         if (response.data.name || response.data.contract_name) {
           return {
-            contractName: response.data.name || response.data.contract_name || undefined,
+            contractName:
+              response.data.name || response.data.contract_name || undefined,
             compilerVersion: response.data.compiler_version || undefined,
           };
         }
 
         // Handle nested contract data
-        if (response.data.result && (response.data.result.name || response.data.result.contract_name)) {
+        if (
+          response.data.result &&
+          (response.data.result.name || response.data.result.contract_name)
+        ) {
           return {
-            contractName: response.data.result.name || response.data.result.contract_name || undefined,
+            contractName:
+              response.data.result.name ||
+              response.data.result.contract_name ||
+              undefined,
             compilerVersion: response.data.result.compiler_version || undefined,
           };
         }
-        
       } catch (endpointError) {
         continue; // Try next endpoint
       }
     }
   } catch (error) {
-    console.warn(`Failed to fetch contract source info from ${explorerName} Blockscout:`, error);
+    console.warn(
+      `Failed to fetch contract source info from ${explorerName} Blockscout:`,
+      error
+    );
   }
-  
+
   return {};
 };
 
@@ -417,15 +482,18 @@ const fetchTokenInfoFromBlockscout = async (
   contractAddress: string,
   apiUrl: string,
   explorerName: string
-): Promise<{ name?: string; symbol?: string; decimals?: string; totalSupply?: string; tokenType?: string }> => {
+): Promise<{
+  name?: string;
+  symbol?: string;
+  decimals?: string;
+  totalSupply?: string;
+  tokenType?: string;
+}> => {
   try {
     const url = `${apiUrl}?module=token&action=getToken&contractaddress=${contractAddress}`;
-    
+
     const response = await axios.get<BlockscoutTokenResponse>(url, {
       timeout: 10000,
-      headers: {
-        'User-Agent': 'Web3-Toolkit/1.0',
-      },
     });
 
     if (response.data.result) {
@@ -439,9 +507,12 @@ const fetchTokenInfoFromBlockscout = async (
       };
     }
   } catch (error) {
-    console.warn(`Failed to fetch token info from ${explorerName} Blockscout:`, error);
+    console.warn(
+      `Failed to fetch token info from ${explorerName} Blockscout:`,
+      error
+    );
   }
-  
+
   return {};
 };
 
@@ -453,33 +524,44 @@ const fetchFromEtherscan = async (
   apiKey?: string
 ): Promise<ExtendedABIFetchResult> => {
   try {
-    const url = `${apiUrl}?module=contract&action=getabi&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ''}`;
-    console.log(`Fetching ABI from ${explorerName} (Etherscan API): ${contractAddress}`);
-    
+    const url = `${apiUrl}?module=contract&action=getabi&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
+    console.log(
+      `Fetching ABI from ${explorerName} (Etherscan API): ${contractAddress}`
+    );
+
     const response = await axios.get<EtherscanResponse>(url, {
       timeout: 15000, // 15 second timeout
-      headers: {
-        'User-Agent': 'Web3-Toolkit/1.0',
-      },
     });
 
-    if (response.data.status === '1' && response.data.result) {
+    if (response.data.status === "1" && response.data.result) {
       try {
         JSON.parse(response.data.result);
-        
+
         // Fetch additional contract information and token info in parallel
         const [sourceInfo, tokenInfo] = await Promise.allSettled([
-          fetchContractSourceInfo(contractAddress, apiUrl, explorerName, apiKey),
-          fetchTokenInfoFromEtherscan(contractAddress, apiUrl, explorerName, apiKey)
+          fetchContractSourceInfo(
+            contractAddress,
+            apiUrl,
+            explorerName,
+            apiKey
+          ),
+          fetchTokenInfoFromEtherscan(
+            contractAddress,
+            apiUrl,
+            explorerName,
+            apiKey
+          ),
         ]);
-        
-        const contractSource = sourceInfo.status === 'fulfilled' ? sourceInfo.value : {};
-        const tokenData = tokenInfo.status === 'fulfilled' ? tokenInfo.value : {};
-        
+
+        const contractSource =
+          sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
+        const tokenData =
+          tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
+
         return {
           success: true,
           abi: response.data.result,
-          source: 'etherscan',
+          source: "etherscan",
           explorerName,
           contractName: contractSource.contractName,
           compilerVersion: contractSource.compilerVersion,
@@ -490,35 +572,37 @@ const fetchFromEtherscan = async (
         return {
           success: false,
           error: `Invalid ABI format from ${explorerName}`,
-          source: 'etherscan',
+          source: "etherscan",
           explorerName,
         };
       }
-    } else if (response.data.status === '0') {
+    } else if (response.data.status === "0") {
       const message = response.data.message || response.data.result;
-      
-      if (message && message.includes('Contract source code not verified')) {
+
+      if (message && message.includes("Contract source code not verified")) {
         return {
           success: false,
           error: `Contract not verified on ${explorerName}`,
-          source: 'etherscan',
+          source: "etherscan",
           explorerName,
         };
       }
-      
-      if (message === 'NOTOK' || message === 'No data found') {
+
+      if (message === "NOTOK" || message === "No data found") {
         return {
           success: false,
-          error: apiKey ? `Contract not found on ${explorerName}` : `Rate limited on ${explorerName} - API key may help`,
-          source: 'etherscan',
+          error: apiKey
+            ? `Contract not found on ${explorerName}`
+            : `Rate limited on ${explorerName} - API key may help`,
+          source: "etherscan",
           explorerName,
         };
       }
-      
+
       return {
         success: false,
-        error: `${explorerName}: ${message || 'Failed to fetch ABI'}`,
-        source: 'etherscan',
+        error: `${explorerName}: ${message || "Failed to fetch ABI"}`,
+        source: "etherscan",
         explorerName,
       };
     }
@@ -526,17 +610,17 @@ const fetchFromEtherscan = async (
     return {
       success: false,
       error: `Unexpected response from ${explorerName}`,
-      source: 'etherscan',
+      source: "etherscan",
       explorerName,
     };
   } catch (error: any) {
     console.error(`Error fetching from ${explorerName}:`, error);
 
-    if (error.code === 'ECONNABORTED') {
+    if (error.code === "ECONNABORTED") {
       return {
         success: false,
         error: `${explorerName} request timeout`,
-        source: 'etherscan',
+        source: "etherscan",
         explorerName,
       };
     }
@@ -545,7 +629,7 @@ const fetchFromEtherscan = async (
       return {
         success: false,
         error: `${explorerName} API access denied`,
-        source: 'etherscan',
+        source: "etherscan",
         explorerName,
       };
     }
@@ -554,7 +638,7 @@ const fetchFromEtherscan = async (
       return {
         success: false,
         error: `${explorerName} rate limit exceeded`,
-        source: 'etherscan',
+        source: "etherscan",
         explorerName,
       };
     }
@@ -562,7 +646,7 @@ const fetchFromEtherscan = async (
     return {
       success: false,
       error: `${explorerName} connection error: ${error.message}`,
-      source: 'etherscan',
+      source: "etherscan",
       explorerName,
     };
   }
@@ -582,41 +666,55 @@ const fetchFromBlockscout = async (
       `${apiUrl}/api/eth-rpc?module=contract&action=getabi&address=${contractAddress}`,
     ];
 
-    console.log(`Fetching ABI from ${explorerName} (Blockscout API): ${contractAddress}`);
-    
+    console.log(
+      `Fetching ABI from ${explorerName} (Blockscout API): ${contractAddress}`
+    );
+
     for (const endpoint of endpoints) {
       try {
-        console.log(`🔍 [${explorerName}] Trying Blockscout endpoint: ${endpoint}`);
+        console.log(
+          `🔍 [${explorerName}] Trying Blockscout endpoint: ${endpoint}`
+        );
         const response = await axios.get(endpoint, {
           timeout: 15000,
           headers: {
-            'User-Agent': 'Web3-Toolkit/1.0',
-            'Accept': 'application/json',
+            Accept: "application/json",
           },
         });
 
         // Handle Etherscan-style response from Blockscout
-        if (response.data.status === '1' && response.data.result) {
+        if (response.data.status === "1" && response.data.result) {
           try {
             JSON.parse(response.data.result);
-            
+
             // Fetch additional contract information and token info in parallel
             const [sourceInfo, tokenInfo] = await Promise.allSettled([
-              fetchContractSourceInfoFromBlockscout(contractAddress, apiUrl, explorerName),
-              fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName)
+              fetchContractSourceInfoFromBlockscout(
+                contractAddress,
+                apiUrl,
+                explorerName
+              ),
+              fetchTokenInfoFromBlockscout(
+                contractAddress,
+                apiUrl,
+                explorerName
+              ),
             ]);
-            
-            const contractSource = sourceInfo.status === 'fulfilled' ? sourceInfo.value : {};
-            const tokenData = tokenInfo.status === 'fulfilled' ? tokenInfo.value : {};
-            
+
+            const contractSource =
+              sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
+            const tokenData =
+              tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
+
             return {
               success: true,
               abi: response.data.result,
-              source: 'blockscout',
+              source: "blockscout",
               explorerName,
               contractName: contractSource.contractName,
               compilerVersion: contractSource.compilerVersion,
-              tokenInfo: Object.keys(tokenData).length > 0 ? tokenData : undefined,
+              tokenInfo:
+                Object.keys(tokenData).length > 0 ? tokenData : undefined,
             };
           } catch (jsonError) {
             continue; // Try next endpoint
@@ -627,21 +725,28 @@ const fetchFromBlockscout = async (
         if (response.data.abi && Array.isArray(response.data.abi)) {
           // Fetch additional contract information and token info in parallel
           const [sourceInfo, tokenInfo] = await Promise.allSettled([
-            fetchContractSourceInfoFromBlockscout(contractAddress, apiUrl, explorerName),
-            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName)
+            fetchContractSourceInfoFromBlockscout(
+              contractAddress,
+              apiUrl,
+              explorerName
+            ),
+            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName),
           ]);
-          
-          const contractSource = sourceInfo.status === 'fulfilled' ? sourceInfo.value : {};
-          const tokenData = tokenInfo.status === 'fulfilled' ? tokenInfo.value : {};
-          
+
+          const contractSource =
+            sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
+          const tokenData =
+            tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
+
           return {
             success: true,
             abi: JSON.stringify(response.data.abi),
-            source: 'blockscout',
+            source: "blockscout",
             explorerName,
             contractName: contractSource.contractName,
             compilerVersion: contractSource.compilerVersion,
-            tokenInfo: Object.keys(tokenData).length > 0 ? tokenData : undefined,
+            tokenInfo:
+              Object.keys(tokenData).length > 0 ? tokenData : undefined,
           };
         }
 
@@ -649,24 +754,30 @@ const fetchFromBlockscout = async (
         if (response.data.result && response.data.result.abi) {
           // Fetch additional contract information and token info in parallel
           const [sourceInfo, tokenInfo] = await Promise.allSettled([
-            fetchContractSourceInfoFromBlockscout(contractAddress, apiUrl, explorerName),
-            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName)
+            fetchContractSourceInfoFromBlockscout(
+              contractAddress,
+              apiUrl,
+              explorerName
+            ),
+            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName),
           ]);
-          
-          const contractSource = sourceInfo.status === 'fulfilled' ? sourceInfo.value : {};
-          const tokenData = tokenInfo.status === 'fulfilled' ? tokenInfo.value : {};
-          
+
+          const contractSource =
+            sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
+          const tokenData =
+            tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
+
           return {
             success: true,
             abi: JSON.stringify(response.data.result.abi),
-            source: 'blockscout',
+            source: "blockscout",
             explorerName,
             contractName: contractSource.contractName,
             compilerVersion: contractSource.compilerVersion,
-            tokenInfo: Object.keys(tokenData).length > 0 ? tokenData : undefined,
+            tokenInfo:
+              Object.keys(tokenData).length > 0 ? tokenData : undefined,
           };
         }
-
       } catch (endpointError) {
         continue; // Try next endpoint
       }
@@ -675,17 +786,16 @@ const fetchFromBlockscout = async (
     return {
       success: false,
       error: `No ABI found on ${explorerName} Blockscout`,
-      source: 'blockscout',
+      source: "blockscout",
       explorerName,
     };
-
   } catch (error: any) {
     console.error(`Error fetching from ${explorerName} Blockscout:`, error);
-    
+
     return {
       success: false,
       error: `${explorerName} Blockscout error: ${error.message}`,
-      source: 'blockscout',
+      source: "blockscout",
       explorerName,
     };
   }
@@ -699,28 +809,39 @@ export const fetchContractABIMultiSource = async (
   provider?: any // Optional provider for WhatsABI
 ): Promise<ExtendedABIFetchResult> => {
   // Validate contract address
-  if (!contractAddress || contractAddress.length !== 42 || !contractAddress.startsWith('0x')) {
+  if (
+    !contractAddress ||
+    contractAddress.length !== 42 ||
+    !contractAddress.startsWith("0x")
+  ) {
     return {
       success: false,
-      error: 'Invalid contract address format',
+      error: "Invalid contract address format",
     };
   }
 
   // CRITICAL: Check if contract actually exists on this network before trying APIs
   try {
-    const ethProvider = provider || new (await import('ethers')).ethers.providers.JsonRpcProvider(chain.rpcUrl, {
-      name: chain.name,
-      chainId: chain.id
-    });
-    
+    const ethProvider =
+      provider ||
+      new (await import("ethers")).ethers.providers.JsonRpcProvider(
+        chain.rpcUrl,
+        {
+          name: chain.name,
+          chainId: chain.id,
+        }
+      );
+
     const bytecode = await ethProvider.getCode(contractAddress);
-    if (!bytecode || bytecode === '0x') {
+    if (!bytecode || bytecode === "0x") {
       return {
         success: false,
         error: `No contract deployed at ${contractAddress} on ${chain.name}`,
       };
     }
-    console.log(`✅ Contract exists at ${contractAddress} on ${chain.name} (${bytecode.length} chars)`);
+    console.log(
+      `✅ Contract exists at ${contractAddress} on ${chain.name} (${bytecode.length} chars)`
+    );
   } catch (error) {
     return {
       success: false,
@@ -732,45 +853,51 @@ export const fetchContractABIMultiSource = async (
 
   // Priority 1: Try Sourcify first (highest quality verification)
   try {
-    console.log(`🔍 Trying Sourcify first for ${contractAddress} on ${chain.name}...`);
+    console.log(
+      `🔍 Trying Sourcify first for ${contractAddress} on ${chain.name}...`
+    );
     const sourcifyResult = await fetchFromSourcify(contractAddress, chain.id);
     attempts.push(sourcifyResult);
-    
+
     if (sourcifyResult.success) {
-      console.log(`✅ ABI fetched successfully from ${sourcifyResult.explorerName} (${sourcifyResult.source})`);
+      console.log(
+        `✅ ABI fetched successfully from ${sourcifyResult.explorerName} (${sourcifyResult.source})`
+      );
       return sourcifyResult;
     }
   } catch (error) {
-    console.error('Sourcify error:', error);
+    console.error("Sourcify error:", error);
     attempts.push({
       success: false,
       error: `Sourcify failed: ${error}`,
-      source: 'sourcify',
-      explorerName: 'Sourcify',
+      source: "sourcify",
+      explorerName: "Sourcify",
     });
   }
 
   // Priority 2 & 3: Try configured chain explorers (Blockscout then Etherscan)
   // Sort explorers by priority: blockscout first, then etherscan
   const sortedExplorers = [...chain.explorers].sort((a, b) => {
-    if (a.type === 'blockscout' && b.type === 'etherscan') return -1;
-    if (a.type === 'etherscan' && b.type === 'blockscout') return 1;
+    if (a.type === "blockscout" && b.type === "etherscan") return -1;
+    if (a.type === "etherscan" && b.type === "blockscout") return 1;
     return 0;
   });
 
   for (const explorer of sortedExplorers) {
     try {
-      console.log(`🔍 Trying ${explorer.name} (${explorer.type}) for ${contractAddress}...`);
+      console.log(
+        `🔍 Trying ${explorer.name} (${explorer.type}) for ${contractAddress}...`
+      );
       let result: ExtendedABIFetchResult;
 
-      if (explorer.type === 'etherscan') {
+      if (explorer.type === "etherscan") {
         result = await fetchFromEtherscan(
           contractAddress,
           explorer.url,
           explorer.name,
           etherscanApiKey
         );
-      } else if (explorer.type === 'blockscout') {
+      } else if (explorer.type === "blockscout") {
         result = await fetchFromBlockscout(
           contractAddress,
           explorer.url,
@@ -784,10 +911,11 @@ export const fetchContractABIMultiSource = async (
 
       // If we got a successful result, return it immediately
       if (result.success) {
-        console.log(`✅ ABI fetched successfully from ${result.explorerName} (${result.source})`);
+        console.log(
+          `✅ ABI fetched successfully from ${result.explorerName} (${result.source})`
+        );
         return result;
       }
-
     } catch (error) {
       console.error(`Error with ${explorer.name}:`, error);
       attempts.push({
@@ -801,27 +929,37 @@ export const fetchContractABIMultiSource = async (
 
   // Priority 4: Final fallback - WhatsABI (works with ANY contract)
   try {
-    console.log(`🔍 Trying WhatsABI as final fallback for ${contractAddress}...`);
-    const whatsabiResult = await fetchFromWhatsABI(contractAddress, chain, provider);
+    console.log(
+      `🔍 Trying WhatsABI as final fallback for ${contractAddress}...`
+    );
+    const whatsabiResult = await fetchFromWhatsABI(
+      contractAddress,
+      chain,
+      provider
+    );
     attempts.push(whatsabiResult);
-    
+
     if (whatsabiResult.success) {
-      console.log(`✅ ABI extracted successfully using WhatsABI (${whatsabiResult.confidence} confidence)`);
+      console.log(
+        `✅ ABI extracted successfully using WhatsABI (${whatsabiResult.confidence} confidence)`
+      );
       return whatsabiResult;
     }
   } catch (error) {
-    console.error('WhatsABI error:', error);
+    console.error("WhatsABI error:", error);
     attempts.push({
       success: false,
       error: `WhatsABI failed: ${error}`,
-      source: 'whatsabi',
-      explorerName: 'WhatsABI',
+      source: "whatsabi",
+      explorerName: "WhatsABI",
     });
   }
 
   // No successful fetch - return most informative error
-  const errors = attempts.map(a => `${a.explorerName}: ${a.error}`).join('; ');
-  
+  const errors = attempts
+    .map((a) => `${a.explorerName}: ${a.error}`)
+    .join("; ");
+
   return {
     success: false,
     error: `ABI not found on ${chain.name}. Tried: ${errors}`,
@@ -833,19 +971,23 @@ export const searchContractAcrossNetworks = async (
   contractAddress: string,
   etherscanApiKey?: string
 ): Promise<Array<{ chain: Chain; result: ExtendedABIFetchResult }>> => {
-  const { SUPPORTED_CHAINS } = await import('./chains');
+  const { SUPPORTED_CHAINS } = await import("./chains");
   const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
 
   // Search all networks in parallel for faster results
   const promises = SUPPORTED_CHAINS.map(async (chain) => {
-    const result = await fetchContractABIMultiSource(contractAddress, chain, etherscanApiKey);
+    const result = await fetchContractABIMultiSource(
+      contractAddress,
+      chain,
+      etherscanApiKey
+    );
     return { chain, result };
   });
 
   const allResults = await Promise.allSettled(promises);
-  
+
   for (const promiseResult of allResults) {
-    if (promiseResult.status === 'fulfilled') {
+    if (promiseResult.status === "fulfilled") {
       results.push(promiseResult.value);
     }
   }

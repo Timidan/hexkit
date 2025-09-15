@@ -1319,7 +1319,7 @@ const SmartDecoder: React.FC = () => {
                 functionSignature: heuristicResults.bestGuess.description,
                 parameters: (heuristicResults.bestGuess.values || []).map((arg: any, index: number) => ({
                   name: `param_${index}`,
-                  type: heuristicResults.bestGuess.types?.[index] || 'unknown',
+                  type: heuristicResults.bestGuess?.types?.[index] || 'unknown',
                   value: arg
                 })),
                 calldata: calldata.trim()
@@ -1417,7 +1417,7 @@ const SmartDecoder: React.FC = () => {
         const suggestion = suggestFunctionSignature(selector);
         const errorMsg = `No function with selector ${selector} found in contract ABI.\n\n` +
           `Looking for: ${suggestion}\n\n` +
-          `Available functions in fetched ABI:\n${availableFunctions.map(f => `• ${f}`).join('\n')}\n\n` +
+          `Available functions in fetched ABI:\n${availableFunctions.map((f: any) => `• ${f}`).join('\n')}\n\n` +
           `This might mean:\n` +
           `• The calldata is for a different contract\n` +
           `• The contract has multiple implementations\n` +
@@ -1489,7 +1489,7 @@ const SmartDecoder: React.FC = () => {
         const suggestion = suggestFunctionSignature(selector);
         const errorMsg = `No function with selector ${selector} found in provided ABI.\n\n` +
           `Looking for: ${suggestion}\n\n` +
-          `Available functions in ABI:\n${availableFunctions.map(f => `• ${f}`).join('\n')}\n\n` +
+          `Available functions in ABI:\n${availableFunctions.map((f: any) => `• ${f}`).join('\n')}\n\n` +
           `Make sure you're using the correct ABI that contains the function you're trying to decode.`;
         
         throw new Error(errorMsg);

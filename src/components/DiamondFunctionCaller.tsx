@@ -1,11 +1,22 @@
-import React, { useState, useCallback } from 'react';
-import { ethers } from 'ethers';
-import { Play, ChevronDown, ChevronRight, Copy, AlertCircle, CheckCircle, Clock, Zap, Eye, Wallet } from 'lucide-react';
-import type { Chain } from '../types';
+import React, { useState, useCallback } from "react";
+import { ethers } from "ethers";
+import {
+  Play,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Zap,
+  Eye,
+  Wallet,
+} from "lucide-react";
+import type { Chain } from "../types";
 
 interface FunctionCall {
   name: string;
-  type: 'function';
+  type: "function";
   inputs: Array<{
     name: string;
     type: string;
@@ -16,7 +27,7 @@ interface FunctionCall {
     type: string;
     internalType?: string;
   }>;
-  stateMutability: 'view' | 'pure' | 'nonpayable' | 'payable';
+  stateMutability: "view" | "pure" | "nonpayable" | "payable";
   selector?: string;
   facetAddress?: string;
   facetName?: string;
@@ -53,19 +64,25 @@ const DiamondFunctionCaller: React.FC<Props> = ({
   chain,
   functions,
   provider,
-  connectedWallet
+  connectedWallet,
 }) => {
-  const [expandedFunctions, setExpandedFunctions] = useState<Set<string>>(new Set());
-  const [functionInputs, setFunctionInputs] = useState<Record<string, Record<string, string>>>({});
-  const [callResults, setCallResults] = useState<Record<string, FunctionCallResult>>({});
+  const [expandedFunctions, setExpandedFunctions] = useState<Set<string>>(
+    new Set()
+  );
+  const [functionInputs, setFunctionInputs] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  const [callResults, setCallResults] = useState<
+    Record<string, FunctionCallResult>
+  >({});
   const [loadingCalls, setLoadingCalls] = useState<Set<string>>(new Set());
 
   // Separate read-only and write functions
-  const readOnlyFunctions = functions.filter(f => 
-    f.stateMutability === 'view' || f.stateMutability === 'pure'
+  const readOnlyFunctions = functions.filter(
+    (f) => f.stateMutability === "view" || f.stateMutability === "pure"
   );
-  const writeFunctions = functions.filter(f => 
-    f.stateMutability === 'nonpayable' || f.stateMutability === 'payable'
+  const writeFunctions = functions.filter(
+    (f) => f.stateMutability === "nonpayable" || f.stateMutability === "payable"
   );
 
   const toggleFunctionExpansion = (functionKey: string) => {
@@ -78,71 +95,76 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     setExpandedFunctions(newExpanded);
   };
 
-  const updateFunctionInput = (functionKey: string, paramName: string, value: string) => {
-    setFunctionInputs(prev => ({
+  const updateFunctionInput = (
+    functionKey: string,
+    paramName: string,
+    value: string
+  ) => {
+    setFunctionInputs((prev) => ({
       ...prev,
       [functionKey]: {
         ...prev[functionKey],
-        [paramName]: value
-      }
+        [paramName]: value,
+      },
     }));
   };
 
   const getFunctionKey = (func: FunctionCall): string => {
-    return `${func.name}_${func.inputs.map(i => i.type).join('_')}`;
+    return `${func.name}_${func.inputs.map((i) => i.type).join("_")}`;
   };
 
   const parseInputValue = (value: string, type: string): any => {
     if (!value.trim()) {
-      if (type.includes('[]')) return [];
-      if (type === 'bool') return false;
-      if (type.startsWith('uint') || type.startsWith('int')) return '0';
-      return '';
+      if (type.includes("[]")) return [];
+      if (type === "bool") return false;
+      if (type.startsWith("uint") || type.startsWith("int")) return "0";
+      return "";
     }
 
     try {
       // Handle arrays
-      if (type.includes('[]')) {
-        if (value.startsWith('[') && value.endsWith(']')) {
+      if (type.includes("[]")) {
+        if (value.startsWith("[") && value.endsWith("]")) {
           return JSON.parse(value);
         }
-        return value.split(',').map(v => v.trim());
+        return value.split(",").map((v) => v.trim());
       }
 
       // Handle booleans
-      if (type === 'bool') {
-        return value.toLowerCase() === 'true' || value === '1';
+      if (type === "bool") {
+        return value.toLowerCase() === "true" || value === "1";
       }
 
       // Handle numbers
-      if (type.startsWith('uint') || type.startsWith('int')) {
+      if (type.startsWith("uint") || type.startsWith("int")) {
         return ethers.BigNumber.from(value);
       }
 
       // Handle addresses
-      if (type === 'address') {
+      if (type === "address") {
         if (!ethers.utils.isAddress(value)) {
-          throw new Error('Invalid address format');
+          throw new Error("Invalid address format");
         }
         return value;
       }
 
       // Handle bytes
-      if (type.startsWith('bytes')) {
-        if (!value.startsWith('0x')) {
-          return '0x' + value;
+      if (type.startsWith("bytes")) {
+        if (!value.startsWith("0x")) {
+          return "0x" + value;
         }
         return value;
       }
 
       return value;
-    } catch (error) {
-      throw new Error(`Invalid value for type ${type}: ${error.message}`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : String(error);
+      throw new Error(`Invalid value for type ${type}: ${msg}`);
     }
   };
 
   const formatOutputValue = (value: any, type: string): string => {
-    if (value === null || value === undefined) return 'null';
+    if (value === null || value === undefined) return "null";
 
     try {
       // Handle BigNumber
@@ -156,36 +178,36 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       }
 
       // Handle objects (structs)
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === "object" && value !== null) {
         return JSON.stringify(value, null, 2);
       }
 
       // Handle boolean
-      if (typeof value === 'boolean') {
+      if (typeof value === "boolean") {
         return value.toString();
       }
 
       return value.toString();
-    } catch (error) {
-      return `[Error formatting: ${error.message}]`;
+    } catch (error: unknown) {
+      return `[Error formatting: ${(error instanceof Error ? error.message : String(error))}]`;
     }
   };
 
   const callReadOnlyFunction = async (func: FunctionCall) => {
     const functionKey = getFunctionKey(func);
-    
+
     if (!provider) {
-      setCallResults(prev => ({
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: 'No provider available'
-        }
+          error: "No provider available",
+        },
       }));
       return;
     }
 
-    setLoadingCalls(prev => new Set(prev).add(functionKey));
+    setLoadingCalls((prev) => new Set(prev).add(functionKey));
 
     try {
       // Parse input parameters
@@ -193,12 +215,12 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       const parsedArgs: any[] = [];
 
       for (const input of func.inputs) {
-        const value = inputs[input.name] || '';
+        const value = inputs[input.name] || "";
         try {
           const parsedValue = parseInputValue(value, input.type);
           parsedArgs.push(parsedValue);
-        } catch (parseError) {
-          throw new Error(`Parameter "${input.name}": ${parseError.message}`);
+        } catch (parseError: unknown) {
+          throw new Error(`Parameter "${input.name}": ${(parseError instanceof Error ? parseError.message : String(parseError))}`);
         }
       }
 
@@ -214,27 +236,26 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
       console.log(`✅ ${func.name} result:`, result);
 
-      setCallResults(prev => ({
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: true,
           result: result,
-          timestamp: endTime - startTime
-        }
+          timestamp: endTime - startTime,
+        },
       }));
-
     } catch (error: any) {
       console.error(`❌ Error calling ${func.name}:`, error);
-      
-      setCallResults(prev => ({
+
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: error.message || 'Unknown error occurred'
-        }
+          error: (error instanceof Error ? error.message : String(error)) || "Unknown error occurred",
+        },
       }));
     } finally {
-      setLoadingCalls(prev => {
+      setLoadingCalls((prev) => {
         const newSet = new Set(prev);
         newSet.delete(functionKey);
         return newSet;
@@ -246,17 +267,18 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     const functionKey = getFunctionKey(func);
 
     if (!connectedWallet?.isConnected || !connectedWallet?.signer) {
-      setCallResults(prev => ({
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: 'Wallet not connected. Please connect your wallet to execute write functions.'
-        }
+          error:
+            "Wallet not connected. Please connect your wallet to execute write functions.",
+        },
       }));
       return;
     }
 
-    setLoadingCalls(prev => new Set(prev).add(functionKey));
+    setLoadingCalls((prev) => new Set(prev).add(functionKey));
 
     try {
       // Parse input parameters
@@ -264,17 +286,21 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       const parsedArgs: any[] = [];
 
       for (const input of func.inputs) {
-        const value = inputs[input.name] || '';
+        const value = inputs[input.name] || "";
         try {
           const parsedValue = parseInputValue(value, input.type);
           parsedArgs.push(parsedValue);
-        } catch (parseError) {
-          throw new Error(`Parameter "${input.name}": ${parseError.message}`);
+        } catch (parseError: unknown) {
+          throw new Error(`Parameter "${input.name}": ${(parseError instanceof Error ? parseError.message : String(parseError))}`);
         }
       }
 
       // Create contract instance with signer for write operations
-      const contract = new ethers.Contract(contractAddress, [func], connectedWallet.signer);
+      const contract = new ethers.Contract(
+        contractAddress,
+        [func],
+        connectedWallet.signer
+      );
 
       console.log(`🚀 Executing ${func.name} with args:`, parsedArgs);
 
@@ -282,7 +308,10 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       let gasEstimate;
       try {
         gasEstimate = await contract.estimateGas[func.name](...parsedArgs);
-        console.log(`⛽ Gas estimate for ${func.name}:`, gasEstimate.toString());
+        console.log(
+          `⛽ Gas estimate for ${func.name}:`,
+          gasEstimate.toString()
+        );
       } catch (gasError) {
         console.warn(`⚠️ Gas estimation failed for ${func.name}:`, gasError);
       }
@@ -301,7 +330,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
       console.log(`✅ Transaction confirmed: ${receipt.transactionHash}`);
 
-      setCallResults(prev => ({
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: true,
@@ -309,35 +338,34 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           gasUsed: receipt.gasUsed?.toString(),
           transactionHash: receipt.transactionHash,
           blockNumber: receipt.blockNumber,
-          timestamp: endTime - startTime
-        }
+          timestamp: endTime - startTime,
+        },
       }));
-
     } catch (error: any) {
       console.error(`❌ Error executing ${func.name}:`, error);
-      
-      let errorMessage = error.message || 'Unknown error occurred';
-      
+
+      let errorMessage = (error instanceof Error ? error.message : String(error)) || "Unknown error occurred";
+
       // Parse common error types
       if (error.code === 4001) {
-        errorMessage = 'Transaction rejected by user';
+        errorMessage = "Transaction rejected by user";
       } else if (error.code === -32603) {
-        errorMessage = 'Transaction failed - check contract requirements';
+        errorMessage = "Transaction failed - check contract requirements";
       } else if (error.reason) {
         errorMessage = `Contract reverted: ${error.reason}`;
       } else if (error.data && error.data.message) {
         errorMessage = error.data.message;
       }
 
-      setCallResults(prev => ({
+      setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: errorMessage
-        }
+          error: errorMessage,
+        },
       }));
     } finally {
-      setLoadingCalls(prev => {
+      setLoadingCalls((prev) => {
         const newSet = new Set(prev);
         newSet.delete(functionKey);
         return newSet;
@@ -346,73 +374,83 @@ const DiamondFunctionCaller: React.FC<Props> = ({
   };
 
   const renderParameterInput = (param: any, functionKey: string) => {
-    const value = functionInputs[functionKey]?.[param.name] || '';
-    
+    const value = functionInputs[functionKey]?.[param.name] || "";
+
     return (
-      <div key={param.name} style={{ marginBottom: '12px' }}>
-        <label style={{
-          display: 'block',
-          fontSize: '12px',
-          fontWeight: '500',
-          color: '#6b7280',
-          marginBottom: '4px'
-        }}>
+      <div key={param.name} style={{ marginBottom: "12px" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            fontWeight: "500",
+            color: "#6b7280",
+            marginBottom: "4px",
+          }}
+        >
           {param.name}
-          <span style={{ 
-            color: '#9ca3af', 
-            fontFamily: 'Monaco, Menlo, monospace',
-            marginLeft: '8px'
-          }}>
+          <span
+            style={{
+              color: "#9ca3af",
+              fontFamily: "Monaco, Menlo, monospace",
+              marginLeft: "8px",
+            }}
+          >
             ({param.type})
           </span>
         </label>
-        
-        {param.type === 'bool' ? (
+
+        {param.type === "bool" ? (
           <select
             value={value}
-            onChange={(e) => updateFunctionInput(functionKey, param.name, e.target.value)}
+            onChange={(e) =>
+              updateFunctionInput(functionKey, param.name, e.target.value)
+            }
             style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              fontSize: '13px',
-              fontFamily: 'Monaco, Menlo, monospace'
+              width: "100%",
+              padding: "8px",
+              border: "1px solid rgba(59, 130, 246, 0.3)",
+              borderRadius: "4px",
+              fontSize: "13px",
+              fontFamily: "Monaco, Menlo, monospace",
             }}
           >
             <option value="">Select...</option>
             <option value="true">true</option>
             <option value="false">false</option>
           </select>
-        ) : param.type.includes('[]') ? (
+        ) : param.type.includes("[]") ? (
           <textarea
             value={value}
-            onChange={(e) => updateFunctionInput(functionKey, param.name, e.target.value)}
-            placeholder={`Array of ${param.type.replace('[]', '')} (JSON format or comma-separated)`}
+            onChange={(e) =>
+              updateFunctionInput(functionKey, param.name, e.target.value)
+            }
+            placeholder={`Array of ${param.type.replace("[]", "")} (JSON format or comma-separated)`}
             rows={3}
             style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              fontSize: '13px',
-              fontFamily: 'Monaco, Menlo, monospace',
-              resize: 'vertical'
+              width: "100%",
+              padding: "8px",
+              border: "1px solid rgba(59, 130, 246, 0.3)",
+              borderRadius: "4px",
+              fontSize: "13px",
+              fontFamily: "Monaco, Menlo, monospace",
+              resize: "vertical",
             }}
           />
         ) : (
           <input
             type="text"
             value={value}
-            onChange={(e) => updateFunctionInput(functionKey, param.name, e.target.value)}
+            onChange={(e) =>
+              updateFunctionInput(functionKey, param.name, e.target.value)
+            }
             placeholder={`Enter ${param.type} value`}
             style={{
-              width: '100%',
-              padding: '8px',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              fontSize: '13px',
-              fontFamily: 'Monaco, Menlo, monospace'
+              width: "100%",
+              padding: "8px",
+              border: "1px solid rgba(59, 130, 246, 0.3)",
+              borderRadius: "4px",
+              fontSize: "13px",
+              fontFamily: "Monaco, Menlo, monospace",
             }}
           />
         )}
@@ -420,41 +458,54 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     );
   };
 
-  const renderFunctionResult = (result: FunctionCallResult, func: FunctionCall) => {
+  const renderFunctionResult = (
+    result: FunctionCallResult,
+    func: FunctionCall
+  ) => {
     if (!result) return null;
 
     return (
-      <div style={{
-        marginTop: '12px',
-        padding: '12px',
-        background: result.success ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-        border: `1px solid ${result.success ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-        borderRadius: '6px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginBottom: '8px'
-        }}>
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "12px",
+          background: result.success
+            ? "rgba(34, 197, 94, 0.05)"
+            : "rgba(239, 68, 68, 0.05)",
+          border: `1px solid ${result.success ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+          borderRadius: "6px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "8px",
+          }}
+        >
           {result.success ? (
-            <CheckCircle size={16} style={{ color: '#22c55e' }} />
+            <CheckCircle size={16} style={{ color: "#22c55e" }} />
           ) : (
-            <AlertCircle size={16} style={{ color: '#ef4444' }} />
+            <AlertCircle size={16} style={{ color: "#ef4444" }} />
           )}
-          <span style={{
-            fontSize: '12px',
-            fontWeight: '600',
-            color: result.success ? '#22c55e' : '#ef4444'
-          }}>
-            {result.success ? 'Success' : 'Error'}
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: result.success ? "#22c55e" : "#ef4444",
+            }}
+          >
+            {result.success ? "Success" : "Error"}
           </span>
           {result.timestamp && (
-            <span style={{
-              fontSize: '11px',
-              color: '#6b7280',
-              marginLeft: 'auto'
-            }}>
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#6b7280",
+                marginLeft: "auto",
+              }}
+            >
               {result.timestamp}ms
             </span>
           )}
@@ -464,40 +515,48 @@ const DiamondFunctionCaller: React.FC<Props> = ({
           <div>
             {/* Transaction Hash for write functions */}
             {result.transactionHash && (
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: '#6b7280', 
-                  marginBottom: '4px' 
-                }}>
+              <div style={{ marginBottom: "12px" }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginBottom: "4px",
+                  }}
+                >
                   Transaction Hash:
                 </div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <code style={{
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontFamily: 'Monaco, Menlo, monospace',
-                    color: '#22c55e',
-                    flex: 1
-                  }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <code
+                    style={{
+                      background: "rgba(34, 197, 94, 0.1)",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      fontSize: "11px",
+                      fontFamily: "Monaco, Menlo, monospace",
+                      color: "#22c55e",
+                      flex: 1,
+                    }}
+                  >
                     {result.transactionHash}
                   </code>
                   <button
-                    onClick={() => navigator.clipboard.writeText(result.transactionHash!)}
+                    onClick={() =>
+                      navigator.clipboard.writeText(result.transactionHash!)
+                    }
                     style={{
-                      background: 'none',
-                      border: '1px solid rgba(34, 197, 94, 0.3)',
-                      borderRadius: '3px',
-                      padding: '2px 6px',
-                      cursor: 'pointer',
-                      color: '#22c55e',
-                      fontSize: '10px'
+                      background: "none",
+                      border: "1px solid rgba(34, 197, 94, 0.3)",
+                      borderRadius: "3px",
+                      padding: "2px 6px",
+                      cursor: "pointer",
+                      color: "#22c55e",
+                      fontSize: "10px",
                     }}
                     title="Copy transaction hash"
                   >
@@ -509,94 +568,110 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
             {/* Gas Used */}
             {result.gasUsed && (
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{ 
-                  fontSize: '11px', 
-                  color: '#6b7280' 
-                }}>
-                  Gas Used: </span>
-                <span style={{
-                  fontSize: '11px',
-                  color: '#f59e0b',
-                  fontFamily: 'Monaco, Menlo, monospace'
-                }}>
+              <div style={{ marginBottom: "8px" }}>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                  }}
+                >
+                  Gas Used:{" "}
+                </span>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "#f59e0b",
+                    fontFamily: "Monaco, Menlo, monospace",
+                  }}
+                >
                   {parseInt(result.gasUsed).toLocaleString()}
                 </span>
               </div>
             )}
 
             {/* Return Value or Events */}
-            <div style={{ 
-              fontSize: '11px', 
-              color: '#6b7280', 
-              marginBottom: '4px' 
-            }}>
-              {result.transactionHash ? 'Events:' : 'Return Value:'}
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#6b7280",
+                marginBottom: "4px",
+              }}
+            >
+              {result.transactionHash ? "Events:" : "Return Value:"}
             </div>
-            <div style={{
-              background: 'rgba(0, 0, 0, 0.02)',
-              padding: '8px',
-              borderRadius: '4px',
-              fontFamily: 'Monaco, Menlo, monospace',
-              fontSize: '12px',
-              whiteSpace: 'pre-wrap',
-              maxHeight: '200px',
-              overflow: 'auto'
-            }}>
+            <div
+              style={{
+                background: "rgba(0, 0, 0, 0.02)",
+                padding: "8px",
+                borderRadius: "4px",
+                fontFamily: "Monaco, Menlo, monospace",
+                fontSize: "12px",
+                whiteSpace: "pre-wrap",
+                maxHeight: "200px",
+                overflow: "auto",
+              }}
+            >
               {result.transactionHash ? (
                 // Show events for write functions
                 Array.isArray(result.result) && result.result.length > 0 ? (
                   result.result.map((event: any, index: number) => (
-                    <div key={index} style={{ marginBottom: '8px' }}>
-                      <div style={{ color: '#3b82f6', fontWeight: '600' }}>
-                        {event.event || 'Event'}:
+                    <div key={index} style={{ marginBottom: "8px" }}>
+                      <div style={{ color: "#3b82f6", fontWeight: "600" }}>
+                        {event.event || "Event"}:
                       </div>
-                      <div style={{ marginLeft: '12px' }}>
+                      <div style={{ marginLeft: "12px" }}>
                         {JSON.stringify(event.args || event, null, 2)}
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                  <div style={{ color: "#6b7280", fontStyle: "italic" }}>
                     No events emitted
                   </div>
                 )
+              ) : // Show return values for read functions
+              func.outputs.length > 1 ? (
+                func.outputs.map((output, index) => (
+                  <div key={index} style={{ marginBottom: "4px" }}>
+                    <span style={{ color: "#6b7280" }}>
+                      {output.name || `output${index}`} ({output.type}):
+                    </span>{" "}
+                    {formatOutputValue(
+                      Array.isArray(result.result)
+                        ? result.result[index]
+                        : result.result,
+                      output.type
+                    )}
+                  </div>
+                ))
               ) : (
-                // Show return values for read functions
-                func.outputs.length > 1 ? (
-                  func.outputs.map((output, index) => (
-                    <div key={index} style={{ marginBottom: '4px' }}>
-                      <span style={{ color: '#6b7280' }}>
-                        {output.name || `output${index}`} ({output.type}):
-                      </span>{' '}
-                      {formatOutputValue(
-                        Array.isArray(result.result) ? result.result[index] : result.result,
-                        output.type
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  formatOutputValue(result.result, func.outputs[0]?.type || 'unknown')
+                formatOutputValue(
+                  result.result,
+                  func.outputs[0]?.type || "unknown"
                 )
               )}
             </div>
           </div>
         ) : result.error ? (
           <div>
-            <div style={{ 
-              fontSize: '11px', 
-              color: '#6b7280', 
-              marginBottom: '4px' 
-            }}>
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#6b7280",
+                marginBottom: "4px",
+              }}
+            >
               Error Message:
             </div>
-            <div style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              padding: '8px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              color: '#dc2626'
-            }}>
+            <div
+              style={{
+                background: "rgba(239, 68, 68, 0.1)",
+                padding: "8px",
+                borderRadius: "4px",
+                fontSize: "12px",
+                color: "#dc2626",
+              }}
+            >
               {result.error}
             </div>
           </div>
@@ -615,125 +690,153 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       <div
         key={functionKey}
         style={{
-          background: 'rgba(255, 255, 255, 0.5)',
-          border: '1px solid rgba(0, 0, 0, 0.1)',
-          borderRadius: '8px',
-          marginBottom: '8px'
+          background: "rgba(255, 255, 255, 0.5)",
+          border: "1px solid rgba(0, 0, 0, 0.1)",
+          borderRadius: "8px",
+          marginBottom: "8px",
         }}
       >
         <div
           style={{
-            padding: '12px',
-            cursor: 'pointer',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            padding: "12px",
+            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
           onClick={() => toggleFunctionExpansion(functionKey)}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flex: 1,
+            }}
+          >
             {isReadOnly ? (
-              <Eye size={16} style={{ color: '#3b82f6' }} />
+              <Eye size={16} style={{ color: "#3b82f6" }} />
             ) : (
-              <Zap size={16} style={{ color: '#f59e0b' }} />
+              <Zap size={16} style={{ color: "#f59e0b" }} />
             )}
-            
-            <span style={{ 
-              fontFamily: 'Monaco, Menlo, monospace', 
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
+
+            <span
+              style={{
+                fontFamily: "Monaco, Menlo, monospace",
+                fontSize: "14px",
+                fontWeight: "500",
+              }}
+            >
               {func.name}
             </span>
-            
-            <span style={{
-              fontSize: '11px',
-              color: '#6b7280',
-              background: 'rgba(107, 114, 128, 0.1)',
-              padding: '2px 6px',
-              borderRadius: '3px'
-            }}>
+
+            <span
+              style={{
+                fontSize: "11px",
+                color: "#6b7280",
+                background: "rgba(107, 114, 128, 0.1)",
+                padding: "2px 6px",
+                borderRadius: "3px",
+              }}
+            >
               {func.stateMutability}
             </span>
 
             {func.facetName && (
-              <span style={{
-                fontSize: '11px',
-                color: '#8b5cf6',
-                background: 'rgba(139, 92, 246, 0.1)',
-                padding: '2px 6px',
-                borderRadius: '3px'
-              }}>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#8b5cf6",
+                  background: "rgba(139, 92, 246, 0.1)",
+                  padding: "2px 6px",
+                  borderRadius: "3px",
+                }}
+              >
                 {func.facetName}
               </span>
             )}
 
             {func.isWhatsABI && (
-              <span style={{
-                fontSize: '10px',
-                color: '#f59e0b',
-                background: 'rgba(245, 158, 11, 0.1)',
-                padding: '1px 4px',
-                borderRadius: '2px'
-              }}>
+              <span
+                style={{
+                  fontSize: "10px",
+                  color: "#f59e0b",
+                  background: "rgba(245, 158, 11, 0.1)",
+                  padding: "1px 4px",
+                  borderRadius: "2px",
+                }}
+              >
                 WhatsABI
               </span>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {result && (
-              result.success ? (
-                <CheckCircle size={14} style={{ color: '#22c55e' }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {result &&
+              (result.success ? (
+                <CheckCircle size={14} style={{ color: "#22c55e" }} />
               ) : (
-                <AlertCircle size={14} style={{ color: '#ef4444' }} />
-              )
+                <AlertCircle size={14} style={{ color: "#ef4444" }} />
+              ))}
+            {isExpanded ? (
+              <ChevronDown size={16} />
+            ) : (
+              <ChevronRight size={16} />
             )}
-            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </div>
         </div>
 
         {isExpanded && (
-          <div style={{
-            borderTop: '1px solid rgba(0, 0, 0, 0.1)',
-            padding: '16px',
-            background: 'rgba(0, 0, 0, 0.02)'
-          }}>
+          <div
+            style={{
+              borderTop: "1px solid rgba(0, 0, 0, 0.1)",
+              padding: "16px",
+              background: "rgba(0, 0, 0, 0.02)",
+            }}
+          >
             {/* Function signature */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ 
-                fontSize: '11px', 
-                color: '#6b7280', 
-                marginBottom: '4px' 
-              }}>
+            <div style={{ marginBottom: "16px" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "#6b7280",
+                  marginBottom: "4px",
+                }}
+              >
                 Function Signature:
               </div>
-              <code style={{
-                background: 'rgba(0, 0, 0, 0.05)',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontFamily: 'Monaco, Menlo, monospace'
-              }}>
-                {func.name}({func.inputs.map(i => `${i.type} ${i.name}`).join(', ')})
-                {func.outputs.length > 0 && (
-                  ` returns (${func.outputs.map(o => `${o.type} ${o.name || ''}`).join(', ')})`
-                )}
+              <code
+                style={{
+                  background: "rgba(0, 0, 0, 0.05)",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  fontFamily: "Monaco, Menlo, monospace",
+                }}
+              >
+                {func.name}(
+                {func.inputs.map((i) => `${i.type} ${i.name}`).join(", ")})
+                {func.outputs.length > 0 &&
+                  ` returns (${func.outputs.map((o) => `${o.type} ${o.name || ""}`).join(", ")})`}
               </code>
             </div>
 
             {/* Input parameters */}
             {func.inputs.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ 
-                  fontSize: '12px', 
-                  fontWeight: '600', 
-                  marginBottom: '8px',
-                  color: '#374151'
-                }}>
+              <div style={{ marginBottom: "16px" }}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    marginBottom: "8px",
+                    color: "#374151",
+                  }}
+                >
                   Parameters:
                 </div>
-                {func.inputs.map(param => renderParameterInput(param, functionKey))}
+                {func.inputs.map((param) =>
+                  renderParameterInput(param, functionKey)
+                )}
               </div>
             )}
 
@@ -746,17 +849,19 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                 }}
                 disabled={isLoading}
                 style={{
-                  background: isLoading ? 'rgba(107, 114, 128, 0.5)' : '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '8px 16px',
-                  fontSize: '12px',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  marginBottom: '12px'
+                  background: isLoading
+                    ? "rgba(107, 114, 128, 0.5)"
+                    : "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "8px 16px",
+                  fontSize: "12px",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginBottom: "12px",
                 }}
               >
                 {isLoading ? (
@@ -764,10 +869,10 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                 ) : (
                   <Play size={14} />
                 )}
-                {isLoading ? 'Calling...' : 'Call Function'}
+                {isLoading ? "Calling..." : "Call Function"}
               </button>
             ) : (
-              <div style={{ marginBottom: '12px' }}>
+              <div style={{ marginBottom: "12px" }}>
                 {connectedWallet?.isConnected ? (
                   <button
                     onClick={(e) => {
@@ -776,16 +881,18 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                     }}
                     disabled={isLoading}
                     style={{
-                      background: isLoading ? 'rgba(107, 114, 128, 0.5)' : '#f59e0b',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '8px 16px',
-                      fontSize: '12px',
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
+                      background: isLoading
+                        ? "rgba(107, 114, 128, 0.5)"
+                        : "#f59e0b",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "8px 16px",
+                      fontSize: "12px",
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
                     {isLoading ? (
@@ -793,20 +900,24 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                     ) : (
                       <Zap size={14} />
                     )}
-                    {isLoading ? 'Sending Transaction...' : 'Execute Transaction'}
+                    {isLoading
+                      ? "Sending Transaction..."
+                      : "Execute Transaction"}
                   </button>
                 ) : (
-                  <div style={{
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    fontSize: '11px',
-                    color: '#92400e',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}>
+                  <div
+                    style={{
+                      background: "rgba(245, 158, 11, 0.1)",
+                      border: "1px solid rgba(245, 158, 11, 0.3)",
+                      borderRadius: "6px",
+                      padding: "8px 12px",
+                      fontSize: "11px",
+                      color: "#92400e",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
                     <Wallet size={12} />
                     Connect wallet to execute write functions
                   </div>
@@ -824,99 +935,118 @@ const DiamondFunctionCaller: React.FC<Props> = ({
 
   if (functions.length === 0) {
     return (
-      <div style={{
-        background: 'rgba(239, 68, 68, 0.05)',
-        border: '1px solid rgba(239, 68, 68, 0.2)',
-        borderRadius: '8px',
-        padding: '16px',
-        textAlign: 'center',
-        color: '#6b7280'
-      }}>
+      <div
+        style={{
+          background: "rgba(239, 68, 68, 0.05)",
+          border: "1px solid rgba(239, 68, 68, 0.2)",
+          borderRadius: "8px",
+          padding: "16px",
+          textAlign: "center",
+          color: "#6b7280",
+        }}
+      >
         No functions available for interaction
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: '20px' }}>
-      <div style={{
-        background: 'rgba(59, 130, 246, 0.05)',
-        border: '1px solid rgba(59, 130, 246, 0.2)',
-        borderRadius: '8px',
-        padding: '16px',
-        marginBottom: '16px'
-      }}>
-        <h4 style={{
-          margin: '0 0 8px 0',
-          color: '#3b82f6',
-          fontSize: '16px',
-          fontWeight: '600',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
+    <div style={{ marginTop: "20px" }}>
+      <div
+        style={{
+          background: "rgba(59, 130, 246, 0.05)",
+          border: "1px solid rgba(59, 130, 246, 0.2)",
+          borderRadius: "8px",
+          padding: "16px",
+          marginBottom: "16px",
+        }}
+      >
+        <h4
+          style={{
+            margin: "0 0 8px 0",
+            color: "#3b82f6",
+            fontSize: "16px",
+            fontWeight: "600",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
           <Play size={18} />
           Interactive Function Calls
         </h4>
-        <p style={{ 
-          fontSize: '13px', 
-          color: '#6b7280', 
-          margin: '0' 
-        }}>
-          Execute contract functions directly from the interface. Read-only functions are called immediately, while write functions require wallet connection.
+        <p
+          style={{
+            fontSize: "13px",
+            color: "#6b7280",
+            margin: "0",
+          }}
+        >
+          Execute contract functions directly from the interface. Read-only
+          functions are called immediately, while write functions require wallet
+          connection.
         </p>
       </div>
 
       {/* Read-only functions */}
       {readOnlyFunctions.length > 0 && (
-        <div style={{ marginBottom: '24px' }}>
-          <h5 style={{
-            color: '#3b82f6',
-            fontSize: '14px',
-            fontWeight: '600',
-            marginBottom: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h5
+            style={{
+              color: "#3b82f6",
+              fontSize: "14px",
+              fontWeight: "600",
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <Eye size={16} />
             Read-Only Functions ({readOnlyFunctions.length})
           </h5>
-          {readOnlyFunctions.map(func => renderFunction(func, true))}
+          {readOnlyFunctions.map((func) => renderFunction(func, true))}
         </div>
       )}
 
       {/* Write functions */}
       {writeFunctions.length > 0 && (
         <div>
-          <h5 style={{
-            color: '#f59e0b',
-            fontSize: '14px',
-            fontWeight: '600',
-            marginBottom: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
+          <h5
+            style={{
+              color: "#f59e0b",
+              fontSize: "14px",
+              fontWeight: "600",
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <Zap size={16} />
             Write Functions ({writeFunctions.length})
           </h5>
-          <div style={{
-            background: 'rgba(245, 158, 11, 0.05)',
-            border: '1px solid rgba(245, 158, 11, 0.2)',
-            borderRadius: '6px',
-            padding: '12px',
-            marginBottom: '12px'
-          }}>
-            <p style={{
-              fontSize: '12px',
-              color: '#92400e',
-              margin: '0'
-            }}>
-              ⚠️ Write functions require wallet connection and will create transactions on the blockchain.
+          <div
+            style={{
+              background: "rgba(245, 158, 11, 0.05)",
+              border: "1px solid rgba(245, 158, 11, 0.2)",
+              borderRadius: "6px",
+              padding: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#92400e",
+                margin: "0",
+              }}
+            >
+              ⚠️ Write functions require wallet connection and will create
+              transactions on the blockchain.
             </p>
           </div>
-          {writeFunctions.map(func => renderFunction(func, false))}
+          {writeFunctions.map((func) => renderFunction(func, false))}
         </div>
       )}
     </div>

@@ -311,7 +311,7 @@ const TenderlyStyleTransactionBuilder: React.FC = () => {
                         onChange={(e) => setSelectedFunction(e.target.value)}
                       >
                         <option value="">Select option</option>
-                        {functions.map((func, index) => (
+                        {functions.map((func: any, index: number) => (
                           <option key={index} value={func.name}>
                             {func.name}({func.inputs?.map((input: any) => input.type).join(', ')})
                           </option>
@@ -507,7 +507,7 @@ const TenderlyStyleTransactionBuilder: React.FC = () => {
         </div>
 
         {/* Wallet Connection (if needed for write functions) */}
-        {selectedFunction && functions.find(f => f.name === selectedFunction && !['view', 'pure'].includes(f.stateMutability)) && (
+        {selectedFunction && functions.find((f: any) => f.name === selectedFunction && !['view', 'pure'].includes(f.stateMutability)) && (
           <div className="mt-8 bg-gray-800 rounded-lg p-6">
             <h3 className="text-lg font-medium mb-4 text-white">Wallet Connection</h3>
             <SimpleWalletConnection 
