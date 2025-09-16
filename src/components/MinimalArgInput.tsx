@@ -25,12 +25,28 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
 
   // Initialize args when function changes
   useEffect(() => {
-    const newArgs = functionInputs.map((input: any, idx: number) => 
-      initialData[idx] ?? getDefaultValue(input.type)
-    );
-    setArgs(newArgs);
-    onDataChange(newArgs);
-  }, [functionInputs, initialData, onDataChange]);
+    if (functionInputs.length === 0) return;
+    
+    const newArgs = functionInputs.map((input: any, idx: number) => {
+      // Use existing arg if available, otherwise use initialData or default
+      const existingArg = args[idx];
+      const initialValue = initialData[idx];
+      
+      if (existingArg !== undefined && existingArg !== null && existingArg !== '') {
+        return existingArg;
+      }
+      if (initialValue !== undefined && initialValue !== null && initialValue !== '') {
+        return initialValue;
+      }
+      return getDefaultValue(input.type);
+    });
+    
+    // Only update if args actually changed
+    if (JSON.stringify(newArgs) !== JSON.stringify(args)) {
+      setArgs(newArgs);
+      onDataChange(newArgs);
+    }
+  }, [functionInputs]);
 
   const getDefaultValue = (type: string): any => {
     if (type === 'bool') return false;
@@ -59,6 +75,50 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     return '#74b9ff';
   };
 
+  // Helper function to render struct fields recursively
+  const renderStructField = (field: any, value: any, onChange: (newValue: any) => void): React.ReactNode => {
+    const typeColor = getTypeColor(field.type);
+    
+    // Handle nested structs/tuples
+    if (field.type === 'tuple' && field.components) {
+      return (
+        <div className="nested-struct">
+          <div className="nested-struct-header">
+            <span className="field-name">{field.name}</span>
+            <span className="field-type" style={{ color: typeColor }}>({field.type})</span>
+          </div>
+          <div className="nested-struct-fields">
+            {field.components.map((component: any, idx: number) => (
+              <div key={idx} className="nested-field">
+                {renderStructField(component, value && value[component.name], (newValue: any) => {
+                  const newStructValue = { ...value };
+                  newStructValue[component.name] = newValue;
+                  onChange(newStructValue);
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    // Handle simple fields
+    return (
+      <>
+        <label className="field-label">
+          {field.name} <span style={{ color: typeColor }}>({field.type})</span>
+        </label>
+        <input
+          type="text"
+          value={value || ''}
+          placeholder={`Enter ${field.type}`}
+          className="struct-field-input"
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </>
+    );
+  };
+
   const renderInput = (input: any, index: number) => {
     const value = args[index] || '';
     const typeColor = getTypeColor(input.type);
@@ -83,53 +143,109 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
       );
     }
 
-    // Handle arrays (simplified)
+    // Handle arrays - differentiate between simple arrays and struct arrays
     if (input.type.includes('[]')) {
       const baseType = input.type.replace('[]', '');
       const arrayValue = Array.isArray(value) ? value : [];
       
+      // Handle arrays of structs/tuples
+      if (baseType === 'tuple' || input.components) {
+        return (
+          <div key={index} className="arg-row struct-array-row">
+            <div className="arg-label">
+              <span className="arg-name">{input.name}</span>
+              <span className="arg-type" style={{ color: typeColor }}>{input.type}</span>
+            </div>
+            <div className="struct-array-container">
+              <div className="struct-array-header">
+                <span className="array-count">{arrayValue.length} structs</span>
+                <button
+                  onClick={() => {
+                    const newStruct = {};
+                    input.components?.forEach((comp: any) => {
+                      newStruct[comp.name] = getDefaultValue(comp.type);
+                    });
+                    updateArg(index, [...arrayValue, newStruct]);
+                  }}
+                  className="add-struct-btn"
+                >
+                  + Add Struct
+                </button>
+              </div>
+              
+              {arrayValue.map((structValue: any, structIdx: number) => (
+                <div key={structIdx} className="struct-item">
+                  <div className="struct-item-header">
+                    <span className="struct-index">[{structIdx}]</span>
+                    <button
+                      onClick={() => {
+                        const newArray = arrayValue.filter((_: any, i: number) => i !== structIdx);
+                        updateArg(index, newArray);
+                      }}
+                      className="remove-struct-btn"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="struct-fields">
+                    {input.components?.map((component: any, compIdx: number) => (
+                      <div key={compIdx} className="struct-field">
+                        {renderStructField(component, structValue && structValue[component.name], (newValue: any) => {
+                          const newArray = [...arrayValue];
+                          const newStruct = { ...newArray[structIdx] };
+                          newStruct[component.name] = newValue;
+                          newArray[structIdx] = newStruct;
+                          updateArg(index, newArray);
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              
+              {arrayValue.length === 0 && (
+                <div className="empty-array">
+                  <p>No structs added. Click "Add Struct" to create one.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      
+      // Handle arrays of simple types (string[], uint256[], etc.) - use comma separation
+      const displayValue = arrayValue.join(', ');
       return (
-        <div key={index} className="arg-row array-row">
+        <div key={index} className="arg-row">
           <div className="arg-label">
             <span className="arg-name">{input.name}</span>
             <span className="arg-type" style={{ color: typeColor }}>{input.type}</span>
           </div>
-          <div className="array-input">
-            <div className="array-items">
-              {arrayValue.map((item: any, idx: number) => (
-                <div key={idx} className="array-item">
-                  <input
-                    type="text"
-                    value={item || ''}
-                    onChange={(e) => {
-                      const newArray = [...arrayValue];
-                      newArray[idx] = e.target.value;
-                      updateArg(index, newArray);
-                    }}
-                    placeholder={`${baseType} value`}
-                    className="array-item-input"
-                  />
-                  <button
-                    onClick={() => {
-                      const newArray = arrayValue.filter((_: any, i: number) => i !== idx);
-                      updateArg(index, newArray);
-                    }}
-                    className="remove-item"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => {
-                const newArray = [...arrayValue, getDefaultValue(baseType)];
-                updateArg(index, newArray);
+          <div className="array-input-wrapper">
+            <input
+              type="text"
+              value={displayValue}
+              onChange={(e) => {
+                const inputValue = e.target.value;
+                if (inputValue.trim() === '') {
+                  updateArg(index, []);
+                } else {
+                  // Parse comma-separated values
+                  const items = inputValue
+                    .split(',')
+                    .map(item => item.trim())
+                    .filter(item => item !== '');
+                  updateArg(index, items);
+                }
               }}
-              className="add-item"
-            >
-              + Add {baseType}
-            </button>
+              placeholder={`Enter ${baseType} values separated by commas (e.g. value1, value2, value3)`}
+              className="arg-input array-input"
+            />
+            <div className="array-hint">
+              <span style={{ fontSize: '11px', color: '#666' }}>
+                {arrayValue.length} items • Separate with commas
+              </span>
+            </div>
           </div>
         </div>
       );
@@ -146,17 +262,11 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           <div className="tuple-inputs">
             {input.components?.map((component: any, componentIdx: number) => (
               <div key={componentIdx} className="tuple-field">
-                <label className="tuple-field-label">{component.name}</label>
-                <input
-                  type="text"
-                  placeholder={`${component.type} value`}
-                  className="tuple-field-input"
-                  onChange={(e) => {
-                    const currentTuple = value || {};
-                    const newTuple = { ...currentTuple, [component.name]: e.target.value };
-                    updateArg(index, newTuple);
-                  }}
-                />
+                {renderStructField(component, value && value[component.name], (newValue: any) => {
+                  const currentTuple = value || {};
+                  const newTuple = { ...currentTuple, [component.name]: newValue };
+                  updateArg(index, newTuple);
+                })}
               </div>
             ))}
           </div>
@@ -186,7 +296,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
         </div>
         <input
           type={getInputType()}
-          value={value}
+          value={value || ''}
           onChange={(e) => updateArg(index, e.target.value)}
           placeholder={getPlaceholder()}
           className="arg-input"

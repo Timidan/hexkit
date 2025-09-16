@@ -91,7 +91,12 @@ interface SourcifyResponse {
 // Enhanced search function with comprehensive progress tracking
 export const fetchContractInfoComprehensive = async (
   address: string,
-  chain: Chain
+  chain: Chain,
+  progressCallback?: (progress: {
+    source: string;
+    status: "searching" | "found" | "not_found" | "error";
+    message?: string;
+  }) => void
 ): Promise<ContractInfoResult> => {
   const searchProgress: ContractInfoResult["searchProgress"] = [];
   let finalResult: ContractInfoResult = {
@@ -119,6 +124,11 @@ export const fetchContractInfoComprehensive = async (
     const progress = { source, status, message };
     searchProgress.push(progress);
     console.log(`🔍 [Progress] ${source}: ${status} - ${message || ""}`);
+    
+    // Call the callback if provided for real-time updates
+    if (progressCallback) {
+      progressCallback(progress);
+    }
   };
 
   try {
@@ -443,8 +453,13 @@ const fetchFromSourcify = async (
             verified: true,
           };
         }
-      } catch (e) {
-        // try next repo endpoint
+      } catch (e: any) {
+        // Gracefully handle 404s and other errors
+        if (e.response?.status === 404) {
+          console.log(`🔍 [Sourcify] Repo endpoint ${url} returned 404 (expected for unverified contracts)`);
+        } else {
+          console.warn(`🔍 [Sourcify] Repo endpoint ${url} failed:`, e.message);
+        }
         continue;
       }
     }
@@ -588,8 +603,12 @@ const fetchFromBlockscout = async (
           };
           break;
         }
-      } catch (endpointError) {
-        console.warn(`🔍 [Blockscout] Endpoint failed: ${endpoint}`);
+      } catch (endpointError: any) {
+        if (endpointError.response?.status === 404) {
+          console.log(`🔍 [Blockscout] Endpoint ${endpoint} returned 404 (expected for unverified contracts)`);
+        } else {
+          console.warn(`🔍 [Blockscout] Endpoint ${endpoint} failed:`, endpointError.message);
+        }
         continue;
       }
     }

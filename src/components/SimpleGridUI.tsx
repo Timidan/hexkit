@@ -118,6 +118,11 @@ const SimpleGridUI: React.FC = () => {
   const [isLoadingABI, setIsLoadingABI] = useState(false);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const [abiError, setAbiError] = useState<string | null>(null);
+  const [searchProgress, setSearchProgress] = useState<{
+    source: string;
+    status: "searching" | "found" | "not_found" | "error";
+    message?: string;
+  } | null>(null);
   const [readFunctions, setReadFunctions] = useState<
     ethers.utils.FunctionFragment[]
   >([]);
@@ -2793,14 +2798,30 @@ const SimpleGridUI: React.FC = () => {
     setIsLoadingABI(true);
     setAbiError(null);
     setAbiSource(null);
+    setSearchProgress(null);
+    
+    // Clear previous results when starting new search
+    setContractInfo(null);
+    setReadFunctions([]);
+    setWriteFunctions([]);
+    setSelectedFacet(null);
+    setDiamondFacets([]);
+    setIsDiamond(false);
+    setSelectedFunction(null);
+    setSelectedFunctionObj(null);
+    setFunctionInputs({});
+    setGeneratedCallData("0x");
 
     try {
       console.log("🔍 Starting comprehensive contract fetch...");
 
-      // Use the comprehensive contract fetcher
+      // Use the comprehensive contract fetcher with progress tracking
       const result = await fetchContractInfoComprehensive(
         contractAddress,
-        selectedNetwork
+        selectedNetwork,
+        (progress) => {
+          setSearchProgress(progress);
+        }
       );
 
       if (result.success && result.abi) {
@@ -3604,7 +3625,40 @@ const SimpleGridUI: React.FC = () => {
                       }}
                     />
                     <span style={{ fontSize: "14px" }}>
-                      Checking Sourcify → Blockscout → Etherscan...
+                      {searchProgress ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            {searchProgress.status === "searching" && "🔍"}
+                            {searchProgress.status === "found" && "✅"}
+                            {searchProgress.status === "not_found" && "❌"}
+                            {searchProgress.status === "error" && "⚠️"}
+                            <span style={{ 
+                              color: searchProgress.status === "found" ? "#22c55e" : 
+                                     searchProgress.status === "not_found" ? "#f59e0b" : 
+                                     searchProgress.status === "error" ? "#ef4444" : "#22c55e",
+                              fontWeight: "500"
+                            }}>
+                              {searchProgress.source}
+                            </span>
+                            {searchProgress.status === "searching" && ": Searching..."}
+                            {searchProgress.status === "found" && ": Found contract!"}
+                            {searchProgress.status === "not_found" && ": Not found, trying next..."}
+                            {searchProgress.status === "error" && ": Error occurred"}
+                          </div>
+                          {searchProgress.message && (
+                            <div style={{ 
+                              fontSize: "12px", 
+                              color: "#888", 
+                              marginLeft: "24px",
+                              fontStyle: "italic"
+                            }}>
+                              {searchProgress.message}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        "Initializing search..."
+                      )}
                     </span>
                   </div>
                 </div>
@@ -4891,19 +4945,21 @@ const SimpleGridUI: React.FC = () => {
                                           }
                                           
                                           // Wait for state updates, then find the function in the correct list
-                                          setTimeout(() => {
-                                            const currentFunctions = func.functionType === 'read' ? filteredReadFunctions : filteredWriteFunctions;
-                                            const funcIndex = currentFunctions.findIndex(f => f.name === func.name);
-                                            if (funcIndex >= 0) {
-                                              const functionKey = `${func.functionType}-${funcIndex}`;
-                                              // Set the dropdown value immediately
-                                              setSelectedFunction(functionKey);
-                                              handleFunctionSelect(functionKey);
-                                            }
-                                          }, 50);
-                                          
+                                          // Find and select the function immediately
+                                        const currentFunctions = func.functionType === 'read' ? filteredReadFunctions : filteredWriteFunctions;
+                                        const funcIndex = currentFunctions.findIndex(f => f.name === func.name);
+                                        if (funcIndex >= 0) {
+                                          const functionKey = `${func.functionType}-${funcIndex}`;
+                                          // Set the dropdown value immediately
+                                          setSelectedFunction(functionKey);
+                                          handleFunctionSelect(functionKey);
+                                        }
+                                        
+                                        // Close search panel after selection
+                                        setTimeout(() => {
                                           setShowFunctionSearch(false);
                                           setFunctionSearch("");
+                                        }, 100);
                                         }}
                                       >
                                         <div style={{
@@ -5095,26 +5151,27 @@ const SimpleGridUI: React.FC = () => {
                                 }
                                 
                                 .sample-btn, .clear-btn {
-                                  background: #2a2a2a;
-                                  border: 1px solid #444;
-                                  color: #ccc;
-                                  padding: 4px 10px;
+                                  background: #45b7d1;
+                                  border: none;
+                                  color: #fff;
+                                  padding: 6px 12px;
                                   border-radius: 4px;
                                   font-size: 11px;
+                                  font-weight: 500;
                                   cursor: pointer;
                                   transition: all 0.2s;
                                 }
                                 
                                 .sample-btn:hover {
-                                  background: #45b7d1;
-                                  border-color: #45b7d1;
-                                  color: #fff;
+                                  background: #3a9bc1;
+                                }
+                                
+                                .clear-btn {
+                                  background: #ef4444;
                                 }
                                 
                                 .clear-btn:hover {
-                                  background: #ff6b6b;
-                                  border-color: #ff6b6b;
-                                  color: #fff;
+                                  background: #dc2626;
                                 }
                                 
                                 .arg-list {
@@ -5174,43 +5231,108 @@ const SimpleGridUI: React.FC = () => {
                                   cursor: pointer;
                                 }
                                 
-                                /* Array styles */
-                                .array-row {
-                                  background: rgba(255,255,255,0.02);
-                                  border: 1px solid #333;
-                                  border-radius: 4px;
-                                  padding: 12px;
+                                /* Array styles - simplified comma-separated approach */
+                                .array-input-wrapper {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 4px;
                                 }
                                 
                                 .array-input {
-                                  display: flex;
-                                  flex-direction: column;
-                                  gap: 8px;
-                                }
-                                
-                                .array-items {
-                                  display: flex;
-                                  flex-direction: column;
-                                  gap: 6px;
-                                }
-                                
-                                .array-item {
-                                  display: flex;
-                                  align-items: center;
-                                  gap: 8px;
-                                }
-                                
-                                .array-item-input {
-                                  flex: 1;
-                                  background: #333;
+                                  background: #2a2a2a;
                                   border: 1px solid #444;
-                                  border-radius: 3px;
-                                  padding: 6px 8px;
+                                  border-radius: 4px;
+                                  padding: 8px 10px;
                                   color: #fff;
+                                  font-size: 13px;
+                                  transition: border-color 0.2s;
+                                  width: 100%;
+                                }
+                                
+                                .array-input:focus {
+                                  outline: none;
+                                  border-color: #45b7d1;
+                                  box-shadow: 0 0 0 1px rgba(69, 183, 209, 0.3);
+                                }
+                                
+                                .array-input::placeholder {
+                                  color: #666;
+                                }
+                                
+                                .array-hint {
+                                  display: flex;
+                                  justify-content: space-between;
+                                  align-items: center;
+                                  margin-top: 2px;
+                                }
+                                
+                                /* Struct Array styles */
+                                .struct-array-row {
+                                  background: rgba(255,255,255,0.02);
+                                  border: 1px solid #333;
+                                  border-radius: 6px;
+                                  padding: 12px;
+                                }
+                                
+                                .struct-array-container {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 12px;
+                                }
+                                
+                                .struct-array-header {
+                                  display: flex;
+                                  justify-content: space-between;
+                                  align-items: center;
+                                  padding: 8px 0;
+                                  border-bottom: 1px solid #3a3a3a;
+                                }
+                                
+                                .array-count {
+                                  color: #999;
+                                  font-size: 12px;
+                                  font-weight: 500;
+                                }
+                                
+                                .add-struct-btn {
+                                  background: #22c55e;
+                                  border: none;
+                                  color: white;
+                                  padding: 6px 12px;
+                                  border-radius: 4px;
+                                  font-size: 11px;
+                                  font-weight: 500;
+                                  cursor: pointer;
+                                  transition: background 0.2s;
+                                }
+                                
+                                .add-struct-btn:hover {
+                                  background: #16a34a;
+                                }
+                                
+                                .struct-item {
+                                  background: #252525;
+                                  border: 1px solid #3a3a3a;
+                                  border-radius: 4px;
+                                  padding: 10px;
+                                }
+                                
+                                .struct-item-header {
+                                  display: flex;
+                                  justify-content: space-between;
+                                  align-items: center;
+                                  margin-bottom: 8px;
+                                  padding-bottom: 6px;
+                                  border-bottom: 1px solid #333;
+                                }
+                                
+                                .struct-index {
+                                  color: #74b9ff;
+                                  font-weight: 500;
                                   font-size: 12px;
                                 }
                                 
-                                .remove-item {
+                                .remove-struct-btn {
                                   background: #ff4757;
                                   border: none;
                                   color: white;
@@ -5224,15 +5346,87 @@ const SimpleGridUI: React.FC = () => {
                                   justify-content: center;
                                 }
                                 
-                                .add-item {
-                                  background: #2ed573;
-                                  border: none;
-                                  color: white;
-                                  padding: 6px 10px;
+                                .struct-fields {
+                                  display: grid;
+                                  gap: 8px;
+                                }
+                                
+                                .struct-field {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 4px;
+                                }
+                                
+                                .field-label {
+                                  color: #ccc;
+                                  font-size: 12px;
+                                  font-weight: 500;
+                                }
+                                
+                                .struct-field-input {
+                                  background: #2a2a2a;
+                                  border: 1px solid #444;
                                   border-radius: 3px;
-                                  cursor: pointer;
+                                  padding: 6px 8px;
+                                  color: #fff;
+                                  font-size: 12px;
+                                  transition: border-color 0.2s;
+                                }
+                                
+                                .struct-field-input:focus {
+                                  outline: none;
+                                  border-color: #45b7d1;
+                                  box-shadow: 0 0 0 1px rgba(69, 183, 209, 0.3);
+                                }
+                                
+                                .empty-array {
+                                  text-align: center;
+                                  padding: 20px;
+                                  color: #666;
+                                  font-style: italic;
+                                  border: 1px dashed #3a3a3a;
+                                  border-radius: 4px;
+                                }
+                                
+                                /* Nested struct styles */
+                                .nested-struct {
+                                  background: #1a1a1a;
+                                  border: 1px solid #333;
+                                  border-radius: 4px;
+                                  padding: 8px;
+                                  margin: 4px 0;
+                                }
+                                
+                                .nested-struct-header {
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                  margin-bottom: 8px;
+                                  padding-bottom: 6px;
+                                  border-bottom: 1px solid #333;
+                                }
+                                
+                                .field-name {
+                                  color: #fff;
+                                  font-weight: 500;
+                                  font-size: 12px;
+                                }
+                                
+                                .field-type {
                                   font-size: 11px;
-                                  align-self: flex-start;
+                                  font-family: 'Monaco', monospace;
+                                }
+                                
+                                .nested-struct-fields {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 6px;
+                                }
+                                
+                                .nested-field {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 3px;
                                 }
                                 
                                 /* Tuple styles */
@@ -5498,8 +5692,28 @@ const SimpleGridUI: React.FC = () => {
                     setShowFacetSidebar(true);
                   }}
                   hideUI
-                  onProgressChange={(p) => setFacetProgress(p)}
-                  onLoadingChange={(l) => setFacetLoading(l)}
+                  onProgressChange={(p) => {
+                    setFacetProgress(p);
+                    // Update search progress to show diamond facet loading
+                    if (p?.currentFacet) {
+                      setSearchProgress({
+                        source: "Diamond Facets",
+                        status: p.status === "error" ? "error" : "searching",
+                        message: `Loading facet ${p.current}/${p.total}: ${p.currentFacet}`
+                      });
+                    }
+                  }}
+                  onLoadingChange={(l) => {
+                    setFacetLoading(l);
+                    if (!l) {
+                      // Diamond facet loading completed
+                      setSearchProgress({
+                        source: "Diamond Facets",
+                        status: "found",
+                        message: "All facets loaded successfully"
+                      });
+                    }
+                  }}
                 />
               )}
 
