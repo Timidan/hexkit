@@ -11,6 +11,13 @@ interface InlineFacetLoaderProps {
   diamondAddress: string;
   onFacetsLoaded: (facets: DiamondFacet[]) => void;
   hideUI?: boolean;
+  onProgressChange?: (progress: {
+    current: number;
+    total: number;
+    currentFacet: string;
+    status: "fetching" | "success" | "error";
+  }) => void;
+  onLoadingChange?: (isLoading: boolean) => void;
 }
 
 interface FacetProgress {
@@ -25,6 +32,8 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   diamondAddress,
   onFacetsLoaded,
   hideUI = false,
+  onProgressChange,
+  onLoadingChange,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState<FacetProgress>({
@@ -39,6 +48,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   const loadFacets = useCallback(async () => {
     try {
       setIsLoading(true);
+      onLoadingChange?.(true);
       setError(null);
       setFacets([]);
 
@@ -51,6 +61,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
       if (facetAddresses.length === 0) {
         setError("No facets found for this Diamond contract");
         setIsLoading(false);
+        onLoadingChange?.(false);
         return;
       }
 
@@ -58,22 +69,31 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
       const loadedFacets = await fetchDiamondFacets(
         chain,
         facetAddresses,
-        (progress) => {
-          setProgress(progress);
+        (p) => {
+          setProgress(p);
+          onProgressChange?.(p);
         }
       );
 
       setFacets(loadedFacets);
       onFacetsLoaded(loadedFacets);
       setIsLoading(false);
+      onLoadingChange?.(false);
     } catch (error) {
       console.error("Diamond facet loading failed:", error);
       setError(
         `Failed to load facets: ${error instanceof Error ? error.message : "Unknown error"}`
       );
       setIsLoading(false);
+      onLoadingChange?.(false);
     }
-  }, [chain, diamondAddress, onFacetsLoaded]);
+  }, [
+    chain,
+    diamondAddress,
+    onFacetsLoaded,
+    onProgressChange,
+    onLoadingChange,
+  ]);
 
   const progressPercentage =
     progress.total > 0 ? (progress.current / progress.total) * 100 : 0;

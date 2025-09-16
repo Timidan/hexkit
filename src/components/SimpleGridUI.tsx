@@ -124,6 +124,13 @@ const SimpleGridUI: React.FC = () => {
     ethers.utils.FunctionFragment[]
   >([]);
   const [functionSearch, setFunctionSearch] = useState<string>("");
+  const [facetLoading, setFacetLoading] = useState<boolean>(false);
+  const [facetProgress, setFacetProgress] = useState<{
+    current: number;
+    total: number;
+    currentFacet: string;
+    status: "fetching" | "success" | "error";
+  }>({ current: 0, total: 0, currentFacet: "", status: "fetching" });
 
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
@@ -4827,10 +4834,68 @@ const SimpleGridUI: React.FC = () => {
                     setShowFacetSidebar(true);
                   }}
                   hideUI
+                  onProgressChange={(p) => setFacetProgress(p)}
+                  onLoadingChange={(l) => setFacetLoading(l)}
                 />
               )}
 
               {/* Diamond Facets controls removed to reuse the existing universal function UI */}
+
+              {/* Facet loading progress (slim) */}
+              {isDiamond && facetLoading && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    padding: "8px 10px",
+                    background: "#1c1c1c",
+                    border: "1px solid #333",
+                    borderRadius: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "12px",
+                      color: "#9ca3af",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    <span>Loading diamond facets...</span>
+                    <span>
+                      {facetProgress.current} / {facetProgress.total}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: "6px",
+                      background: "#2a2a2a",
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${facetProgress.total > 0 ? Math.min(100, Math.max(0, (facetProgress.current / facetProgress.total) * 100)) : 0}%`,
+                        height: "100%",
+                        background: "#7c3aed",
+                      }}
+                    />
+                  </div>
+                  {facetProgress.currentFacet && (
+                    <div
+                      style={{
+                        marginTop: "6px",
+                        fontSize: "11px",
+                        color: "#6b7280",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {facetProgress.currentFacet}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
