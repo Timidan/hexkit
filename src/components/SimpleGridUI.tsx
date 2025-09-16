@@ -20,6 +20,7 @@ import {
   type FacetProgressCallback,
 } from "../utils/diamondFacetFetcher";
 import { InlineFacetLoader } from "./InlineFacetLoader";
+import MinimalArgInput from "./MinimalArgInput";
 
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { detectTokenType } from "../utils/universalTokenDetector";
@@ -124,6 +125,7 @@ const SimpleGridUI: React.FC = () => {
     ethers.utils.FunctionFragment[]
   >([]);
   const [functionSearch, setFunctionSearch] = useState<string>("");
+  const [showFunctionSearch, setShowFunctionSearch] = useState<boolean>(false);
   const [facetLoading, setFacetLoading] = useState<boolean>(false);
   const [facetProgress, setFacetProgress] = useState<{
     current: number;
@@ -131,6 +133,51 @@ const SimpleGridUI: React.FC = () => {
     currentFacet: string;
     status: "fetching" | "success" | "error";
   }>({ current: 0, total: 0, currentFacet: "", status: "fetching" });
+
+  // All available functions across all facets for search
+  const allReadFunctions: ethers.utils.FunctionFragment[] = React.useMemo(() => {
+    let allReads = [...readFunctions];
+    if (isDiamond) {
+      diamondFacets.forEach((facet) => {
+        if (Array.isArray(facet.abi)) {
+          (facet.abi as unknown[]).forEach((item) => {
+            const entry = item as { type?: string; stateMutability?: string };
+            if (
+              entry?.type === "function" &&
+              (entry.stateMutability === "view" ||
+                entry.stateMutability === "pure")
+            ) {
+              allReads.push(item as unknown as ethers.utils.FunctionFragment);
+            }
+          });
+        }
+      });
+    }
+    return allReads;
+  }, [readFunctions, isDiamond, diamondFacets]);
+
+  const allWriteFunctions: ethers.utils.FunctionFragment[] = React.useMemo(() => {
+    let allWrites = [...writeFunctions];
+    if (isDiamond) {
+      diamondFacets.forEach((facet) => {
+        if (Array.isArray(facet.abi)) {
+          (facet.abi as unknown[]).forEach((item) => {
+            const entry = item as { type?: string; stateMutability?: string };
+            if (
+              entry?.type === "function" &&
+              !(
+                entry.stateMutability === "view" ||
+                entry.stateMutability === "pure"
+              )
+            ) {
+              allWrites.push(item as unknown as ethers.utils.FunctionFragment);
+            }
+          });
+        }
+      });
+    }
+    return allWrites;
+  }, [writeFunctions, isDiamond, diamondFacets]);
 
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
@@ -156,20 +203,12 @@ const SimpleGridUI: React.FC = () => {
           if (reads.length > 0) base = reads;
         }
       }
-      // search filtering
-      const q = functionSearch.trim().toLowerCase();
-      if (!q) return base;
-      return base.filter((fn) =>
-        `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
-          .toLowerCase()
-          .includes(q)
-      );
+      return base;
     }, [
       isDiamond,
       selectedFacet,
       diamondFacets,
       readFunctions,
-      functionSearch,
     ]);
 
   const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
@@ -196,20 +235,30 @@ const SimpleGridUI: React.FC = () => {
           if (writes.length > 0) base = writes;
         }
       }
-      const q = functionSearch.trim().toLowerCase();
-      if (!q) return base;
-      return base.filter((fn) =>
-        `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
-          .toLowerCase()
-          .includes(q)
-      );
+      return base;
     }, [
       isDiamond,
       selectedFacet,
       diamondFacets,
       writeFunctions,
-      functionSearch,
     ]);
+
+  // Search filtered functions across all facets and all types
+  const searchFilteredFunctions: Array<ethers.utils.FunctionFragment & { functionType: 'read' | 'write' }> = React.useMemo(() => {
+    const q = functionSearch.trim().toLowerCase();
+    if (!q) return [];
+    
+    const allFunctionsWithType = [
+      ...allReadFunctions.map(fn => ({ ...fn, functionType: 'read' as const })),
+      ...allWriteFunctions.map(fn => ({ ...fn, functionType: 'write' as const }))
+    ];
+    
+    return allFunctionsWithType.filter((fn) =>
+      `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [functionSearch, allReadFunctions, allWriteFunctions]);
 
   // ABI fetching functions
   const fetchABIFromSourcery = async (
@@ -2681,7 +2730,7 @@ const SimpleGridUI: React.FC = () => {
 
     if (value && value !== "" && value !== "Select function") {
       const [type, index] = value.split("-");
-      const functions = type === "read" ? readFunctions : writeFunctions;
+      const functions = type === "read" ? filteredReadFunctions : filteredWriteFunctions;
       const func = functions[parseInt(index)];
 
       if (func) {
@@ -2693,11 +2742,15 @@ const SimpleGridUI: React.FC = () => {
         });
         setFunctionInputs(initialInputs);
 
-        // Generate initial calldata with empty parameters
-        const signature = `${func.name}(${func.inputs?.map((input) => input.type).join(",")})`;
-        const emptyParams = new Array(func.inputs?.length || 0).fill("");
-        const calldata = generateCallData(signature, emptyParams);
-        setGeneratedCallData(calldata);
+        // Generate initial calldata with empty parameters using ethers
+        try {
+          const emptyParams = new Array(func.inputs?.length || 0).fill("");
+          const iface = new ethers.utils.Interface([func]);
+          const calldata = iface.encodeFunctionData(func.name, emptyParams);
+          setGeneratedCallData(calldata);
+        } catch (error) {
+          setGeneratedCallData("0x");
+        }
       }
     } else {
       setSelectedFunctionObj(null);
@@ -2707,39 +2760,10 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const updateCallData = useCallback(() => {
-    console.log("🔄 updateCallData called");
-    console.log("🔄 selectedFunctionObj:", selectedFunctionObj?.name);
-    console.log("🔄 functionInputs keys:", Object.keys(functionInputs));
-    console.log("🔄 has ABI:", !!contractInfo?.abi);
-
-    if (selectedFunctionObj && contractInfo?.abi) {
-      const signature = `${selectedFunctionObj.name}(${selectedFunctionObj.inputs?.map((input) => input.type).join(",")})`;
-      console.log("🔄 Function signature:", signature);
-
-      const params =
-        selectedFunctionObj.inputs?.map((input, idx) => {
-          const key = `${selectedFunctionObj.name}_${idx}`;
-          const value = functionInputs[key] || "";
-          console.log(
-            `🔄 Parameter ${idx} (${input.type}): ${key} = "${value}"`
-          );
-          return value;
-        }) || [];
-
-      console.log("🔄 Final params array:", params);
-      const calldata = generateCallData(signature, params);
-      console.log("🔄 Generated calldata:", calldata);
-      console.log("🔄 Setting calldata state...");
-      setGeneratedCallData(calldata);
-    } else {
-      console.log("🔄 Cannot update calldata - missing function or ABI");
-    }
-  }, [
-    selectedFunctionObj,
-    functionInputs,
-    contractInfo?.abi,
-    generateCallData,
-  ]);
+    // This function is no longer needed since calldata is generated 
+    // directly in the EnhancedStructInput onDataChange callback
+    // Keeping it empty to prevent conflicts
+  }, []);
 
   const handleInputChange = (inputKey: string, value: string) => {
     setFunctionInputs((prev) => {
@@ -3115,10 +3139,8 @@ const SimpleGridUI: React.FC = () => {
     }
   }, [contractInfo, contractName, abiSource, tokenInfo, saveContractToStorage]);
 
-  // Update calldata when function inputs change
-  useEffect(() => {
-    updateCallData();
-  }, [functionInputs, selectedFunctionObj]);
+  // Calldata is now updated directly in EnhancedStructInput onDataChange callback
+  // No need for this useEffect anymore
 
   const [savedContracts] = useState<ContractInfo[]>(loadSavedContracts());
   const [showSavedContracts, setShowSavedContracts] = useState(false);
@@ -4363,7 +4385,7 @@ const SimpleGridUI: React.FC = () => {
                 </div>
               )}
 
-              {/* Contract Function Selection - Inside Contract Container */}
+              {/* Function Type Selection - Must come FIRST */}
               {(readFunctions.length > 0 ||
                 writeFunctions.length > 0 ||
                 (isDiamond && diamondFacets.length > 0)) && (
@@ -4374,6 +4396,7 @@ const SimpleGridUI: React.FC = () => {
                     borderTop: "1px solid #333",
                   }}
                 >
+
                   <h4
                     style={{
                       fontSize: "14px",
@@ -4409,26 +4432,14 @@ const SimpleGridUI: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                        {/* Explorer links */}
-                        <a
-                          href={`${
-                            selectedNetwork?.explorers
-                              ?.find((e) => e.type === "blockscout")
-                              ?.url?.replace("/api", "")
-                              ?.replace("/api/", "") ||
-                            selectedNetwork?.blockExplorer
-                          }/address/${contractAddress}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            fontSize: "12px",
-                            color: "#9ca3af",
-                            textDecoration: "underline",
-                          }}
-                        >
-                          Open Diamond
-                        </a>
-                        {selectedFacet && (
+                        {/* Enhanced Explorer links */}
+                        <div style={{
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center",
+                          marginTop: "8px",
+                          flexWrap: "wrap"
+                        }}>
                           <a
                             href={`${
                               selectedNetwork?.explorers
@@ -4436,17 +4447,145 @@ const SimpleGridUI: React.FC = () => {
                                 ?.url?.replace("/api", "")
                                 ?.replace("/api/", "") ||
                               selectedNetwork?.blockExplorer
-                            }/address/${selectedFacet}`}
+                            }/address/${contractAddress}`}
                             target="_blank"
                             rel="noreferrer"
                             style={{
-                              fontSize: "12px",
-                              color: "#9ca3af",
-                              textDecoration: "underline",
+                              fontSize: "11px",
+                              color: "#3b82f6",
+                              textDecoration: "none",
+                              padding: "4px 8px",
+                              background: "rgba(59, 130, 246, 0.1)",
+                              border: "1px solid rgba(59, 130, 246, 0.3)",
+                              borderRadius: "4px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px"
                             }}
                           >
-                            Open Facet
+                            💎 Diamond Contract
                           </a>
+                          
+                          {selectedFacet && (
+                            <a
+                              href={`${
+                                selectedNetwork?.explorers
+                                  ?.find((e) => e.type === "blockscout")
+                                  ?.url?.replace("/api", "")
+                                  ?.replace("/api/", "") ||
+                                selectedNetwork?.blockExplorer
+                              }/address/${selectedFacet}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                fontSize: "11px",
+                                color: "#10b981",
+                                textDecoration: "none",
+                                padding: "4px 8px",
+                                background: "rgba(16, 185, 129, 0.1)",
+                                border: "1px solid rgba(16, 185, 129, 0.3)",
+                                borderRadius: "4px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                            >
+                              🔧 Selected Facet
+                            </a>
+                          )}
+                          
+                          {/* Multiple explorer options */}
+                          {selectedNetwork?.explorers && selectedNetwork.explorers.length > 1 && (
+                            <div style={{
+                              fontSize: "10px",
+                              color: "#888",
+                              display: "flex",
+                              gap: "4px"
+                            }}>
+                              |
+                              {selectedNetwork.explorers.map((explorer, index) => (
+                                <a
+                                  key={index}
+                                  href={`${explorer.url?.replace("/api", "")?.replace("/api/", "")}/address/${selectedFacet || contractAddress}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{
+                                    color: "#6b7280",
+                                    textDecoration: "underline",
+                                    fontSize: "10px"
+                                  }}
+                                >
+                                  {explorer.name}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Unverified Facet ABI Paste */}
+                        {selectedFacet && (
+                          (() => {
+                            const facet = diamondFacets.find(
+                              (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+                            );
+                            return facet && !facet.isVerified ? (
+                              <div style={{
+                                marginTop: "12px",
+                                padding: "12px",
+                                background: "rgba(245, 158, 11, 0.1)",
+                                border: "1px solid rgba(245, 158, 11, 0.3)",
+                                borderRadius: "6px"
+                              }}>
+                                <div style={{
+                                  fontSize: "12px",
+                                  color: "#fbbf24",
+                                  marginBottom: "8px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px"
+                                }}>
+                                  ⚠️ Unverified Facet - Paste ABI Below
+                                </div>
+                                <textarea
+                                  placeholder="Paste the facet ABI JSON here..."
+                                  style={{
+                                    width: "100%",
+                                    height: "80px",
+                                    background: "#1a1a1a",
+                                    border: "1px solid #444",
+                                    borderRadius: "4px",
+                                    color: "#e5e7eb",
+                                    fontSize: "11px",
+                                    fontFamily: "monospace",
+                                    padding: "8px",
+                                    resize: "vertical"
+                                  }}
+                                  onChange={(e) => {
+                                    try {
+                                      const abiJson = JSON.parse(e.target.value);
+                                      if (Array.isArray(abiJson)) {
+                                        // Update the facet with the pasted ABI
+                                        setDiamondFacets(prev => prev.map(f => 
+                                          f.address.toLowerCase() === selectedFacet.toLowerCase()
+                                            ? { ...f, abi: abiJson, isVerified: true, source: "Manual Paste" }
+                                            : f
+                                        ));
+                                      }
+                                    } catch (error) {
+                                      // Invalid JSON, ignore
+                                    }
+                                  }}
+                                />
+                                <div style={{
+                                  fontSize: "10px",
+                                  color: "#888",
+                                  marginTop: "4px"
+                                }}>
+                                  💡 Paste valid ABI JSON to enable function calls
+                                </div>
+                              </div>
+                            ) : null;
+                          })()
                         )}
                       </>
                     )}
@@ -4638,18 +4777,226 @@ const SimpleGridUI: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Function Dropdown */}
-                      {selectedFunctionType && (
+
+                      {/* Search Popup */}
+                      {showFunctionSearch && (
+                        <div style={{ position: "relative", marginBottom: "12px" }}>
+                          {/* Search Popup */}
+                          {showFunctionSearch && (
+                            <>
+                              {/* Backdrop */}
+                              <div
+                                style={{
+                                  position: "fixed",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  background: "rgba(0, 0, 0, 0.5)",
+                                  zIndex: 1000
+                                }}
+                                onClick={() => {
+                                  setShowFunctionSearch(false);
+                                  setFunctionSearch("");
+                                }}
+                              />
+                              {/* Compact Search Popup */}
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  right: 0,
+                                  background: "#1a1a1a",
+                                  border: "1px solid #444",
+                                  borderRadius: "6px",
+                                  padding: "12px",
+                                  minWidth: "300px",
+                                  maxWidth: "400px",
+                                  maxHeight: "300px",
+                                  zIndex: 1001,
+                                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)"
+                                }}
+                              >
+                                <input
+                                  type="text"
+                                  placeholder="Search all functions..."
+                                  value={functionSearch}
+                                  onChange={(e) => setFunctionSearch(e.target.value)}
+                                  style={{
+                                    width: "100%",
+                                    padding: "8px 10px",
+                                    background: "#0a0a0a",
+                                    border: "1px solid #444",
+                                    borderRadius: "4px",
+                                    color: "#e5e7eb",
+                                    fontSize: "12px",
+                                    marginBottom: "8px"
+                                  }}
+                                  autoFocus
+                                />
+                                
+                                {/* Results */}
+                                <div style={{
+                                  maxHeight: "200px",
+                                  overflowY: "auto"
+                                }}>
+                                  {searchFilteredFunctions.length > 0 ? (
+                                    searchFilteredFunctions.map((func, index) => (
+                                      <div
+                                        key={`search-result-${index}`}
+                                        style={{
+                                          padding: "6px 8px",
+                                          background: "#2a2a2a",
+                                          border: "1px solid #333",
+                                          borderRadius: "3px",
+                                          marginBottom: "4px",
+                                          cursor: "pointer",
+                                          transition: "all 0.2s ease"
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = "#3a3a3a";
+                                          e.currentTarget.style.borderColor = "#555";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = "#2a2a2a";
+                                          e.currentTarget.style.borderColor = "#333";
+                                        }}
+                                        onClick={() => {
+                                          // Set the function type based on the search result
+                                          setSelectedFunctionType(func.functionType);
+                                          
+                                          // For diamond contracts, we need to find the right facet first
+                                          if (isDiamond) {
+                                            // Find which facet contains this function
+                                            let foundFacet = null;
+                                            diamondFacets.forEach((facet) => {
+                                              if (Array.isArray(facet.abi)) {
+                                                const hasFunction = (facet.abi as unknown[]).some((item) => {
+                                                  const entry = item as { type?: string; name?: string; stateMutability?: string };
+                                                  const isMatchingType = func.functionType === 'read' 
+                                                    ? (entry.stateMutability === "view" || entry.stateMutability === "pure")
+                                                    : !(entry.stateMutability === "view" || entry.stateMutability === "pure");
+                                                  return entry?.type === "function" && entry?.name === func.name && isMatchingType;
+                                                });
+                                                if (hasFunction) {
+                                                  foundFacet = facet;
+                                                }
+                                              }
+                                            });
+                                            
+                                            // Select the facet if found
+                                            if (foundFacet) {
+                                              setSelectedFacet(foundFacet.address);
+                                            }
+                                          }
+                                          
+                                          // Wait for state updates, then find the function in the correct list
+                                          setTimeout(() => {
+                                            const currentFunctions = func.functionType === 'read' ? filteredReadFunctions : filteredWriteFunctions;
+                                            const funcIndex = currentFunctions.findIndex(f => f.name === func.name);
+                                            if (funcIndex >= 0) {
+                                              const functionKey = `${func.functionType}-${funcIndex}`;
+                                              // Set the dropdown value immediately
+                                              setSelectedFunction(functionKey);
+                                              handleFunctionSelect(functionKey);
+                                            }
+                                          }, 50);
+                                          
+                                          setShowFunctionSearch(false);
+                                          setFunctionSearch("");
+                                        }}
+                                      >
+                                        <div style={{
+                                          display: "flex",
+                                          justifyContent: "space-between",
+                                          alignItems: "center",
+                                          marginBottom: "2px"
+                                        }}>
+                                          <div style={{
+                                            fontWeight: "500",
+                                            color: "#e5e7eb",
+                                            fontSize: "11px"
+                                          }}>
+                                            {func.name}
+                                          </div>
+                                          <div style={{
+                                            fontSize: "9px",
+                                            padding: "1px 4px",
+                                            borderRadius: "2px",
+                                            background: func.functionType === 'read' ? "#22c55e20" : "#f59e0b20",
+                                            color: func.functionType === 'read' ? "#22c55e" : "#f59e0b",
+                                            border: `1px solid ${func.functionType === 'read' ? "#22c55e40" : "#f59e0b40"}`
+                                          }}>
+                                            {func.functionType === 'read' ? '📖 READ' : '✍️ WRITE'}
+                                          </div>
+                                        </div>
+                                        <div style={{
+                                          fontSize: "10px",
+                                          color: "#888",
+                                          fontFamily: "monospace"
+                                        }}>
+                                          ({func.inputs?.map((input: { type: string }) => input.type).join(", ")})
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : functionSearch ? (
+                                    <div style={{
+                                      padding: "12px",
+                                      textAlign: "center",
+                                      color: "#888",
+                                      fontSize: "11px"
+                                    }}>
+                                      No functions found
+                                    </div>
+                                  ) : (
+                                    <div style={{
+                                      padding: "12px",
+                                      textAlign: "center",
+                                      color: "#888",
+                                      fontSize: "11px"
+                                    }}>
+                                      Type to search across all facets...
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Function Dropdown - Show when functions are available */}
+                      {(allReadFunctions.length > 0 || allWriteFunctions.length > 0) && (
                         <div style={{ marginBottom: "12px" }}>
                           <label
                             style={{
-                              display: "block",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
                               fontSize: "12px",
                               color: "#ccc",
                               marginBottom: "6px",
                             }}
                           >
-                            Select Function
+                            <span>Select Function</span>
+                            <div 
+                              onClick={() => setShowFunctionSearch(true)}
+                              style={{
+                                cursor: "pointer",
+                                color: "#60a5fa",
+                                padding: "2px",
+                                borderRadius: "3px",
+                                transition: "all 0.2s ease"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(59, 130, 246, 0.2)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "transparent";
+                              }}
+                            >
+                              <Search size={14} />
+                            </div>
                           </label>
                           <select
                             style={{ ...inputStyle, fontSize: "12px" }}
@@ -4695,7 +5042,7 @@ const SimpleGridUI: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Function Parameters */}
+                      {/* Enhanced Function Parameters */}
                       {selectedFunctionObj &&
                         selectedFunctionObj.inputs &&
                         selectedFunctionObj.inputs.length > 0 && (
@@ -4705,46 +5052,280 @@ const SimpleGridUI: React.FC = () => {
                                 display: "block",
                                 fontSize: "12px",
                                 color: "#ccc",
-                                marginBottom: "6px",
+                                marginBottom: "8px",
+                                fontWeight: "600"
                               }}
                             >
                               Function Parameters
                             </label>
-                            {selectedFunctionObj.inputs.map((input, idx) => (
-                              <div key={idx} style={{ marginBottom: "8px" }}>
-                                <label
-                                  style={{
-                                    display: "block",
-                                    fontSize: "11px",
-                                    color: "#999",
-                                    marginBottom: "4px",
-                                  }}
-                                >
-                                  {input.name || `param${idx}`} ({input.type})
-                                </label>
-                                <input
-                                  type="text"
-                                  placeholder={`Enter ${input.type} value`}
-                                  value={
-                                    functionInputs[
-                                      `${selectedFunctionObj.name}_${idx}`
-                                    ] || ""
+                            <div style={{
+                              background: "#1a1a1a",
+                              border: "1px solid #333",
+                              borderRadius: "6px",
+                              padding: "0",
+                              marginBottom: "8px",
+                              overflow: "hidden"
+                            }}>
+                              <style>{`
+                                .minimal-arg-input {
+                                  background: transparent;
+                                  border: none;
+                                  border-radius: 0;
+                                  padding: 16px;
+                                }
+                                
+                                .arg-header {
+                                  display: flex;
+                                  justify-content: space-between;
+                                  align-items: center;
+                                  margin-bottom: 16px;
+                                  padding-bottom: 8px;
+                                  border-bottom: 1px solid #333;
+                                }
+                                
+                                .arg-count {
+                                  color: #999;
+                                  font-size: 12px;
+                                  font-weight: 500;
+                                }
+                                
+                                .arg-actions {
+                                  display: flex;
+                                  gap: 8px;
+                                }
+                                
+                                .sample-btn, .clear-btn {
+                                  background: #2a2a2a;
+                                  border: 1px solid #444;
+                                  color: #ccc;
+                                  padding: 4px 10px;
+                                  border-radius: 4px;
+                                  font-size: 11px;
+                                  cursor: pointer;
+                                  transition: all 0.2s;
+                                }
+                                
+                                .sample-btn:hover {
+                                  background: #45b7d1;
+                                  border-color: #45b7d1;
+                                  color: #fff;
+                                }
+                                
+                                .clear-btn:hover {
+                                  background: #ff6b6b;
+                                  border-color: #ff6b6b;
+                                  color: #fff;
+                                }
+                                
+                                .arg-list {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 12px;
+                                }
+                                
+                                .arg-row {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 6px;
+                                }
+                                
+                                .arg-label {
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                }
+                                
+                                .arg-name {
+                                  color: #fff;
+                                  font-weight: 500;
+                                  font-size: 13px;
+                                }
+                                
+                                .arg-type {
+                                  font-size: 11px;
+                                  padding: 2px 6px;
+                                  border-radius: 3px;
+                                  background: rgba(255,255,255,0.1);
+                                  font-family: 'Monaco', monospace;
+                                  font-weight: 400;
+                                }
+                                
+                                .arg-input, .bool-input {
+                                  background: #2a2a2a;
+                                  border: 1px solid #444;
+                                  border-radius: 4px;
+                                  padding: 8px 10px;
+                                  color: #fff;
+                                  font-size: 13px;
+                                  transition: border-color 0.2s;
+                                }
+                                
+                                .arg-input:focus, .bool-input:focus {
+                                  outline: none;
+                                  border-color: #45b7d1;
+                                  box-shadow: 0 0 0 1px rgba(69, 183, 209, 0.3);
+                                }
+                                
+                                .arg-input::placeholder {
+                                  color: #666;
+                                }
+                                
+                                .bool-input {
+                                  cursor: pointer;
+                                }
+                                
+                                /* Array styles */
+                                .array-row {
+                                  background: rgba(255,255,255,0.02);
+                                  border: 1px solid #333;
+                                  border-radius: 4px;
+                                  padding: 12px;
+                                }
+                                
+                                .array-input {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 8px;
+                                }
+                                
+                                .array-items {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 6px;
+                                }
+                                
+                                .array-item {
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                }
+                                
+                                .array-item-input {
+                                  flex: 1;
+                                  background: #333;
+                                  border: 1px solid #444;
+                                  border-radius: 3px;
+                                  padding: 6px 8px;
+                                  color: #fff;
+                                  font-size: 12px;
+                                }
+                                
+                                .remove-item {
+                                  background: #ff4757;
+                                  border: none;
+                                  color: white;
+                                  width: 20px;
+                                  height: 20px;
+                                  border-radius: 3px;
+                                  cursor: pointer;
+                                  font-size: 12px;
+                                  display: flex;
+                                  align-items: center;
+                                  justify-content: center;
+                                }
+                                
+                                .add-item {
+                                  background: #2ed573;
+                                  border: none;
+                                  color: white;
+                                  padding: 6px 10px;
+                                  border-radius: 3px;
+                                  cursor: pointer;
+                                  font-size: 11px;
+                                  align-self: flex-start;
+                                }
+                                
+                                /* Tuple styles */
+                                .tuple-row {
+                                  background: rgba(255,255,255,0.02);
+                                  border: 1px solid #333;
+                                  border-radius: 4px;
+                                  padding: 12px;
+                                }
+                                
+                                .tuple-inputs {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 8px;
+                                }
+                                
+                                .tuple-field {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 3px;
+                                }
+                                
+                                .tuple-field-label {
+                                  color: #aaa;
+                                  font-size: 11px;
+                                  font-weight: 500;
+                                }
+                                
+                                .tuple-field-input {
+                                  background: #333;
+                                  border: 1px solid #444;
+                                  border-radius: 3px;
+                                  padding: 6px 8px;
+                                  color: #fff;
+                                  font-size: 12px;
+                                }
+                                
+                                .no-args {
+                                  text-align: center;
+                                  padding: 20px;
+                                  color: #666;
+                                  font-size: 13px;
+                                }
+                              `}</style>
+                              <MinimalArgInput
+                                abi={(() => {
+                                  // Determine correct ABI to use
+                                  if (!contractInfo?.abi) return [];
+                                  
+                                  let abi = contractInfo.abi;
+                                  
+                                  // If Diamond and facet selected, use facet ABI
+                                  if (isDiamond && selectedFacet) {
+                                    const facet = diamondFacets.find(f => f.address.toLowerCase() === selectedFacet.toLowerCase());
+                                    if (facet?.abi) {
+                                      abi = Array.isArray(facet.abi) ? JSON.stringify(facet.abi) : facet.abi as string;
+                                    }
                                   }
-                                  onChange={(e) =>
-                                    handleInputChange(
-                                      `${selectedFunctionObj.name}_${idx}`,
-                                      e.target.value
-                                    )
+                                  
+                                  try {
+                                    return Array.isArray(abi) ? abi : JSON.parse(abi);
+                                  } catch {
+                                    return [];
                                   }
-                                  style={{
-                                    ...inputStyle,
-                                    fontSize: "11px",
-                                    padding: "6px 8px",
-                                    marginBottom: "0",
-                                  }}
-                                />
-                              </div>
-                            ))}
+                                })()}
+                                functionName={selectedFunctionObj.name}
+                                onDataChange={(data) => {
+                                  // Convert array data to the format expected by calldata generation
+                                  const newInputs: { [key: string]: string } = {};
+                                  selectedFunctionObj.inputs.forEach((input: any, idx: number) => {
+                                    newInputs[`${selectedFunctionObj.name}_${idx}`] = 
+                                      typeof data[idx] === 'object' 
+                                        ? JSON.stringify(data[idx]) 
+                                        : String(data[idx] || '');
+                                  });
+                                  setFunctionInputs(newInputs);
+                                  // Auto-generate calldata when parameters change
+                                  if (selectedFunctionObj) {
+                                    try {
+                                      const iface = new ethers.utils.Interface([selectedFunctionObj]);
+                                      const calldata = iface.encodeFunctionData(selectedFunctionObj.name, data);
+                                      setGeneratedCallData(calldata);
+                                    } catch (error) {
+                                      console.log("Calldata generation failed:", error);
+                                      setGeneratedCallData("0x");
+                                    }
+                                  }
+                                }}
+                                initialData={selectedFunctionObj.inputs.map((_: any, idx: number) => 
+                                  functionInputs[`${selectedFunctionObj.name}_${idx}`] || ''
+                                )}
+                              />
+                            </div>
                           </div>
                         )}
 
@@ -4820,6 +5401,89 @@ const SimpleGridUI: React.FC = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Function Execution Section */}
+                      {selectedFunctionObj && (
+                        <div style={{ marginTop: "20px" }}>
+                          <div style={{
+                            display: "flex",
+                            gap: "12px",
+                            alignItems: "center",
+                            marginBottom: "12px"
+                          }}>
+                            <button
+                              style={{
+                                padding: "10px 16px",
+                                background: selectedFunctionType === 'read' 
+                                  ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
+                                  : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                border: "none",
+                                borderRadius: "6px",
+                                color: "white",
+                                fontWeight: "600",
+                                fontSize: "14px",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                flex: 1
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                              onClick={() => {
+                                // Function execution temporarily disabled - needs proper wallet integration
+                                alert(`Function execution ready: ${selectedFunction}\n\nWallet integration needed to complete.`);
+                              }}
+                            >
+                              <Play size={16} />
+                              {selectedFunctionType === 'read' ? 'Call Function' : 'Send Transaction'}
+                            </button>
+                            
+                            {selectedFunctionType === 'write' && (
+                              <button
+                                style={{
+                                  padding: "10px 12px",
+                                  background: "rgba(99, 102, 241, 0.2)",
+                                  border: "1px solid rgba(99, 102, 241, 0.4)",
+                                  borderRadius: "6px",
+                                  color: "#a5b4fc",
+                                  fontSize: "12px",
+                                  cursor: "pointer",
+                                  transition: "all 0.2s ease"
+                                }}
+                                onClick={() => {
+                                  // Gas estimation temporarily disabled - needs proper wallet integration
+                                  alert("Gas estimation ready - wallet integration needed to complete.");
+                                }}
+                              >
+                                Estimate Gas
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Wallet connection reminder */}
+                          <div style={{
+                            padding: "8px 12px",
+                            background: "rgba(59, 130, 246, 0.1)",
+                            border: "1px solid rgba(59, 130, 246, 0.3)",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            color: "#93c5fd",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px"
+                          }}>
+                            💡 Connect your wallet in the header to execute transactions
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -5,6 +5,7 @@ import "./App.css";
 import { Wrench, Hash, Zap } from "lucide-react";
 import AnimatedInput from "./components/ui/AnimatedInput";
 import AnimatedButton from "./components/ui/AnimatedButton";
+import RainbowKitWallet from "./components/RainbowKitWallet";
 // import PageTransition from "./components/ui/PageTransition";
 // import DynamicWalletButton from "./components/DynamicWalletButton";
 import "./styles/AnimatedInput.css";
@@ -83,7 +84,7 @@ function App() {
               <p>Ethereum Development Tools</p>
             </div>
             <div className="header-wallet">
-              {/* Wallet connection only needed for write transactions - keep clean */}
+              <RainbowKitWallet />
             </div>
           </div>
         </header>

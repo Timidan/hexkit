@@ -7,7 +7,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react({
-        fastRefresh: true,
         include: "**/*.{jsx,tsx}",
       }),
     ],
@@ -16,6 +15,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       global: "globalThis",
+      "process.env": JSON.stringify({}),
       "import.meta.env.API_KEY": JSON.stringify(env.API_KEY),
       "import.meta.env.VITE_API_KEY": JSON.stringify(env.VITE_API_KEY),
     },

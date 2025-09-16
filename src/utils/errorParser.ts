@@ -1,119 +1,177 @@
-// Error message parsing utilities for better user experience
+/**
+ * Enhanced error parsing for better user experience
+ * Converts technical blockchain errors into human-readable messages
+ */
 
 export interface ParsedError {
-  type: 'REVERT' | 'GAS' | 'NETWORK' | 'WALLET' | 'UNKNOWN';
-  title: string;
+  type: 'revert' | 'gas' | 'network' | 'auth' | 'validation' | 'unknown';
   message: string;
-  details?: string;
+  originalError?: string;
   suggestion?: string;
 }
 
-export const parseTransactionError = (error: any): ParsedError => {
-  const errorString = error?.message || error?.toString() || 'Unknown error';
-  
-  // Extract revert reason from various error formats
-  const revertReason = extractRevertReason(errorString);
-  if (revertReason) {
-    return {
-      type: 'REVERT',
-      title: 'Transaction Reverted',
-      message: revertReason,
-      details: revertReason
-    };
+export const parseErrorMessage = (error: any): string => {
+  const parsed = parseError(error);
+  return parsed.message;
+};
+
+export const parseError = (error: any): ParsedError => {
+  let errorMessage = '';
+  let errorType: ParsedError['type'] = 'unknown';
+  let suggestion = '';
+
+  // Extract error message from various error formats
+  if (typeof error === 'string') {
+    errorMessage = error;
+  } else if (error?.message) {
+    errorMessage = error.message;
+  } else if (error?.error?.message) {
+    errorMessage = error.error.message;
+  } else if (error?.data?.message) {
+    errorMessage = error.data.message;
+  } else {
+    errorMessage = 'Unknown error occurred';
   }
 
-  // Gas estimation errors
-  if (errorString.includes('cannot estimate gas') || error?.code === 'UNPREDICTABLE_GAS_LIMIT') {
-    const gasRevertReason = extractRevertReason(errorString);
-    return {
-      type: 'GAS',
-      title: 'Gas Estimation Failed',
-      message: gasRevertReason || 'Transaction will likely fail',
-      details: errorString
-    };
+  const originalError = errorMessage;
+
+  // Parse common error patterns
+  if (errorMessage.includes('execution reverted')) {
+    errorType = 'revert';
+    
+    // Extract revert reason if available
+    const revertMatch = errorMessage.match(/execution reverted:?\s*(.+?)(?:\s*\(|$)/i);
+    if (revertMatch && revertMatch[1]) {
+      errorMessage = `Contract reverted: ${revertMatch[1].trim()}`;
+    } else {
+      errorMessage = 'Contract execution reverted (no reason provided)';
+    }
+    suggestion = 'Check function parameters and contract state requirements';
+    
+  } else if (errorMessage.includes('insufficient funds') || errorMessage.includes('insufficient balance')) {
+    errorType = 'gas';
+    errorMessage = 'Insufficient funds to cover gas costs';
+    suggestion = 'Add more ETH to your wallet to cover transaction fees';
+    
+  } else if (errorMessage.includes('gas required exceeds allowance') || errorMessage.includes('out of gas')) {
+    errorType = 'gas';
+    errorMessage = 'Transaction ran out of gas';
+    suggestion = 'Increase the gas limit for this transaction';
+    
+  } else if (errorMessage.includes('gas price too low')) {
+    errorType = 'gas';
+    errorMessage = 'Gas price is too low';
+    suggestion = 'Increase the gas price to speed up transaction processing';
+    
+  } else if (errorMessage.includes('nonce too low')) {
+    errorType = 'validation';
+    errorMessage = 'Transaction nonce is too low (already used)';
+    suggestion = 'Wait for pending transactions to complete or reset your wallet';
+    
+  } else if (errorMessage.includes('nonce too high')) {
+    errorType = 'validation';
+    errorMessage = 'Transaction nonce is too high';
+    suggestion = 'Check for pending transactions or reset your wallet';
+    
+  } else if (errorMessage.includes('user rejected') || errorMessage.includes('user denied')) {
+    errorType = 'auth';
+    errorMessage = 'Transaction was rejected by user';
+    suggestion = 'Approve the transaction in your wallet to proceed';
+    
+  } else if (errorMessage.includes('network changed') || errorMessage.includes('chain mismatch')) {
+    errorType = 'network';
+    errorMessage = 'Wrong network selected';
+    suggestion = 'Switch to the correct network in your wallet';
+    
+  } else if (errorMessage.includes('contract not found') || errorMessage.includes('no code at address')) {
+    errorType = 'validation';
+    errorMessage = 'Contract not found at this address';
+    suggestion = 'Verify the contract address and selected network';
+    
+  } else if (errorMessage.includes('invalid address')) {
+    errorType = 'validation';
+    errorMessage = 'Invalid contract address format';
+    suggestion = 'Check that the address is a valid Ethereum address';
+    
+  } else if (errorMessage.includes('function not found') || errorMessage.includes('function does not exist')) {
+    errorType = 'validation';
+    errorMessage = 'Function not found in contract';
+    suggestion = 'Verify the function exists in the contract ABI';
+    
+  } else if (errorMessage.includes('invalid argument') || errorMessage.includes('invalid parameter')) {
+    errorType = 'validation';
+    errorMessage = 'Invalid function parameters';
+    suggestion = 'Check parameter types and values match the function signature';
+    
+  } else if (errorMessage.includes('timeout') || errorMessage.includes('request timeout')) {
+    errorType = 'network';
+    errorMessage = 'Network request timed out';
+    suggestion = 'Check your internet connection and try again';
+    
+  } else if (errorMessage.includes('rate limit') || errorMessage.includes('too many requests')) {
+    errorType = 'network';
+    errorMessage = 'API rate limit exceeded';
+    suggestion = 'Wait a moment before trying again';
+    
+  } else if (errorMessage.includes('replacement transaction underpriced')) {
+    errorType = 'gas';
+    errorMessage = 'Replacement transaction gas price too low';
+    suggestion = 'Increase gas price to replace the pending transaction';
+    
+  } else if (errorMessage.includes('transaction underpriced')) {
+    errorType = 'gas';
+    errorMessage = 'Transaction gas price too low';
+    suggestion = 'Increase the gas price for faster processing';
   }
 
-  // Network errors
-  if (errorString.includes('network') || errorString.includes('connection') || error?.code === 'NETWORK_ERROR') {
-    return {
-      type: 'NETWORK',
-      title: 'Network Error',
-      message: 'Failed to connect to blockchain',
-      details: errorString
-    };
-  }
+  // Clean up common technical prefixes
+  errorMessage = errorMessage
+    .replace(/^Error:\s*/i, '')
+    .replace(/^MetaMask\s*-?\s*/i, '')
+    .replace(/^WalletConnect\s*-?\s*/i, '')
+    .replace(/^ethers\s*-?\s*/i, '');
 
-  // Wallet errors
-  if (errorString.includes('user rejected') || errorString.includes('denied') || error?.code === 4001) {
-    return {
-      type: 'WALLET',
-      title: 'Transaction Cancelled',
-      message: 'User cancelled the transaction'
-    };
-  }
-
-  if (errorString.includes('insufficient funds')) {
-    return {
-      type: 'WALLET',
-      title: 'Insufficient Funds',
-      message: 'Not enough ETH to complete transaction'
-    };
-  }
-
-  // Fallback for unknown errors
   return {
-    type: 'UNKNOWN',
-    title: 'Transaction Error',
-    message: errorString.length > 100 ? errorString.substring(0, 100) + '...' : errorString,
-    details: errorString
+    type: errorType,
+    message: errorMessage,
+    originalError,
+    suggestion
   };
 };
 
-const extractRevertReason = (errorString: string): string | null => {
-  // Pattern 1: execution reverted: {reason}
-  const revertMatch = errorString.match(/execution reverted: (.+?)(?:\s*\[|$)/);
-  if (revertMatch) {
-    return revertMatch[1].trim();
+export const getErrorSeverity = (errorType: ParsedError['type']): 'low' | 'medium' | 'high' => {
+  switch (errorType) {
+    case 'auth':
+      return 'low'; // User choice
+    case 'validation':
+    case 'gas':
+      return 'medium'; // User can fix
+    case 'network':
+    case 'revert':
+    case 'unknown':
+      return 'high'; // Requires investigation
+    default:
+      return 'medium';
   }
-
-  // Pattern 2: revert {reason}
-  const revertMatch2 = errorString.match(/revert (.+?)(?:\s*\[|$)/);
-  if (revertMatch2) {
-    return revertMatch2[1].trim();
-  }
-
-  // Pattern 3: reason="{reason}"
-  const reasonMatch = errorString.match(/reason="([^"]+)"/);
-  if (reasonMatch) {
-    return reasonMatch[1].trim();
-  }
-
-  // Pattern 4: Look for common error messages
-  const commonErrors = [
-    'transfer amount exceeds balance',
-    'insufficient allowance',
-    'transfer to the zero address',
-    'burn amount exceeds balance',
-    'approve to the zero address',
-    'ERC20: transfer from the zero address',
-    'ERC20: mint to the zero address',
-    'SafeMath: subtraction overflow',
-    'SafeMath: addition overflow',
-    'Ownable: caller is not the owner',
-    'Pausable: paused',
-    'not authorized'
-  ];
-
-  for (const commonError of commonErrors) {
-    if (errorString.toLowerCase().includes(commonError.toLowerCase())) {
-      return commonError;
-    }
-  }
-
-  return null;
 };
 
-
-export const formatErrorForUser = (parsedError: ParsedError): string => {
-  return parsedError.message;
+export const getErrorColor = (errorType: ParsedError['type']): string => {
+  switch (errorType) {
+    case 'auth':
+      return '#fbbf24'; // Amber - user action needed
+    case 'validation':
+    case 'gas':
+      return '#f59e0b'; // Orange - user error
+    case 'network':
+      return '#3b82f6'; // Blue - network issue
+    case 'revert':
+      return '#ef4444'; // Red - contract error
+    case 'unknown':
+    default:
+      return '#6b7280'; // Gray - unknown
+  }
 };
+
+// Legacy function names for backward compatibility
+export const parseTransactionError = parseErrorMessage;
+export const formatErrorForUser = parseErrorMessage;
