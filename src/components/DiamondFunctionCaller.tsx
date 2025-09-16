@@ -13,6 +13,10 @@ import {
   Wallet,
 } from "lucide-react";
 import type { Chain } from "../types";
+import {
+  parseTransactionError,
+  formatErrorForUser,
+} from "../utils/errorParser";
 
 interface FunctionCall {
   name: string;
@@ -445,30 +449,11 @@ const DiamondFunctionCaller: React.FC<Props> = ({
     } catch (error: unknown) {
       console.error(`❌ Error executing ${func.name}:`, error);
 
-      let errorMessage =
-        (error instanceof Error ? error.message : String(error)) ||
-        "Unknown error occurred";
-
-      // Parse common error types
-      if ((error as { code?: number }).code === 4001) {
-        errorMessage = "Transaction rejected by user";
-      } else if ((error as { code?: number }).code === -32603) {
-        errorMessage = "Transaction failed - check contract requirements";
-      } else if ((error as { reason?: string }).reason) {
-        errorMessage = `Contract reverted: ${(error as { reason?: string }).reason}`;
-      } else if (
-        (error as { data?: { message?: string } }).data &&
-        (error as { data?: { message?: string } }).data!.message
-      ) {
-        errorMessage = (error as { data?: { message?: string } }).data!
-          .message!;
-      }
-
       setCallResults((prev) => ({
         ...prev,
         [functionKey]: {
           success: false,
-          error: errorMessage,
+          error: formatErrorForUser(parseTransactionError(error)),
         },
       }));
     } finally {

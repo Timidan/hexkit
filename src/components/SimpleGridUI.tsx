@@ -123,49 +123,86 @@ const SimpleGridUI: React.FC = () => {
   const [writeFunctions, setWriteFunctions] = useState<
     ethers.utils.FunctionFragment[]
   >([]);
+  const [functionSearch, setFunctionSearch] = useState<string>("");
 
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
-      if (!isDiamond || !selectedFacet) return readFunctions;
-      const facet = diamondFacets.find(
-        (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
-      );
-      if (!facet || !Array.isArray(facet.abi)) return readFunctions;
-      const reads: ethers.utils.FunctionFragment[] = [];
-      (facet.abi as unknown[]).forEach((item) => {
-        const entry = item as { type?: string; stateMutability?: string };
-        if (
-          entry?.type === "function" &&
-          (entry.stateMutability === "view" || entry.stateMutability === "pure")
-        ) {
-          reads.push(item as unknown as ethers.utils.FunctionFragment);
+      // facet filtering
+      let base = readFunctions;
+      if (isDiamond && selectedFacet) {
+        const facet = diamondFacets.find(
+          (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+        );
+        if (facet && Array.isArray(facet.abi)) {
+          const reads: ethers.utils.FunctionFragment[] = [];
+          (facet.abi as unknown[]).forEach((item) => {
+            const entry = item as { type?: string; stateMutability?: string };
+            if (
+              entry?.type === "function" &&
+              (entry.stateMutability === "view" ||
+                entry.stateMutability === "pure")
+            ) {
+              reads.push(item as unknown as ethers.utils.FunctionFragment);
+            }
+          });
+          if (reads.length > 0) base = reads;
         }
-      });
-      return reads.length > 0 ? reads : readFunctions;
-    }, [isDiamond, selectedFacet, diamondFacets, readFunctions]);
+      }
+      // search filtering
+      const q = functionSearch.trim().toLowerCase();
+      if (!q) return base;
+      return base.filter((fn) =>
+        `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
+          .toLowerCase()
+          .includes(q)
+      );
+    }, [
+      isDiamond,
+      selectedFacet,
+      diamondFacets,
+      readFunctions,
+      functionSearch,
+    ]);
 
   const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
-      if (!isDiamond || !selectedFacet) return writeFunctions;
-      const facet = diamondFacets.find(
-        (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
-      );
-      if (!facet || !Array.isArray(facet.abi)) return writeFunctions;
-      const writes: ethers.utils.FunctionFragment[] = [];
-      (facet.abi as unknown[]).forEach((item) => {
-        const entry = item as { type?: string; stateMutability?: string };
-        if (
-          entry?.type === "function" &&
-          !(
-            entry.stateMutability === "view" || entry.stateMutability === "pure"
-          )
-        ) {
-          writes.push(item as unknown as ethers.utils.FunctionFragment);
+      let base = writeFunctions;
+      if (isDiamond && selectedFacet) {
+        const facet = diamondFacets.find(
+          (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+        );
+        if (facet && Array.isArray(facet.abi)) {
+          const writes: ethers.utils.FunctionFragment[] = [];
+          (facet.abi as unknown[]).forEach((item) => {
+            const entry = item as { type?: string; stateMutability?: string };
+            if (
+              entry?.type === "function" &&
+              !(
+                entry.stateMutability === "view" ||
+                entry.stateMutability === "pure"
+              )
+            ) {
+              writes.push(item as unknown as ethers.utils.FunctionFragment);
+            }
+          });
+          if (writes.length > 0) base = writes;
         }
-      });
-      return writes.length > 0 ? writes : writeFunctions;
-    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions]);
+      }
+      const q = functionSearch.trim().toLowerCase();
+      if (!q) return base;
+      return base.filter((fn) =>
+        `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
+          .toLowerCase()
+          .includes(q)
+      );
+    }, [
+      isDiamond,
+      selectedFacet,
+      diamondFacets,
+      writeFunctions,
+      functionSearch,
+    ]);
 
   // ABI fetching functions
   const fetchABIFromSourcery = async (
@@ -4365,23 +4402,45 @@ const SimpleGridUI: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                        <select
-                          value={selectedFunctionType || "read"}
-                          onChange={(e) =>
-                            setSelectedFunctionType(e.target.value as any)
-                          }
+                        {/* Explorer links */}
+                        <a
+                          href={`${
+                            selectedNetwork?.explorers
+                              ?.find((e) => e.type === "blockscout")
+                              ?.url?.replace("/api", "")
+                              ?.replace("/api/", "") ||
+                            selectedNetwork?.blockExplorer
+                          }/address/${contractAddress}`}
+                          target="_blank"
+                          rel="noreferrer"
                           style={{
-                            padding: "6px 8px",
-                            border: "1px solid #444",
-                            borderRadius: "6px",
-                            background: "#151515",
-                            color: "#ddd",
                             fontSize: "12px",
+                            color: "#9ca3af",
+                            textDecoration: "underline",
                           }}
                         >
-                          <option value="read">Read</option>
-                          <option value="write">Write</option>
-                        </select>
+                          Open Diamond
+                        </a>
+                        {selectedFacet && (
+                          <a
+                            href={`${
+                              selectedNetwork?.explorers
+                                ?.find((e) => e.type === "blockscout")
+                                ?.url?.replace("/api", "")
+                                ?.replace("/api/", "") ||
+                              selectedNetwork?.blockExplorer
+                            }/address/${selectedFacet}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              fontSize: "12px",
+                              color: "#9ca3af",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Open Facet
+                          </a>
+                        )}
                       </>
                     )}
                   </h4>
@@ -4767,6 +4826,7 @@ const SimpleGridUI: React.FC = () => {
                     setDiamondFacets(facets);
                     setShowFacetSidebar(true);
                   }}
+                  hideUI
                 />
               )}
 

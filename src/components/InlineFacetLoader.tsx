@@ -10,6 +10,7 @@ interface InlineFacetLoaderProps {
   chain: Chain;
   diamondAddress: string;
   onFacetsLoaded: (facets: DiamondFacet[]) => void;
+  hideUI?: boolean;
 }
 
 interface FacetProgress {
@@ -23,6 +24,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   chain,
   diamondAddress,
   onFacetsLoaded,
+  hideUI = false,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState<FacetProgress>({
@@ -88,6 +90,10 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chain.id, diamondAddress]);
+
+  if (hideUI) {
+    return null;
+  }
 
   return (
     <div
