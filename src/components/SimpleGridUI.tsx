@@ -140,49 +140,53 @@ const SimpleGridUI: React.FC = () => {
   }>({ current: 0, total: 0, currentFacet: "", status: "fetching" });
 
   // All available functions across all facets for search
-  const allReadFunctions: ethers.utils.FunctionFragment[] = React.useMemo(() => {
-    let allReads = [...readFunctions];
-    if (isDiamond) {
-      diamondFacets.forEach((facet) => {
-        if (Array.isArray(facet.abi)) {
-          (facet.abi as unknown[]).forEach((item) => {
-            const entry = item as { type?: string; stateMutability?: string };
-            if (
-              entry?.type === "function" &&
-              (entry.stateMutability === "view" ||
-                entry.stateMutability === "pure")
-            ) {
-              allReads.push(item as unknown as ethers.utils.FunctionFragment);
-            }
-          });
-        }
-      });
-    }
-    return allReads;
-  }, [readFunctions, isDiamond, diamondFacets]);
+  const allReadFunctions: ethers.utils.FunctionFragment[] =
+    React.useMemo(() => {
+      let allReads = [...readFunctions];
+      if (isDiamond) {
+        diamondFacets.forEach((facet) => {
+          if (Array.isArray(facet.abi)) {
+            (facet.abi as unknown[]).forEach((item) => {
+              const entry = item as { type?: string; stateMutability?: string };
+              if (
+                entry?.type === "function" &&
+                (entry.stateMutability === "view" ||
+                  entry.stateMutability === "pure")
+              ) {
+                allReads.push(item as unknown as ethers.utils.FunctionFragment);
+              }
+            });
+          }
+        });
+      }
+      return allReads;
+    }, [readFunctions, isDiamond, diamondFacets]);
 
-  const allWriteFunctions: ethers.utils.FunctionFragment[] = React.useMemo(() => {
-    let allWrites = [...writeFunctions];
-    if (isDiamond) {
-      diamondFacets.forEach((facet) => {
-        if (Array.isArray(facet.abi)) {
-          (facet.abi as unknown[]).forEach((item) => {
-            const entry = item as { type?: string; stateMutability?: string };
-            if (
-              entry?.type === "function" &&
-              !(
-                entry.stateMutability === "view" ||
-                entry.stateMutability === "pure"
-              )
-            ) {
-              allWrites.push(item as unknown as ethers.utils.FunctionFragment);
-            }
-          });
-        }
-      });
-    }
-    return allWrites;
-  }, [writeFunctions, isDiamond, diamondFacets]);
+  const allWriteFunctions: ethers.utils.FunctionFragment[] =
+    React.useMemo(() => {
+      let allWrites = [...writeFunctions];
+      if (isDiamond) {
+        diamondFacets.forEach((facet) => {
+          if (Array.isArray(facet.abi)) {
+            (facet.abi as unknown[]).forEach((item) => {
+              const entry = item as { type?: string; stateMutability?: string };
+              if (
+                entry?.type === "function" &&
+                !(
+                  entry.stateMutability === "view" ||
+                  entry.stateMutability === "pure"
+                )
+              ) {
+                allWrites.push(
+                  item as unknown as ethers.utils.FunctionFragment
+                );
+              }
+            });
+          }
+        });
+      }
+      return allWrites;
+    }, [writeFunctions, isDiamond, diamondFacets]);
 
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
@@ -209,12 +213,7 @@ const SimpleGridUI: React.FC = () => {
         }
       }
       return base;
-    }, [
-      isDiamond,
-      selectedFacet,
-      diamondFacets,
-      readFunctions,
-    ]);
+    }, [isDiamond, selectedFacet, diamondFacets, readFunctions]);
 
   const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
@@ -241,23 +240,26 @@ const SimpleGridUI: React.FC = () => {
         }
       }
       return base;
-    }, [
-      isDiamond,
-      selectedFacet,
-      diamondFacets,
-      writeFunctions,
-    ]);
+    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions]);
 
   // Search filtered functions across all facets and all types
-  const searchFilteredFunctions: Array<ethers.utils.FunctionFragment & { functionType: 'read' | 'write' }> = React.useMemo(() => {
+  const searchFilteredFunctions: Array<
+    ethers.utils.FunctionFragment & { functionType: "read" | "write" }
+  > = React.useMemo(() => {
     const q = functionSearch.trim().toLowerCase();
     if (!q) return [];
-    
+
     const allFunctionsWithType = [
-      ...allReadFunctions.map(fn => ({ ...fn, functionType: 'read' as const })),
-      ...allWriteFunctions.map(fn => ({ ...fn, functionType: 'write' as const }))
+      ...allReadFunctions.map((fn) => ({
+        ...fn,
+        functionType: "read" as const,
+      })),
+      ...allWriteFunctions.map((fn) => ({
+        ...fn,
+        functionType: "write" as const,
+      })),
     ];
-    
+
     return allFunctionsWithType.filter((fn) =>
       `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
         .toLowerCase()
@@ -2735,7 +2737,8 @@ const SimpleGridUI: React.FC = () => {
 
     if (value && value !== "" && value !== "Select function") {
       const [type, index] = value.split("-");
-      const functions = type === "read" ? filteredReadFunctions : filteredWriteFunctions;
+      const functions =
+        type === "read" ? filteredReadFunctions : filteredWriteFunctions;
       const func = functions[parseInt(index)];
 
       if (func) {
@@ -2765,7 +2768,7 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const updateCallData = useCallback(() => {
-    // This function is no longer needed since calldata is generated 
+    // This function is no longer needed since calldata is generated
     // directly in the EnhancedStructInput onDataChange callback
     // Keeping it empty to prevent conflicts
   }, []);
@@ -2799,7 +2802,7 @@ const SimpleGridUI: React.FC = () => {
     setAbiError(null);
     setAbiSource(null);
     setSearchProgress(null);
-    
+
     // Clear previous results when starting new search
     setContractInfo(null);
     setReadFunctions([]);
@@ -3626,32 +3629,57 @@ const SimpleGridUI: React.FC = () => {
                     />
                     <span style={{ fontSize: "14px" }}>
                       {searchProgress ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
                             {searchProgress.status === "searching" && "🔍"}
                             {searchProgress.status === "found" && "✅"}
                             {searchProgress.status === "not_found" && "❌"}
                             {searchProgress.status === "error" && "⚠️"}
-                            <span style={{ 
-                              color: searchProgress.status === "found" ? "#22c55e" : 
-                                     searchProgress.status === "not_found" ? "#f59e0b" : 
-                                     searchProgress.status === "error" ? "#ef4444" : "#22c55e",
-                              fontWeight: "500"
-                            }}>
+                            <span
+                              style={{
+                                color:
+                                  searchProgress.status === "found"
+                                    ? "#22c55e"
+                                    : searchProgress.status === "not_found"
+                                      ? "#f59e0b"
+                                      : searchProgress.status === "error"
+                                        ? "#ef4444"
+                                        : "#22c55e",
+                                fontWeight: "500",
+                              }}
+                            >
                               {searchProgress.source}
                             </span>
-                            {searchProgress.status === "searching" && ": Searching..."}
-                            {searchProgress.status === "found" && ": Found contract!"}
-                            {searchProgress.status === "not_found" && ": Not found, trying next..."}
-                            {searchProgress.status === "error" && ": Error occurred"}
+                            {searchProgress.status === "searching" &&
+                              ": Searching..."}
+                            {searchProgress.status === "found" &&
+                              ": Found contract!"}
+                            {searchProgress.status === "not_found" &&
+                              ": Not found, trying next..."}
+                            {searchProgress.status === "error" &&
+                              ": Error occurred"}
                           </div>
                           {searchProgress.message && (
-                            <div style={{ 
-                              fontSize: "12px", 
-                              color: "#888", 
-                              marginLeft: "24px",
-                              fontStyle: "italic"
-                            }}>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#888",
+                                marginLeft: "24px",
+                                fontStyle: "italic",
+                              }}
+                            >
                               {searchProgress.message}
                             </div>
                           )}
@@ -4450,7 +4478,6 @@ const SimpleGridUI: React.FC = () => {
                     borderTop: "1px solid #333",
                   }}
                 >
-
                   <h4
                     style={{
                       fontSize: "14px",
@@ -4487,13 +4514,15 @@ const SimpleGridUI: React.FC = () => {
                           ))}
                         </select>
                         {/* Enhanced Explorer links */}
-                        <div style={{
-                          display: "flex",
-                          gap: "8px",
-                          alignItems: "center",
-                          marginTop: "8px",
-                          flexWrap: "wrap"
-                        }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "8px",
+                            alignItems: "center",
+                            marginTop: "8px",
+                            flexWrap: "wrap",
+                          }}
+                        >
                           <a
                             href={`${
                               selectedNetwork?.explorers
@@ -4514,12 +4543,12 @@ const SimpleGridUI: React.FC = () => {
                               borderRadius: "4px",
                               display: "flex",
                               alignItems: "center",
-                              gap: "4px"
+                              gap: "4px",
                             }}
                           >
                             💎 Diamond Contract
                           </a>
-                          
+
                           {selectedFacet && (
                             <a
                               href={`${
@@ -4541,63 +4570,74 @@ const SimpleGridUI: React.FC = () => {
                                 borderRadius: "4px",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "4px"
+                                gap: "4px",
                               }}
                             >
                               🔧 Selected Facet
                             </a>
                           )}
-                          
+
                           {/* Multiple explorer options */}
-                          {selectedNetwork?.explorers && selectedNetwork.explorers.length > 1 && (
-                            <div style={{
-                              fontSize: "10px",
-                              color: "#888",
-                              display: "flex",
-                              gap: "4px"
-                            }}>
-                              |
-                              {selectedNetwork.explorers.map((explorer, index) => (
-                                <a
-                                  key={index}
-                                  href={`${explorer.url?.replace("/api", "")?.replace("/api/", "")}/address/${selectedFacet || contractAddress}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{
-                                    color: "#6b7280",
-                                    textDecoration: "underline",
-                                    fontSize: "10px"
-                                  }}
-                                >
-                                  {explorer.name}
-                                </a>
-                              ))}
-                            </div>
-                          )}
+                          {selectedNetwork?.explorers &&
+                            selectedNetwork.explorers.length > 1 && (
+                              <div
+                                style={{
+                                  fontSize: "10px",
+                                  color: "#888",
+                                  display: "flex",
+                                  gap: "4px",
+                                }}
+                              >
+                                |
+                                {selectedNetwork.explorers.map(
+                                  (explorer, index) => (
+                                    <a
+                                      key={index}
+                                      href={`${explorer.url?.replace("/api", "")?.replace("/api/", "")}/address/${selectedFacet || contractAddress}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{
+                                        color: "#6b7280",
+                                        textDecoration: "underline",
+                                        fontSize: "10px",
+                                      }}
+                                    >
+                                      {explorer.name}
+                                    </a>
+                                  )
+                                )}
+                              </div>
+                            )}
                         </div>
 
                         {/* Unverified Facet ABI Paste */}
-                        {selectedFacet && (
+                        {selectedFacet &&
                           (() => {
                             const facet = diamondFacets.find(
-                              (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
+                              (f) =>
+                                f.address.toLowerCase() ===
+                                selectedFacet.toLowerCase()
                             );
                             return facet && !facet.isVerified ? (
-                              <div style={{
-                                marginTop: "12px",
-                                padding: "12px",
-                                background: "rgba(245, 158, 11, 0.1)",
-                                border: "1px solid rgba(245, 158, 11, 0.3)",
-                                borderRadius: "6px"
-                              }}>
-                                <div style={{
-                                  fontSize: "12px",
-                                  color: "#fbbf24",
-                                  marginBottom: "8px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "6px"
-                                }}>
+                              <div
+                                style={{
+                                  marginTop: "12px",
+                                  padding: "12px",
+                                  background: "rgba(245, 158, 11, 0.1)",
+                                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                                  borderRadius: "6px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#fbbf24",
+                                    marginBottom: "8px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                  }}
+                                >
                                   ⚠️ Unverified Facet - Paste ABI Below
                                 </div>
                                 <textarea
@@ -4612,35 +4652,47 @@ const SimpleGridUI: React.FC = () => {
                                     fontSize: "11px",
                                     fontFamily: "monospace",
                                     padding: "8px",
-                                    resize: "vertical"
+                                    resize: "vertical",
                                   }}
                                   onChange={(e) => {
                                     try {
-                                      const abiJson = JSON.parse(e.target.value);
+                                      const abiJson = JSON.parse(
+                                        e.target.value
+                                      );
                                       if (Array.isArray(abiJson)) {
                                         // Update the facet with the pasted ABI
-                                        setDiamondFacets(prev => prev.map(f => 
-                                          f.address.toLowerCase() === selectedFacet.toLowerCase()
-                                            ? { ...f, abi: abiJson, isVerified: true, source: "Manual Paste" }
-                                            : f
-                                        ));
+                                        setDiamondFacets((prev) =>
+                                          prev.map((f) =>
+                                            f.address.toLowerCase() ===
+                                            selectedFacet.toLowerCase()
+                                              ? {
+                                                  ...f,
+                                                  abi: abiJson,
+                                                  isVerified: true,
+                                                  source: "Manual Paste",
+                                                }
+                                              : f
+                                          )
+                                        );
                                       }
                                     } catch (error) {
                                       // Invalid JSON, ignore
                                     }
                                   }}
                                 />
-                                <div style={{
-                                  fontSize: "10px",
-                                  color: "#888",
-                                  marginTop: "4px"
-                                }}>
-                                  💡 Paste valid ABI JSON to enable function calls
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    color: "#888",
+                                    marginTop: "4px",
+                                  }}
+                                >
+                                  💡 Paste valid ABI JSON to enable function
+                                  calls
                                 </div>
                               </div>
                             ) : null;
-                          })()
-                        )}
+                          })()}
                       </>
                     )}
                   </h4>
@@ -4831,10 +4883,11 @@ const SimpleGridUI: React.FC = () => {
                         </div>
                       </div>
 
-
                       {/* Search Popup */}
                       {showFunctionSearch && (
-                        <div style={{ position: "relative", marginBottom: "12px" }}>
+                        <div
+                          style={{ position: "relative", marginBottom: "12px" }}
+                        >
                           {/* Search Popup */}
                           {showFunctionSearch && (
                             <>
@@ -4847,7 +4900,7 @@ const SimpleGridUI: React.FC = () => {
                                   right: 0,
                                   bottom: 0,
                                   background: "rgba(0, 0, 0, 0.5)",
-                                  zIndex: 1000
+                                  zIndex: 1000,
                                 }}
                                 onClick={() => {
                                   setShowFunctionSearch(false);
@@ -4868,14 +4921,16 @@ const SimpleGridUI: React.FC = () => {
                                   maxWidth: "400px",
                                   maxHeight: "300px",
                                   zIndex: 1001,
-                                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)"
+                                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
                                 }}
                               >
                                 <input
                                   type="text"
                                   placeholder="Search all functions..."
                                   value={functionSearch}
-                                  onChange={(e) => setFunctionSearch(e.target.value)}
+                                  onChange={(e) =>
+                                    setFunctionSearch(e.target.value)
+                                  }
                                   style={{
                                     width: "100%",
                                     padding: "8px 10px",
@@ -4884,133 +4939,200 @@ const SimpleGridUI: React.FC = () => {
                                     borderRadius: "4px",
                                     color: "#e5e7eb",
                                     fontSize: "12px",
-                                    marginBottom: "8px"
+                                    marginBottom: "8px",
                                   }}
                                   autoFocus
                                 />
-                                
+
                                 {/* Results */}
-                                <div style={{
-                                  maxHeight: "200px",
-                                  overflowY: "auto"
-                                }}>
+                                <div
+                                  style={{
+                                    maxHeight: "200px",
+                                    overflowY: "auto",
+                                  }}
+                                >
                                   {searchFilteredFunctions.length > 0 ? (
-                                    searchFilteredFunctions.map((func, index) => (
-                                      <div
-                                        key={`search-result-${index}`}
-                                        style={{
-                                          padding: "6px 8px",
-                                          background: "#2a2a2a",
-                                          border: "1px solid #333",
-                                          borderRadius: "3px",
-                                          marginBottom: "4px",
-                                          cursor: "pointer",
-                                          transition: "all 0.2s ease"
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.background = "#3a3a3a";
-                                          e.currentTarget.style.borderColor = "#555";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.background = "#2a2a2a";
-                                          e.currentTarget.style.borderColor = "#333";
-                                        }}
-                                        onClick={() => {
-                                          // Set the function type based on the search result
-                                          setSelectedFunctionType(func.functionType);
-                                          
-                                          // For diamond contracts, we need to find the right facet first
-                                          if (isDiamond) {
-                                            // Find which facet contains this function
-                                            let foundFacet = null;
-                                            diamondFacets.forEach((facet) => {
-                                              if (Array.isArray(facet.abi)) {
-                                                const hasFunction = (facet.abi as unknown[]).some((item) => {
-                                                  const entry = item as { type?: string; name?: string; stateMutability?: string };
-                                                  const isMatchingType = func.functionType === 'read' 
-                                                    ? (entry.stateMutability === "view" || entry.stateMutability === "pure")
-                                                    : !(entry.stateMutability === "view" || entry.stateMutability === "pure");
-                                                  return entry?.type === "function" && entry?.name === func.name && isMatchingType;
-                                                });
-                                                if (hasFunction) {
-                                                  foundFacet = facet;
+                                    searchFilteredFunctions.map(
+                                      (func, index) => (
+                                        <div
+                                          key={`search-result-${index}`}
+                                          style={{
+                                            padding: "6px 8px",
+                                            background: "#2a2a2a",
+                                            border: "1px solid #333",
+                                            borderRadius: "3px",
+                                            marginBottom: "4px",
+                                            cursor: "pointer",
+                                            transition: "all 0.2s ease",
+                                          }}
+                                          onMouseEnter={(e) => {
+                                            e.currentTarget.style.background =
+                                              "#3a3a3a";
+                                            e.currentTarget.style.borderColor =
+                                              "#555";
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.currentTarget.style.background =
+                                              "#2a2a2a";
+                                            e.currentTarget.style.borderColor =
+                                              "#333";
+                                          }}
+                                          onClick={() => {
+                                            // Set the function type based on the search result
+                                            setSelectedFunctionType(
+                                              func.functionType
+                                            );
+
+                                            // For diamond contracts, we need to find the right facet first
+                                            if (isDiamond) {
+                                              // Find which facet contains this function
+                                              let foundFacet = null;
+                                              diamondFacets.forEach((facet) => {
+                                                if (Array.isArray(facet.abi)) {
+                                                  const hasFunction = (
+                                                    facet.abi as unknown[]
+                                                  ).some((item) => {
+                                                    const entry = item as {
+                                                      type?: string;
+                                                      name?: string;
+                                                      stateMutability?: string;
+                                                    };
+                                                    const isMatchingType =
+                                                      func.functionType ===
+                                                      "read"
+                                                        ? entry.stateMutability ===
+                                                            "view" ||
+                                                          entry.stateMutability ===
+                                                            "pure"
+                                                        : !(
+                                                            entry.stateMutability ===
+                                                              "view" ||
+                                                            entry.stateMutability ===
+                                                              "pure"
+                                                          );
+                                                    return (
+                                                      entry?.type ===
+                                                        "function" &&
+                                                      entry?.name ===
+                                                        func.name &&
+                                                      isMatchingType
+                                                    );
+                                                  });
+                                                  if (hasFunction) {
+                                                    foundFacet = facet;
+                                                  }
                                                 }
+                                              });
+
+                                              // Select the facet if found
+                                              if (foundFacet) {
+                                                setSelectedFacet(
+                                                  foundFacet.address
+                                                );
                                               }
-                                            });
-                                            
-                                            // Select the facet if found
-                                            if (foundFacet) {
-                                              setSelectedFacet(foundFacet.address);
                                             }
-                                          }
-                                          
-                                          // Wait for state updates, then find the function in the correct list
-                                          // Find and select the function immediately
-                                        const currentFunctions = func.functionType === 'read' ? filteredReadFunctions : filteredWriteFunctions;
-                                        const funcIndex = currentFunctions.findIndex(f => f.name === func.name);
-                                        if (funcIndex >= 0) {
-                                          const functionKey = `${func.functionType}-${funcIndex}`;
-                                          // Set the dropdown value immediately
-                                          setSelectedFunction(functionKey);
-                                          handleFunctionSelect(functionKey);
-                                        }
-                                        
-                                        // Close search panel after selection
-                                        setTimeout(() => {
-                                          setShowFunctionSearch(false);
-                                          setFunctionSearch("");
-                                        }, 100);
-                                        }}
-                                      >
-                                        <div style={{
-                                          display: "flex",
-                                          justifyContent: "space-between",
-                                          alignItems: "center",
-                                          marginBottom: "2px"
-                                        }}>
-                                          <div style={{
-                                            fontWeight: "500",
-                                            color: "#e5e7eb",
-                                            fontSize: "11px"
-                                          }}>
-                                            {func.name}
+
+                                            // Wait for state updates, then find the function in the correct list
+                                            // Find and select the function immediately
+                                            const currentFunctions =
+                                              func.functionType === "read"
+                                                ? filteredReadFunctions
+                                                : filteredWriteFunctions;
+                                            const funcIndex =
+                                              currentFunctions.findIndex(
+                                                (f) => f.name === func.name
+                                              );
+                                            if (funcIndex >= 0) {
+                                              const functionKey = `${func.functionType}-${funcIndex}`;
+                                              // Set the dropdown value immediately
+                                              setSelectedFunction(functionKey);
+                                              handleFunctionSelect(functionKey);
+                                            }
+
+                                            // Close search panel after a short delay to ensure selection completes
+                                            setTimeout(() => {
+                                              setShowFunctionSearch(false);
+                                              setFunctionSearch("");
+                                            }, 50);
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              display: "flex",
+                                              justifyContent: "space-between",
+                                              alignItems: "center",
+                                              marginBottom: "2px",
+                                            }}
+                                          >
+                                            <div
+                                              style={{
+                                                fontWeight: "500",
+                                                color: "#e5e7eb",
+                                                fontSize: "11px",
+                                              }}
+                                            >
+                                              {func.name}
+                                            </div>
+                                            <div
+                                              style={{
+                                                fontSize: "9px",
+                                                padding: "1px 4px",
+                                                borderRadius: "2px",
+                                                background:
+                                                  func.functionType === "read"
+                                                    ? "#22c55e20"
+                                                    : "#f59e0b20",
+                                                color:
+                                                  func.functionType === "read"
+                                                    ? "#22c55e"
+                                                    : "#f59e0b",
+                                                border: `1px solid ${func.functionType === "read" ? "#22c55e40" : "#f59e0b40"}`,
+                                              }}
+                                            >
+                                              {func.functionType === "read"
+                                                ? "📖 READ"
+                                                : "✍️ WRITE"}
+                                            </div>
                                           </div>
-                                          <div style={{
-                                            fontSize: "9px",
-                                            padding: "1px 4px",
-                                            borderRadius: "2px",
-                                            background: func.functionType === 'read' ? "#22c55e20" : "#f59e0b20",
-                                            color: func.functionType === 'read' ? "#22c55e" : "#f59e0b",
-                                            border: `1px solid ${func.functionType === 'read' ? "#22c55e40" : "#f59e0b40"}`
-                                          }}>
-                                            {func.functionType === 'read' ? '📖 READ' : '✍️ WRITE'}
+                                          <div
+                                            style={{
+                                              fontSize: "10px",
+                                              color: "#888",
+                                              fontFamily: "monospace",
+                                            }}
+                                          >
+                                            (
+                                            {func.inputs
+                                              ?.map(
+                                                (input: { type: string }) =>
+                                                  input.type
+                                              )
+                                              .join(", ")}
+                                            )
                                           </div>
                                         </div>
-                                        <div style={{
-                                          fontSize: "10px",
-                                          color: "#888",
-                                          fontFamily: "monospace"
-                                        }}>
-                                          ({func.inputs?.map((input: { type: string }) => input.type).join(", ")})
-                                        </div>
-                                      </div>
-                                    ))
+                                      )
+                                    )
                                   ) : functionSearch ? (
-                                    <div style={{
-                                      padding: "12px",
-                                      textAlign: "center",
-                                      color: "#888",
-                                      fontSize: "11px"
-                                    }}>
+                                    <div
+                                      style={{
+                                        padding: "12px",
+                                        textAlign: "center",
+                                        color: "#888",
+                                        fontSize: "11px",
+                                      }}
+                                    >
                                       No functions found
                                     </div>
                                   ) : (
-                                    <div style={{
-                                      padding: "12px",
-                                      textAlign: "center",
-                                      color: "#888",
-                                      fontSize: "11px"
-                                    }}>
+                                    <div
+                                      style={{
+                                        padding: "12px",
+                                        textAlign: "center",
+                                        color: "#888",
+                                        fontSize: "11px",
+                                      }}
+                                    >
                                       Type to search across all facets...
                                     </div>
                                   )}
@@ -5022,7 +5144,8 @@ const SimpleGridUI: React.FC = () => {
                       )}
 
                       {/* Function Dropdown - Show when functions are available */}
-                      {(allReadFunctions.length > 0 || allWriteFunctions.length > 0) && (
+                      {(allReadFunctions.length > 0 ||
+                        allWriteFunctions.length > 0) && (
                         <div style={{ marginBottom: "12px" }}>
                           <label
                             style={{
@@ -5035,20 +5158,22 @@ const SimpleGridUI: React.FC = () => {
                             }}
                           >
                             <span>Select Function</span>
-                            <div 
+                            <div
                               onClick={() => setShowFunctionSearch(true)}
                               style={{
                                 cursor: "pointer",
                                 color: "#60a5fa",
                                 padding: "2px",
                                 borderRadius: "3px",
-                                transition: "all 0.2s ease"
+                                transition: "all 0.2s ease",
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "rgba(59, 130, 246, 0.2)";
+                                e.currentTarget.style.background =
+                                  "rgba(59, 130, 246, 0.2)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.background =
+                                  "transparent";
                               }}
                             >
                               <Search size={14} />
@@ -5109,19 +5234,21 @@ const SimpleGridUI: React.FC = () => {
                                 fontSize: "12px",
                                 color: "#ccc",
                                 marginBottom: "8px",
-                                fontWeight: "600"
+                                fontWeight: "600",
                               }}
                             >
                               Function Parameters
                             </label>
-                            <div style={{
-                              background: "#1a1a1a",
-                              border: "1px solid #333",
-                              borderRadius: "6px",
-                              padding: "0",
-                              marginBottom: "8px",
-                              overflow: "hidden"
-                            }}>
+                            <div
+                              style={{
+                                background: "#1a1a1a",
+                                border: "1px solid #333",
+                                borderRadius: "6px",
+                                padding: "0",
+                                marginBottom: "8px",
+                                overflow: "hidden",
+                              }}
+                            >
                               <style>{`
                                 .minimal-arg-input {
                                   background: transparent;
@@ -5151,27 +5278,41 @@ const SimpleGridUI: React.FC = () => {
                                 }
                                 
                                 .sample-btn, .clear-btn {
-                                  background: #45b7d1;
-                                  border: none;
-                                  color: #fff;
-                                  padding: 6px 12px;
-                                  border-radius: 4px;
-                                  font-size: 11px;
-                                  font-weight: 500;
+                                  background: linear-gradient(135deg, rgba(69, 183, 209, 0.15), rgba(69, 183, 209, 0.05));
+                                  border: 1px solid rgba(69, 183, 209, 0.4);
+                                  color: #45b7d1;
+                                  padding: 8px 16px;
+                                  border-radius: 8px;
+                                  font-size: 12px;
+                                  font-weight: 600;
                                   cursor: pointer;
-                                  transition: all 0.2s;
+                                  transition: all 0.3s ease;
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                  text-transform: uppercase;
+                                  letter-spacing: 0.5px;
+                                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                                 }
                                 
                                 .sample-btn:hover {
-                                  background: #3a9bc1;
+                                  background: linear-gradient(135deg, rgba(69, 183, 209, 0.25), rgba(69, 183, 209, 0.1));
+                                  border-color: #45b7d1;
+                                  transform: translateY(-1px);
+                                  box-shadow: 0 4px 8px rgba(69, 183, 209, 0.2);
                                 }
                                 
                                 .clear-btn {
-                                  background: #ef4444;
+                                  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+                                  border: 1px solid rgba(239, 68, 68, 0.4);
+                                  color: #ef4444;
                                 }
                                 
                                 .clear-btn:hover {
-                                  background: #dc2626;
+                                  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(239, 68, 68, 0.1));
+                                  border-color: #ef4444;
+                                  transform: translateY(-1px);
+                                  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
                                 }
                                 
                                 .arg-list {
@@ -5215,6 +5356,9 @@ const SimpleGridUI: React.FC = () => {
                                   color: #fff;
                                   font-size: 13px;
                                   transition: border-color 0.2s;
+                                  width: 100%;
+                                  max-width: 100%;
+                                  min-width: 250px;
                                 }
                                 
                                 .arg-input:focus, .bool-input:focus {
@@ -5295,19 +5439,45 @@ const SimpleGridUI: React.FC = () => {
                                 }
                                 
                                 .add-struct-btn {
-                                  background: #22c55e;
-                                  border: none;
-                                  color: white;
-                                  padding: 6px 12px;
-                                  border-radius: 4px;
-                                  font-size: 11px;
-                                  font-weight: 500;
+                                  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.05)) !important;
+                                  border: 1px solid rgba(34, 197, 94, 0.4) !important;
+                                  color: #22c55e !important;
+                                  padding: 8px 16px !important;
+                                  border-radius: 8px !important;
+                                  font-size: 12px !important;
+                                  font-weight: 600 !important;
                                   cursor: pointer;
-                                  transition: background 0.2s;
+                                  transition: all 0.3s ease !important;
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                  text-transform: uppercase !important;
+                                  letter-spacing: 0.5px !important;
+                                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                                 }
                                 
                                 .add-struct-btn:hover {
-                                  background: #16a34a;
+                                  background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(34, 197, 94, 0.1)) !important;
+                                  border-color: #22c55e !important;
+                                  transform: translateY(-1px) !important;
+                                  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.2) !important;
+                                }
+                                
+                                /* Validation error styling */
+                                .input-with-validation {
+                                  position: relative;
+                                }
+                                
+                                .validation-error {
+                                  border-color: #ef4444 !important;
+                                  background: rgba(239, 68, 68, 0.1) !important;
+                                }
+                                
+                                .validation-error-message {
+                                  color: #ef4444;
+                                  font-size: 10px;
+                                  margin-top: 4px;
+                                  font-weight: 500;
                                 }
                                 
                                 .struct-item {
@@ -5322,8 +5492,40 @@ const SimpleGridUI: React.FC = () => {
                                   justify-content: space-between;
                                   align-items: center;
                                   margin-bottom: 8px;
-                                  padding-bottom: 6px;
+                                  padding: 6px;
                                   border-bottom: 1px solid #333;
+                                  cursor: pointer;
+                                  border-radius: 4px;
+                                  transition: background 0.2s;
+                                }
+                                
+                                .struct-item-header:hover {
+                                  background: #333;
+                                }
+                                
+                                .struct-header-left {
+                                  display: flex;
+                                  align-items: center;
+                                  gap: 8px;
+                                }
+                                
+                                .expand-icon {
+                                  font-size: 12px;
+                                  transition: transform 0.2s;
+                                }
+                                
+                                .struct-item.collapsed .struct-item-header {
+                                  margin-bottom: 0;
+                                }
+                                
+                                .populated-indicator {
+                                  color: #22c55e;
+                                  font-size: 10px;
+                                  font-weight: 500;
+                                  background: rgba(34, 197, 94, 0.1);
+                                  padding: 2px 6px;
+                                  border-radius: 12px;
+                                  border: 1px solid rgba(34, 197, 94, 0.3);
                                 }
                                 
                                 .struct-index {
@@ -5332,7 +5534,7 @@ const SimpleGridUI: React.FC = () => {
                                   font-size: 12px;
                                 }
                                 
-                                .remove-struct-btn {
+                                .remove-struct-btn, .clear-struct-btn {
                                   background: #ff4757;
                                   border: none;
                                   color: white;
@@ -5344,6 +5546,17 @@ const SimpleGridUI: React.FC = () => {
                                   display: flex;
                                   align-items: center;
                                   justify-content: center;
+                                }
+                                
+                                .clear-struct-btn {
+                                  background: #ffa502;
+                                  width: 24px;
+                                  height: 24px;
+                                }
+                                
+                                /* Array input hint styling */
+                                .array-hint {
+                                  margin-top: 4px;
                                 }
                                 
                                 .struct-fields {
@@ -5371,6 +5584,9 @@ const SimpleGridUI: React.FC = () => {
                                   color: #fff;
                                   font-size: 12px;
                                   transition: border-color 0.2s;
+                                  width: 100%;
+                                  max-width: 100%;
+                                  min-width: 200px;
                                 }
                                 
                                 .struct-field-input:focus {
@@ -5475,19 +5691,27 @@ const SimpleGridUI: React.FC = () => {
                                 abi={(() => {
                                   // Determine correct ABI to use
                                   if (!contractInfo?.abi) return [];
-                                  
+
                                   let abi = contractInfo.abi;
-                                  
+
                                   // If Diamond and facet selected, use facet ABI
                                   if (isDiamond && selectedFacet) {
-                                    const facet = diamondFacets.find(f => f.address.toLowerCase() === selectedFacet.toLowerCase());
+                                    const facet = diamondFacets.find(
+                                      (f) =>
+                                        f.address.toLowerCase() ===
+                                        selectedFacet.toLowerCase()
+                                    );
                                     if (facet?.abi) {
-                                      abi = Array.isArray(facet.abi) ? JSON.stringify(facet.abi) : facet.abi as string;
+                                      abi = Array.isArray(facet.abi)
+                                        ? JSON.stringify(facet.abi)
+                                        : (facet.abi as string);
                                     }
                                   }
-                                  
+
                                   try {
-                                    return Array.isArray(abi) ? abi : JSON.parse(abi);
+                                    return Array.isArray(abi)
+                                      ? abi
+                                      : JSON.parse(abi);
                                   } catch {
                                     return [];
                                   }
@@ -5495,28 +5719,63 @@ const SimpleGridUI: React.FC = () => {
                                 functionName={selectedFunctionObj.name}
                                 onDataChange={(data) => {
                                   // Convert array data to the format expected by calldata generation
-                                  const newInputs: { [key: string]: string } = {};
-                                  selectedFunctionObj.inputs.forEach((input: any, idx: number) => {
-                                    newInputs[`${selectedFunctionObj.name}_${idx}`] = 
-                                      typeof data[idx] === 'object' 
-                                        ? JSON.stringify(data[idx]) 
-                                        : String(data[idx] || '');
-                                  });
+                                  const newInputs: { [key: string]: string } =
+                                    {};
+                                  selectedFunctionObj.inputs.forEach(
+                                    (input: any, idx: number) => {
+                                      newInputs[
+                                        `${selectedFunctionObj.name}_${idx}`
+                                      ] =
+                                        typeof data[idx] === "object"
+                                          ? JSON.stringify(data[idx])
+                                          : String(data[idx] || "");
+                                    }
+                                  );
                                   setFunctionInputs(newInputs);
                                   // Auto-generate calldata when parameters change
                                   if (selectedFunctionObj) {
                                     try {
-                                      const iface = new ethers.utils.Interface([selectedFunctionObj]);
-                                      const calldata = iface.encodeFunctionData(selectedFunctionObj.name, data);
+                                      console.log(
+                                        "🔧 Generating calldata for:",
+                                        selectedFunctionObj.name
+                                      );
+                                      console.log("📊 Data passed:", data);
+                                      console.log(
+                                        "📋 Function inputs:",
+                                        selectedFunctionObj.inputs
+                                      );
+
+                                      const iface = new ethers.utils.Interface([
+                                        selectedFunctionObj,
+                                      ]);
+                                      const calldata = iface.encodeFunctionData(
+                                        selectedFunctionObj.name,
+                                        data
+                                      );
+                                      console.log(
+                                        "✅ Generated calldata:",
+                                        calldata
+                                      );
                                       setGeneratedCallData(calldata);
                                     } catch (error) {
-                                      console.log("Calldata generation failed:", error);
+                                      console.error(
+                                        "❌ Calldata generation failed:",
+                                        error
+                                      );
+                                      console.error("📊 Failed data:", data);
+                                      console.error(
+                                        "📋 Function ABI:",
+                                        selectedFunctionObj
+                                      );
                                       setGeneratedCallData("0x");
                                     }
                                   }
                                 }}
-                                initialData={selectedFunctionObj.inputs.map((_: any, idx: number) => 
-                                  functionInputs[`${selectedFunctionObj.name}_${idx}`] || ''
+                                initialData={selectedFunctionObj.inputs.map(
+                                  (_: any, idx: number) =>
+                                    functionInputs[
+                                      `${selectedFunctionObj.name}_${idx}`
+                                    ] || ""
                                 )}
                               />
                             </div>
@@ -5536,8 +5795,7 @@ const SimpleGridUI: React.FC = () => {
                           Generated Calldata
                         </label>
                         <div style={{ position: "relative" }}>
-                          <input
-                            type="text"
+                          <textarea
                             value={generatedCallData}
                             readOnly
                             style={{
@@ -5549,7 +5807,22 @@ const SimpleGridUI: React.FC = () => {
                               border: "1px solid #333",
                               color: "#22c55e",
                               marginBottom: "0",
+                              minHeight: "40px",
+                              maxHeight: "120px",
+                              height: "auto",
+                              resize: "vertical",
+                              overflow: "auto",
+                              wordBreak: "break-all",
                             }}
+                            rows={Math.min(
+                              Math.max(
+                                Math.ceil(
+                                  (generatedCallData || "").length / 80
+                                ),
+                                1
+                              ),
+                              4
+                            )}
                           />
                           <div
                             style={{
@@ -5599,18 +5872,21 @@ const SimpleGridUI: React.FC = () => {
                       {/* Function Execution Section */}
                       {selectedFunctionObj && (
                         <div style={{ marginTop: "20px" }}>
-                          <div style={{
-                            display: "flex",
-                            gap: "12px",
-                            alignItems: "center",
-                            marginBottom: "12px"
-                          }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "12px",
+                              alignItems: "center",
+                              marginBottom: "12px",
+                            }}
+                          >
                             <button
                               style={{
                                 padding: "10px 16px",
-                                background: selectedFunctionType === 'read' 
-                                  ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
-                                  : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                background:
+                                  selectedFunctionType === "read"
+                                    ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
+                                    : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
                                 border: "none",
                                 borderRadius: "6px",
                                 color: "white",
@@ -5621,26 +5897,33 @@ const SimpleGridUI: React.FC = () => {
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "8px",
-                                flex: 1
+                                flex: 1,
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "translateY(-1px)";
-                                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+                                e.currentTarget.style.transform =
+                                  "translateY(-1px)";
+                                e.currentTarget.style.boxShadow =
+                                  "0 4px 12px rgba(0, 0, 0, 0.3)";
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.transform =
+                                  "translateY(0)";
                                 e.currentTarget.style.boxShadow = "none";
                               }}
                               onClick={() => {
                                 // Function execution temporarily disabled - needs proper wallet integration
-                                alert(`Function execution ready: ${selectedFunction}\n\nWallet integration needed to complete.`);
+                                alert(
+                                  `Function execution ready: ${selectedFunction}\n\nWallet integration needed to complete.`
+                                );
                               }}
                             >
                               <Play size={16} />
-                              {selectedFunctionType === 'read' ? 'Call Function' : 'Send Transaction'}
+                              {selectedFunctionType === "read"
+                                ? "Call Function"
+                                : "Send Transaction"}
                             </button>
-                            
-                            {selectedFunctionType === 'write' && (
+
+                            {selectedFunctionType === "write" && (
                               <button
                                 style={{
                                   padding: "10px 12px",
@@ -5650,31 +5933,36 @@ const SimpleGridUI: React.FC = () => {
                                   color: "#a5b4fc",
                                   fontSize: "12px",
                                   cursor: "pointer",
-                                  transition: "all 0.2s ease"
+                                  transition: "all 0.2s ease",
                                 }}
                                 onClick={() => {
                                   // Gas estimation temporarily disabled - needs proper wallet integration
-                                  alert("Gas estimation ready - wallet integration needed to complete.");
+                                  alert(
+                                    "Gas estimation ready - wallet integration needed to complete."
+                                  );
                                 }}
                               >
                                 Estimate Gas
                               </button>
                             )}
                           </div>
-                          
+
                           {/* Wallet connection reminder */}
-                          <div style={{
-                            padding: "8px 12px",
-                            background: "rgba(59, 130, 246, 0.1)",
-                            border: "1px solid rgba(59, 130, 246, 0.3)",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            color: "#93c5fd",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px"
-                          }}>
-                            💡 Connect your wallet in the header to execute transactions
+                          <div
+                            style={{
+                              padding: "8px 12px",
+                              background: "rgba(59, 130, 246, 0.1)",
+                              border: "1px solid rgba(59, 130, 246, 0.3)",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              color: "#93c5fd",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            💡 Connect your wallet in the header to execute
+                            transactions
                           </div>
                         </div>
                       )}
@@ -5699,7 +5987,7 @@ const SimpleGridUI: React.FC = () => {
                       setSearchProgress({
                         source: "Diamond Facets",
                         status: p.status === "error" ? "error" : "searching",
-                        message: `Loading facet ${p.current}/${p.total}: ${p.currentFacet}`
+                        message: `Loading facet ${p.current}/${p.total}: ${p.currentFacet}`,
                       });
                     }
                   }}
@@ -5710,7 +5998,7 @@ const SimpleGridUI: React.FC = () => {
                       setSearchProgress({
                         source: "Diamond Facets",
                         status: "found",
-                        message: "All facets loaded successfully"
+                        message: "All facets loaded successfully",
                       });
                     }
                   }}
