@@ -12,6 +12,7 @@ import "./styles/AnimatedInput.css";
 import "./styles/AnimatedButton.css";
 import "./styles/DynamicWallet.css";
 import SimpleGridUI from "./components/SimpleGridUI";
+import NewSimpleGridUI from "./components/NewSimpleGridUI";
 import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
 import CalldataGenerator from "./components/CalldataGenerator";
@@ -99,6 +100,7 @@ function App() {
               <Route path="/decoder" element={<SmartDecoder />} />
               <Route path="/signatures" element={<SignatureCalculator />} />
               <Route path="/builder" element={<SimpleGridUI />} />
+              <Route path="/new-builder" element={<NewSimpleGridUI />} />
               <Route path="/database" element={<SignatureDatabase />} />
               <Route
                 path="/contract-search"

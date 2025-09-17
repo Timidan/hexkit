@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
+import '../styles/CompactArrayStyles.css';
 
 interface ArgInputProps {
   abi?: any[];
@@ -25,7 +26,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     
     // Debug function inputs
     console.log(`🔍 FUNCTION INPUTS for ${functionName}:`, inputs);
-    inputs.forEach((input, idx) => {
+    inputs.forEach((input: any, idx: number) => {
       console.log(`  [${idx}] ${input.name} (${input.type})`, {
         hasComponents: !!input.components,
         components: input.components
@@ -58,6 +59,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
       setArgs(newArgs);
       onDataChange(newArgs);
     }
+    
   }, [functionInputs]);
 
   // Collapse/expand is purely manual - controlled by user clicks only
@@ -324,7 +326,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           />
           {hasError && (
             <div className="validation-error-message">
-              {validation.error}
+              {validation.error || 'Invalid input'}
             </div>
           )}
         </div>
@@ -453,65 +455,191 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
         );
       }
       
-      // Handle arrays of simple types (string[], uint256[], etc.) - use comma separation with validation
-      const displayValue = arrayValue.join(', ');
+      // Handle nested arrays (uint256[][], etc.) - simplified for now
+      if (baseType.includes('[]')) {
+        console.log(`🔍 NESTED ARRAY: ${input.name} (${input.type}) - Using fallback text input`);
+        return (
+          <div key={index} className="arg-row">
+            <div className="arg-label">
+              <span className="arg-name">{input.name}</span>
+              <span className="arg-type" style={{ color: typeColor }}>{input.type}</span>
+            </div>
+            <div style={{ padding: '8px', background: 'rgba(255, 193, 7, 0.1)', border: '1px solid #ffc107', borderRadius: '4px' }}>
+              <p style={{ fontSize: '12px', color: '#ffc107', margin: '0 0 8px 0' }}>
+                ⚠️ Nested arrays require manual JSON input for now
+              </p>
+              <textarea
+                value={JSON.stringify(value || [], null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    updateArg(index, parsed);
+                  } catch (error) {
+                    // Keep the raw input for user to fix
+                  }
+                }}
+                placeholder={`Enter JSON array like: [["item1", "item2"], ["item3"]]`}
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid #555',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
       
-      // Validate each array element individually
-      const arrayErrors: string[] = [];
-      arrayValue.forEach((item, idx) => {
-        const validation = validateAndFormatInput(item?.toString() || '', baseType);
-        if (!validation.isValid && item && item !== '') {
-          arrayErrors.push(`Item ${idx}: ${validation.error}`);
-        }
-      });
-      
-      const hasArrayErrors = arrayErrors.length > 0;
-      
+      // Handle simple arrays with compact UI and preview
       return (
-        <div key={index} className="arg-row">
+        <div key={index} className="arg-row simple-array-row">
           <div className="arg-label">
             <span className="arg-name">{input.name}</span>
             <span className="arg-type" style={{ color: typeColor }}>{input.type}</span>
           </div>
-          <div className="input-with-validation">
-            <input
-              type="text"
-              value={displayValue}
-              onChange={(e) => {
-                const inputValue = e.target.value;
-                if (inputValue.trim() === '') {
-                  updateArg(index, []);
-                } else {
-                  // Parse comma-separated values but don't apply formatting during typing
-                  const items = inputValue
-                    .split(',')
-                    .map(item => item.trim())
-                    .filter(item => item !== '');
-                  updateArg(index, items);
-                }
-              }}
-              onBlur={(e) => {
-                // Auto-format all items on blur
-                if (arrayValue.length > 0) {
-                  const formattedItems = arrayValue.map(item => {
-                    const validation = validateAndFormatInput(item?.toString() || '', baseType);
-                    return validation.formattedValue;
-                  });
-                  updateArg(index, formattedItems);
-                }
-              }}
-              placeholder={`Enter ${baseType} values separated by commas (e.g. value1, value2, value3)`}
-              className={`arg-input array-input ${hasArrayErrors ? 'validation-error' : ''}`}
-            />
-            <div className="array-hint">
-              <span style={{ fontSize: '11px', color: '#666' }}>
-                {arrayValue.length} items • Separate with commas
-              </span>
+          
+          {/* Compact array preview */}
+          <div className="array-preview">
+            <div className="array-preview-content">
+              <span className="preview-label">Current: </span>
+              <code className="preview-value">
+                [{arrayValue.map((v, i) => 
+                  typeof v === 'string' && v.length > 20 ? `${v.slice(0, 20)}...` : v
+                ).join(', ')}]
+              </code>
+              <span className="array-count-badge">({arrayValue.length} items)</span>
             </div>
-            {hasArrayErrors && (
-              <div className="validation-error-message">
-                {arrayErrors.slice(0, 3).join('; ')}
-                {arrayErrors.length > 3 && ` and ${arrayErrors.length - 3} more errors`}
+          </div>
+          
+          {/* Compact input controls */}
+          <div className="compact-array-controls">
+            <div className="array-input-row">
+              <button
+                onClick={() => {
+                  const defaultValue = getDefaultValue(baseType);
+                  updateArg(index, [...arrayValue, defaultValue]);
+                }}
+                className="compact-icon-btn add-btn"
+                title="Add new item"
+              >
+                +
+              </button>
+              
+              {arrayValue.length > 0 && (
+                <button
+                  onClick={() => {
+                    const newArray = [...arrayValue];
+                    newArray.pop();
+                    updateArg(index, newArray);
+                  }}
+                  className="compact-icon-btn remove-last-btn"
+                  title="Remove last item"
+                >
+                  −
+                </button>
+              )}
+              
+              {arrayValue.length > 0 && (
+                <button
+                  onClick={() => {
+                    updateArg(index, []);
+                  }}
+                  className="compact-icon-btn clear-all-btn"
+                  title="Clear all items"
+                >
+                  ⌫
+                </button>
+              )}
+              
+              {arrayValue.length > 1 && (
+                <button
+                  onClick={() => {
+                    // Shuffle array for fun
+                    const shuffled = [...arrayValue].sort(() => Math.random() - 0.5);
+                    updateArg(index, shuffled);
+                  }}
+                  className="compact-icon-btn shuffle-btn"
+                  title="Shuffle items"
+                >
+                  ⟲
+                </button>
+              )}
+            </div>
+            
+            {/* Individual inputs in a compact grid */}
+            {arrayValue.length > 0 && (
+              <div className="compact-inputs-grid">
+                {arrayValue.map((itemValue: any, itemIdx: number) => {
+                  const validation = validateAndFormatInput(itemValue?.toString() || '', baseType);
+                  const hasError = !validation.isValid && itemValue && itemValue !== '';
+                  
+                  return (
+                    <div key={itemIdx} className="compact-input-item">
+                      <label className="compact-input-label">[{itemIdx}]</label>
+                      {baseType === 'bool' ? (
+                        <select
+                          value={itemValue ? 'true' : 'false'}
+                          onChange={(e) => {
+                            const newArray = [...arrayValue];
+                            newArray[itemIdx] = e.target.value === 'true';
+                            updateArg(index, newArray);
+                          }}
+                          className="compact-input"
+                        >
+                          <option value="false">false</option>
+                          <option value="true">true</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={itemValue || ''}
+                          onChange={(e) => {
+                            const newArray = [...arrayValue];
+                            newArray[itemIdx] = e.target.value;
+                            updateArg(index, newArray);
+                          }}
+                          onBlur={(e) => {
+                            const validation = validateAndFormatInput(e.target.value, baseType);
+                            if (validation.formattedValue !== e.target.value) {
+                              const newArray = [...arrayValue];
+                              newArray[itemIdx] = validation.formattedValue;
+                              updateArg(index, newArray);
+                            }
+                          }}
+                          placeholder={
+                            baseType === 'address' ? '0x...' :
+                            baseType.includes('uint') || baseType.includes('int') ? '0' :
+                            baseType.includes('bytes') ? '0x...' :
+                            `${baseType}`
+                          }
+                          className={`compact-input ${hasError ? 'error' : ''}`}
+                        />
+                      )}
+                      <button
+                        onClick={() => {
+                          const newArray = arrayValue.filter((_: any, i: number) => i !== itemIdx);
+                          updateArg(index, newArray);
+                        }}
+                        className="compact-remove-item-btn"
+                        title="Remove this item"
+                      >
+                        ×
+                      </button>
+                      {hasError && (
+                        <div className="compact-error">
+                          {validation.error || 'Invalid'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -578,7 +706,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           />
           {hasError && (
             <div className="validation-error-message">
-              {validation.error}
+              {validation.error || 'Invalid input'}
             </div>
           )}
         </div>
