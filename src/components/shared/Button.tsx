@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2Icon } from '../icons/IconLibrary';
 import '../../styles/AnimatedButton.css';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -41,7 +41,7 @@ const Button: React.FC<ButtonProps> = ({
       <div className="button-content">
         {loading && (
           <div className="button-icon">
-            <Loader2 size={16} />
+            <Loader2Icon width={16} height={16} />
           </div>
         )}
         {!loading && icon && (

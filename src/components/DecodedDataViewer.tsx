@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { JsonEditor } from 'json-edit-react';
+import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
 
 interface DecodedDataViewerProps {
   data: any[];
@@ -577,7 +578,7 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
             >
               <div className="group-info">
                 <span className="toggle-icon">
-                  {expandedGroups.has(groupIndex) ? '🔽' : '▶️'}
+                  {expandedGroups.has(groupIndex) ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
                 </span>
                 <span className="group-title">{group.pattern}</span>
                 <span className="group-count">({group.count} items)</span>

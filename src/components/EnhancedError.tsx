@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
 
 interface ErrorSuggestion {
   action: string;
@@ -164,7 +165,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
             onClick={() => setShowDetails(!showDetails)}
             className="details-toggle"
           >
-            {showDetails ? '🔽' : '▶️'} Technical Details
+            {showDetails ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />} Technical Details
           </button>
           {showDetails && (
             <div className="details-content">

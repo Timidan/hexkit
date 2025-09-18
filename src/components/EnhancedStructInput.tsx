@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { ethers } from 'ethers';
+import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
 
 interface StructField {
   name: string;
@@ -91,7 +92,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
             onClick={() => toggleSection(fieldPath)}
           >
             <span className="expand-icon">
-              {isExpanded ? '🔽' : '▶️'}
+              {isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
             </span>
             <span className="field-icon">🏗️</span>
             <span className="field-name">{input.name}</span>
@@ -126,7 +127,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
             onClick={() => toggleSection(fieldPath)}
           >
             <span className="expand-icon">
-              {isExpanded ? '🔽' : '▶️'}
+              {isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
             </span>
             <span className="field-icon">📋</span>
             <span className="field-name">{input.name}</span>

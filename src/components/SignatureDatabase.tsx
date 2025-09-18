@@ -1,12 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { 
-  Search, 
-  Database, 
-  Hash, 
-  FileText, 
-  Plus, 
-  Trash2,
+  SearchIcon, 
+  DatabaseIcon, 
+  HashtagIcon, 
+  CopyIcon, 
+  PlusIcon, 
+  TrashIcon,
+  FolderOpenIcon,
+  XCircleIcon,
+  ToolIcon,
+  PenToolIcon,
+  FileTextIcon
+} from './icons/IconLibrary';
+import { 
   Download,
   Upload,
   Building2
@@ -440,7 +447,7 @@ const SignatureDatabase: React.FC = () => {
         color: '#1f2937',
         marginBottom: '8px'
       }}>
-        <Database size={28} />
+        <DatabaseIcon width={28} height={28} />
         Signature Database
       </h2>
       <p style={{ 
@@ -491,7 +498,7 @@ const SignatureDatabase: React.FC = () => {
               color: '#374151',
               marginBottom: '16px'
             }}>
-              <Hash size={18} />
+              <HashtagIcon width={18} height={18} />
               Lookup Signatures by Hash
             </h3>
             
@@ -591,7 +598,7 @@ const SignatureDatabase: React.FC = () => {
               color: '#374151',
               marginBottom: '16px'
             }}>
-              <Search size={18} />
+              <SearchIcon width={18} height={18} />
               Search Signatures by Name
             </h3>
             
@@ -709,7 +716,7 @@ const SignatureDatabase: React.FC = () => {
               color: '#374151',
               marginBottom: '16px'
             }}>
-              <Plus size={18} />
+              <PlusIcon width={18} height={18} />
               Custom Signature Library
             </h3>
             
@@ -724,7 +731,7 @@ const SignatureDatabase: React.FC = () => {
                 color: '#374151',
                 marginBottom: '12px'
               }}>
-                <FileText size={16} />
+                <FileTextIcon width={16} height={16} />
                 Import from ABI
               </h4>
               <p>Upload contract artifacts or paste ABI JSON to extract all function and event signatures.</p>
@@ -898,7 +905,7 @@ const SignatureDatabase: React.FC = () => {
                   listStyle: 'none'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Plus size={16} />
+                    <PlusIcon width={16} height={16} />
                     Custom Signatures ({customSignatures.length})
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -991,7 +998,7 @@ const SignatureDatabase: React.FC = () => {
               color: '#374151',
               marginBottom: '16px'
             }}>
-              <Database size={18} />
+              <DatabaseIcon width={18} height={18} />
               Cached Signatures
             </h3>
             
@@ -1013,7 +1020,7 @@ const SignatureDatabase: React.FC = () => {
                   listStyle: 'none'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Hash size={16} />
+                    <HashtagIcon width={16} height={16} />
                     Functions ({Object.keys(cachedFunctions).length})
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1110,7 +1117,7 @@ const SignatureDatabase: React.FC = () => {
                   listStyle: 'none'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FileText size={16} />
+                    <FileTextIcon width={16} height={16} />
                     Events ({Object.keys(cachedEvents).length})
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

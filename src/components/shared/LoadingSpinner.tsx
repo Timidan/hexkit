@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2Icon } from '../icons/IconLibrary';
 import '../../styles/SharedComponents.css';
 
 export interface LoadingSpinnerProps {
@@ -25,13 +25,13 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   if (text) {
     return (
       <div className="shared-loading-with-text">
-        <Loader2 className={spinnerClasses} />
+        <Loader2Icon className={spinnerClasses} />
         <span className="shared-loading-text">{text}</span>
       </div>
     );
   }
 
-  return <Loader2 className={spinnerClasses} />;
+  return <Loader2Icon className={spinnerClasses} />;
 };
 
 export default LoadingSpinner;

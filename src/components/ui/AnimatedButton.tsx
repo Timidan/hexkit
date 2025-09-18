@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2Icon } from '../icons/IconLibrary';
 
 interface AnimatedButtonProps {
   children: React.ReactNode;
@@ -107,7 +107,7 @@ const AnimatedButton: React.FC<AnimatedButtonProps> = ({
         animate={loading ? { rotate: 360 } : {}}
         transition={loading ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
       >
-        {loading ? <Loader2 size={16} /> : icon}
+        {loading ? <Loader2Icon width={16} height={16} /> : icon}
       </motion.div>
     );
   };

@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown,
-  Settings,
-  Play,
-  XCircle,
-  Search,
-  Loader2,
-  Gem,
-} from "lucide-react";
+  ChevronDownIcon,
+  SettingsIcon,
+  PlayIcon,
+  XCircleIcon,
+  SearchIcon,
+  Loader2Icon,
+  GemIcon,
+  BookOpenIcon,
+  EditIcon,
+  DatabaseIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  ZapIcon,
+} from "./icons/IconLibrary";
 import { ethers } from "ethers";
 // import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
@@ -2768,10 +2774,62 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const updateCallData = useCallback(() => {
-    // This function is no longer needed since calldata is generated
-    // directly in the EnhancedStructInput onDataChange callback
-    // Keeping it empty to prevent conflicts
-  }, []);
+    if (!selectedFunctionObj) {
+      setGeneratedCallData("0x");
+      return;
+    }
+
+    try {
+      console.log("🔧 UpdateCallData: Generating calldata for:", selectedFunctionObj.name);
+      console.log("📊 UpdateCallData: Current functionInputs:", functionInputs);
+      
+      // Convert functionInputs back to array format expected by ethers
+      const inputsArray = selectedFunctionObj.inputs.map((input: any, idx: number) => {
+        const inputKey = `${selectedFunctionObj.name}_${idx}`;
+        const value = functionInputs[inputKey];
+        
+        if (value === undefined || value === "") {
+          // Use default value for empty inputs
+          if (input.type === 'bool') return false;
+          if (input.type.includes('uint') || input.type.includes('int')) return "0";
+          if (input.type === 'address') return "0x0000000000000000000000000000000000000000";
+          if (input.type.includes('bytes')) return "0x";
+          if (input.type.includes('[]')) return [];
+          if (input.type.includes('tuple')) return {};
+          return "";
+        }
+        
+        // Handle JSON parsing for complex types
+        if (typeof value === 'string' && (input.type.includes('tuple') || input.type.includes('[]'))) {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return value;
+          }
+        }
+        
+        return value;
+      });
+
+      console.log("📋 UpdateCallData: Converted inputs array:", inputsArray);
+
+      const iface = new ethers.utils.Interface([selectedFunctionObj]);
+      const calldata = iface.encodeFunctionData(selectedFunctionObj.name, inputsArray);
+      
+      console.log("✅ UpdateCallData: Generated calldata:", calldata);
+      setGeneratedCallData(calldata);
+    } catch (error) {
+      console.error("❌ UpdateCallData: Calldata generation failed:", error);
+      console.error("📊 UpdateCallData: Function inputs:", functionInputs);
+      console.error("📋 UpdateCallData: Function ABI:", selectedFunctionObj);
+      setGeneratedCallData("0x");
+    }
+  }, [selectedFunctionObj, functionInputs]);
+
+  // Auto-update calldata whenever functionInputs or selectedFunctionObj changes
+  useEffect(() => {
+    updateCallData();
+  }, [updateCallData]);
 
   const handleInputChange = (inputKey: string, value: string) => {
     setFunctionInputs((prev) => {
@@ -2784,6 +2842,9 @@ const SimpleGridUI: React.FC = () => {
       console.log(`🔄 All inputs:`, newInputs);
       return newInputs;
     });
+    
+    // Trigger calldata update after state is set
+    setTimeout(() => updateCallData(), 0);
   };
 
   const handleFetchABI = async () => {
@@ -3594,9 +3655,9 @@ const SimpleGridUI: React.FC = () => {
                     }
                   >
                     {isLoadingABI ? (
-                      <Loader2 size={16} className="animate-spin" />
+                      <Loader2Icon width={16} height={16} className="animate-spin" />
                     ) : (
-                      <Search size={16} />
+                      <SearchIcon width={16} height={16} />
                     )}
                     {isLoadingABI ? "Searching..." : "Search & Fetch ABI"}
                   </button>
@@ -3621,8 +3682,9 @@ const SimpleGridUI: React.FC = () => {
                       color: "#22c55e",
                     }}
                   >
-                    <Loader2
-                      size={16}
+                    <Loader2Icon
+                      width={16}
+                      height={16}
                       style={{
                         animation: "spin 1s linear infinite",
                       }}
@@ -3644,9 +3706,9 @@ const SimpleGridUI: React.FC = () => {
                             }}
                           >
                             {searchProgress.status === "searching" && "🔍"}
-                            {searchProgress.status === "found" && "✅"}
-                            {searchProgress.status === "not_found" && "❌"}
-                            {searchProgress.status === "error" && "⚠️"}
+                            {searchProgress.status === "found" && <CheckCircleIcon width={12} height={12} />}
+                            {searchProgress.status === "not_found" && <XCircleIcon width={12} height={12} />}
+                            {searchProgress.status === "error" && <AlertTriangleIcon width={12} height={12} />}
                             <span
                               style={{
                                 color:
@@ -3717,7 +3779,7 @@ const SimpleGridUI: React.FC = () => {
                         color: "#dc2626",
                       }}
                     >
-                      <XCircle size={16} />
+                      <XCircleIcon width={16} height={16} />
                       <span style={{ fontSize: "14px" }}>{abiError}</span>
                     </div>
                     {contractAddress && selectedNetwork && (
@@ -3914,7 +3976,7 @@ const SimpleGridUI: React.FC = () => {
                               color: "#a78bfa",
                             }}
                           >
-                            <Gem size={12} />
+                            <GemIcon width={12} height={12} />
                           </span>
                         )}
                       </div>
@@ -3982,8 +4044,9 @@ const SimpleGridUI: React.FC = () => {
                           border: "1px solid #444",
                         }}
                       >
-                        <Loader2
-                          size={20}
+                        <Loader2Icon
+                          width={20}
+                          height={20}
                           style={{
                             color: "#22c55e",
                             animation: "spin 1s linear infinite",
@@ -4100,7 +4163,7 @@ const SimpleGridUI: React.FC = () => {
                               color: "#a78bfa",
                             }}
                           >
-                            <Gem size={12} />
+                            <GemIcon width={12} height={12} />
                           </span>
                         )}
                         {abiSource && (
@@ -4237,7 +4300,7 @@ const SimpleGridUI: React.FC = () => {
                                     break;
                                   case "ERC777":
                                     typeLabel = "ERC777 Token";
-                                    typeIcon = "⚡";
+                                    typeIcon = "lightning";
                                     break;
                                   case "ERC4626":
                                     typeLabel = "ERC4626 Vault";
@@ -4253,7 +4316,7 @@ const SimpleGridUI: React.FC = () => {
                                 }
 
                                 if (tokenDetection.isDiamond) {
-                                  typeLabel = `💎 Diamond Proxy (${typeLabel})`;
+                                  typeLabel = `Diamond Proxy (${typeLabel})`;
                                 } else {
                                   typeLabel = `${typeIcon} ${typeLabel}`;
                                 }
@@ -4330,7 +4393,7 @@ const SimpleGridUI: React.FC = () => {
                                 contractDisplayName.includes("Diamond") ||
                                 typeName.includes("Diamond")
                               ) {
-                                return "💎 Diamond Proxy";
+                                return "Diamond Proxy";
                               } else if (
                                 isERC1155 ||
                                 typeName.includes("ERC1155")
@@ -4346,7 +4409,7 @@ const SimpleGridUI: React.FC = () => {
                                 isERC777 ||
                                 typeName.includes("ERC777")
                               ) {
-                                return "⚡ ERC777 Token";
+                                return "ERC777 Token";
                               } else if (
                                 isERC4626 ||
                                 typeName.includes("ERC4626")
@@ -4439,7 +4502,7 @@ const SimpleGridUI: React.FC = () => {
                           gap: "4px",
                         }}
                       >
-                        📖{" "}
+                        <BookOpenIcon width={16} height={16} style={{ marginRight: '4px' }} />
                         {diamondFacets
                           .reduce((acc, f) => acc + f.functions.read.length, 0)
                           .toString()}{" "}
@@ -4546,7 +4609,7 @@ const SimpleGridUI: React.FC = () => {
                               gap: "4px",
                             }}
                           >
-                            💎 Diamond Contract
+                            <GemIcon width={16} height={16} style={{ marginRight: '6px' }} />Diamond Contract
                           </a>
 
                           {selectedFacet && (
@@ -4638,7 +4701,7 @@ const SimpleGridUI: React.FC = () => {
                                     gap: "6px",
                                   }}
                                 >
-                                  ⚠️ Unverified Facet - Paste ABI Below
+                                  <AlertTriangleIcon width={16} height={16} style={{ marginRight: '6px' }} />Unverified Facet - Paste ABI Below
                                 </div>
                                 <textarea
                                   placeholder="Paste the facet ABI JSON here..."
@@ -4847,7 +4910,7 @@ const SimpleGridUI: React.FC = () => {
                                       : "#ccc",
                                 }}
                               >
-                                📖 Read ({filteredReadFunctions.length})
+                                <BookOpenIcon width={16} height={16} style={{ marginRight: '4px' }} />Read ({filteredReadFunctions.length})
                               </div>
                             </div>
                           )}
@@ -5090,7 +5153,7 @@ const SimpleGridUI: React.FC = () => {
                                               }}
                                             >
                                               {func.functionType === "read"
-                                                ? "📖 READ"
+                                                ? "READ"
                                                 : "✍️ WRITE"}
                                             </div>
                                           </div>
@@ -5176,7 +5239,7 @@ const SimpleGridUI: React.FC = () => {
                                   "transparent";
                               }}
                             >
-                              <Search size={14} />
+                              <SearchIcon width={14} height={14} />
                             </div>
                           </label>
                           <select
@@ -5917,7 +5980,7 @@ const SimpleGridUI: React.FC = () => {
                                 );
                               }}
                             >
-                              <Play size={16} />
+                              <PlayIcon width={16} height={16} />
                               {selectedFunctionType === "read"
                                 ? "Call Function"
                                 : "Send Transaction"}
@@ -6076,8 +6139,8 @@ const SimpleGridUI: React.FC = () => {
               marginBottom: "20px",
             }}
           >
-            <h2 style={subHeaderStyle}>⚡ Transaction Parameters</h2>
-            <Settings size={20} style={{ color: "#888", cursor: "pointer" }} />
+            <h2 style={subHeaderStyle}><ZapIcon width={16} height={16} style={{ marginRight: '6px' }} />Transaction Parameters</h2>
+            <SettingsIcon width={20} height={20} style={{ color: "#888", cursor: "pointer" }} />
           </div>
 
           {/* Use Pending Block */}
@@ -6318,7 +6381,7 @@ const SimpleGridUI: React.FC = () => {
                       gap: "6px",
                     }}
                   >
-                    <span style={{ fontSize: "12px" }}>🔶</span>
+                    <GemIcon width={12} height={12} />
                     <span
                       style={{
                         fontSize: "12px",
@@ -6329,7 +6392,7 @@ const SimpleGridUI: React.FC = () => {
                       Block Header Overrides
                     </span>
                   </div>
-                  <ChevronDown size={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
                 </div>
                 <div
                   style={{
@@ -6367,7 +6430,7 @@ const SimpleGridUI: React.FC = () => {
                       gap: "6px",
                     }}
                   >
-                    <span style={{ fontSize: "12px" }}>🗄️</span>
+                    <DatabaseIcon width={12} height={12} />
                     <span
                       style={{
                         fontSize: "12px",
@@ -6378,7 +6441,7 @@ const SimpleGridUI: React.FC = () => {
                       State Overrides
                     </span>
                   </div>
-                  <ChevronDown size={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
                 </div>
                 <div
                   style={{
@@ -6427,7 +6490,7 @@ const SimpleGridUI: React.FC = () => {
                       Access Lists
                     </span>
                   </div>
-                  <ChevronDown size={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
                 </div>
                 <div
                   style={{
@@ -6463,7 +6526,7 @@ const SimpleGridUI: React.FC = () => {
             boxShadow: "0 4px 20px rgba(0, 123, 255, 0.3)",
           }}
         >
-          <Play size={20} />
+          <PlayIcon width={20} height={20} />
           Simulate Transaction
         </button>
       </div>

@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import type { JSX } from 'react';
 import { ethers } from 'ethers';
+import { SettingsIcon, ChevronDownIcon, ChevronRightIcon, CheckCircleIcon, XCircleIcon, SearchIcon, CopyIcon } from './icons/IconLibrary';
 import { 
-  CheckCircle, 
-  XCircle, 
-  Search, 
   FileText, 
   Target, 
   BarChart3, 
-  Copy,
   RotateCw,
-  Building2,
-  ChevronDown,
-  ChevronRight
+  Building2
 } from 'lucide-react';
 import {
   lookupFunctionSignatures,
@@ -557,7 +552,7 @@ const AdvancedSmartDecoder: React.FC = () => {
             }}
             title="Copy full array"
           >
-            <Copy size={12} />
+            <CopyIcon width={12} height={12} />
           </button>
         </div>
       );
@@ -581,7 +576,7 @@ const AdvancedSmartDecoder: React.FC = () => {
               gap: '4px'
             }}
           >
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
             {isExpanded ? 'Collapse' : 'Show All'} ({value.length} items)
           </button>
           
@@ -599,7 +594,7 @@ const AdvancedSmartDecoder: React.FC = () => {
             }}
             title="Copy full array"
           >
-            <Copy size={12} />
+            <CopyIcon width={12} height={12} />
           </button>
         </div>
 
@@ -641,7 +636,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                   }}
                   title={`Copy item ${index}`}
                 >
-                  <Copy size={10} />
+                  <CopyIcon width={10} height={10} />
                 </button>
               </div>
             ))}
@@ -724,7 +719,7 @@ const AdvancedSmartDecoder: React.FC = () => {
       <div className="advanced-smart-decoder">
         <h2>🧠 Advanced Smart Decoder</h2>
         <div className="error-message">
-          <XCircle size={16} className="inline mr-2 text-red-500" />Component error: {componentError}
+          <XCircleIcon width={16} height={16} className="inline mr-2 text-red-500" />Component error: {componentError}
           <br />
           <button onClick={() => { setComponentError(null); window.location.reload(); }}>
             Refresh Page
@@ -768,7 +763,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                   onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
                   className="control-btn"
                 >
-                  ⚙️ Settings {showAdvancedOptions ? '▼' : '▶'}
+                  <SettingsIcon width={16} height={16} style={{ marginRight: '6px' }} />Settings {showAdvancedOptions ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
                 </button>
               </div>
             </div>
@@ -827,7 +822,7 @@ const AdvancedSmartDecoder: React.FC = () => {
           {/* Decoding Steps */}
           {decodingSteps.length > 0 && (
             <div className="decoding-steps">
-              <h4><Search size={16} className="inline mr-2" />Analysis Process:</h4>
+              <h4><SearchIcon width={16} height={16} style={{display: 'inline', marginRight: '8px'}} />Analysis Process:</h4>
               <ul>
                 {decodingSteps.map((step, index) => (
                   <li key={index}>{step}</li>
@@ -839,7 +834,7 @@ const AdvancedSmartDecoder: React.FC = () => {
           {/* Standard Decode Results */}
           {decodedResult && (
             <div className="decode-result">
-              <h3><CheckCircle size={20} className="inline mr-2 text-green-500" />Successfully Decoded</h3>
+              <h3><CheckCircleIcon width={20} height={20} className="inline mr-2 text-green-500" />Successfully Decoded</h3>
               <div className="result-section">
                 <div className="result-field">
                   <label>Function:</label>
@@ -870,7 +865,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                           className={viewMode === 'simple' ? 'active' : ''}
                           onClick={() => setViewMode('simple')}
                         >
-                          <Copy size={16} className="inline mr-2" />Simple List
+                          <CopyIcon width={16} height={16} style={{display: 'inline', marginRight: '8px'}} />Simple List
                         </button>
                       </div>
                     </div>
@@ -980,7 +975,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                           className={viewMode === 'simple' ? 'active' : ''}
                           onClick={() => setViewMode('simple')}
                         >
-                          <Copy size={16} className="inline mr-2" />Simple List
+                          <CopyIcon width={16} height={16} style={{display: 'inline', marginRight: '8px'}} />Simple List
                         </button>
                       </div>
                     </div>
@@ -1105,7 +1100,7 @@ const AdvancedSmartDecoder: React.FC = () => {
           {/* Error Display */}
           {error && (
             <div className="error-message">
-              <XCircle size={16} className="inline mr-2 text-red-500" />{error}
+              <XCircleIcon width={16} height={16} className="inline mr-2 text-red-500" />{error}
             </div>
           )}
         </div>
@@ -1133,7 +1128,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                 disabled={isLoadingEvents}
                 className="event-search-btn"
               >
-                {isLoadingEvents ? <><RotateCw size={16} className="inline mr-2 animate-spin" />Searching...</> : <><Search size={16} className="inline mr-2" />Search Events</>}
+                {isLoadingEvents ? <><RotateCw size={16} className="inline mr-2 animate-spin" />Searching...</> : <><SearchIcon width={16} height={16} style={{display: 'inline', marginRight: '8px'}} />Search Events</>}
               </button>
             </div>
           </div>

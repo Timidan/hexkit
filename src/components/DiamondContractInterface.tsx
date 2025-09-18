@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
+import { GemIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, CopyIcon } from './icons/IconLibrary';
 import { 
-  Diamond, 
   Network, 
   Building2, 
   Eye, 
@@ -9,13 +9,8 @@ import {
   Play,
   Wallet,
   Settings,
-  ChevronDown,
-  ChevronRight,
-  CheckCircle,
-  XCircle,
   Hash,
   FileText,
-  Copy,
   ExternalLink
 } from 'lucide-react';
 import MultiNetworkContractSearch from './MultiNetworkContractSearch';
@@ -148,7 +143,7 @@ const DiamondContractInterface: React.FC = () => {
   return (
     <div className="panel">
       <h1 className="flex items-center gap-3 text-2xl font-bold mb-6">
-        <Diamond size={28} className="text-purple-600" />
+        <GemIcon width={28} height={28} className="text-purple-600" />
         Diamond Contract Interface
       </h1>
 
@@ -174,7 +169,7 @@ const DiamondContractInterface: React.FC = () => {
           }`}
           disabled={!selectedContract?.diamondInfo?.isDiamond}
         >
-          <Diamond size={18} className="inline mr-2" />
+          <GemIcon width={18} height={18} className="inline mr-2" />
           Diamond Interaction
           {selectedContract?.diamondInfo?.isDiamond && (
             <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
@@ -213,7 +208,7 @@ const DiamondContractInterface: React.FC = () => {
           {/* Diamond Overview */}
           <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Diamond size={24} className="text-purple-600" />
+              <GemIcon width={24} height={24} className="text-purple-600" />
               <div>
                 <h3 className="text-lg font-semibold text-purple-800">
                   Diamond Contract Overview
@@ -259,9 +254,9 @@ const DiamondContractInterface: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {expandedFacets.has(facet.address) ? (
-                        <ChevronDown size={20} />
+                        <ChevronDownIcon width={20} height={20} />
                       ) : (
-                        <ChevronRight size={20} />
+                        <ChevronRightIcon width={20} height={20} />
                       )}
                       
                       <div>
@@ -275,9 +270,9 @@ const DiamondContractInterface: React.FC = () => {
                       
                       <div className="flex items-center gap-2">
                         {facet.verified ? (
-                          <CheckCircle size={16} className="text-green-600" />
+                          <CheckCircleIcon width={16} height={16} className="text-green-600" />
                         ) : (
-                          <XCircle size={16} className="text-red-600" />
+                          <XCircleIcon width={16} height={16} className="text-red-600" />
                         )}
                         <span className="text-sm text-gray-600">
                           {facet.functionCount} functions
@@ -302,7 +297,7 @@ const DiamondContractInterface: React.FC = () => {
                         }}
                         className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
                       >
-                        <Copy size={16} />
+                        <CopyIcon width={16} height={16} />
                       </button>
                     </div>
                   </div>
@@ -321,12 +316,12 @@ const DiamondContractInterface: React.FC = () => {
                         }`}>
                           {facet.verified ? (
                             <>
-                              <CheckCircle size={14} />
+                              <CheckCircleIcon width={14} height={14} />
                               Verified
                             </>
                           ) : (
                             <>
-                              <XCircle size={14} />
+                              <XCircleIcon width={14} height={14} />
                               Unverified
                             </>
                           )}
@@ -345,11 +340,11 @@ const DiamondContractInterface: React.FC = () => {
                     
                     {facet.verified ? (
                       <div className="text-sm text-green-700 bg-green-50 p-3 rounded-lg">
-                        ✓ This facet is verified and its functions are available for interaction below.
+                        <CheckCircleIcon width={14} height={14} style={{ marginRight: '4px' }} />This facet is verified and its functions are available for interaction below.
                       </div>
                     ) : (
                       <div className="text-sm text-red-700 bg-red-50 p-3 rounded-lg">
-                        ⚠ This facet is not verified. Function calls may be limited to known selectors only.
+                        <AlertTriangleIcon width={14} height={14} style={{ marginRight: '4px' }} />This facet is not verified. Function calls may be limited to known selectors only.
                       </div>
                     )}
                   </div>
@@ -384,7 +379,7 @@ const DiamondContractInterface: React.FC = () => {
       {/* No Diamond Selected State */}
       {activeTab === 'interact' && !selectedContract?.diamondInfo?.isDiamond && (
         <div className="text-center py-12">
-          <Diamond size={64} className="text-gray-300 mx-auto mb-4" />
+          <GemIcon width={64} height={64} className="text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-medium text-gray-600 mb-2">
             No Diamond Contract Selected
           </h3>

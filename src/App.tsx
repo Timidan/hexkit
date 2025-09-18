@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ethers } from "ethers";
 import "./App.css";
-import { Wrench, Hash, Zap } from "lucide-react";
+import { ToolIcon, HashIcon, ZapIcon } from "./components/icons/IconLibrary";
 import AnimatedInput from "./components/ui/AnimatedInput";
 import AnimatedButton from "./components/ui/AnimatedButton";
 import RainbowKitWallet from "./components/RainbowKitWallet";
@@ -47,14 +47,14 @@ const SignatureCalculator: React.FC = () => {
         onChange={setSignature}
         type="text"
         placeholder="transfer(address,uint256)"
-        icon={<Hash size={20} />}
+        icon={<HashIcon width={20} height={20} />}
         className="signature-input"
       />
 
       <AnimatedButton
         onClick={calculateSelector}
         variant="primary"
-        icon={<Zap size={18} />}
+        icon={<ZapIcon width={18} height={18} />}
         className="calculate-selector-btn"
       >
         Calculate Selector
@@ -80,7 +80,7 @@ function App() {
           <div className="header-content">
             <div className="header-title">
               <h1>
-                <Wrench size={24} className="inline mr-2" /> Web3 Toolkit
+                <ToolIcon width={24} height={24} className="inline mr-2" /> Web3 Toolkit
               </h1>
               <p>Ethereum Development Tools</p>
             </div>

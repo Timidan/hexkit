@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { DiamondFacet } from "../utils/diamondFacetFetcher";
-import { Copy } from "lucide-react";
+import { CopyIcon } from "./icons/IconLibrary";
 
 interface FacetMiniModalProps {
   facets: DiamondFacet[];
@@ -167,7 +167,7 @@ export const FacetMiniModal: React.FC<FacetMiniModalProps> = ({
                         alignItems: "center",
                       }}
                     >
-                      <Copy size={12} />
+                      <CopyIcon width={12} height={12} />
                     </button>
                   </span>
                 </div>

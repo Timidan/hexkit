@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import '../styles/CompactArrayStyles.css';
+import { PlusIcon, MinusIcon, TrashIcon, ShuffleIcon, Icon, AlertTriangleIcon } from './icons/IconLibrary';
 
 interface ArgInputProps {
   abi?: any[];
@@ -64,14 +65,110 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
 
   // Collapse/expand is purely manual - controlled by user clicks only
 
+  // Universal Solidity Type System
+  const SolidityTypes = {
+    // Primitive type definitions with validation and formatting rules
+    getTypeInfo: (type: string) => {
+      const baseType = type.replace(/\[\]$/, ''); // Remove array suffix
+      const isArray = type.includes('[]');
+      
+      if (baseType === 'bool') {
+        return {
+          primitive: 'bool',
+          defaultValue: false,
+          arrayDefaultValue: [],
+          validator: (value: any) => typeof value === 'boolean' || value === 'true' || value === 'false',
+          formatter: (value: any) => value === 'true' || value === true,
+          placeholder: 'true/false',
+          inputType: 'select'
+        };
+      }
+      
+      if (baseType.match(/^u?int(\d+)?$/)) {
+        return {
+          primitive: 'integer',
+          defaultValue: '',
+          arrayDefaultValue: [],
+          validator: (value: string) => !isNaN(Number(value)) && Number(value) >= 0,
+          formatter: (value: string) => value.replace(/[^0-9.eE+-]/g, ''),
+          placeholder: '0',
+          inputType: 'text'
+        };
+      }
+      
+      if (baseType === 'address') {
+        return {
+          primitive: 'address',
+          defaultValue: '',
+          arrayDefaultValue: [],
+          validator: (value: string) => /^0x[a-fA-F0-9]{40}$/.test(value),
+          formatter: (value: string) => {
+            try {
+              return ethers.utils.getAddress(value);
+            } catch {
+              return value;
+            }
+          },
+          placeholder: '0x...',
+          inputType: 'text'
+        };
+      }
+      
+      if (baseType.includes('bytes')) {
+        return {
+          primitive: 'bytes',
+          defaultValue: '',
+          arrayDefaultValue: [],
+          validator: (value: string) => /^0x[a-fA-F0-9]*$/.test(value),
+          formatter: (value: string) => {
+            if (!value.startsWith('0x')) value = '0x' + value.replace(/^0x/, '');
+            return value.toLowerCase();
+          },
+          placeholder: '0x...',
+          inputType: 'text'
+        };
+      }
+      
+      if (baseType === 'string') {
+        return {
+          primitive: 'string',
+          defaultValue: '',
+          arrayDefaultValue: [],
+          validator: (value: string) => true, // Strings are always valid
+          formatter: (value: string) => value,
+          placeholder: 'Enter text',
+          inputType: 'text'
+        };
+      }
+      
+      if (baseType === 'tuple') {
+        return {
+          primitive: 'tuple',
+          defaultValue: {},
+          arrayDefaultValue: [],
+          validator: (value: any) => typeof value === 'object',
+          formatter: (value: any) => value,
+          placeholder: 'Struct object',
+          inputType: 'struct'
+        };
+      }
+      
+      // Fallback
+      return {
+        primitive: 'unknown',
+        defaultValue: '',
+        arrayDefaultValue: [],
+        validator: (value: any) => true,
+        formatter: (value: any) => value,
+        placeholder: `Enter ${baseType}`,
+        inputType: 'text'
+      };
+    }
+  };
+
   const getDefaultValue = (type: string): any => {
-    if (type === 'bool') return false;
-    if (type.includes('uint') || type.includes('int')) return '';
-    if (type === 'address') return '';
-    if (type.includes('bytes')) return '';
-    if (type.includes('[]')) return [];
-    if (type.includes('tuple')) return {};
-    return '';
+    const typeInfo = SolidityTypes.getTypeInfo(type);
+    return type.includes('[]') ? typeInfo.arrayDefaultValue : typeInfo.defaultValue;
   };
 
   const updateArg = useCallback((index: number, value: any) => {
@@ -118,48 +215,37 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     setCollapsedStructs(newCollapsed);
   };
 
-  // Input validation helpers
-  const validateAndFormatInput = (value: string, type: string): { isValid: boolean; formattedValue: string; error?: string } => {
-    if (!value || value === '') return { isValid: true, formattedValue: value };
-
-    if (type === 'address') {
-      try {
-        // Check if it's a valid address format
-        if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
-          return { isValid: false, formattedValue: value, error: 'Invalid address format' };
-        }
-        // Auto-checksum the address
-        const checksummed = ethers.utils.getAddress(value);
-        return { isValid: true, formattedValue: checksummed };
-      } catch {
-        return { isValid: false, formattedValue: value, error: 'Invalid address' };
-      }
-    }
-
-    if (type.includes('uint') || type.includes('int')) {
-      // Remove any non-numeric characters except for scientific notation
-      const numericValue = value.replace(/[^0-9.eE+-]/g, '');
-      if (numericValue !== value) {
-        return { isValid: false, formattedValue: numericValue, error: 'Only numbers allowed' };
-      }
-      // Check if it's a valid number
-      if (isNaN(Number(value))) {
-        return { isValid: false, formattedValue: value, error: 'Invalid number' };
-      }
+  // Universal input validation using the type system
+  const validateAndFormatInput = (value: any, type: string): { isValid: boolean; formattedValue: any; error?: string } => {
+    // Handle non-string values (objects, arrays, etc.)
+    if (typeof value !== 'string') {
       return { isValid: true, formattedValue: value };
     }
+    
+    if (!value || value === '') return { isValid: true, formattedValue: value };
 
-    if (type.includes('bytes')) {
-      if (!value.startsWith('0x')) {
-        return { isValid: false, formattedValue: '0x' + value.replace(/^0x/, ''), error: 'Must start with 0x' };
+    const typeInfo = SolidityTypes.getTypeInfo(type);
+    
+    try {
+      const isValid = typeInfo.validator(value);
+      const formattedValue = typeInfo.formatter(value);
+      
+      if (!isValid) {
+        return { 
+          isValid: false, 
+          formattedValue: value, 
+          error: `Invalid ${typeInfo.primitive} format` 
+        };
       }
-      if (!/^0x[a-fA-F0-9]*$/.test(value)) {
-        return { isValid: false, formattedValue: value, error: 'Invalid hex format' };
-      }
-      return { isValid: true, formattedValue: value.toLowerCase() };
+      
+      return { isValid: true, formattedValue };
+    } catch (error) {
+      return { 
+        isValid: false, 
+        formattedValue: value, 
+        error: `Invalid ${typeInfo.primitive}` 
+      };
     }
-
-    return { isValid: true, formattedValue: value };
   };
 
   // Unified struct helper component for all struct types
@@ -249,7 +335,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             )) || (
               <div className="missing-components-warning">
                 <p style={{ color: '#ef4444', fontSize: '12px', padding: '10px' }}>
-                  ⚠️ Tuple structure not available in ABI. You can manually edit the raw data:
+                  <AlertTriangleIcon width={14} height={14} style={{ marginRight: '4px' }} />Tuple structure not available in ABI. You can manually edit the raw data:
                 </p>
                 <textarea
                   value={JSON.stringify(structData || {}, null, 2)}
@@ -276,6 +362,88 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
   // Helper function to render struct fields recursively
   const renderStructField = (field: any, value: any, onChange: (newValue: any) => void): React.ReactNode => {
     const typeColor = getTypeColor(field.type);
+    
+    // Handle tuple arrays (tuple[]) - should use array rendering logic
+    if (field.type.includes('tuple[]') || (field.type.includes('[]') && field.type.includes('tuple'))) {
+      console.log(`🔍 STRUCT FIELD TUPLE ARRAY: ${field.name} (${field.type})`, {
+        hasComponents: !!field.components,
+        components: field.components
+      });
+      
+      const arrayValue = Array.isArray(value) ? value : [];
+      const components = field.components || [];
+      
+      return (
+        <div className="nested-tuple-array">
+          <div className="nested-struct-header">
+            <span className="field-name">{field.name}</span>
+            <span className="field-type" style={{ color: typeColor }}>({field.type})</span>
+          </div>
+          <div className="struct-array-container">
+            <div className="struct-array-header">
+              <span className="array-count">{arrayValue.length} structs</span>
+              <div
+                onClick={() => {
+                  const newStruct: any = {};
+                  if (components && components.length > 0) {
+                    components.forEach((comp: any) => {
+                      newStruct[comp.name] = getDefaultValue(comp.type);
+                    });
+                  }
+                  onChange([...arrayValue, newStruct]);
+                }}
+                title="Add struct"
+                style={{ 
+                  cursor: 'pointer', 
+                  color: '#4ade80', 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease',
+                  opacity: 0.8
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
+              >
+                <PlusIcon width={16} height={16} />
+              </div>
+            </div>
+            
+            {arrayValue.map((structValue: any, structIdx: number) => {
+              const structId = `nested-${field.name}-${structIdx}`;
+              return (
+                <div key={structIdx}>
+                  {renderStructHelper(
+                    structValue,
+                    components,
+                    (newValue: any) => {
+                      const newArray = [...arrayValue];
+                      newArray[structIdx] = newValue;
+                      onChange(newArray);
+                    },
+                    structId,
+                    true, // isArrayItem
+                    structIdx, // arrayIndex
+                    () => {
+                      const newArray = arrayValue.filter((_: any, i: number) => i !== structIdx);
+                      onChange(newArray);
+                    }
+                  )}
+                </div>
+              );
+            })}
+            
+            {arrayValue.length === 0 && (
+              <div className="empty-array">
+                <p>No structs added. Click "+" to create one.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
     
     // Handle nested structs/tuples using unified helper
     if (field.type === 'tuple' && field.components) {
@@ -399,7 +567,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             <div className="struct-array-container">
               <div className="struct-array-header">
                 <span className="array-count">{arrayValue.length} structs</span>
-                <button
+                <div
                   onClick={() => {
                     const newStruct: any = {};
                     if (components && components.length > 0) {
@@ -412,13 +580,23 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                     }
                     updateArg(index, [...arrayValue, newStruct]);
                   }}
-                  className="add-struct-btn"
+                  title="Add struct"
+                  style={{ 
+                    cursor: 'pointer', 
+                    color: '#4ade80', 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    opacity: 0.8
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 5v14M5 12h14"/>
-                  </svg>
-                  Add Struct
-                </button>
+                  <PlusIcon width={16} height={16} />
+                </div>
               </div>
               
               {arrayValue.map((structValue: any, structIdx: number) => {
@@ -466,7 +644,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             </div>
             <div style={{ padding: '8px', background: 'rgba(255, 193, 7, 0.1)', border: '1px solid #ffc107', borderRadius: '4px' }}>
               <p style={{ fontSize: '12px', color: '#ffc107', margin: '0 0 8px 0' }}>
-                ⚠️ Nested arrays require manual JSON input for now
+                <AlertTriangleIcon width={14} height={14} style={{ marginRight: '4px' }} />Nested arrays require manual JSON input for now
               </p>
               <textarea
                 value={JSON.stringify(value || [], null, 2)}
@@ -520,56 +698,105 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           
           {/* Compact input controls */}
           <div className="compact-array-controls">
-            <div className="array-input-row">
-              <button
+            <div className="array-input-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div
                 onClick={() => {
-                  const defaultValue = getDefaultValue(baseType);
+                  const typeInfo = SolidityTypes.getTypeInfo(baseType);
+                  const defaultValue = typeInfo.defaultValue;
                   updateArg(index, [...arrayValue, defaultValue]);
                 }}
-                className="compact-icon-btn add-btn"
                 title="Add new item"
+                style={{ 
+                  cursor: 'pointer', 
+                  color: '#4ade80', 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease',
+                  opacity: 0.8
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                +
-              </button>
+                <PlusIcon width={16} height={16} />
+              </div>
               
               {arrayValue.length > 0 && (
-                <button
+                <div
                   onClick={() => {
                     const newArray = [...arrayValue];
                     newArray.pop();
                     updateArg(index, newArray);
                   }}
-                  className="compact-icon-btn remove-last-btn"
                   title="Remove last item"
+                  style={{ 
+                    cursor: 'pointer', 
+                    color: '#f87171', 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    opacity: 0.8
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
-                  −
-                </button>
+                  <MinusIcon width={16} height={16} />
+                </div>
               )}
               
               {arrayValue.length > 0 && (
-                <button
+                <div
                   onClick={() => {
                     updateArg(index, []);
                   }}
-                  className="compact-icon-btn clear-all-btn"
                   title="Clear all items"
+                  style={{ 
+                    cursor: 'pointer', 
+                    color: '#ef4444', 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    opacity: 0.8
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
-                  ⌫
-                </button>
+                  <TrashIcon width={16} height={16} />
+                </div>
               )}
               
               {arrayValue.length > 1 && (
-                <button
+                <div
                   onClick={() => {
                     // Shuffle array for fun
                     const shuffled = [...arrayValue].sort(() => Math.random() - 0.5);
                     updateArg(index, shuffled);
                   }}
-                  className="compact-icon-btn shuffle-btn"
                   title="Shuffle items"
+                  style={{ 
+                    cursor: 'pointer', 
+                    color: '#8b5cf6', 
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    transition: 'all 0.2s ease',
+                    opacity: 0.8
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
-                  ⟲
-                </button>
+                  <ShuffleIcon width={16} height={16} />
+                </div>
               )}
             </div>
             
@@ -577,18 +804,19 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             {arrayValue.length > 0 && (
               <div className="compact-inputs-grid">
                 {arrayValue.map((itemValue: any, itemIdx: number) => {
+                  const typeInfo = SolidityTypes.getTypeInfo(baseType);
                   const validation = validateAndFormatInput(itemValue?.toString() || '', baseType);
                   const hasError = !validation.isValid && itemValue && itemValue !== '';
                   
                   return (
                     <div key={itemIdx} className="compact-input-item">
                       <label className="compact-input-label">[{itemIdx}]</label>
-                      {baseType === 'bool' ? (
+                      {typeInfo.inputType === 'select' ? (
                         <select
                           value={itemValue ? 'true' : 'false'}
                           onChange={(e) => {
                             const newArray = [...arrayValue];
-                            newArray[itemIdx] = e.target.value === 'true';
+                            newArray[itemIdx] = typeInfo.formatter(e.target.value);
                             updateArg(index, newArray);
                           }}
                           className="compact-input"
@@ -613,12 +841,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                               updateArg(index, newArray);
                             }
                           }}
-                          placeholder={
-                            baseType === 'address' ? '0x...' :
-                            baseType.includes('uint') || baseType.includes('int') ? '0' :
-                            baseType.includes('bytes') ? '0x...' :
-                            `${baseType}`
-                          }
+                          placeholder={typeInfo.placeholder}
                           className={`compact-input ${hasError ? 'error' : ''}`}
                         />
                       )}
@@ -670,23 +893,12 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
       );
     }
 
-    // Handle simple types
-    const getInputType = () => {
-      if (input.type.includes('uint') || input.type.includes('int')) return 'text';
-      return 'text';
-    };
-
-    const getPlaceholder = () => {
-      if (input.type === 'address') return '0x...';
-      if (input.type.includes('uint')) return '0';
-      if (input.type.includes('int')) return '0';
-      if (input.type.includes('bytes')) return '0x...';
-      return `Enter ${input.type}`;
-    };
-
+    // Handle simple types with universal type system
+    const typeInfo = SolidityTypes.getTypeInfo(input.type);
+    
     // Skip validation for array types in simple types section (they're handled above)
     const validation = input.type.includes('[]') ? 
-      { isValid: true, formattedValue: value || '' } : 
+      { isValid: true, formattedValue: value || '', error: undefined } : 
       validateAndFormatInput(value || '', input.type);
     const hasError = !validation.isValid && value && value !== '';
 
@@ -697,13 +909,32 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           <span className="arg-type" style={{ color: typeColor }}>{input.type}</span>
         </div>
         <div className="input-with-validation">
-          <input
-            type={getInputType()}
-            value={value || ''}
-            onChange={(e) => updateArg(index, e.target.value)}
-            placeholder={getPlaceholder()}
-            className={`arg-input ${hasError ? 'validation-error' : ''}`}
-          />
+          {typeInfo.inputType === 'select' ? (
+            <select
+              value={value ? 'true' : 'false'}
+              onChange={(e) => updateArg(index, typeInfo.formatter(e.target.value))}
+              className="arg-input"
+            >
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={value || ''}
+              onChange={(e) => updateArg(index, e.target.value)}
+              onBlur={(e) => {
+                if (!input.type.includes('[]')) {
+                  const validation = validateAndFormatInput(e.target.value, input.type);
+                  if (validation.formattedValue !== e.target.value) {
+                    updateArg(index, validation.formattedValue);
+                  }
+                }
+              }}
+              placeholder={typeInfo.placeholder}
+              className={`arg-input ${hasError ? 'validation-error' : ''}`}
+            />
+          )}
           {hasError && (
             <div className="validation-error-message">
               {validation.error || 'Invalid input'}
@@ -735,9 +966,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
         <span className="arg-count">{functionInputs.length} parameters</span>
         <div className="arg-actions">
           <button onClick={clearAll} className="clear-btn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14ZM10 11v6M14 11v6"/>
-            </svg>
+            <Icon icon={TrashIcon} size={12} />
             Clear
           </button>
         </div>

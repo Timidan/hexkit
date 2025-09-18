@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { CheckCircle, XCircle, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircleIcon, XCircleIcon, CopyIcon, ChevronDownIcon, ChevronRightIcon } from '../icons/IconLibrary';
 import { Input, Button, LoadingSpinner, ErrorDisplay, Card } from '../shared';
 import {
   lookupFunctionSignatures,
@@ -95,7 +95,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
   // Search custom signatures
   const searchCustomSignatures = (selector: string): string | null => {
     try {
-      const cached = getCachedSignatures();
+      const cached = getCachedSignatures('function');
       const custom = getCustomSignatures();
       
       // Search cached signatures (if it's an array)
@@ -110,7 +110,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
       // Search custom signatures
       if (Array.isArray(custom)) {
         for (const sig of custom) {
-          if (sig.hash === selector) { // Custom signatures use 'hash' property
+          if (ethers.utils.id(sig.signature).slice(0, 10) === selector) { // Generate hash from signature
             return sig.signature;
           }
         }
@@ -230,7 +230,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
       addDecodingStep('🧠 Attempting heuristic decoding...');
       try {
         const heuristicResult = await decodeWithHeuristics(cleanCalldata);
-        if (heuristicResult.success) { // Use 'success' property instead of 'decoded'
+        if (heuristicResult.bestGuess || heuristicResult.decodedAttempts.length > 0) { // Check if heuristic decoding found results
           addDecodingStep('✅ Heuristic decoding successful');
           return {
             success: true,
@@ -307,7 +307,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => copyToClipboard(JSON.stringify(value, null, 2), 'array')}
-            icon={<Copy size={12} />}
+            icon={<CopyIcon width={12} height={12} />}
           />
         </div>
       );
@@ -320,7 +320,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => toggleValueExpansion(valueId)}
-            icon={isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            icon={isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
           >
             {isExpanded ? 'Collapse' : 'Show All'} ({value.length} items)
           </Button>
@@ -328,7 +328,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
             variant="ghost"
             size="sm"
             onClick={() => copyToClipboard(JSON.stringify(value, null, 2), 'array')}
-            icon={<Copy size={12} />}
+            icon={<CopyIcon width={12} height={12} />}
           />
         </div>
         

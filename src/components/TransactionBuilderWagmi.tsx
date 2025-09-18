@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { SettingsIcon } from "./icons/IconLibrary";
 import {
   useAccount,
   useWalletClient,
@@ -257,7 +258,7 @@ const TransactionBuilderWagmi: React.FC = () => {
           {/* Function Selection Section */}
           {abi && (
             <div className="builder-section">
-              <h3>⚙️ Function Selection</h3>
+              <h3><SettingsIcon width={16} height={16} style={{ marginRight: '6px' }} />Function Selection</h3>
 
               <div className="form-group">
                 <label>Select Function</label>

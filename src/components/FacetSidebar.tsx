@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
+import { BookOpenIcon, EditIcon, CopyIcon } from './icons/IconLibrary';
 
 interface FacetSidebarProps {
   facets: DiamondFacet[];
@@ -139,7 +140,7 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
                       }}
                       title="Copy address"
                     >
-                      📋
+                      <CopyIcon width={12} height={12} />
                     </button>
                   </div>
                 </div>
@@ -183,11 +184,11 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
                         alignItems: 'center',
                         gap: '6px'
                       }}>
-                        <span>📖</span>
+                        <BookOpenIcon width={16} height={16} />
                         <span>Read ({facet.functions.read.length})</span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {facet.functions.read.slice(0, 5).map((func) => (
+                        {facet.functions.read.slice(0, 5).map((func: any) => (
                           <button
                             key={func.name}
                             onClick={() => onFunctionSelect(facet.address, func.name, 'read')}
@@ -239,11 +240,11 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
                         alignItems: 'center',
                         gap: '6px'
                       }}>
-                        <span>✏️</span>
+                        <EditIcon width={16} height={16} />
                         <span>Write ({facet.functions.write.length})</span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {facet.functions.write.slice(0, 5).map((func) => (
+                        {facet.functions.write.slice(0, 5).map((func: any) => (
                           <button
                             key={func.name}
                             onClick={() => onFunctionSelect(facet.address, func.name, 'write')}

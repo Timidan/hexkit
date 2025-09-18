@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
+import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
 
 interface StructField {
   name: string;
@@ -207,7 +208,7 @@ const StructViewer: React.FC<StructViewerProps> = ({
     <div className={`struct-viewer level-${level} ${className}`}>
       <div className="struct-header" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="struct-toggle">
-          <span className="toggle-icon">{isExpanded ? '🔽' : '▶️'}</span>
+          <span className="toggle-icon">{isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}</span>
           <span className="struct-title">{title}</span>
           <span className="field-count">({data.length} fields)</span>
         </div>

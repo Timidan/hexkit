@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { EyeIcon, EyeOffIcon, CheckIcon, AlertCircleIcon } from '../icons/IconLibrary';
 
 interface AnimatedInputProps {
   id?: string;
@@ -210,7 +210,7 @@ const AnimatedInput: React.FC<AnimatedInputProps> = ({
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
           >
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            {showPassword ? <EyeOffIcon width={16} height={16} /> : <EyeIcon width={16} height={16} />}
           </motion.button>
         )}
 
@@ -224,8 +224,8 @@ const AnimatedInput: React.FC<AnimatedInputProps> = ({
               exit={{ scale: 0, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             >
-              {success && <Check size={16} className="text-success" />}
-              {error && <AlertCircle size={16} className="text-error" />}
+              {success && <CheckIcon width={16} height={16} className="text-success" />}
+              {error && <AlertCircleIcon width={16} height={16} className="text-error" />}
             </motion.div>
           )}
         </AnimatePresence>
@@ -266,7 +266,7 @@ const AnimatedInput: React.FC<AnimatedInputProps> = ({
             exit={{ opacity: 0, y: -10, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <AlertCircle size={14} />
+            <AlertCircleIcon width={14} height={14} />
             {error}
           </motion.div>
         )}

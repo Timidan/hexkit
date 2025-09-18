@@ -320,7 +320,7 @@ const SmartDecoder: React.FC = () => {
             background: 'rgba(34, 197, 94, 0.05)'
           }}>
             <div style={{ fontWeight: '600', marginBottom: '4px', color: '#22c55e', fontSize: '12px' }}>
-              📞 Nested Calldata: {decodedCalldata.functionName}()
+              Nested Calldata: {decodedCalldata.functionName}()
             </div>
             <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '6px' }}>
               Selector: {decodedCalldata.selector} | Source: {decodedCalldata.source}
@@ -352,7 +352,7 @@ const SmartDecoder: React.FC = () => {
           {formatParameterValue(value)}
           {typeof value === 'string' && value.length > 20 && value.match(/^0x[a-fA-F0-9]{8,}$/) && (
             <span style={{ fontSize: '9px', color: '#22c55e', marginLeft: '4px' }}>
-              📞 (potential calldata)
+              (potential calldata)
             </span>
           )}
         </code>
@@ -493,7 +493,7 @@ const SmartDecoder: React.FC = () => {
           {formatParameterValue(value)}
           {typeof value === 'string' && value.length > 20 && value.match(/^0x[a-fA-F0-9]{8,}$/) && (
             <span style={{ fontSize: '9px', color: '#22c55e', marginLeft: '4px' }}>
-              📞 (potential calldata)
+              (potential calldata)
             </span>
           )}
         </code>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { XCircleIcon, AlertTriangleIcon, RefreshIcon } from '../icons/IconLibrary';
 import Button from './Button';
 import Card from './Card';
 import '../../styles/SharedComponents.css';
@@ -25,7 +25,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 
   const InlineError = () => (
     <div className={`shared-error-inline ${className}`}>
-      <XCircle className="shared-error-icon" />
+      <XCircleIcon className="shared-error-icon" />
       <div className="shared-error-content">
         <p className="shared-error-title">{title}</p>
         <p className="shared-error-message">{errorMessage}</p>
@@ -34,7 +34,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             variant="ghost"
             size="sm"
             onClick={onRetry}
-            icon={<RefreshCw size={12} />}
+            icon={<RefreshIcon width={12} height={12} />}
             style={{ 
               marginTop: 'var(--space-2)', 
               color: 'var(--error)', 
@@ -58,7 +58,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-        <XCircle style={{ 
+        <XCircleIcon style={{ 
           width: '1.5rem', 
           height: '1.5rem', 
           color: 'var(--error)', 
@@ -86,7 +86,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
               variant="primary"
               size="sm"
               onClick={onRetry}
-              icon={<RefreshCw size={16} />}
+              icon={<RefreshIcon width={16} height={16} />}
               style={{ background: 'var(--error)' }}
             >
               Try Again
@@ -100,7 +100,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   const BannerError = () => (
     <div className={`shared-error-banner ${className}`}>
       <div className="shared-error-banner-content">
-        <AlertTriangle className="shared-error-banner-icon" />
+        <AlertTriangleIcon className="shared-error-banner-icon" />
         <div className="shared-error-banner-text">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
@@ -112,7 +112,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
                 variant="primary"
                 size="sm"
                 onClick={onRetry}
-                icon={<RefreshCw size={16} />}
+                icon={<RefreshIcon width={16} height={16} />}
                 style={{ background: 'var(--error)' }}
               >
                 Retry

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Key } from 'lucide-react';
+import { SearchIcon, CheckCircleIcon, AlertTriangleIcon } from './icons/IconLibrary';
+import { Key } from 'lucide-react';
 import type { Chain } from '../types';
 import MultiNetworkContractSearch from './MultiNetworkContractSearch';
 import UniversalAPIKeyModal from './UniversalAPIKeyModal';
@@ -70,7 +71,7 @@ const ABIFetcher: React.FC<ABIFetcherProps> = ({
         alignItems: 'center',
         gap: '8px'
       }}>
-        <Search size={20} />
+        <SearchIcon width={20} height={20} />
         Contract ABI Search
       </h3>
       
@@ -92,11 +93,11 @@ const ABIFetcher: React.FC<ABIFetcherProps> = ({
           <div>
             {activeEtherscanApiKey ? (
               <span style={{ color: '#22c55e', fontSize: '13px' }}>
-                ✅ Etherscan API key configured (enhances rate limits)
+                <CheckCircleIcon width={14} height={14} style={{ marginRight: '4px' }} />Etherscan API key configured (enhances rate limits)
               </span>
             ) : (
               <span style={{ color: '#f59e0b', fontSize: '13px' }}>
-                ⚠️ API key recommended for better reliability
+                <AlertTriangleIcon width={14} height={14} style={{ marginRight: '4px' }} />API key recommended for better reliability
               </span>
             )}
           </div>

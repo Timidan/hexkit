@@ -32,3 +32,6 @@ CURSOR.md
 scripts
 IMPLEMENTATION_OVERRIDES.md
 REFACTORING_DOCUMENTATION.md
+src/assets/jsx
+src/assets/svg
+ICON_MAPPING.md

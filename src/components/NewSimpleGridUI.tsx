@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { Settings, Search, Zap } from 'lucide-react';
+import { SettingsIcon, SearchIcon, ZapIcon } from './icons/IconLibrary';
 import { Card, Button, LoadingSpinner, ErrorDisplay, Badge } from './shared';
 import { ContractConnector, FunctionCaller, type ContractConnectorResult } from './contract';
 import { CalldataDecoder, type DecodingResult } from './decoder';
@@ -355,7 +355,7 @@ const NewSimpleGridUI: React.FC = () => {
           {contractSource === 'project' && (
             <Card variant="glass" padding="md">
               <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                <Settings size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <SettingsIcon width={32} height={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
                 <p>Project contracts coming soon!</p>
                 <p style={{ fontSize: '14px' }}>Save and manage your favorite contracts</p>
               </div>
@@ -416,7 +416,7 @@ const NewSimpleGridUI: React.FC = () => {
 
         {/* RIGHT COLUMN - Function & Execution */}
         <div style={cardStyle}>
-          <h2 style={subHeaderStyle}>⚙️ Function</h2>
+          <h2 style={subHeaderStyle}><SettingsIcon width={16} height={16} style={{ marginRight: '6px' }} />Function</h2>
 
           {/* Function Mode Selection */}
           <div style={{ marginBottom: '24px' }}>
@@ -496,7 +496,7 @@ const NewSimpleGridUI: React.FC = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowFunctionSearch(!showFunctionSearch)}
-                  icon={<Search size={14} />}
+                  icon={<SearchIcon width={14} height={14} />}
                 >
                   Search Functions
                 </Button>
@@ -631,7 +631,7 @@ const NewSimpleGridUI: React.FC = () => {
 
           {/* Transaction Parameters Section */}
           <div style={{ marginBottom: '24px' }}>
-            <Card title="⚡ Transaction Parameters" variant="glass" padding="sm">
+            <Card title="Transaction Parameters" variant="glass" padding="sm">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
@@ -656,7 +656,7 @@ const NewSimpleGridUI: React.FC = () => {
               loading={isExecuting}
               disabled={!isConnected || !selectedFunction || functionMode !== 'function'}
               variant="primary"
-              icon={<Zap size={16} />}
+              icon={<ZapIcon width={16} height={16} />}
               fullWidth
             >
               {isExecuting ? 'Simulating...' : 'Simulate Transaction'}
