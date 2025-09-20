@@ -37,7 +37,7 @@ src/assets/svg
 ICON_MAPPING.md
 
 app-combined-abi.json
-debug-formatter.json
+debug-formatter.html
 
 # Documentation and test files
 *.md
