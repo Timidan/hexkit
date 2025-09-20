@@ -34,9 +34,9 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [arrayItems, setArrayItems] = useState<ArrayItem[]>([]);
 
-  // Initialize array items for array types
+  // Initialize array items for array types (both dynamic and fixed-size)
   useEffect(() => {
-    if (inputDefinition.type.endsWith('[]')) {
+    if (inputDefinition.type.endsWith('[]') || /\[\d+\]$/.test(inputDefinition.type)) {
       const initialItems: ArrayItem[] = [];
       if (Array.isArray(value) && value.length > 0) {
         value.forEach((item, index) => {
@@ -46,11 +46,17 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
           });
         });
       } else {
-        // Start with one empty item
-        initialItems.push({
-          id: `item-0-${Date.now()}`,
-          value: getDefaultValue(inputDefinition.type.replace('[]', ''))
-        });
+        // For fixed-size arrays, initialize with the required number of items
+        const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+        const arraySize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
+        const baseType = inputDefinition.type.replace(/\[\d*\]$/, '');
+        
+        for (let i = 0; i < arraySize; i++) {
+          initialItems.push({
+            id: `item-${i}-${Date.now()}`,
+            value: getDefaultValue(baseType)
+          });
+        }
       }
       setArrayItems(initialItems);
     }
@@ -149,9 +155,19 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   };
 
   const addArrayItem = () => {
+    // Check if this is a fixed-size array and if we've reached the limit
+    const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+    if (fixedSizeMatch) {
+      const maxSize = parseInt(fixedSizeMatch[1]);
+      if (arrayItems.length >= maxSize) {
+        return; // Don't add more items for fixed-size arrays
+      }
+    }
+    
+    const baseType = inputDefinition.type.replace(/\[\d*\]$/, '');
     const newItem: ArrayItem = {
       id: `item-${arrayItems.length}-${Date.now()}`,
-      value: getDefaultValue(inputDefinition.type.replace('[]', ''))
+      value: getDefaultValue(baseType)
     };
     const updatedItems = [...arrayItems, newItem];
     setArrayItems(updatedItems);
@@ -161,7 +177,11 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   };
 
   const removeArrayItem = (itemId: string) => {
-    if (arrayItems.length <= 1) return; // Keep at least one item
+    // For fixed-size arrays, don't allow removing items below the required size
+    const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+    const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
+    
+    if (arrayItems.length <= minSize) return; // Keep required number of items
     
     const updatedItems = arrayItems.filter(item => item.id !== itemId);
     setArrayItems(updatedItems);
@@ -218,7 +238,8 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   };
 
   const renderArrayInput = () => {
-    const baseType = inputDefinition.type.replace('[]', '');
+    // Handle both dynamic arrays (uint256[]) and fixed-size arrays (uint256[4])
+    const baseType = inputDefinition.type.replace(/\[\d*\]$/, '');
     const arrayValue = arrayItems.map(item => item.value);
     
     return (
@@ -281,30 +302,44 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
                 color: '#dc3545'
               }}
               onClick={() => removeArrayItem(item.id)}
-              disabled={arrayItems.length <= 1}
+              disabled={(() => {
+                const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+                const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
+                return arrayItems.length <= minSize;
+              })()}
             >
               <XCloseIcon width={16} height={16} />
             </button>
           </div>
         ))}
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
-          <button
-            onClick={addArrayItem}
-            title="Add item"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#28a745'
-            }}
-          >
-            <PlusIcon width={20} height={20} />
-          </button>
-          {arrayItems.length > 1 && (
+          {(() => {
+            const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+            const maxSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : Infinity;
+            return arrayItems.length < maxSize;
+          })() && (
+            <button
+              onClick={addArrayItem}
+              title="Add item"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#28a745'
+              }}
+            >
+              <PlusIcon width={20} height={20} />
+            </button>
+          )}
+          {(() => {
+            const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
+            const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
+            return arrayItems.length > minSize;
+          })() && (
             <button
               onClick={() => removeArrayItem(arrayItems[arrayItems.length - 1].id)}
               title="Remove last item"
@@ -363,7 +398,8 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   const renderInput = () => {
     const type = inputDefinition.type;
     
-    if (type.endsWith('[]')) {
+    // Check for both dynamic arrays (uint256[]) and fixed-size arrays (uint256[4])
+    if (type.endsWith('[]') || /\[\d+\]$/.test(type)) {
       return renderArrayInput();
     } else if (type === 'tuple') {
       return renderStructInput();
