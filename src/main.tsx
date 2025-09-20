@@ -8,15 +8,16 @@ import {
   queryClient, 
   RainbowKitProvider, 
   WagmiProvider, 
-  QueryClientProvider 
+  QueryClientProvider,
+  web3ToolkitTheme
 } from './config/rainbowkit';
 // import DynamicWeb3Provider from './components/DynamicWeb3Provider'
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <WagmiProvider config={config}>
+    <WagmiProvider config={config as any}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
+        <RainbowKitProvider theme={web3ToolkitTheme}>
           <BrowserRouter>
             <App />
           </BrowserRouter>

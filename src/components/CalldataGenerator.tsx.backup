@@ -12,6 +12,7 @@ import '../styles/EnhancedStructInput.css';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
+import '../styles/SimpleGridUI.css';
 
 const CalldataGenerator: React.FC = () => {
   const toolkit = useToolkit();
@@ -400,9 +401,8 @@ const CalldataGenerator: React.FC = () => {
                       if (inputMethod === 'enhanced') {
                         return (
                           <EnhancedStructInput
-                            abi={JSON.parse(abi)}
-                            functionName={selectedFunction}
-                            onDataChange={(structuredData: any[]) => {
+                            inputs={func.inputs}
+                            onInputChange={(structuredData) => {
                               setStructuredInputs(structuredData);
                             }}
                           />
@@ -410,11 +410,10 @@ const CalldataGenerator: React.FC = () => {
                       } else if (inputMethod === 'json') {
                         return (
                           <AdvancedJsonEditor
-                            data={structuredInputs}
-                            onChange={(structuredData: any[]) => {
+                            inputs={func.inputs}
+                            onInputChange={(structuredData) => {
                               setStructuredInputs(structuredData);
                             }}
-                            functionInputs={func.inputs}
                           />
                         );
                       } else {
@@ -757,10 +756,7 @@ const CalldataGenerator: React.FC = () => {
                     textAlign: "left",
                     transition: "all 0.2s ease"
                   }}
-                  onClick={() => {
-                    // Navigate to signature database - for now just show alert
-                    alert('Navigate to Signature Database - feature to be implemented');
-                  }}
+                  onClick={() => toolkit.navigateToDatabase()}
                 >
                   📁 Browse Signature Database
                 </button>
@@ -827,6 +823,7 @@ const CalldataGenerator: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
   );
 };
 

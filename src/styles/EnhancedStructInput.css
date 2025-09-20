@@ -40,13 +40,28 @@
 }
 
 .sample-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: rgba(102, 126, 234, 0.15);
+  backdrop-filter: blur(20px);
+  color: #667eea;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(102, 126, 234, 0.2),
+    0 2px 8px rgba(102, 126, 234, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(102, 126, 234, 0.2);
+  text-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
 }
 
 .sample-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: rgba(102, 126, 234, 0.25);
+  backdrop-filter: blur(25px);
+  box-shadow: 
+    0 12px 40px rgba(102, 126, 234, 0.25),
+    0 4px 12px rgba(102, 126, 234, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(102, 126, 234, 0.3);
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(102, 126, 234, 0.5);
 }
 
 .clear-btn {

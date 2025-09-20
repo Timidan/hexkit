@@ -6,6 +6,7 @@ import { ToolIcon, HashIcon, ZapIcon } from "./components/icons/IconLibrary";
 import AnimatedInput from "./components/ui/AnimatedInput";
 import AnimatedButton from "./components/ui/AnimatedButton";
 import RainbowKitWallet from "./components/RainbowKitWallet";
+// import WalletTest from "./components/WalletTest"; // Removed after testing
 // import PageTransition from "./components/ui/PageTransition";
 // import DynamicWalletButton from "./components/DynamicWalletButton";
 import "./styles/AnimatedInput.css";

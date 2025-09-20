@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { ethers } from 'ethers';
-import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XCloseIcon } from './icons/IconLibrary';
 
 interface StructField {
   name: string;
@@ -143,8 +143,19 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
                 <button
                   className="add-array-item"
                   onClick={() => addArrayItem(fieldPath, baseType)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #333',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    color: '#28a745',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
                 >
-                  ➕ Add Item
+                  <PlusIcon width={16} height={16} />
                 </button>
               </div>
               
@@ -155,8 +166,18 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
                     <button
                       className="remove-array-item"
                       onClick={() => removeArrayItem(fieldPath, idx)}
+                      style={{
+                        background: 'none',
+                        border: '1px solid #333',
+                        padding: '6px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: '#dc3545',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
                     >
-                      ❌
+                      <XCloseIcon width={16} height={16} />
                     </button>
                   </div>
                   <div className="array-item-value">

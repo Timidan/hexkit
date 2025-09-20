@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useAccount, useWalletClient, usePublicClient, useChainId } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   ChevronDownIcon,
   SettingsIcon,
@@ -15,6 +17,9 @@ import {
   ZapIcon,
 } from "./icons/IconLibrary";
 import { ethers } from "ethers";
+import { ContractResultFormatter } from "../utils/resultFormatter";
+import ContractDataDisplay from "./ContractDataDisplay";
+import "../styles/ContractDataDisplay.css";
 // import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
@@ -26,7 +31,8 @@ import {
   type FacetProgressCallback,
 } from "../utils/diamondFacetFetcher";
 import { InlineFacetLoader } from "./InlineFacetLoader";
-import MinimalArgInput from "./MinimalArgInput";
+import ContractInputComponent, { type ABIInput } from "./ContractInputComponent";
+import { useContractInputs } from "../hooks/useContractInputs";
 
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { detectTokenType } from "../utils/universalTokenDetector";
@@ -43,7 +49,14 @@ interface ExtendedABIFetchResult extends ABIFetchResult {
 }
 
 const SimpleGridUI: React.FC = () => {
-  // Add CSS keyframes for spinning animation
+  // Wagmi hooks for wallet integration
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const chainId = useChainId();
+  const { openConnectModal } = useConnectModal();
+
+  // Add CSS keyframes for spinning animation and result formatting
   React.useEffect(() => {
     const style = document.createElement("style");
     style.textContent = `
@@ -51,6 +64,8 @@ const SimpleGridUI: React.FC = () => {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
+      
+      ${ContractResultFormatter.getCSS()}
     `;
     document.head.appendChild(style);
     return () => {
@@ -69,11 +84,52 @@ const SimpleGridUI: React.FC = () => {
   >(null);
   const [selectedFunction, setSelectedFunction] = useState<string | null>(null);
   const [generatedCallData, setGeneratedCallData] = useState<string>("0x");
+  const [functionResult, setFunctionResult] = useState<{
+    data: any;
+    formattedResult?: any;
+    functionABI?: any;
+    error?: string;
+    isLoading?: boolean;
+  } | null>(null);
   const [selectedFunctionObj, setSelectedFunctionObj] =
     useState<ethers.utils.FunctionFragment | null>(null);
   const [functionInputs, setFunctionInputs] = useState<{
     [key: string]: string;
   }>({});
+  
+  // Unified comprehensive input system
+  const contractInputsHook = useContractInputs({
+    inputs: selectedFunctionObj?.inputs.map(input => ({
+      name: input.name,
+      type: input.type,
+      internalType: (input as any).internalType,
+      components: (input as any).components
+    } as ABIInput)) || [],
+    selectedFunction: selectedFunctionObj,
+    onValuesChange: (values, allValid) => {
+      console.log('🔧 [Unified Input System] Values changed:', values);
+      console.log('🔧 [Unified Input System] All valid:', allValid);
+      
+      // Update functionInputs for compatibility with calldata generation
+      const newInputs: { [key: string]: string } = {};
+      if (selectedFunctionObj) {
+        selectedFunctionObj.inputs.forEach((input: any, idx: number) => {
+          const value = values[input.name];
+          newInputs[`${selectedFunctionObj.name}_${idx}`] = 
+            typeof value === "object" ? JSON.stringify(value) : String(value || "");
+          
+          // Also store by parameter name for direct access
+          newInputs[input.name] = 
+            typeof value === "object" ? JSON.stringify(value) : String(value || "");
+        });
+        setFunctionInputs(newInputs);
+      }
+    },
+    onCalldataGenerated: (calldata) => {
+      console.log('✅ [Unified] Auto-generated calldata:', calldata);
+      setGeneratedCallData(calldata);
+    }
+  });
   const [contractName, setContractName] = useState<string>("");
   const [tokenInfo, setTokenInfo] = useState<{
     symbol?: string;
@@ -197,9 +253,12 @@ const SimpleGridUI: React.FC = () => {
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
-      // facet filtering
+      // For diamond contracts, show all read functions by default
+      // Only filter to specific facet when one is explicitly selected
       let base = readFunctions;
+      
       if (isDiamond && selectedFacet) {
+        // Show functions from selected facet only
         const facet = diamondFacets.find(
           (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
         );
@@ -217,14 +276,23 @@ const SimpleGridUI: React.FC = () => {
           });
           if (reads.length > 0) base = reads;
         }
+      } else if (isDiamond && !selectedFacet) {
+        // Show all diamond functions when no specific facet is selected
+        // This ensures all diamond functions are available in the dropdown
+        base = allReadFunctions;
       }
+      
       return base;
-    }, [isDiamond, selectedFacet, diamondFacets, readFunctions]);
+    }, [isDiamond, selectedFacet, diamondFacets, readFunctions, allReadFunctions]);
 
   const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
+      // For diamond contracts, show all write functions by default
+      // Only filter to specific facet when one is explicitly selected
       let base = writeFunctions;
+      
       if (isDiamond && selectedFacet) {
+        // Show functions from selected facet only
         const facet = diamondFacets.find(
           (f) => f.address.toLowerCase() === selectedFacet.toLowerCase()
         );
@@ -244,9 +312,14 @@ const SimpleGridUI: React.FC = () => {
           });
           if (writes.length > 0) base = writes;
         }
+      } else if (isDiamond && !selectedFacet) {
+        // Show all diamond functions when no specific facet is selected
+        // This ensures all diamond functions are available in the dropdown
+        base = allWriteFunctions;
       }
+      
       return base;
-    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions]);
+    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions, allWriteFunctions]);
 
   // Search filtered functions across all facets and all types
   const searchFilteredFunctions: Array<
@@ -270,7 +343,7 @@ const SimpleGridUI: React.FC = () => {
       `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
         .toLowerCase()
         .includes(q)
-    );
+    ) as Array<ethers.utils.FunctionFragment & { functionType: "read" | "write" }>;
   }, [functionSearch, allReadFunctions, allWriteFunctions]);
 
   // ABI fetching functions
@@ -2740,6 +2813,8 @@ const SimpleGridUI: React.FC = () => {
 
   const handleFunctionSelect = (value: string) => {
     setSelectedFunction(value);
+    // Clear previous result when function changes
+    setFunctionResult(null);
 
     if (value && value !== "" && value !== "Select function") {
       const [type, index] = value.split("-");
@@ -2780,42 +2855,55 @@ const SimpleGridUI: React.FC = () => {
     }
 
     try {
-      console.log("🔧 UpdateCallData: Generating calldata for:", selectedFunctionObj.name);
+      console.log(
+        "🔧 UpdateCallData: Generating calldata for:",
+        selectedFunctionObj.name
+      );
       console.log("📊 UpdateCallData: Current functionInputs:", functionInputs);
-      
+
       // Convert functionInputs back to array format expected by ethers
-      const inputsArray = selectedFunctionObj.inputs.map((input: any, idx: number) => {
-        const inputKey = `${selectedFunctionObj.name}_${idx}`;
-        const value = functionInputs[inputKey];
-        
-        if (value === undefined || value === "") {
-          // Use default value for empty inputs
-          if (input.type === 'bool') return false;
-          if (input.type.includes('uint') || input.type.includes('int')) return "0";
-          if (input.type === 'address') return "0x0000000000000000000000000000000000000000";
-          if (input.type.includes('bytes')) return "0x";
-          if (input.type.includes('[]')) return [];
-          if (input.type.includes('tuple')) return {};
-          return "";
-        }
-        
-        // Handle JSON parsing for complex types
-        if (typeof value === 'string' && (input.type.includes('tuple') || input.type.includes('[]'))) {
-          try {
-            return JSON.parse(value);
-          } catch {
-            return value;
+      const inputsArray = selectedFunctionObj.inputs.map(
+        (input: any, idx: number) => {
+          const inputKey = `${selectedFunctionObj.name}_${idx}`;
+          const value = functionInputs[inputKey];
+
+          if (value === undefined || value === "") {
+            // Use default value for empty inputs
+            if (input.type === "bool") return false;
+            if (input.type.includes("uint") || input.type.includes("int"))
+              return "0";
+            if (input.type === "address")
+              return "0x0000000000000000000000000000000000000000";
+            if (input.type.includes("bytes")) return "0x";
+            if (input.type.includes("[]")) return [];
+            if (input.type.includes("tuple")) return {};
+            return "";
           }
+
+          // Handle JSON parsing for complex types
+          if (
+            typeof value === "string" &&
+            (input.type.includes("tuple") || input.type.includes("[]"))
+          ) {
+            try {
+              return JSON.parse(value);
+            } catch {
+              return value;
+            }
+          }
+
+          return value;
         }
-        
-        return value;
-      });
+      );
 
       console.log("📋 UpdateCallData: Converted inputs array:", inputsArray);
 
       const iface = new ethers.utils.Interface([selectedFunctionObj]);
-      const calldata = iface.encodeFunctionData(selectedFunctionObj.name, inputsArray);
-      
+      const calldata = iface.encodeFunctionData(
+        selectedFunctionObj.name,
+        inputsArray
+      );
+
       console.log("✅ UpdateCallData: Generated calldata:", calldata);
       setGeneratedCallData(calldata);
     } catch (error) {
@@ -2842,7 +2930,7 @@ const SimpleGridUI: React.FC = () => {
       console.log(`🔄 All inputs:`, newInputs);
       return newInputs;
     });
-    
+
     // Trigger calldata update after state is set
     setTimeout(() => updateCallData(), 0);
   };
@@ -3256,9 +3344,9 @@ const SimpleGridUI: React.FC = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "1.6fr 1fr",
     gap: "30px",
-    maxWidth: "1200px",
+    maxWidth: "1600px",
     margin: "0 auto",
     padding: "20px",
   };
@@ -3346,6 +3434,7 @@ const SimpleGridUI: React.FC = () => {
         <p style={{ color: "#888", fontSize: "16px" }}>
           Configure and simulate blockchain transactions
         </p>
+        
       </div>
 
       {/* Main Grid */}
@@ -3655,7 +3744,11 @@ const SimpleGridUI: React.FC = () => {
                     }
                   >
                     {isLoadingABI ? (
-                      <Loader2Icon width={16} height={16} className="animate-spin" />
+                      <Loader2Icon
+                        width={16}
+                        height={16}
+                        className="animate-spin"
+                      />
                     ) : (
                       <SearchIcon width={16} height={16} />
                     )}
@@ -3706,9 +3799,15 @@ const SimpleGridUI: React.FC = () => {
                             }}
                           >
                             {searchProgress.status === "searching" && "🔍"}
-                            {searchProgress.status === "found" && <CheckCircleIcon width={12} height={12} />}
-                            {searchProgress.status === "not_found" && <XCircleIcon width={12} height={12} />}
-                            {searchProgress.status === "error" && <AlertTriangleIcon width={12} height={12} />}
+                            {searchProgress.status === "found" && (
+                              <CheckCircleIcon width={12} height={12} />
+                            )}
+                            {searchProgress.status === "not_found" && (
+                              <XCircleIcon width={12} height={12} />
+                            )}
+                            {searchProgress.status === "error" && (
+                              <AlertTriangleIcon width={12} height={12} />
+                            )}
                             <span
                               style={{
                                 color:
@@ -4502,7 +4601,11 @@ const SimpleGridUI: React.FC = () => {
                           gap: "4px",
                         }}
                       >
-                        <BookOpenIcon width={16} height={16} style={{ marginRight: '4px' }} />
+                        <BookOpenIcon
+                          width={16}
+                          height={16}
+                          style={{ marginRight: "4px" }}
+                        />
                         {diamondFacets
                           .reduce((acc, f) => acc + f.functions.read.length, 0)
                           .toString()}{" "}
@@ -4553,7 +4656,7 @@ const SimpleGridUI: React.FC = () => {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span>Contract Function</span>
+                    <span>FACETS</span>
                     {isDiamond && diamondFacets.length > 0 && (
                       <>
                         <select
@@ -4609,7 +4712,12 @@ const SimpleGridUI: React.FC = () => {
                               gap: "4px",
                             }}
                           >
-                            <GemIcon width={16} height={16} style={{ marginRight: '6px' }} />Diamond Contract
+                            <GemIcon
+                              width={16}
+                              height={16}
+                              style={{ marginRight: "6px" }}
+                            />
+                            Diamond Contract
                           </a>
 
                           {selectedFacet && (
@@ -4701,7 +4809,12 @@ const SimpleGridUI: React.FC = () => {
                                     gap: "6px",
                                   }}
                                 >
-                                  <AlertTriangleIcon width={16} height={16} style={{ marginRight: '6px' }} />Unverified Facet - Paste ABI Below
+                                  <AlertTriangleIcon
+                                    width={16}
+                                    height={16}
+                                    style={{ marginRight: "6px" }}
+                                  />
+                                  Unverified Facet - Paste ABI Below
                                 </div>
                                 <textarea
                                   placeholder="Paste the facet ABI JSON here..."
@@ -4910,7 +5023,12 @@ const SimpleGridUI: React.FC = () => {
                                       : "#ccc",
                                 }}
                               >
-                                <BookOpenIcon width={16} height={16} style={{ marginRight: '4px' }} />Read ({filteredReadFunctions.length})
+                                <BookOpenIcon
+                                  width={16}
+                                  height={16}
+                                  style={{ marginRight: "4px" }}
+                                />
+                                Read ({filteredReadFunctions.length})
                               </div>
                             </div>
                           )}
@@ -5049,7 +5167,7 @@ const SimpleGridUI: React.FC = () => {
                                             // For diamond contracts, we need to find the right facet first
                                             if (isDiamond) {
                                               // Find which facet contains this function
-                                              let foundFacet = null;
+                                              let foundFacet: DiamondFacet | null = null;
                                               diamondFacets.forEach((facet) => {
                                                 if (Array.isArray(facet.abi)) {
                                                   const hasFunction = (
@@ -5090,7 +5208,7 @@ const SimpleGridUI: React.FC = () => {
                                               // Select the facet if found
                                               if (foundFacet) {
                                                 setSelectedFacet(
-                                                  foundFacet.address
+                                                  (foundFacet as DiamondFacet).address
                                                 );
                                               }
                                             }
@@ -5750,97 +5868,68 @@ const SimpleGridUI: React.FC = () => {
                                   font-size: 13px;
                                 }
                               `}</style>
-                              <MinimalArgInput
-                                abi={(() => {
-                                  // Determine correct ABI to use
-                                  if (!contractInfo?.abi) return [];
-
-                                  let abi = contractInfo.abi;
-
-                                  // If Diamond and facet selected, use facet ABI
-                                  if (isDiamond && selectedFacet) {
-                                    const facet = diamondFacets.find(
-                                      (f) =>
-                                        f.address.toLowerCase() ===
-                                        selectedFacet.toLowerCase()
-                                    );
-                                    if (facet?.abi) {
-                                      abi = Array.isArray(facet.abi)
-                                        ? JSON.stringify(facet.abi)
-                                        : (facet.abi as string);
-                                    }
-                                  }
-
-                                  try {
-                                    return Array.isArray(abi)
-                                      ? abi
-                                      : JSON.parse(abi);
-                                  } catch {
-                                    return [];
-                                  }
-                                })()}
-                                functionName={selectedFunctionObj.name}
-                                onDataChange={(data) => {
-                                  // Convert array data to the format expected by calldata generation
-                                  const newInputs: { [key: string]: string } =
-                                    {};
-                                  selectedFunctionObj.inputs.forEach(
-                                    (input: any, idx: number) => {
-                                      newInputs[
-                                        `${selectedFunctionObj.name}_${idx}`
-                                      ] =
-                                        typeof data[idx] === "object"
-                                          ? JSON.stringify(data[idx])
-                                          : String(data[idx] || "");
-                                    }
-                                  );
-                                  setFunctionInputs(newInputs);
-                                  // Auto-generate calldata when parameters change
-                                  if (selectedFunctionObj) {
-                                    try {
-                                      console.log(
-                                        "🔧 Generating calldata for:",
-                                        selectedFunctionObj.name
-                                      );
-                                      console.log("📊 Data passed:", data);
-                                      console.log(
-                                        "📋 Function inputs:",
-                                        selectedFunctionObj.inputs
-                                      );
-
-                                      const iface = new ethers.utils.Interface([
-                                        selectedFunctionObj,
-                                      ]);
-                                      const calldata = iface.encodeFunctionData(
-                                        selectedFunctionObj.name,
-                                        data
-                                      );
-                                      console.log(
-                                        "✅ Generated calldata:",
-                                        calldata
-                                      );
-                                      setGeneratedCallData(calldata);
-                                    } catch (error) {
-                                      console.error(
-                                        "❌ Calldata generation failed:",
-                                        error
-                                      );
-                                      console.error("📊 Failed data:", data);
-                                      console.error(
-                                        "📋 Function ABI:",
-                                        selectedFunctionObj
-                                      );
-                                      setGeneratedCallData("0x");
-                                    }
-                                  }
-                                }}
-                                initialData={selectedFunctionObj.inputs.map(
-                                  (_: any, idx: number) =>
-                                    functionInputs[
-                                      `${selectedFunctionObj.name}_${idx}`
-                                    ] || ""
+                              {/* Unified Input System */}
+                              <div style={{ 
+                                background: '#0f172a', 
+                                border: '1px solid #1e293b', 
+                                borderRadius: '8px', 
+                                padding: '16px',
+                                marginBottom: '12px'
+                              }}>
+                                
+                                {selectedFunctionObj.inputs.length === 0 ? (
+                                  <div style={{
+                                    textAlign: 'center',
+                                    padding: '20px',
+                                    color: '#666',
+                                    fontSize: '13px'
+                                  }}>
+                                    This function requires no parameters
+                                  </div>
+                                ) : (
+                                  <div>
+                                    {selectedFunctionObj.inputs.map((input: any, index: number) => (
+                                      <ContractInputComponent
+                                        key={`${selectedFunctionObj.name}-${input.name}-${index}`}
+                                        inputDefinition={{
+                                          name: input.name,
+                                          type: input.type,
+                                          internalType: input.internalType,
+                                          components: input.components
+                                        }}
+                                        onChange={(value, isValid) => {
+                                          contractInputsHook.handleInputChange(input.name, value, isValid);
+                                        }}
+                                      />
+                                    ))}
+                                    
+                                    {/* Validation Status */}
+                                    {contractInputsHook.isAllValid ? (
+                                      <div style={{ 
+                                        marginTop: '12px', 
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        color: '#10b981',
+                                        fontSize: '12px'
+                                      }}>
+                                        <CheckCircleIcon size={14} />
+                                      </div>
+                                    ) : (
+                                      <div style={{ 
+                                        marginTop: '12px', 
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        color: '#ef4444',
+                                        fontSize: '12px'
+                                      }}>
+                                        <AlertTriangleIcon size={14} />
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
-                              />
+                              </div>
                             </div>
                           </div>
                         )}
@@ -5945,17 +6034,19 @@ const SimpleGridUI: React.FC = () => {
                           >
                             <button
                               style={{
-                                padding: "10px 16px",
-                                background:
-                                  selectedFunctionType === "read"
+                                padding: "8px 12px",
+                                background: !isConnected
+                                  ? "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)"
+                                  : selectedFunctionType === "read"
                                     ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
                                     : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
                                 border: "none",
                                 borderRadius: "6px",
                                 color: "white",
                                 fontWeight: "600",
-                                fontSize: "14px",
-                                cursor: "pointer",
+                                fontSize: "13px",
+                                cursor: isConnected ? "pointer" : "not-allowed",
+                                opacity: isConnected ? 1 : 0.6,
                                 transition: "all 0.2s ease",
                                 display: "flex",
                                 alignItems: "center",
@@ -5973,16 +6064,302 @@ const SimpleGridUI: React.FC = () => {
                                   "translateY(0)";
                                 e.currentTarget.style.boxShadow = "none";
                               }}
-                              onClick={() => {
-                                // Function execution temporarily disabled - needs proper wallet integration
-                                alert(
-                                  `Function execution ready: ${selectedFunction}\n\nWallet integration needed to complete.`
-                                );
+                              onClick={async () => {
+                                if (!selectedFunctionObj || !contractAddress) {
+                                  alert('Please select a contract and function');
+                                  return;
+                                }
+
+                                // For WRITE operations, check wallet connection and open modal if needed
+                                if (selectedFunctionType === "write" && (!isConnected || !walletClient)) {
+                                  if (openConnectModal) {
+                                    openConnectModal();
+                                  } else {
+                                    alert('Please connect your wallet to send transactions');
+                                  }
+                                  return;
+                                }
+
+                                try {
+                                  // Parse the function inputs using unified system
+                                  console.log('🔧 [Unified Input System] Getting formatted arguments...');
+                                  const args = contractInputsHook.getFormattedArgs();
+                                  console.log('🔧 [Unified Input System] Formatted args:', args);
+                                  console.log('🔧 [Unified Input System] CRITICAL: Args types:', args.map(arg => typeof arg));
+                                  console.log('🔧 [Unified Input System] CRITICAL: Args isArray:', args.map(arg => Array.isArray(arg)));
+                                  console.log('🔧 [Unified Input System] CRITICAL: Args JSON:', JSON.stringify(args));
+                                  console.log('🔧 [Unified Input System] All inputs valid:', contractInputsHook.isAllValid);
+                                  console.log('🔧 [Unified Input System] Current values:', contractInputsHook.getCurrentValues());
+
+                                  // Create combined ABI for diamond contracts
+                                  const getContractABI = () => {
+                                    if (isDiamond && diamondFacets.length > 0) {
+                                      // Combine all facet ABIs for diamond contracts
+                                      const combinedABI: any[] = [];
+                                      console.log(`💎 [Diamond] COMBINING ABIs - Processing ${diamondFacets.length} facets`);
+                                      
+                                      diamondFacets.forEach((facet, index) => {
+                                        console.log(`💎 [Diamond] Facet ${index + 1}: ${facet.address}`);
+                                        console.log(`💎 [Diamond] Facet ${index + 1} verified: ${facet.isVerified}`);
+                                        console.log(`💎 [Diamond] Facet ${index + 1} ABI type: ${typeof facet.abi}`);
+                                        console.log(`💎 [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : 'N/A'}`);
+                                        
+                                        if (facet.abi && facet.isVerified) {
+                                          const facetABI = Array.isArray(facet.abi) 
+                                            ? facet.abi 
+                                            : JSON.parse(facet.abi as string);
+                                          const functionCount = facetABI.filter((item: any) => item.type === 'function').length;
+                                          console.log(`💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions`);
+                                          combinedABI.push(...facetABI);
+                                        } else {
+                                          console.log(`💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI or not verified`);
+                                        }
+                                      });
+                                      
+                                      const totalFunctions = combinedABI.filter(item => item.type === 'function').length;
+                                      console.log(`💎 [Diamond] FINAL combined ABI has ${totalFunctions} functions from ${diamondFacets.length} facets`);
+                                      
+                                      // Debug: Check if the specific function exists in combined ABI
+                                      const targetFunction = combinedABI.find(item => 
+                                        item.type === 'function' && item.name === selectedFunctionObj.name
+                                      );
+                                      console.log(`💎 [Diamond] Function '${selectedFunctionObj.name}' found in combined ABI:`, !!targetFunction);
+                                      if (targetFunction) {
+                                        console.log(`💎 [Diamond] Function signature:`, targetFunction);
+                                      } else {
+                                        console.log(`💎 [Diamond] Available functions:`, combinedABI.filter(item => item.type === 'function').map(f => f.name).slice(0, 20));
+                                      }
+                                      
+                                      return combinedABI;
+                                    } else if (isDiamond) {
+                                      // Diamond detected but facets not loaded yet - try creating minimal ABI for this function
+                                      console.log('💎 [Diamond] Facets not loaded yet, using single function ABI');
+                                      console.log('💎 [Diamond] isDiamond:', isDiamond, 'facetCount:', diamondFacets.length);
+                                      return [selectedFunctionObj];
+                                    } else {
+                                      // Use regular contract ABI
+                                      console.log('📄 [Regular] Using regular contract ABI');
+                                      return JSON.parse(contractInfo?.abi || '[]');
+                                    }
+                                  };
+
+                                  const contractABI = getContractABI();
+                                  console.log(`💎 [Function Call] Calling '${selectedFunctionObj.name}' with args:`, args);
+                                  console.log(`💎 [Function Call] Selected function object:`, selectedFunctionObj);
+                                  console.log(`💎 [Function Call] Contract ABI length:`, contractABI.length);
+                                  console.log(`💎 [Function Call] Is Diamond:`, isDiamond);
+                                  console.log(`💎 [Function Call] Diamond facets loaded:`, diamondFacets.length);
+                                  console.log(`💎 [Function Call] Contract address:`, contractAddress);
+
+                                  if (selectedFunctionType === "read") {
+                                    // Set loading state
+                                    setFunctionResult({ data: null, isLoading: true });
+                                    
+                                    try {
+                                      // For diamond contracts, force ethers.js fallback since viem has issues
+                                      if (isDiamond || !publicClient) {
+                                        console.log(`💎 [Function Call] Using ethers.js fallback for diamond contract...`);
+                                        console.log(`💎 [Function Call] Selected network:`, selectedNetwork);
+                                        console.log(`💎 [Function Call] Contract address:`, contractAddress);
+                                        
+                                        if (!selectedNetwork) {
+                                          throw new Error('No network selected');
+                                        }
+                                        
+                                        const rpcUrl = selectedNetwork.rpcUrl;
+                                        console.log(`💎 [Function Call] Using RPC URL:`, rpcUrl);
+                                        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+                                        const contract = new ethers.Contract(
+                                          contractAddress,
+                                          contractABI,
+                                          provider
+                                        );
+                                        console.log(`💎 [Function Call] Calling ${selectedFunctionObj.name} with ethers...`);
+                                        console.log(`💎 [Function Call] Contract Address:`, contractAddress);
+                                        console.log(`💎 [Function Call] ABI Functions Count:`, contractABI.filter((item: any) => item.type === 'function').length);
+                                        console.log(`💎 [Function Call] Function exists in ABI:`, contractABI.some((item: any) => item.type === 'function' && item.name === selectedFunctionObj.name));
+                                        const result = await contract[selectedFunctionObj.name](...args);
+                                        console.log(`💎 [Function Call] Ethers result:`, result);
+                                        
+                                        // Format result and set state (Ethers fallback)
+                                        // Get the raw ABI item for proper output formatting
+                                        const rawFunctionABI = contractABI.find((item: any) => 
+                                          item.type === 'function' && item.name === selectedFunctionObj.name
+                                        );
+                                        
+                                        console.log(`💎 [Function Call] Raw function ABI:`, rawFunctionABI);
+                                        console.log(`💎 [Function Call] Function outputs:`, rawFunctionABI?.outputs);
+                                        console.log(`💎 [Function Call] Result data type:`, typeof result);
+                                        console.log(`💎 [Function Call] Result is array:`, Array.isArray(result));
+                                        console.log(`💎 [Function Call] Result structure:`, result);
+                                        console.log(`💎 [Function Call] Result keys:`, Object.keys(result || {}));
+                                        
+                                        // Debug named properties
+                                        if (Array.isArray(result) && rawFunctionABI?.outputs) {
+                                          console.log(`💎 [Function Call] Testing named access:`);
+                                          rawFunctionABI.outputs.forEach((output: any, idx: number) => {
+                                            const namedValue = result[output.name];
+                                            const indexValue = result[idx];
+                                            console.log(`  ${output.name} (${output.type}): named=${namedValue}, indexed=${indexValue}`);
+                                          });
+                                        }
+                                        
+                                        // Force construction of proper outputs structure
+                                        let functionObjToUse = rawFunctionABI;
+                                        
+                                        // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
+                                        if (selectedFunctionObj && selectedFunctionObj.outputs && Array.isArray(selectedFunctionObj.outputs)) {
+                                          functionObjToUse = {
+                                            name: selectedFunctionObj.name,
+                                            outputs: selectedFunctionObj.outputs.map((output: any) => ({
+                                              name: output.name || `output_${output.type}`,
+                                              type: output.type,
+                                              internalType: output.internalType,
+                                              components: output.components // CRITICAL: Include components for nested tuples
+                                            }))
+                                          };
+                                          console.log(`🎯 CONSTRUCTED functionObjToUse:`, functionObjToUse);
+                                          console.log(`🎯 FIRST OUTPUT:`, functionObjToUse.outputs[0]);
+                                          console.log(`🎯 FIRST OUTPUT COMPONENTS:`, functionObjToUse.outputs[0]?.components);
+                                        } else if (!functionObjToUse) {
+                                          // Final fallback
+                                          functionObjToUse = selectedFunctionObj;
+                                        }
+                                        
+                                        const formattedResult = ContractResultFormatter.formatResult(result, functionObjToUse);
+                                        setFunctionResult({
+                                          data: result,
+                                          formattedResult: formattedResult,
+                                          functionABI: functionObjToUse,
+                                          isLoading: false
+                                        });
+                                      } else {
+                                        console.log(`💎 [Function Call] Using wagmi readContract...`);
+                                        const result = await publicClient.readContract({
+                                          address: contractAddress as `0x${string}`,
+                                          abi: contractABI,
+                                          functionName: selectedFunctionObj.name,
+                                          args: args
+                                        });
+                                        console.log(`💎 [Function Call] Wagmi result:`, result);
+                                        
+                                        // Format result and set state
+                                        // Get the raw ABI item for proper output formatting
+                                        const rawFunctionABI = contractABI.find((item: any) => 
+                                          item.type === 'function' && item.name === selectedFunctionObj.name
+                                        );
+                                        
+                                        // Force construction of proper outputs structure  
+                                        let functionObjToUse2 = rawFunctionABI;
+                                        
+                                        // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
+                                        if (selectedFunctionObj && selectedFunctionObj.outputs && Array.isArray(selectedFunctionObj.outputs)) {
+                                          functionObjToUse2 = {
+                                            name: selectedFunctionObj.name,
+                                            outputs: selectedFunctionObj.outputs.map((output: any) => ({
+                                              name: output.name || `output_${output.type}`,
+                                              type: output.type,
+                                              internalType: output.internalType,
+                                              components: output.components // CRITICAL: Include components for nested tuples
+                                            }))
+                                          };
+                                          console.log(`🎯 CONSTRUCTED functionObjToUse2:`, functionObjToUse2);
+                                        } else if (!functionObjToUse2) {
+                                          // Final fallback
+                                          functionObjToUse2 = selectedFunctionObj;
+                                        }
+                                        
+                                        const formattedResult = ContractResultFormatter.formatResult(result, functionObjToUse2);
+                                        setFunctionResult({
+                                          data: result,
+                                          formattedResult: formattedResult,
+                                          functionABI: functionObjToUse2,
+                                          isLoading: false
+                                        });
+                                      }
+                                    } catch (error: any) {
+                                      console.error(`💎 [Function Call] Error calling '${selectedFunctionObj.name}':`, error);
+                                      console.error(`💎 [Function Call] Error details:`, {
+                                        message: error.message,
+                                        stack: error.stack,
+                                        args: args,
+                                        functionName: selectedFunctionObj.name,
+                                        contractAddress,
+                                        abiLength: contractABI.length
+                                      });
+                                      
+                                      // Set error state
+                                      setFunctionResult({
+                                        data: null,
+                                        error: error.message || error.toString(),
+                                        isLoading: false
+                                      });
+                                    }
+                                  } else {
+                                    try {
+                                      // Write function transaction - requires wallet
+                                      const hash = await walletClient!.writeContract({
+                                        address: contractAddress as `0x${string}`,
+                                        abi: contractABI,
+                                        functionName: selectedFunctionObj.name,
+                                        args: args
+                                      });
+                                      // Better transaction success display
+                                      const notification = document.createElement('div');
+                                      notification.style.cssText = `
+                                        position: fixed;
+                                        top: 20px;
+                                        right: 20px;
+                                        background: #1a1a1a;
+                                        border: 1px solid #333;
+                                        border-radius: 8px;
+                                        padding: 16px;
+                                        color: #22c55e;
+                                        font-family: monospace;
+                                        font-size: 12px;
+                                        max-width: 400px;
+                                        z-index: 10000;
+                                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                                        word-wrap: break-word;
+                                      `;
+                                      notification.innerHTML = `
+                                        <div style="color: #888; margin-bottom: 8px;">✅ Transaction Sent:</div>
+                                        <div style="color: #667eea; text-decoration: underline; cursor: pointer;" onclick="window.open('https://etherscan.io/tx/${hash}', '_blank')">${hash}</div>
+                                      `;
+                                      document.body.appendChild(notification);
+                                      
+                                      // Auto remove after 8 seconds (longer for tx hash)
+                                      setTimeout(() => {
+                                        if (notification.parentNode) {
+                                          notification.parentNode.removeChild(notification);
+                                        }
+                                      }, 8000);
+                                    } catch (error: any) {
+                                      // Handle write function errors
+                                      console.error('Write function error:', error);
+                                      alert(`Error: ${error.message || error.toString()}`);
+                                    }
+                                  }
+                                } catch (overallError: any) {
+                                  // Handle any overall errors
+                                  console.error('Overall function execution error:', overallError);
+                                  if (selectedFunctionType === "read") {
+                                    setFunctionResult({
+                                      data: null,
+                                      error: overallError.message || overallError.toString(),
+                                      isLoading: false
+                                    });
+                                  } else {
+                                    alert(`Error: ${overallError.message || overallError.toString()}`);
+                                  }
+                                }
                               }}
                             >
                               <PlayIcon width={16} height={16} />
                               {selectedFunctionType === "read"
                                 ? "Call Function"
+                                : !isConnected
+                                ? "Connect Wallet"
                                 : "Send Transaction"}
                             </button>
 
@@ -6010,23 +6387,143 @@ const SimpleGridUI: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Wallet connection reminder */}
-                          <div
-                            style={{
-                              padding: "8px 12px",
-                              background: "rgba(59, 130, 246, 0.1)",
-                              border: "1px solid rgba(59, 130, 246, 0.3)",
-                              borderRadius: "6px",
-                              fontSize: "12px",
-                              color: "#93c5fd",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                            }}
-                          >
-                            💡 Connect your wallet in the header to execute
-                            transactions
-                          </div>
+                          {/* Wallet connection reminder - only for write operations */}
+                          {selectedFunctionType === "write" && (
+                            <div
+                              style={{
+                                padding: "8px 12px",
+                                background: "rgba(59, 130, 246, 0.1)",
+                                border: "1px solid rgba(59, 130, 246, 0.3)",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                color: "#93c5fd",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              💡 Connect your wallet in the header to execute
+                              transactions
+                            </div>
+                          )}
+
+                          {/* Function Result Display - only for read operations */}
+                          {selectedFunctionType === "read" && functionResult && (
+                            <div style={{ marginTop: "16px" }}>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: "600",
+                                  color: "#888",
+                                  marginBottom: "8px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <span>Function Result</span>
+                                {!functionResult.error && !functionResult.isLoading && (
+                                  <button
+                                    onClick={() => {
+                                      const textToCopy = functionResult.formattedResult?.displayValue || 
+                                                        JSON.stringify(functionResult.data, null, 2);
+                                      navigator.clipboard.writeText(textToCopy);
+                                      // Quick visual feedback
+                                      const btn = event?.target as HTMLButtonElement;
+                                      if (btn) {
+                                        const original = btn.textContent;
+                                        btn.textContent = "Copied!";
+                                        setTimeout(() => btn.textContent = original, 1000);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: "4px 8px",
+                                      background: "rgba(34, 197, 94, 0.2)",
+                                      border: "1px solid rgba(34, 197, 94, 0.4)",
+                                      borderRadius: "4px",
+                                      color: "#22c55e",
+                                      fontSize: "10px",
+                                      cursor: "pointer",
+                                      fontFamily: "monospace",
+                                    }}
+                                  >
+                                    Copy
+                                  </button>
+                                )}
+                              </div>
+                              
+                              <div
+                                style={{
+                                  background: "#1a1a1a",
+                                  border: functionResult.error 
+                                    ? "1px solid #dc2626" 
+                                    : "1px solid #333",
+                                  borderRadius: "6px",
+                                  padding: "12px",
+                                  fontFamily: "Monaco, Menlo, Ubuntu Mono, monospace",
+                                  fontSize: "12px",
+                                  lineHeight: "1.4",
+                                  color: functionResult.error ? "#dc2626" : "#22c55e",
+                                  maxHeight: "300px",
+                                  overflowY: "auto",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                }}
+                              >
+                                {functionResult.isLoading ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#888" }}>
+                                    <div
+                                      style={{
+                                        width: "12px",
+                                        height: "12px",
+                                        border: "2px solid #333",
+                                        borderTop: "2px solid #888",
+                                        borderRadius: "50%",
+                                        animation: "spin 1s linear infinite",
+                                      }}
+                                    />
+                                    Executing function...
+                                  </div>
+                                ) : functionResult.error ? (
+                                  <div>
+                                    <div style={{ color: "#888", marginBottom: "8px" }}>❌ Error:</div>
+                                    {functionResult.error}
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div style={{ color: "#888", marginBottom: "8px" }}>
+                                      ✅ Result ({functionResult.formattedResult?.type || 'unknown'}):
+                                    </div>
+                                    {functionResult.functionABI && functionResult.functionABI.outputs && functionResult.functionABI.outputs.length > 0 ? (
+                                      <ContractDataDisplay 
+                                        data={functionResult.data}
+                                        abiDefinition={{
+                                          name: functionResult.functionABI.outputs.length === 1 
+                                            ? (functionResult.functionABI.outputs[0].name || 'result')
+                                            : 'result',
+                                          type: functionResult.functionABI.outputs.length === 1 
+                                            ? functionResult.functionABI.outputs[0].type
+                                            : 'tuple',
+                                          components: functionResult.functionABI.outputs.length === 1 
+                                            ? functionResult.functionABI.outputs[0].components
+                                            : functionResult.functionABI.outputs
+                                        }}
+                                        mode="compact"
+                                      />
+                                    ) : (
+                                      <div 
+                                        className="result-container"
+                                        dangerouslySetInnerHTML={{ 
+                                          __html: functionResult.formattedResult?.htmlContent || 
+                                                 `<pre>${JSON.stringify(functionResult.data, null, 2)}</pre>`
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
@@ -6039,8 +6536,55 @@ const SimpleGridUI: React.FC = () => {
                   chain={selectedNetwork}
                   diamondAddress={contractAddress}
                   onFacetsLoaded={(facets) => {
+                    console.log('🔍 [Diamond] FACETS LOADED CALLBACK TRIGGERED');
+                    console.log('🔍 [Diamond] Received facets count:', facets.length);
+                    console.log('🔍 [Diamond] Received facets summary:', facets.map((f, i) => ({
+                      index: i + 1,
+                      address: f.address,
+                      name: f.name,
+                      verified: f.isVerified,
+                      abiLength: Array.isArray(f.abi) ? f.abi.length : 'N/A',
+                      functionCount: Array.isArray(f.abi) ? f.abi.filter((item: any) => item.type === 'function').length : 0
+                    })));
+                    
                     setDiamondFacets(facets);
                     setShowFacetSidebar(true);
+                    
+                    // Update function lists with all facet functions
+                    console.log('🔍 [Diamond] Updating function lists with facet functions...');
+                    const allReadFunctions: ethers.utils.FunctionFragment[] = [];
+                    const allWriteFunctions: ethers.utils.FunctionFragment[] = [];
+                    
+                    facets.forEach((facet) => {
+                      if (facet.abi) {
+                        try {
+                          const facetABI = Array.isArray(facet.abi) 
+                            ? facet.abi 
+                            : JSON.parse(facet.abi as string);
+                          
+                          facetABI.forEach((item: any) => {
+                            if (item.type === 'function') {
+                              try {
+                                const funcFragment = ethers.utils.FunctionFragment.from(item);
+                                if (funcFragment.stateMutability === 'view' || funcFragment.stateMutability === 'pure') {
+                                  allReadFunctions.push(funcFragment);
+                                } else {
+                                  allWriteFunctions.push(funcFragment);
+                                }
+                              } catch (err) {
+                                console.log('Failed to parse function fragment:', item, err);
+                              }
+                            }
+                          });
+                        } catch (err) {
+                          console.log('Failed to parse facet ABI:', facet.address, err);
+                        }
+                      }
+                    });
+                    
+                    console.log(`🔍 [Diamond] Found ${allReadFunctions.length} read functions and ${allWriteFunctions.length} write functions from facets`);
+                    setReadFunctions(allReadFunctions);
+                    setWriteFunctions(allWriteFunctions);
                   }}
                   hideUI
                   onProgressChange={(p) => {
@@ -6139,8 +6683,15 @@ const SimpleGridUI: React.FC = () => {
               marginBottom: "20px",
             }}
           >
-            <h2 style={subHeaderStyle}><ZapIcon width={16} height={16} style={{ marginRight: '6px' }} />Transaction Parameters</h2>
-            <SettingsIcon width={20} height={20} style={{ color: "#888", cursor: "pointer" }} />
+            <h2 style={subHeaderStyle}>
+              <ZapIcon width={16} height={16} style={{ marginRight: "6px" }} />
+              Transaction Parameters
+            </h2>
+            <SettingsIcon
+              width={20}
+              height={20}
+              style={{ color: "#888", cursor: "pointer" }}
+            />
           </div>
 
           {/* Use Pending Block */}
@@ -6294,9 +6845,24 @@ const SimpleGridUI: React.FC = () => {
                 style={{
                   fontSize: "12px",
                   color: "#22c55e",
-                  background: "none",
-                  border: "none",
+                  background: "rgba(34, 197, 94, 0.12)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(34, 197, 94, 0.25)",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
                   cursor: "pointer",
+                  boxShadow: "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px) scale(1.02)";
+                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(34, 197, 94, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.background = "rgba(34, 197, 94, 0.18)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0px) scale(1)";
+                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.background = "rgba(34, 197, 94, 0.12)";
                 }}
               >
                 Use custom gas value
@@ -6392,7 +6958,11 @@ const SimpleGridUI: React.FC = () => {
                       Block Header Overrides
                     </span>
                   </div>
-                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon
+                    width={12}
+                    height={12}
+                    style={{ color: "#888" }}
+                  />
                 </div>
                 <div
                   style={{
@@ -6441,7 +7011,11 @@ const SimpleGridUI: React.FC = () => {
                       State Overrides
                     </span>
                   </div>
-                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon
+                    width={12}
+                    height={12}
+                    style={{ color: "#888" }}
+                  />
                 </div>
                 <div
                   style={{
@@ -6490,7 +7064,11 @@ const SimpleGridUI: React.FC = () => {
                       Access Lists
                     </span>
                   </div>
-                  <ChevronDownIcon width={12} height={12} style={{ color: "#888" }} />
+                  <ChevronDownIcon
+                    width={12}
+                    height={12}
+                    style={{ color: "#888" }}
+                  />
                 </div>
                 <div
                   style={{
@@ -6513,9 +7091,10 @@ const SimpleGridUI: React.FC = () => {
         <button
           style={{
             padding: "16px 48px",
-            background: "linear-gradient(135deg, #007bff 0%, #9333ea 100%)",
-            color: "#fff",
-            border: "none",
+            background: "rgba(0, 123, 255, 0.15)",
+            backdropFilter: "blur(20px)",
+            color: "#007bff",
+            border: "1px solid rgba(0, 123, 255, 0.3)",
             borderRadius: "12px",
             fontSize: "16px",
             fontWeight: "600",
@@ -6523,7 +7102,18 @@ const SimpleGridUI: React.FC = () => {
             display: "inline-flex",
             alignItems: "center",
             gap: "8px",
-            boxShadow: "0 4px 20px rgba(0, 123, 255, 0.3)",
+            boxShadow: "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
+            e.currentTarget.style.boxShadow = "0 12px 40px rgba(0, 123, 255, 0.25), 0 4px 12px rgba(0, 123, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 123, 255, 0.3)";
+            e.currentTarget.style.background = "rgba(0, 123, 255, 0.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0px) scale(1)";
+            e.currentTarget.style.boxShadow = "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)";
+            e.currentTarget.style.background = "rgba(0, 123, 255, 0.15)";
           }}
         >
           <PlayIcon width={20} height={20} />

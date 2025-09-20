@@ -90,7 +90,12 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           defaultValue: '',
           arrayDefaultValue: [],
           validator: (value: string) => !isNaN(Number(value)) && Number(value) >= 0,
-          formatter: (value: string) => value.replace(/[^0-9.eE+-]/g, ''),
+          formatter: (value: string) => {
+            const cleaned = value.replace(/[^0-9.eE+-]/g, '');
+            // Convert to number for proper type handling
+            const num = Number(cleaned);
+            return isNaN(num) ? cleaned : num;
+          },
           placeholder: '0',
           inputType: 'text'
         };
@@ -587,10 +592,14 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s ease',
-                    opacity: 0.8
+                    padding: '8px',
+                    borderRadius: '12px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: 'rgba(74, 222, 128, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(74, 222, 128, 0.2)',
+                    boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    opacity: 0.9
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -737,10 +746,14 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s ease',
-                    opacity: 0.8
+                    padding: '8px',
+                    borderRadius: '12px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: 'rgba(248, 113, 113, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(248, 113, 113, 0.2)',
+                    boxShadow: '0 8px 32px rgba(248, 113, 113, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    opacity: 0.9
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -761,10 +774,14 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s ease',
-                    opacity: 0.8
+                    padding: '8px',
+                    borderRadius: '12px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    boxShadow: '0 8px 32px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    opacity: 0.9
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -787,10 +804,14 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '4px',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s ease',
-                    opacity: 0.8
+                    padding: '8px',
+                    borderRadius: '12px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: 'rgba(139, 92, 246, 0.12)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(139, 92, 246, 0.25)',
+                    boxShadow: '0 8px 32px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    opacity: 0.9
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
@@ -830,7 +851,14 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                           value={itemValue || ''}
                           onChange={(e) => {
                             const newArray = [...arrayValue];
-                            newArray[itemIdx] = e.target.value;
+                            // For integer types, convert to number if it's a valid number
+                            if (baseType.match(/^u?int(\d+)?$/)) {
+                              const value = e.target.value;
+                              const num = Number(value);
+                              newArray[itemIdx] = (!isNaN(num) && value !== '') ? num : value;
+                            } else {
+                              newArray[itemIdx] = e.target.value;
+                            }
                             updateArg(index, newArray);
                           }}
                           onBlur={(e) => {

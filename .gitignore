@@ -35,3 +35,13 @@ REFACTORING_DOCUMENTATION.md
 src/assets/jsx
 src/assets/svg
 ICON_MAPPING.md
+
+app-combined-abi.json
+debug-formatter.json
+
+# Documentation and test files
+*.md
+!README.md
+*test*
+*Test*
+*TEST*
