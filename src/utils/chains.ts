@@ -7,11 +7,18 @@ const API_KEY =
     .VITE_API_KEY ||
   "";
 
+// Debug API key loading
+console.log("🔑 [Chains] Environment variables:", {
+  API_KEY: (import.meta.env as any).API_KEY ? `${(import.meta.env as any).API_KEY.slice(0, 8)}...` : 'undefined',
+  VITE_API_KEY: (import.meta.env as any).VITE_API_KEY ? `${(import.meta.env as any).VITE_API_KEY.slice(0, 8)}...` : 'undefined',
+  resolvedKey: API_KEY ? `${API_KEY.slice(0, 8)}...` : 'empty'
+});
+
 export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 1,
     name: "Ethereum",
-    rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}`,
+    rpcUrl: API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}` : "https://ethereum.publicnode.com",
     explorerUrl: "https://etherscan.io",
     blockExplorer: "https://etherscan.io",
     apiUrl: "https://api.etherscan.io/api",

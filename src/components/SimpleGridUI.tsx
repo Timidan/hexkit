@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useAccount, useWalletClient, usePublicClient, useChainId } from 'wagmi';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
+import {
+  useAccount,
+  useWalletClient,
+  usePublicClient,
+  useChainId,
+  useSwitchChain,
+} from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useNotifications } from "./NotificationManager";
 import {
   ChevronDownIcon,
   SettingsIcon,
@@ -9,6 +16,7 @@ import {
   SearchIcon,
   Loader2Icon,
   GemIcon,
+  DiamondExplodeIcon,
   BookOpenIcon,
   EditIcon,
   DatabaseIcon,
@@ -31,8 +39,11 @@ import {
   type FacetProgressCallback,
 } from "../utils/diamondFacetFetcher";
 import { InlineFacetLoader } from "./InlineFacetLoader";
-import ContractInputComponent, { type ABIInput } from "./ContractInputComponent";
+import ContractInputComponent, {
+  type ABIInput,
+} from "./ContractInputComponent";
 import { useContractInputs } from "../hooks/useContractInputs";
+import DiamondContractPopup from "./DiamondContractPopup";
 
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { detectTokenType } from "../utils/universalTokenDetector";
@@ -54,7 +65,31 @@ const SimpleGridUI: React.FC = () => {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
+  const { showSuccess, showError, showWarning, showInfo, showNotification } =
+    useNotifications();
+
+  // Diamond popup state
+  const [isDiamondPopupOpen, setIsDiamondPopupOpen] = useState(false);
+
+  // Utility function to safely convert BigNumbers to strings
+  const safeBigNumberToString = (obj: any): any => {
+    if (obj && typeof obj === 'object') {
+      if (obj._hex && obj._isBigNumber) {
+        return obj.toString();
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(safeBigNumberToString);
+      }
+      const result: any = {};
+      for (const key in obj) {
+        result[key] = safeBigNumberToString(obj[key]);
+      }
+      return result;
+    }
+    return obj;
+  };
 
   // Add CSS keyframes for spinning animation and result formatting
   React.useEffect(() => {
@@ -96,39 +131,47 @@ const SimpleGridUI: React.FC = () => {
   const [functionInputs, setFunctionInputs] = useState<{
     [key: string]: string;
   }>({});
-  
+
   // Unified comprehensive input system
   const contractInputsHook = useContractInputs({
-    inputs: selectedFunctionObj?.inputs.map(input => ({
-      name: input.name,
-      type: input.type,
-      internalType: (input as any).internalType,
-      components: (input as any).components
-    } as ABIInput)) || [],
+    inputs:
+      selectedFunctionObj?.inputs.map(
+        (input) =>
+          ({
+            name: input.name,
+            type: input.type,
+            internalType: (input as any).internalType,
+            components: (input as any).components,
+          }) as ABIInput
+      ) || [],
     selectedFunction: selectedFunctionObj,
     onValuesChange: (values, allValid) => {
-      console.log('🔧 [Unified Input System] Values changed:', values);
-      console.log('🔧 [Unified Input System] All valid:', allValid);
-      
+      console.log("🔧 [Unified Input System] Values changed:", values);
+      console.log("🔧 [Unified Input System] All valid:", allValid);
+
       // Update functionInputs for compatibility with calldata generation
       const newInputs: { [key: string]: string } = {};
       if (selectedFunctionObj) {
         selectedFunctionObj.inputs.forEach((input: any, idx: number) => {
           const value = values[input.name];
-          newInputs[`${selectedFunctionObj.name}_${idx}`] = 
-            typeof value === "object" ? JSON.stringify(value) : String(value || "");
-          
+          newInputs[`${selectedFunctionObj.name}_${idx}`] =
+            typeof value === "object"
+              ? JSON.stringify(value)
+              : String(value || "");
+
           // Also store by parameter name for direct access
-          newInputs[input.name] = 
-            typeof value === "object" ? JSON.stringify(value) : String(value || "");
+          newInputs[input.name] =
+            typeof value === "object"
+              ? JSON.stringify(value)
+              : String(value || "");
         });
         setFunctionInputs(newInputs);
       }
     },
     onCalldataGenerated: (calldata) => {
-      console.log('✅ [Unified] Auto-generated calldata:', calldata);
+      console.log("✅ [Unified] Auto-generated calldata:", calldata);
       setGeneratedCallData(calldata);
-    }
+    },
   });
   const [contractName, setContractName] = useState<string>("");
   const [tokenInfo, setTokenInfo] = useState<{
@@ -256,7 +299,7 @@ const SimpleGridUI: React.FC = () => {
       // For diamond contracts, show all read functions by default
       // Only filter to specific facet when one is explicitly selected
       let base = readFunctions;
-      
+
       if (isDiamond && selectedFacet) {
         // Show functions from selected facet only
         const facet = diamondFacets.find(
@@ -281,16 +324,22 @@ const SimpleGridUI: React.FC = () => {
         // This ensures all diamond functions are available in the dropdown
         base = allReadFunctions;
       }
-      
+
       return base;
-    }, [isDiamond, selectedFacet, diamondFacets, readFunctions, allReadFunctions]);
+    }, [
+      isDiamond,
+      selectedFacet,
+      diamondFacets,
+      readFunctions,
+      allReadFunctions,
+    ]);
 
   const filteredWriteFunctions: ethers.utils.FunctionFragment[] =
     React.useMemo(() => {
       // For diamond contracts, show all write functions by default
       // Only filter to specific facet when one is explicitly selected
       let base = writeFunctions;
-      
+
       if (isDiamond && selectedFacet) {
         // Show functions from selected facet only
         const facet = diamondFacets.find(
@@ -317,9 +366,15 @@ const SimpleGridUI: React.FC = () => {
         // This ensures all diamond functions are available in the dropdown
         base = allWriteFunctions;
       }
-      
+
       return base;
-    }, [isDiamond, selectedFacet, diamondFacets, writeFunctions, allWriteFunctions]);
+    }, [
+      isDiamond,
+      selectedFacet,
+      diamondFacets,
+      writeFunctions,
+      allWriteFunctions,
+    ]);
 
   // Search filtered functions across all facets and all types
   const searchFilteredFunctions: Array<
@@ -343,8 +398,82 @@ const SimpleGridUI: React.FC = () => {
       `${fn.name}(${fn.inputs?.map((i) => i.type).join(",")})`
         .toLowerCase()
         .includes(q)
-    ) as Array<ethers.utils.FunctionFragment & { functionType: "read" | "write" }>;
+    ) as Array<
+      ethers.utils.FunctionFragment & { functionType: "read" | "write" }
+    >;
   }, [functionSearch, allReadFunctions, allWriteFunctions]);
+
+  // Helper function to create ethers provider with explicit network configuration
+  const createEthersProvider = (selectedNetwork: any) => {
+    if (!selectedNetwork) {
+      throw new Error("No network selected");
+    }
+    
+    // IMPORTANT: Always use the current SUPPORTED_CHAINS configuration, not cached network data
+    const currentNetworkConfig = SUPPORTED_CHAINS.find(chain => chain.id === selectedNetwork.id);
+    
+    // Fallback public RPC URLs for common networks
+    const fallbackRPCs: { [key: number]: string } = {
+      1: "https://ethereum.publicnode.com", // Ethereum Mainnet
+      8453: "https://mainnet.base.org", // Base
+      137: "https://polygon-rpc.com", // Polygon
+      42161: "https://arb1.arbitrum.io/rpc", // Arbitrum
+      10: "https://mainnet.optimism.io", // Optimism
+    };
+    
+    // Choose RPC URL - prioritize current configuration over cached data
+    let rpcUrl = currentNetworkConfig?.rpcUrl || selectedNetwork.rpcUrl;
+    if (!rpcUrl || rpcUrl.includes('undefined') || rpcUrl.includes('null') || rpcUrl.includes('infura')) {
+      console.warn(`🌐 [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`);
+      rpcUrl = fallbackRPCs[selectedNetwork.id];
+      if (!rpcUrl) {
+        throw new Error(`No valid RPC URL available for network ${selectedNetwork.name} (ID: ${selectedNetwork.id})`);
+      }
+      console.log(`🌐 [Provider] Using fallback RPC URL:`, rpcUrl);
+    }
+    
+    // Create network configuration for ethers
+    const networkConfig = {
+      name: selectedNetwork.name.toLowerCase().replace(/\s+/g, '-'),
+      chainId: selectedNetwork.id,
+      ensAddress: selectedNetwork.id === 1 ? "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" : undefined, // ENS only on mainnet
+    };
+    
+    console.log(`🌐 [Provider] Creating ethers provider for network:`, networkConfig);
+    console.log(`🌐 [Provider] Using RPC URL:`, rpcUrl);
+    console.log(`🌐 [Provider] Selected Network Object:`, selectedNetwork);
+    console.log(`🌐 [Provider] Original selectedNetwork.rpcUrl:`, selectedNetwork.rpcUrl);
+    console.log(`🌐 [Provider] Current Network Config RPC:`, currentNetworkConfig?.rpcUrl);
+    console.log(`🌐 [Provider] Found Infura URL:`, selectedNetwork.rpcUrl?.includes('infura'));
+    
+    try {
+      // Create provider with connection options for better reliability
+      const provider = new ethers.providers.JsonRpcProvider(
+        {
+          url: rpcUrl,
+          timeout: 30000, // 30 second timeout
+          allowGzip: true,
+        },
+        networkConfig
+      );
+      
+      // Override network detection to prevent "could not detect network" errors
+      const originalDetectNetwork = provider.detectNetwork.bind(provider);
+      provider.detectNetwork = async () => {
+        try {
+          return await originalDetectNetwork();
+        } catch (error: any) {
+          console.warn(`🌐 [Provider] Network detection failed, using configured network:`, error.message);
+          return networkConfig as any;
+        }
+      };
+      
+      return provider;
+    } catch (error) {
+      console.error(`🚨 [Provider] Failed to create provider:`, error);
+      throw new Error(`Failed to create provider for ${selectedNetwork.name}: ${error}`);
+    }
+  };
 
   // ABI fetching functions
   const fetchABIFromSourcery = async (
@@ -2060,7 +2189,7 @@ const SimpleGridUI: React.FC = () => {
           const rpcUrl = selectedNetwork?.rpcUrl || SUPPORTED_CHAINS[0].rpcUrl;
 
           console.log("Creating provider with RPC URL:", rpcUrl);
-          const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+          const provider = createEthersProvider(selectedNetwork);
           const contract = new ethers.Contract(contractAddress, abi, provider);
 
           console.log("Provider created successfully");
@@ -3063,9 +3192,7 @@ const SimpleGridUI: React.FC = () => {
           // Universal token detection independent of ABI (robust RPC + non-destructive)
           try {
             // Use chain RPC directly (env-backed)
-            const rpcUrl = selectedNetwork.rpcUrl;
-
-            const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+            const provider = createEthersProvider(selectedNetwork);
 
             // Always run ERC165 universal detection and prefer its result
             const result = await detectTokenType(provider, contractAddress);
@@ -3112,8 +3239,7 @@ const SimpleGridUI: React.FC = () => {
             });
           }
 
-          const rpcUrl = selectedNetwork.rpcUrl;
-          const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+          const provider = createEthersProvider(selectedNetwork);
           const det = await detectTokenType(provider, contractAddress);
           setTokenDetection({
             type: det.type,
@@ -3434,7 +3560,6 @@ const SimpleGridUI: React.FC = () => {
         <p style={{ color: "#888", fontSize: "16px" }}>
           Configure and simulate blockchain transactions
         </p>
-        
       </div>
 
       {/* Main Grid */}
@@ -3752,7 +3877,7 @@ const SimpleGridUI: React.FC = () => {
                     ) : (
                       <SearchIcon width={16} height={16} />
                     )}
-                    {isLoadingABI ? "Searching..." : "Search & Fetch ABI"}
+                    {isLoadingABI ? "Searching..." : "Fetch"}
                   </button>
                 </div>
               </div>
@@ -4689,36 +4814,37 @@ const SimpleGridUI: React.FC = () => {
                             flexWrap: "wrap",
                           }}
                         >
-                          <a
-                            href={`${
-                              selectedNetwork?.explorers
-                                ?.find((e) => e.type === "blockscout")
-                                ?.url?.replace("/api", "")
-                                ?.replace("/api/", "") ||
-                              selectedNetwork?.blockExplorer
-                            }/address/${contractAddress}`}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            onClick={() => setIsDiamondPopupOpen(true)}
+                            title="Inspect diamond"
                             style={{
-                              fontSize: "11px",
+                              background: "transparent",
+                              border: "none",
                               color: "#3b82f6",
-                              textDecoration: "none",
-                              padding: "4px 8px",
-                              background: "rgba(59, 130, 246, 0.1)",
-                              border: "1px solid rgba(59, 130, 246, 0.3)",
-                              borderRadius: "4px",
+                              cursor: "pointer",
+                              padding: "6px",
+                              borderRadius: "6px",
+                              transition: "all 0.2s ease",
                               display: "flex",
                               alignItems: "center",
-                              gap: "4px",
+                              justifyContent: "center",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)";
+                              e.currentTarget.style.color = "#2563eb";
+                              e.currentTarget.style.transform = "scale(1.1)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "transparent";
+                              e.currentTarget.style.color = "#3b82f6";
+                              e.currentTarget.style.transform = "scale(1)";
                             }}
                           >
-                            <GemIcon
-                              width={16}
-                              height={16}
-                              style={{ marginRight: "6px" }}
+                            <DiamondExplodeIcon
+                              width={18}
+                              height={18}
                             />
-                            Diamond Contract
-                          </a>
+                          </button>
 
                           {selectedFacet && (
                             <a
@@ -5167,7 +5293,8 @@ const SimpleGridUI: React.FC = () => {
                                             // For diamond contracts, we need to find the right facet first
                                             if (isDiamond) {
                                               // Find which facet contains this function
-                                              let foundFacet: DiamondFacet | null = null;
+                                              let foundFacet: DiamondFacet | null =
+                                                null;
                                               diamondFacets.forEach((facet) => {
                                                 if (Array.isArray(facet.abi)) {
                                                   const hasFunction = (
@@ -5208,7 +5335,8 @@ const SimpleGridUI: React.FC = () => {
                                               // Select the facet if found
                                               if (foundFacet) {
                                                 setSelectedFacet(
-                                                  (foundFacet as DiamondFacet).address
+                                                  (foundFacet as DiamondFacet)
+                                                    .address
                                                 );
                                               }
                                             }
@@ -5869,61 +5997,74 @@ const SimpleGridUI: React.FC = () => {
                                 }
                               `}</style>
                               {/* Unified Input System */}
-                              <div style={{ 
-                                background: '#0f172a', 
-                                border: '1px solid #1e293b', 
-                                borderRadius: '8px', 
-                                padding: '16px',
-                                marginBottom: '12px'
-                              }}>
-                                
+                              <div
+                                style={{
+                                  background: "#0f172a",
+                                  border: "1px solid #1e293b",
+                                  borderRadius: "8px",
+                                  padding: "16px",
+                                  marginBottom: "12px",
+                                }}
+                              >
                                 {selectedFunctionObj.inputs.length === 0 ? (
-                                  <div style={{
-                                    textAlign: 'center',
-                                    padding: '20px',
-                                    color: '#666',
-                                    fontSize: '13px'
-                                  }}>
+                                  <div
+                                    style={{
+                                      textAlign: "center",
+                                      padding: "20px",
+                                      color: "#666",
+                                      fontSize: "13px",
+                                    }}
+                                  >
                                     This function requires no parameters
                                   </div>
                                 ) : (
                                   <div>
-                                    {selectedFunctionObj.inputs.map((input: any, index: number) => (
-                                      <ContractInputComponent
-                                        key={`${selectedFunctionObj.name}-${input.name}-${index}`}
-                                        inputDefinition={{
-                                          name: input.name,
-                                          type: input.type,
-                                          internalType: input.internalType,
-                                          components: input.components
-                                        }}
-                                        onChange={(value, isValid) => {
-                                          contractInputsHook.handleInputChange(input.name, value, isValid);
-                                        }}
-                                      />
-                                    ))}
-                                    
+                                    {selectedFunctionObj.inputs.map(
+                                      (input: any, index: number) => (
+                                        <ContractInputComponent
+                                          key={`${selectedFunctionObj.name}-${input.name}-${index}`}
+                                          inputDefinition={{
+                                            name: input.name,
+                                            type: input.type,
+                                            internalType: input.internalType,
+                                            components: input.components,
+                                          }}
+                                          onChange={(value, isValid) => {
+                                            contractInputsHook.handleInputChange(
+                                              input.name,
+                                              value,
+                                              isValid
+                                            );
+                                          }}
+                                        />
+                                      )
+                                    )}
+
                                     {/* Validation Status */}
                                     {contractInputsHook.isAllValid ? (
-                                      <div style={{ 
-                                        marginTop: '12px', 
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        color: '#10b981',
-                                        fontSize: '12px'
-                                      }}>
+                                      <div
+                                        style={{
+                                          marginTop: "12px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          color: "#10b981",
+                                          fontSize: "12px",
+                                        }}
+                                      >
                                         <CheckCircleIcon size={14} />
                                       </div>
                                     ) : (
-                                      <div style={{ 
-                                        marginTop: '12px', 
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        color: '#ef4444',
-                                        fontSize: '12px'
-                                      }}>
+                                      <div
+                                        style={{
+                                          marginTop: "12px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "6px",
+                                          color: "#ef4444",
+                                          fontSize: "12px",
+                                        }}
+                                      >
                                         <AlertTriangleIcon size={14} />
                                       </div>
                                     )}
@@ -6066,291 +6207,608 @@ const SimpleGridUI: React.FC = () => {
                               }}
                               onClick={async () => {
                                 if (!selectedFunctionObj || !contractAddress) {
-                                  alert('Please select a contract and function');
+                                  alert(
+                                    "Please select a contract and function"
+                                  );
                                   return;
                                 }
 
                                 // For WRITE operations, check wallet connection and open modal if needed
-                                if (selectedFunctionType === "write" && (!isConnected || !walletClient)) {
+                                if (
+                                  selectedFunctionType === "write" &&
+                                  (!isConnected || !walletClient)
+                                ) {
                                   if (openConnectModal) {
                                     openConnectModal();
                                   } else {
-                                    alert('Please connect your wallet to send transactions');
+                                    alert(
+                                      "Please connect your wallet to send transactions"
+                                    );
                                   }
                                   return;
                                 }
 
                                 try {
                                   // Parse the function inputs using unified system
-                                  console.log('🔧 [Unified Input System] Getting formatted arguments...');
-                                  const args = contractInputsHook.getFormattedArgs();
-                                  console.log('🔧 [Unified Input System] Formatted args:', args);
-                                  console.log('🔧 [Unified Input System] CRITICAL: Args types:', args.map(arg => typeof arg));
-                                  console.log('🔧 [Unified Input System] CRITICAL: Args isArray:', args.map(arg => Array.isArray(arg)));
-                                  console.log('🔧 [Unified Input System] CRITICAL: Args JSON:', JSON.stringify(args));
-                                  console.log('🔧 [Unified Input System] All inputs valid:', contractInputsHook.isAllValid);
-                                  console.log('🔧 [Unified Input System] Current values:', contractInputsHook.getCurrentValues());
+                                  console.log(
+                                    "🔧 [Unified Input System] Getting formatted arguments..."
+                                  );
+                                  const args =
+                                    contractInputsHook.getFormattedArgs();
+                                  console.log(
+                                    "🔧 [Unified Input System] Formatted args:",
+                                    args
+                                  );
+                                  console.log(
+                                    "🔧 [Unified Input System] CRITICAL: Args types:",
+                                    args.map((arg) => typeof arg)
+                                  );
+                                  console.log(
+                                    "🔧 [Unified Input System] CRITICAL: Args isArray:",
+                                    args.map((arg) => Array.isArray(arg))
+                                  );
+                                  console.log(
+                                    "🔧 [Unified Input System] CRITICAL: Args JSON:",
+                                    JSON.stringify(args)
+                                  );
+                                  console.log(
+                                    "🔧 [Unified Input System] All inputs valid:",
+                                    contractInputsHook.isAllValid
+                                  );
+                                  console.log(
+                                    "🔧 [Unified Input System] Current values:",
+                                    contractInputsHook.getCurrentValues()
+                                  );
 
                                   // Create combined ABI for diamond contracts
                                   const getContractABI = () => {
                                     if (isDiamond && diamondFacets.length > 0) {
                                       // Combine all facet ABIs for diamond contracts
                                       const combinedABI: any[] = [];
-                                      console.log(`💎 [Diamond] COMBINING ABIs - Processing ${diamondFacets.length} facets`);
-                                      
+                                      console.log(
+                                        `💎 [Diamond] COMBINING ABIs - Processing ${diamondFacets.length} facets`
+                                      );
+
                                       diamondFacets.forEach((facet, index) => {
-                                        console.log(`💎 [Diamond] Facet ${index + 1}: ${facet.address}`);
-                                        console.log(`💎 [Diamond] Facet ${index + 1} verified: ${facet.isVerified}`);
-                                        console.log(`💎 [Diamond] Facet ${index + 1} ABI type: ${typeof facet.abi}`);
-                                        console.log(`💎 [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : 'N/A'}`);
-                                        
+                                        console.log(
+                                          `💎 [Diamond] Facet ${index + 1}: ${facet.address}`
+                                        );
+                                        console.log(
+                                          `💎 [Diamond] Facet ${index + 1} verified: ${facet.isVerified}`
+                                        );
+                                        console.log(
+                                          `💎 [Diamond] Facet ${index + 1} ABI type: ${typeof facet.abi}`
+                                        );
+                                        console.log(
+                                          `💎 [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : "N/A"}`
+                                        );
+
                                         if (facet.abi && facet.isVerified) {
-                                          const facetABI = Array.isArray(facet.abi) 
-                                            ? facet.abi 
+                                          const facetABI = Array.isArray(
+                                            facet.abi
+                                          )
+                                            ? facet.abi
                                             : JSON.parse(facet.abi as string);
-                                          const functionCount = facetABI.filter((item: any) => item.type === 'function').length;
-                                          console.log(`💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions`);
+                                          const functionCount = facetABI.filter(
+                                            (item: any) =>
+                                              item.type === "function"
+                                          ).length;
+                                          console.log(
+                                            `💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions`
+                                          );
                                           combinedABI.push(...facetABI);
                                         } else {
-                                          console.log(`💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI or not verified`);
+                                          console.log(
+                                            `💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI or not verified`
+                                          );
                                         }
                                       });
-                                      
-                                      const totalFunctions = combinedABI.filter(item => item.type === 'function').length;
-                                      console.log(`💎 [Diamond] FINAL combined ABI has ${totalFunctions} functions from ${diamondFacets.length} facets`);
-                                      
-                                      // Debug: Check if the specific function exists in combined ABI
-                                      const targetFunction = combinedABI.find(item => 
-                                        item.type === 'function' && item.name === selectedFunctionObj.name
+
+                                      const totalFunctions = combinedABI.filter(
+                                        (item) => item.type === "function"
+                                      ).length;
+                                      console.log(
+                                        `💎 [Diamond] FINAL combined ABI has ${totalFunctions} functions from ${diamondFacets.length} facets`
                                       );
-                                      console.log(`💎 [Diamond] Function '${selectedFunctionObj.name}' found in combined ABI:`, !!targetFunction);
+
+                                      // Debug: Check if the specific function exists in combined ABI
+                                      const targetFunction = combinedABI.find(
+                                        (item) =>
+                                          item.type === "function" &&
+                                          item.name === selectedFunctionObj.name
+                                      );
+                                      console.log(
+                                        `💎 [Diamond] Function '${selectedFunctionObj.name}' found in combined ABI:`,
+                                        !!targetFunction
+                                      );
                                       if (targetFunction) {
-                                        console.log(`💎 [Diamond] Function signature:`, targetFunction);
+                                        console.log(
+                                          `💎 [Diamond] Function signature:`,
+                                          targetFunction
+                                        );
                                       } else {
-                                        console.log(`💎 [Diamond] Available functions:`, combinedABI.filter(item => item.type === 'function').map(f => f.name).slice(0, 20));
+                                        console.log(
+                                          `💎 [Diamond] Available functions:`,
+                                          combinedABI
+                                            .filter(
+                                              (item) => item.type === "function"
+                                            )
+                                            .map((f) => f.name)
+                                            .slice(0, 20)
+                                        );
                                       }
-                                      
+
                                       return combinedABI;
                                     } else if (isDiamond) {
                                       // Diamond detected but facets not loaded yet - try creating minimal ABI for this function
-                                      console.log('💎 [Diamond] Facets not loaded yet, using single function ABI');
-                                      console.log('💎 [Diamond] isDiamond:', isDiamond, 'facetCount:', diamondFacets.length);
+                                      console.log(
+                                        "💎 [Diamond] Facets not loaded yet, using single function ABI"
+                                      );
+                                      console.log(
+                                        "💎 [Diamond] isDiamond:",
+                                        isDiamond,
+                                        "facetCount:",
+                                        diamondFacets.length
+                                      );
                                       return [selectedFunctionObj];
                                     } else {
                                       // Use regular contract ABI
-                                      console.log('📄 [Regular] Using regular contract ABI');
-                                      return JSON.parse(contractInfo?.abi || '[]');
+                                      console.log(
+                                        "📄 [Regular] Using regular contract ABI"
+                                      );
+                                      return JSON.parse(
+                                        contractInfo?.abi || "[]"
+                                      );
                                     }
                                   };
 
                                   const contractABI = getContractABI();
-                                  console.log(`💎 [Function Call] Calling '${selectedFunctionObj.name}' with args:`, args);
-                                  console.log(`💎 [Function Call] Selected function object:`, selectedFunctionObj);
-                                  console.log(`💎 [Function Call] Contract ABI length:`, contractABI.length);
-                                  console.log(`💎 [Function Call] Is Diamond:`, isDiamond);
-                                  console.log(`💎 [Function Call] Diamond facets loaded:`, diamondFacets.length);
-                                  console.log(`💎 [Function Call] Contract address:`, contractAddress);
+                                  console.log(
+                                    `💎 [Function Call] Calling '${selectedFunctionObj.name}' with args:`,
+                                    args
+                                  );
+                                  console.log(
+                                    `💎 [Function Call] Selected function object:`,
+                                    selectedFunctionObj
+                                  );
+                                  console.log(
+                                    `💎 [Function Call] Contract ABI length:`,
+                                    contractABI.length
+                                  );
+                                  console.log(
+                                    `💎 [Function Call] Is Diamond:`,
+                                    isDiamond
+                                  );
+                                  console.log(
+                                    `💎 [Function Call] Diamond facets loaded:`,
+                                    diamondFacets.length
+                                  );
+                                  console.log(
+                                    `💎 [Function Call] Contract address:`,
+                                    contractAddress
+                                  );
 
                                   if (selectedFunctionType === "read") {
                                     // Set loading state
-                                    setFunctionResult({ data: null, isLoading: true });
-                                    
+                                    setFunctionResult({
+                                      data: null,
+                                      isLoading: true,
+                                    });
+
                                     try {
                                       // For diamond contracts, force ethers.js fallback since viem has issues
                                       if (isDiamond || !publicClient) {
-                                        console.log(`💎 [Function Call] Using ethers.js fallback for diamond contract...`);
-                                        console.log(`💎 [Function Call] Selected network:`, selectedNetwork);
-                                        console.log(`💎 [Function Call] Contract address:`, contractAddress);
-                                        
+                                        console.log(
+                                          `💎 [Function Call] Using ethers.js fallback for diamond contract...`
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Selected network:`,
+                                          selectedNetwork
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Contract address:`,
+                                          contractAddress
+                                        );
+
                                         if (!selectedNetwork) {
-                                          throw new Error('No network selected');
+                                          throw new Error(
+                                            "No network selected"
+                                          );
                                         }
-                                        
-                                        const rpcUrl = selectedNetwork.rpcUrl;
-                                        console.log(`💎 [Function Call] Using RPC URL:`, rpcUrl);
-                                        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+
+                                        console.log(
+                                          `💎 [Function Call] Using RPC URL:`,
+                                          selectedNetwork.rpcUrl
+                                        );
+                                        const provider = createEthersProvider(selectedNetwork);
                                         const contract = new ethers.Contract(
                                           contractAddress,
                                           contractABI,
                                           provider
                                         );
-                                        console.log(`💎 [Function Call] Calling ${selectedFunctionObj.name} with ethers...`);
-                                        console.log(`💎 [Function Call] Contract Address:`, contractAddress);
-                                        console.log(`💎 [Function Call] ABI Functions Count:`, contractABI.filter((item: any) => item.type === 'function').length);
-                                        console.log(`💎 [Function Call] Function exists in ABI:`, contractABI.some((item: any) => item.type === 'function' && item.name === selectedFunctionObj.name));
-                                        const result = await contract[selectedFunctionObj.name](...args);
-                                        console.log(`💎 [Function Call] Ethers result:`, result);
-                                        
+                                        console.log(
+                                          `💎 [Function Call] Calling ${selectedFunctionObj.name} with ethers...`
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Contract Address:`,
+                                          contractAddress
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] ABI Functions Count:`,
+                                          contractABI.filter(
+                                            (item: any) =>
+                                              item.type === "function"
+                                          ).length
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Function exists in ABI:`,
+                                          contractABI.some(
+                                            (item: any) =>
+                                              item.type === "function" &&
+                                              item.name ===
+                                                selectedFunctionObj.name
+                                          )
+                                        );
+                                        const result = await contract[
+                                          selectedFunctionObj.name
+                                        ](...args);
+                                        console.log(
+                                          `💎 [Function Call] Ethers result:`,
+                                          result
+                                        );
+
                                         // Format result and set state (Ethers fallback)
                                         // Get the raw ABI item for proper output formatting
-                                        const rawFunctionABI = contractABI.find((item: any) => 
-                                          item.type === 'function' && item.name === selectedFunctionObj.name
+                                        const rawFunctionABI = contractABI.find(
+                                          (item: any) =>
+                                            item.type === "function" &&
+                                            item.name ===
+                                              selectedFunctionObj.name
                                         );
-                                        
-                                        console.log(`💎 [Function Call] Raw function ABI:`, rawFunctionABI);
-                                        console.log(`💎 [Function Call] Function outputs:`, rawFunctionABI?.outputs);
-                                        console.log(`💎 [Function Call] Result data type:`, typeof result);
-                                        console.log(`💎 [Function Call] Result is array:`, Array.isArray(result));
-                                        console.log(`💎 [Function Call] Result structure:`, result);
-                                        console.log(`💎 [Function Call] Result keys:`, Object.keys(result || {}));
-                                        
+
+                                        console.log(
+                                          `💎 [Function Call] Raw function ABI:`,
+                                          rawFunctionABI
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Function outputs:`,
+                                          rawFunctionABI?.outputs
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Result data type:`,
+                                          typeof result
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Result is array:`,
+                                          Array.isArray(result)
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Result structure:`,
+                                          result
+                                        );
+                                        console.log(
+                                          `💎 [Function Call] Result keys:`,
+                                          Object.keys(result || {})
+                                        );
+
                                         // Debug named properties
-                                        if (Array.isArray(result) && rawFunctionABI?.outputs) {
-                                          console.log(`💎 [Function Call] Testing named access:`);
-                                          rawFunctionABI.outputs.forEach((output: any, idx: number) => {
-                                            const namedValue = result[output.name];
-                                            const indexValue = result[idx];
-                                            console.log(`  ${output.name} (${output.type}): named=${namedValue}, indexed=${indexValue}`);
-                                          });
+                                        if (
+                                          Array.isArray(result) &&
+                                          rawFunctionABI?.outputs
+                                        ) {
+                                          console.log(
+                                            `💎 [Function Call] Testing named access:`
+                                          );
+                                          rawFunctionABI.outputs.forEach(
+                                            (output: any, idx: number) => {
+                                              const namedValue =
+                                                result[output.name];
+                                              const indexValue = result[idx];
+                                              console.log(
+                                                `  ${output.name} (${output.type}): named=${namedValue}, indexed=${indexValue}`
+                                              );
+                                            }
+                                          );
                                         }
-                                        
+
                                         // Force construction of proper outputs structure
                                         let functionObjToUse = rawFunctionABI;
-                                        
+
                                         // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
-                                        if (selectedFunctionObj && selectedFunctionObj.outputs && Array.isArray(selectedFunctionObj.outputs)) {
+                                        if (
+                                          selectedFunctionObj &&
+                                          selectedFunctionObj.outputs &&
+                                          Array.isArray(
+                                            selectedFunctionObj.outputs
+                                          )
+                                        ) {
                                           functionObjToUse = {
                                             name: selectedFunctionObj.name,
-                                            outputs: selectedFunctionObj.outputs.map((output: any) => ({
-                                              name: output.name || `output_${output.type}`,
-                                              type: output.type,
-                                              internalType: output.internalType,
-                                              components: output.components // CRITICAL: Include components for nested tuples
-                                            }))
+                                            outputs:
+                                              selectedFunctionObj.outputs.map(
+                                                (output: any) => ({
+                                                  name:
+                                                    output.name ||
+                                                    `output_${output.type}`,
+                                                  type: output.type,
+                                                  internalType:
+                                                    output.internalType,
+                                                  components: output.components, // CRITICAL: Include components for nested tuples
+                                                })
+                                              ),
                                           };
-                                          console.log(`🎯 CONSTRUCTED functionObjToUse:`, functionObjToUse);
-                                          console.log(`🎯 FIRST OUTPUT:`, functionObjToUse.outputs[0]);
-                                          console.log(`🎯 FIRST OUTPUT COMPONENTS:`, functionObjToUse.outputs[0]?.components);
+                                          console.log(
+                                            `🎯 CONSTRUCTED functionObjToUse:`,
+                                            functionObjToUse
+                                          );
+                                          console.log(
+                                            `🎯 FIRST OUTPUT:`,
+                                            functionObjToUse.outputs[0]
+                                          );
+                                          console.log(
+                                            `🎯 FIRST OUTPUT COMPONENTS:`,
+                                            functionObjToUse.outputs[0]
+                                              ?.components
+                                          );
                                         } else if (!functionObjToUse) {
                                           // Final fallback
-                                          functionObjToUse = selectedFunctionObj;
+                                          functionObjToUse =
+                                            selectedFunctionObj;
                                         }
-                                        
-                                        const formattedResult = ContractResultFormatter.formatResult(result, functionObjToUse);
+
+                                        const formattedResult =
+                                          ContractResultFormatter.formatResult(
+                                            result,
+                                            functionObjToUse
+                                          );
                                         setFunctionResult({
-                                          data: result,
+                                          data: safeBigNumberToString(result),
                                           formattedResult: formattedResult,
                                           functionABI: functionObjToUse,
-                                          isLoading: false
+                                          isLoading: false,
                                         });
                                       } else {
-                                        console.log(`💎 [Function Call] Using wagmi readContract...`);
-                                        const result = await publicClient.readContract({
-                                          address: contractAddress as `0x${string}`,
-                                          abi: contractABI,
-                                          functionName: selectedFunctionObj.name,
-                                          args: args
-                                        });
-                                        console.log(`💎 [Function Call] Wagmi result:`, result);
-                                        
-                                        // Format result and set state
-                                        // Get the raw ABI item for proper output formatting
-                                        const rawFunctionABI = contractABI.find((item: any) => 
-                                          item.type === 'function' && item.name === selectedFunctionObj.name
+                                        console.log(
+                                          `💎 [Function Call] Using ethers provider for selected network...`
                                         );
                                         
-                                        // Force construction of proper outputs structure  
-                                        let functionObjToUse2 = rawFunctionABI;
+                                        // Use the selected network's RPC instead of wagmi's publicClient
+                                        const provider = createEthersProvider(selectedNetwork);
+                                        const contract = new ethers.Contract(
+                                          contractAddress,
+                                          contractABI,
+                                          provider
+                                        );
                                         
+                                        const result = await contract[selectedFunctionObj.name](...args);
+                                        console.log(
+                                          `💎 [Function Call] Wagmi result:`,
+                                          result
+                                        );
+
+                                        // Format result and set state
+                                        // Get the raw ABI item for proper output formatting
+                                        const rawFunctionABI = contractABI.find(
+                                          (item: any) =>
+                                            item.type === "function" &&
+                                            item.name ===
+                                              selectedFunctionObj.name
+                                        );
+
+                                        // Force construction of proper outputs structure
+                                        let functionObjToUse2 = rawFunctionABI;
+
                                         // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
-                                        if (selectedFunctionObj && selectedFunctionObj.outputs && Array.isArray(selectedFunctionObj.outputs)) {
+                                        if (
+                                          selectedFunctionObj &&
+                                          selectedFunctionObj.outputs &&
+                                          Array.isArray(
+                                            selectedFunctionObj.outputs
+                                          )
+                                        ) {
                                           functionObjToUse2 = {
                                             name: selectedFunctionObj.name,
-                                            outputs: selectedFunctionObj.outputs.map((output: any) => ({
-                                              name: output.name || `output_${output.type}`,
-                                              type: output.type,
-                                              internalType: output.internalType,
-                                              components: output.components // CRITICAL: Include components for nested tuples
-                                            }))
+                                            outputs:
+                                              selectedFunctionObj.outputs.map(
+                                                (output: any) => ({
+                                                  name:
+                                                    output.name ||
+                                                    `output_${output.type}`,
+                                                  type: output.type,
+                                                  internalType:
+                                                    output.internalType,
+                                                  components: output.components, // CRITICAL: Include components for nested tuples
+                                                })
+                                              ),
                                           };
-                                          console.log(`🎯 CONSTRUCTED functionObjToUse2:`, functionObjToUse2);
+                                          console.log(
+                                            `🎯 CONSTRUCTED functionObjToUse2:`,
+                                            functionObjToUse2
+                                          );
                                         } else if (!functionObjToUse2) {
                                           // Final fallback
-                                          functionObjToUse2 = selectedFunctionObj;
+                                          functionObjToUse2 =
+                                            selectedFunctionObj;
                                         }
-                                        
-                                        const formattedResult = ContractResultFormatter.formatResult(result, functionObjToUse2);
+
+                                        const formattedResult =
+                                          ContractResultFormatter.formatResult(
+                                            result,
+                                            functionObjToUse2
+                                          );
                                         setFunctionResult({
-                                          data: result,
+                                          data: safeBigNumberToString(result),
                                           formattedResult: formattedResult,
                                           functionABI: functionObjToUse2,
-                                          isLoading: false
+                                          isLoading: false,
                                         });
                                       }
                                     } catch (error: any) {
-                                      console.error(`💎 [Function Call] Error calling '${selectedFunctionObj.name}':`, error);
-                                      console.error(`💎 [Function Call] Error details:`, {
-                                        message: error.message,
-                                        stack: error.stack,
-                                        args: args,
-                                        functionName: selectedFunctionObj.name,
-                                        contractAddress,
-                                        abiLength: contractABI.length
-                                      });
-                                      
+                                      console.error(
+                                        `💎 [Function Call] Error calling '${selectedFunctionObj.name}':`,
+                                        error
+                                      );
+                                      console.error(
+                                        `💎 [Function Call] Error details:`,
+                                        {
+                                          message: error.message,
+                                          stack: error.stack,
+                                          args: args,
+                                          functionName:
+                                            selectedFunctionObj.name,
+                                          contractAddress,
+                                          abiLength: contractABI.length,
+                                        }
+                                      );
+
                                       // Set error state
                                       setFunctionResult({
                                         data: null,
-                                        error: error.message || error.toString(),
-                                        isLoading: false
+                                        error:
+                                          error.message || error.toString(),
+                                        isLoading: false,
                                       });
                                     }
                                   } else {
                                     try {
-                                      // Write function transaction - requires wallet
-                                      const hash = await walletClient!.writeContract({
-                                        address: contractAddress as `0x${string}`,
-                                        abi: contractABI,
-                                        functionName: selectedFunctionObj.name,
-                                        args: args
-                                      });
-                                      // Better transaction success display
-                                      const notification = document.createElement('div');
-                                      notification.style.cssText = `
-                                        position: fixed;
-                                        top: 20px;
-                                        right: 20px;
-                                        background: #1a1a1a;
-                                        border: 1px solid #333;
-                                        border-radius: 8px;
-                                        padding: 16px;
-                                        color: #22c55e;
-                                        font-family: monospace;
-                                        font-size: 12px;
-                                        max-width: 400px;
-                                        z-index: 10000;
-                                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-                                        word-wrap: break-word;
-                                      `;
-                                      notification.innerHTML = `
-                                        <div style="color: #888; margin-bottom: 8px;">✅ Transaction Sent:</div>
-                                        <div style="color: #667eea; text-decoration: underline; cursor: pointer;" onclick="window.open('https://etherscan.io/tx/${hash}', '_blank')">${hash}</div>
-                                      `;
-                                      document.body.appendChild(notification);
-                                      
-                                      // Auto remove after 8 seconds (longer for tx hash)
-                                      setTimeout(() => {
-                                        if (notification.parentNode) {
-                                          notification.parentNode.removeChild(notification);
+                                      // Network validation before write function execution
+                                      const currentWalletChain = chainId;
+                                      const appSelectedChain =
+                                        selectedNetwork?.id;
+
+                                      console.log(
+                                        `🔗 [Network Check] Wallet chain: ${currentWalletChain}, App chain: ${appSelectedChain}`
+                                      );
+
+                                      if (
+                                        currentWalletChain !== appSelectedChain
+                                      ) {
+                                        const networkName =
+                                          selectedNetwork?.name ||
+                                          `Chain ${appSelectedChain}`;
+
+                                        console.log(
+                                          `⚠️ [Network Mismatch] Wallet on chain ${currentWalletChain}, app expects chain ${appSelectedChain}`
+                                        );
+
+                                        // Show info notification about automatic network switch
+                                        showInfo(
+                                          "Network Switch Required",
+                                          `Switching from Chain ${currentWalletChain} to ${networkName}...`
+                                        );
+
+                                        if (switchChain && appSelectedChain) {
+                                          try {
+                                            console.log(
+                                              `🔄 [Network Switch] Switching to chain ${appSelectedChain}`
+                                            );
+                                            await switchChain({
+                                              chainId: appSelectedChain as any,
+                                            });
+
+                                            // Wait a moment for the network switch to complete
+                                            await new Promise((resolve) =>
+                                              setTimeout(resolve, 1500)
+                                            );
+
+                                            showSuccess(
+                                              "Network Switched",
+                                              `Successfully switched to ${networkName}`
+                                            );
+                                          } catch (switchError: any) {
+                                            console.error(
+                                              `❌ [Network Switch Failed]`,
+                                              switchError
+                                            );
+                                            showError(
+                                              "Network Switch Failed",
+                                              `Failed to switch to ${networkName}: ${switchError.message}`
+                                            );
+                                            setFunctionResult({
+                                              data: null,
+                                              error: `Failed to switch network: ${switchError.message}`,
+                                              isLoading: false,
+                                            });
+                                            return;
+                                          }
+                                        } else {
+                                          showError(
+                                            "Network Switch Unavailable",
+                                            `Please manually switch to ${networkName} to execute this function`
+                                          );
+                                          setFunctionResult({
+                                            data: null,
+                                            error: `Please switch to ${networkName} to execute this function`,
+                                            isLoading: false,
+                                          });
+                                          return;
                                         }
-                                      }, 8000);
+                                      }
+
+                                      // Write function transaction - requires wallet
+                                      console.log(
+                                        `📝 [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
+                                      );
+                                      const hash =
+                                        await walletClient!.writeContract({
+                                          address:
+                                            contractAddress as `0x${string}`,
+                                          abi: contractABI,
+                                          functionName:
+                                            selectedFunctionObj.name,
+                                          args: args,
+                                        });
+                                      // Show transaction success notification
+                                      const networkName =
+                                        selectedNetwork?.name ||
+                                        "Unknown Network";
+                                      const explorerUrl =
+                                        selectedNetwork?.explorerUrl ||
+                                        "https://etherscan.io";
+                                      showNotification({
+                                        type: "success",
+                                        title: "Transaction Sent",
+                                        message: `Transaction submitted on ${networkName}`,
+                                        duration: 8000,
+                                        action: {
+                                          label: "View on Explorer",
+                                          onClick: () =>
+                                            window.open(
+                                              `${explorerUrl}/tx/${hash}`,
+                                              "_blank"
+                                            ),
+                                        },
+                                      });
                                     } catch (error: any) {
                                       // Handle write function errors
-                                      console.error('Write function error:', error);
-                                      alert(`Error: ${error.message || error.toString()}`);
+                                      console.error(
+                                        "Write function error:",
+                                        error
+                                      );
+                                      showError(
+                                        "Transaction Failed",
+                                        error.message || error.toString()
+                                      );
                                     }
                                   }
                                 } catch (overallError: any) {
                                   // Handle any overall errors
-                                  console.error('Overall function execution error:', overallError);
+                                  console.error(
+                                    "Overall function execution error:",
+                                    overallError
+                                  );
                                   if (selectedFunctionType === "read") {
                                     setFunctionResult({
                                       data: null,
-                                      error: overallError.message || overallError.toString(),
-                                      isLoading: false
+                                      error:
+                                        overallError.message ||
+                                        overallError.toString(),
+                                      isLoading: false,
                                     });
                                   } else {
-                                    alert(`Error: ${overallError.message || overallError.toString()}`);
+                                    alert(
+                                      `Error: ${overallError.message || overallError.toString()}`
+                                    );
                                   }
                                 }
                               }}
@@ -6359,8 +6817,8 @@ const SimpleGridUI: React.FC = () => {
                               {selectedFunctionType === "read"
                                 ? "Call Function"
                                 : !isConnected
-                                ? "Connect Wallet"
-                                : "Send Transaction"}
+                                  ? "Connect Wallet"
+                                  : "Send Transaction"}
                             </button>
 
                             {selectedFunctionType === "write" && (
@@ -6375,11 +6833,127 @@ const SimpleGridUI: React.FC = () => {
                                   cursor: "pointer",
                                   transition: "all 0.2s ease",
                                 }}
-                                onClick={() => {
-                                  // Gas estimation temporarily disabled - needs proper wallet integration
-                                  alert(
-                                    "Gas estimation ready - wallet integration needed to complete."
-                                  );
+                                onClick={async () => {
+                                  try {
+                                    // Check if wallet is connected
+                                    if (!isConnected || !walletClient) {
+                                      showWarning(
+                                        "Wallet Required",
+                                        "Please connect your wallet to estimate gas"
+                                      );
+                                      return;
+                                    }
+
+                                    // Check if function is selected
+                                    if (
+                                      !selectedFunction ||
+                                      !selectedFunctionObj
+                                    ) {
+                                      showWarning(
+                                        "Function Required",
+                                        "Please select a function to estimate gas"
+                                      );
+                                      return;
+                                    }
+
+                                    // Get formatted arguments from enhanced input system
+                                    let args;
+                                    try {
+                                      args =
+                                        contractInputsHook.getFormattedArgs();
+                                      console.log(
+                                        "🔧 [Gas Estimation] Formatted args:",
+                                        args
+                                      );
+                                    } catch (error) {
+                                      showError(
+                                        "Invalid Inputs",
+                                        "Please check your function inputs"
+                                      );
+                                      return;
+                                    }
+
+                                    showInfo(
+                                      "Estimating Gas",
+                                      "Calculating gas requirements..."
+                                    );
+
+                                    // Network validation
+                                    const currentWalletChain = chainId;
+                                    const appSelectedChain =
+                                      selectedNetwork?.id;
+
+                                    if (
+                                      currentWalletChain !== appSelectedChain
+                                    ) {
+                                      const networkName =
+                                        selectedNetwork?.name ||
+                                        `Chain ${appSelectedChain}`;
+                                      showError(
+                                        "Network Mismatch",
+                                        `Please switch to ${networkName} to estimate gas`
+                                      );
+                                      return;
+                                    }
+
+                                    // Get contract ABI (same logic as used in function calls)
+                                    const getContractABI = () => {
+                                      if (
+                                        isDiamond &&
+                                        diamondFacets.length > 0
+                                      ) {
+                                        const combinedABI: any[] = [];
+                                        diamondFacets.forEach((facet) => {
+                                          if (facet.abi && facet.isVerified) {
+                                            const facetABI = Array.isArray(
+                                              facet.abi
+                                            )
+                                              ? facet.abi
+                                              : JSON.parse(facet.abi as string);
+                                            combinedABI.push(...facetABI);
+                                          }
+                                        });
+                                        return combinedABI;
+                                      } else {
+                                        return JSON.parse(
+                                          contractInfo?.abi || "[]"
+                                        );
+                                      }
+                                    };
+                                    const contractABI = getContractABI();
+
+                                    // Estimate gas using the selected network's provider
+                                    const provider = createEthersProvider(selectedNetwork);
+                                    const contract = new ethers.Contract(
+                                      contractAddress,
+                                      contractABI,
+                                      provider
+                                    );
+                                    
+                                    // Estimate gas using ethers
+                                    const gasEstimate = await contract.estimateGas[selectedFunctionObj.name](...args);
+
+                                    // Format gas estimate for display
+                                    const gasLimitFormatted =
+                                      gasEstimate.toLocaleString();
+                                    const gasLimitHex = `0x${gasEstimate.toHexString().slice(2)}`;
+
+                                    showNotification({
+                                      type: "success",
+                                      title: "Gas Estimation Complete",
+                                      message: `Estimated gas: ${gasLimitFormatted} units (${gasLimitHex})`,
+                                      duration: 10000,
+                                    });
+                                  } catch (error: any) {
+                                    console.error(
+                                      "Gas estimation error:",
+                                      error
+                                    );
+                                    showError(
+                                      "Gas Estimation Failed",
+                                      error.message || "Failed to estimate gas"
+                                    );
+                                  }
                                 }}
                               >
                                 Estimate Gas
@@ -6408,125 +6982,491 @@ const SimpleGridUI: React.FC = () => {
                           )}
 
                           {/* Function Result Display - only for read operations */}
-                          {selectedFunctionType === "read" && functionResult && (
-                            <div style={{ marginTop: "16px" }}>
-                              <div
-                                style={{
-                                  fontSize: "14px",
-                                  fontWeight: "600",
-                                  color: "#888",
-                                  marginBottom: "8px",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                }}
-                              >
-                                <span>Function Result</span>
-                                {!functionResult.error && !functionResult.isLoading && (
-                                  <button
-                                    onClick={() => {
-                                      const textToCopy = functionResult.formattedResult?.displayValue || 
-                                                        JSON.stringify(functionResult.data, null, 2);
-                                      navigator.clipboard.writeText(textToCopy);
-                                      // Quick visual feedback
-                                      const btn = event?.target as HTMLButtonElement;
-                                      if (btn) {
-                                        const original = btn.textContent;
-                                        btn.textContent = "Copied!";
-                                        setTimeout(() => btn.textContent = original, 1000);
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "4px 8px",
-                                      background: "rgba(34, 197, 94, 0.2)",
-                                      border: "1px solid rgba(34, 197, 94, 0.4)",
-                                      borderRadius: "4px",
-                                      color: "#22c55e",
-                                      fontSize: "10px",
-                                      cursor: "pointer",
-                                      fontFamily: "monospace",
-                                    }}
-                                  >
-                                    Copy
-                                  </button>
-                                )}
-                              </div>
-                              
-                              <div
-                                style={{
-                                  background: "#1a1a1a",
-                                  border: functionResult.error 
-                                    ? "1px solid #dc2626" 
-                                    : "1px solid #333",
-                                  borderRadius: "6px",
-                                  padding: "12px",
-                                  fontFamily: "Monaco, Menlo, Ubuntu Mono, monospace",
-                                  fontSize: "12px",
-                                  lineHeight: "1.4",
-                                  color: functionResult.error ? "#dc2626" : "#22c55e",
-                                  maxHeight: "300px",
-                                  overflowY: "auto",
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                }}
-                              >
-                                {functionResult.isLoading ? (
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#888" }}>
+                          {selectedFunctionType === "read" &&
+                            functionResult && (
+                              <div style={{ marginTop: "16px" }}>
+                                <div
+                                  style={{
+                                    fontSize: "14px",
+                                    fontWeight: "600",
+                                    color: "#888",
+                                    marginBottom: "8px",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <span>Function Result</span>
+                                  {!functionResult.error &&
+                                    !functionResult.isLoading && (
+                                      <button
+                                        onClick={() => {
+                                          const textToCopy =
+                                            functionResult.formattedResult
+                                              ?.displayValue ||
+                                            JSON.stringify(
+                                              functionResult.data,
+                                              null,
+                                              2
+                                            );
+                                          navigator.clipboard.writeText(
+                                            textToCopy
+                                          );
+                                          // Quick visual feedback
+                                          const btn =
+                                            event?.target as HTMLButtonElement;
+                                          if (btn) {
+                                            const original = btn.textContent;
+                                            btn.textContent = "Copied!";
+                                            setTimeout(
+                                              () =>
+                                                (btn.textContent = original),
+                                              1000
+                                            );
+                                          }
+                                        }}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: "rgba(34, 197, 94, 0.2)",
+                                          border:
+                                            "1px solid rgba(34, 197, 94, 0.4)",
+                                          borderRadius: "4px",
+                                          color: "#22c55e",
+                                          fontSize: "10px",
+                                          cursor: "pointer",
+                                          fontFamily: "monospace",
+                                        }}
+                                      >
+                                        Copy
+                                      </button>
+                                    )}
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: "#1a1a1a",
+                                    border: functionResult.error
+                                      ? "1px solid #dc2626"
+                                      : "1px solid #333",
+                                    borderRadius: "6px",
+                                    padding: "12px",
+                                    fontFamily:
+                                      "Monaco, Menlo, Ubuntu Mono, monospace",
+                                    fontSize: "12px",
+                                    lineHeight: "1.4",
+                                    color: functionResult.error
+                                      ? "#dc2626"
+                                      : "#22c55e",
+                                    maxHeight: "300px",
+                                    overflowY: "auto",
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {functionResult.isLoading ? (
                                     <div
                                       style={{
-                                        width: "12px",
-                                        height: "12px",
-                                        border: "2px solid #333",
-                                        borderTop: "2px solid #888",
-                                        borderRadius: "50%",
-                                        animation: "spin 1s linear infinite",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                        color: "#888",
                                       }}
-                                    />
-                                    Executing function...
-                                  </div>
-                                ) : functionResult.error ? (
-                                  <div>
-                                    <div style={{ color: "#888", marginBottom: "8px" }}>❌ Error:</div>
-                                    {functionResult.error}
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <div style={{ color: "#888", marginBottom: "8px" }}>
-                                      ✅ Result ({functionResult.formattedResult?.type || 'unknown'}):
+                                    >
+                                      <div
+                                        style={{
+                                          width: "12px",
+                                          height: "12px",
+                                          border: "2px solid #333",
+                                          borderTop: "2px solid #888",
+                                          borderRadius: "50%",
+                                          animation: "spin 1s linear infinite",
+                                        }}
+                                      />
+                                      Executing function...
                                     </div>
-                                    {functionResult.functionABI && functionResult.functionABI.outputs && functionResult.functionABI.outputs.length > 0 ? (
-                                      <ContractDataDisplay 
-                                        data={functionResult.data}
-                                        abiDefinition={{
-                                          name: functionResult.functionABI.outputs.length === 1 
-                                            ? (functionResult.functionABI.outputs[0].name || 'result')
-                                            : 'result',
-                                          type: functionResult.functionABI.outputs.length === 1 
-                                            ? functionResult.functionABI.outputs[0].type
-                                            : 'tuple',
-                                          components: functionResult.functionABI.outputs.length === 1 
-                                            ? functionResult.functionABI.outputs[0].components
-                                            : functionResult.functionABI.outputs
+                                  ) : functionResult.error ? (
+                                    <div>
+                                      <div
+                                        style={{
+                                          color: "#888",
+                                          marginBottom: "8px",
                                         }}
-                                        mode="compact"
-                                      />
-                                    ) : (
-                                      <div 
-                                        className="result-container"
-                                        dangerouslySetInnerHTML={{ 
-                                          __html: functionResult.formattedResult?.htmlContent || 
-                                                 `<pre>${JSON.stringify(functionResult.data, null, 2)}</pre>`
+                                      >
+                                        ❌ Error:
+                                      </div>
+                                      {functionResult.error}
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div
+                                        style={{
+                                          color: "#888",
+                                          marginBottom: "8px",
                                         }}
-                                      />
-                                    )}
-                                  </div>
-                                )}
+                                      >
+                                        ✅ Result (
+                                        {functionResult.formattedResult?.type ||
+                                          "unknown"}
+                                        ):
+                                      </div>
+                                      {functionResult.functionABI &&
+                                      functionResult.functionABI.outputs &&
+                                      functionResult.functionABI.outputs
+                                        .length > 0 ? (
+                                        <ContractDataDisplay
+                                          data={functionResult.data}
+                                          abiDefinition={{
+                                            name:
+                                              functionResult.functionABI.outputs
+                                                .length === 1
+                                                ? functionResult.functionABI
+                                                    .outputs[0].name || "result"
+                                                : "result",
+                                            type:
+                                              functionResult.functionABI.outputs
+                                                .length === 1
+                                                ? functionResult.functionABI
+                                                    .outputs[0].type
+                                                : "tuple",
+                                            components:
+                                              functionResult.functionABI.outputs
+                                                .length === 1
+                                                ? functionResult.functionABI
+                                                    .outputs[0].components
+                                                : functionResult.functionABI
+                                                    .outputs,
+                                          }}
+                                          mode="compact"
+                                        />
+                                      ) : (
+                                        <div
+                                          className="result-container"
+                                          dangerouslySetInnerHTML={{
+                                            __html:
+                                              functionResult.formattedResult
+                                                ?.htmlContent ||
+                                              `<pre>${JSON.stringify(
+                                                functionResult.data,
+                                                (_, value) => {
+                                                  // Convert BigNumbers to strings
+                                                  if (value && typeof value === 'object' && value._hex && value._isBigNumber) {
+                                                    return value.toString();
+                                                  }
+                                                  return value;
+                                                },
+                                                2
+                                              )}</pre>`,
+                                          }}
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
                         </div>
                       )}
                     </>
+                  )}
+
+                  {/* Raw Calldata Mode */}
+                  {functionMode === "raw" && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ marginBottom: "12px" }}>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "12px",
+                            color: "#ccc",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          Raw Calldata
+                        </label>
+                        <textarea
+                          style={{
+                            width: "100%",
+                            minHeight: "60px",
+                            background: "#111",
+                            border: "1px solid #333",
+                            borderRadius: "6px",
+                            padding: "8px 12px",
+                            color: "#fff",
+                            fontSize: "12px",
+                            fontFamily: "Monaco, Menlo, monospace",
+                            resize: "vertical",
+                          }}
+                          placeholder="0x..."
+                          value={generatedCallData}
+                          onChange={(e) => setGeneratedCallData(e.target.value)}
+                        />
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            color: "#888",
+                            marginTop: "4px",
+                          }}
+                        >
+                          Enter raw transaction calldata (starts with 0x)
+                        </div>
+                      </div>
+
+                      {/* Detect if calldata is read or write */}
+                      {generatedCallData && generatedCallData.length > 10 && (
+                        <div style={{ marginBottom: "12px" }}>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#ccc",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Function Analysis
+                          </div>
+                          <div
+                            style={{
+                              background: "#1a1a1a",
+                              border: "1px solid #333",
+                              borderRadius: "6px",
+                              padding: "8px 12px",
+                              fontSize: "11px",
+                            }}
+                          >
+                            <div style={{ color: "#888", marginBottom: "4px" }}>
+                              Selector:{" "}
+                              <span
+                                style={{
+                                  color: "#06b6d4",
+                                  fontFamily: "monospace",
+                                }}
+                              >
+                                {generatedCallData.slice(0, 10)}
+                              </span>
+                            </div>
+                            <div style={{ color: "#888" }}>
+                              Detection:{" "}
+                              <span style={{ color: "#f59e0b" }}>
+                                Analyzing function type...
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Raw execution buttons */}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <button
+                          style={{
+                            padding: "8px 16px",
+                            background:
+                              "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+                            border: "none",
+                            borderRadius: "6px",
+                            color: "#fff",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                          onClick={async () => {
+                            if (
+                              !generatedCallData ||
+                              generatedCallData.length < 10
+                            ) {
+                              showWarning(
+                                "Invalid Calldata",
+                                "Please enter valid calldata starting with 0x"
+                              );
+                              return;
+                            }
+
+                            try {
+                              showInfo(
+                                "Executing Call",
+                                "Calling contract with raw calldata..."
+                              );
+
+                              const provider = createEthersProvider(selectedNetwork);
+                              const result = await provider.call({
+                                to: contractAddress,
+                                data: generatedCallData,
+                              });
+
+                              setFunctionResult({
+                                data: safeBigNumberToString(result),
+                                error: undefined,
+                                isLoading: false,
+                                formattedResult: {
+                                  displayValue: result,
+                                  htmlContent: `<div style="font-family: monospace; color: #22c55e;">Raw Result: ${result}</div>`,
+                                },
+                              });
+
+                              showSuccess(
+                                "Call Successful",
+                                "Raw call executed successfully"
+                              );
+                            } catch (error: any) {
+                              console.error("Raw call error:", error);
+                              showError(
+                                "Call Failed",
+                                error.message || "Raw call execution failed"
+                              );
+                              setFunctionResult({
+                                data: undefined,
+                                error:
+                                  error.message || "Raw call execution failed",
+                                isLoading: false,
+                              });
+                            }
+                          }}
+                        >
+                          📖 Execute Call (Read)
+                        </button>
+
+                        <button
+                          style={{
+                            padding: "8px 16px",
+                            background:
+                              "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                            border: "none",
+                            borderRadius: "6px",
+                            color: "#fff",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                          onClick={async () => {
+                            if (!isConnected || !walletClient) {
+                              showWarning(
+                                "Wallet Required",
+                                "Please connect your wallet to send transactions"
+                              );
+                              return;
+                            }
+
+                            if (
+                              !generatedCallData ||
+                              generatedCallData.length < 10
+                            ) {
+                              showWarning(
+                                "Invalid Calldata",
+                                "Please enter valid calldata starting with 0x"
+                              );
+                              return;
+                            }
+
+                            try {
+                              // Network validation
+                              const currentWalletChain = chainId;
+                              const appSelectedChain = selectedNetwork?.id;
+
+                              if (currentWalletChain !== appSelectedChain) {
+                                const networkName =
+                                  selectedNetwork?.name ||
+                                  `Chain ${appSelectedChain}`;
+                                showInfo(
+                                  "Network Switch Required",
+                                  `Switching to ${networkName}...`
+                                );
+
+                                if (switchChain && appSelectedChain) {
+                                  await switchChain({
+                                    chainId: appSelectedChain as any,
+                                  });
+                                  await new Promise((resolve) =>
+                                    setTimeout(resolve, 1500)
+                                  );
+                                  showSuccess(
+                                    "Network Switched",
+                                    `Successfully switched to ${networkName}`
+                                  );
+                                }
+                              }
+
+                              showInfo(
+                                "Sending Transaction",
+                                "Broadcasting raw transaction..."
+                              );
+
+                              const hash = await walletClient.sendTransaction({
+                                to: contractAddress as `0x${string}`,
+                                data: generatedCallData as `0x${string}`,
+                              });
+
+                              const networkName =
+                                selectedNetwork?.name || "Unknown Network";
+                              const explorerUrl =
+                                selectedNetwork?.explorerUrl ||
+                                "https://etherscan.io";
+                              showNotification({
+                                type: "success",
+                                title: "Transaction Sent",
+                                message: `Raw transaction submitted on ${networkName}`,
+                                duration: 8000,
+                                action: {
+                                  label: "View on Explorer",
+                                  onClick: () =>
+                                    window.open(
+                                      `${explorerUrl}/tx/${hash}`,
+                                      "_blank"
+                                    ),
+                                },
+                              });
+                            } catch (error: any) {
+                              console.error("Raw transaction error:", error);
+                              showError(
+                                "Transaction Failed",
+                                error.message || "Raw transaction failed"
+                              );
+                            }
+                          }}
+                        >
+                          ✍️ Send Transaction (Write)
+                        </button>
+                      </div>
+
+                      {/* Result display for raw mode */}
+                      {functionResult && (
+                        <div style={{ marginTop: "16px" }}>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: "600",
+                              color: "#888",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Raw Call Result
+                          </div>
+                          <div
+                            style={{
+                              background: "#1a1a1a",
+                              border: "1px solid #333",
+                              borderRadius: "6px",
+                              padding: "12px",
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                              color: functionResult.error
+                                ? "#ef4444"
+                                : "#22c55e",
+                              wordBreak: "break-all",
+                            }}
+                          >
+                            {functionResult.error ||
+                              functionResult.data ||
+                              "No result"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -6536,53 +7476,83 @@ const SimpleGridUI: React.FC = () => {
                   chain={selectedNetwork}
                   diamondAddress={contractAddress}
                   onFacetsLoaded={(facets) => {
-                    console.log('🔍 [Diamond] FACETS LOADED CALLBACK TRIGGERED');
-                    console.log('🔍 [Diamond] Received facets count:', facets.length);
-                    console.log('🔍 [Diamond] Received facets summary:', facets.map((f, i) => ({
-                      index: i + 1,
-                      address: f.address,
-                      name: f.name,
-                      verified: f.isVerified,
-                      abiLength: Array.isArray(f.abi) ? f.abi.length : 'N/A',
-                      functionCount: Array.isArray(f.abi) ? f.abi.filter((item: any) => item.type === 'function').length : 0
-                    })));
-                    
+                    console.log(
+                      "🔍 [Diamond] FACETS LOADED CALLBACK TRIGGERED"
+                    );
+                    console.log(
+                      "🔍 [Diamond] Received facets count:",
+                      facets.length
+                    );
+                    console.log(
+                      "🔍 [Diamond] Received facets summary:",
+                      facets.map((f, i) => ({
+                        index: i + 1,
+                        address: f.address,
+                        name: f.name,
+                        verified: f.isVerified,
+                        abiLength: Array.isArray(f.abi) ? f.abi.length : "N/A",
+                        functionCount: Array.isArray(f.abi)
+                          ? f.abi.filter(
+                              (item: any) => item.type === "function"
+                            ).length
+                          : 0,
+                      }))
+                    );
+
                     setDiamondFacets(facets);
                     setShowFacetSidebar(true);
-                    
+
                     // Update function lists with all facet functions
-                    console.log('🔍 [Diamond] Updating function lists with facet functions...');
-                    const allReadFunctions: ethers.utils.FunctionFragment[] = [];
-                    const allWriteFunctions: ethers.utils.FunctionFragment[] = [];
-                    
+                    console.log(
+                      "🔍 [Diamond] Updating function lists with facet functions..."
+                    );
+                    const allReadFunctions: ethers.utils.FunctionFragment[] =
+                      [];
+                    const allWriteFunctions: ethers.utils.FunctionFragment[] =
+                      [];
+
                     facets.forEach((facet) => {
                       if (facet.abi) {
                         try {
-                          const facetABI = Array.isArray(facet.abi) 
-                            ? facet.abi 
+                          const facetABI = Array.isArray(facet.abi)
+                            ? facet.abi
                             : JSON.parse(facet.abi as string);
-                          
+
                           facetABI.forEach((item: any) => {
-                            if (item.type === 'function') {
+                            if (item.type === "function") {
                               try {
-                                const funcFragment = ethers.utils.FunctionFragment.from(item);
-                                if (funcFragment.stateMutability === 'view' || funcFragment.stateMutability === 'pure') {
+                                const funcFragment =
+                                  ethers.utils.FunctionFragment.from(item);
+                                if (
+                                  funcFragment.stateMutability === "view" ||
+                                  funcFragment.stateMutability === "pure"
+                                ) {
                                   allReadFunctions.push(funcFragment);
                                 } else {
                                   allWriteFunctions.push(funcFragment);
                                 }
                               } catch (err) {
-                                console.log('Failed to parse function fragment:', item, err);
+                                console.log(
+                                  "Failed to parse function fragment:",
+                                  item,
+                                  err
+                                );
                               }
                             }
                           });
                         } catch (err) {
-                          console.log('Failed to parse facet ABI:', facet.address, err);
+                          console.log(
+                            "Failed to parse facet ABI:",
+                            facet.address,
+                            err
+                          );
                         }
                       }
                     });
-                    
-                    console.log(`🔍 [Diamond] Found ${allReadFunctions.length} read functions and ${allWriteFunctions.length} write functions from facets`);
+
+                    console.log(
+                      `🔍 [Diamond] Found ${allReadFunctions.length} read functions and ${allWriteFunctions.length} write functions from facets`
+                    );
                     setReadFunctions(allReadFunctions);
                     setWriteFunctions(allWriteFunctions);
                   }}
@@ -6851,17 +7821,21 @@ const SimpleGridUI: React.FC = () => {
                   borderRadius: "8px",
                   padding: "6px 12px",
                   cursor: "pointer",
-                  boxShadow: "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                  boxShadow:
+                    "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
                   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-1px) scale(1.02)";
-                  e.currentTarget.style.boxShadow = "0 6px 20px rgba(34, 197, 94, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
+                  e.currentTarget.style.transform =
+                    "translateY(-1px) scale(1.02)";
+                  e.currentTarget.style.boxShadow =
+                    "0 6px 20px rgba(34, 197, 94, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
                   e.currentTarget.style.background = "rgba(34, 197, 94, 0.18)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "translateY(0px) scale(1)";
-                  e.currentTarget.style.boxShadow = "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
                   e.currentTarget.style.background = "rgba(34, 197, 94, 0.12)";
                 }}
               >
@@ -7102,17 +8076,20 @@ const SimpleGridUI: React.FC = () => {
             display: "inline-flex",
             alignItems: "center",
             gap: "8px",
-            boxShadow: "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)",
+            boxShadow:
+              "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-            e.currentTarget.style.boxShadow = "0 12px 40px rgba(0, 123, 255, 0.25), 0 4px 12px rgba(0, 123, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 123, 255, 0.3)";
+            e.currentTarget.style.boxShadow =
+              "0 12px 40px rgba(0, 123, 255, 0.25), 0 4px 12px rgba(0, 123, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 123, 255, 0.3)";
             e.currentTarget.style.background = "rgba(0, 123, 255, 0.2)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "translateY(0px) scale(1)";
-            e.currentTarget.style.boxShadow = "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)";
+            e.currentTarget.style.boxShadow =
+              "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)";
             e.currentTarget.style.background = "rgba(0, 123, 255, 0.15)";
           }}
         >
@@ -7120,6 +8097,21 @@ const SimpleGridUI: React.FC = () => {
           Simulate Transaction
         </button>
       </div>
+
+      {/* Diamond Contract Popup */}
+      <DiamondContractPopup
+        isOpen={isDiamondPopupOpen}
+        onClose={() => setIsDiamondPopupOpen(false)}
+        contractAddress={contractAddress}
+        facets={diamondFacets}
+        networkName={selectedNetwork?.name || "Unknown Network"}
+        blockExplorerUrl={
+          selectedNetwork?.explorers
+            ?.find((e) => e.type === "blockscout")
+            ?.url?.replace("/api", "")
+            ?.replace("/api/", "") || selectedNetwork?.blockExplorer
+        }
+      />
     </div>
   );
 };

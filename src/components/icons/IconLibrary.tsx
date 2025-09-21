@@ -38,6 +38,22 @@ export const CheckIcon: React.FC<IconProps> = ({ width = 24, height = 24, color 
   </svg>
 );
 
+export const InfoIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+    <path d="m12 16v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const ExclamationIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m12 9v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const EditIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
   <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -63,6 +79,14 @@ export const SaveIcon: React.FC<IconProps> = ({ width = 24, height = 24, color =
     <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M7 3v4a1 1 0 0 0 1 1h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const ExternalLinkIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15 3h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 14L21 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -230,6 +254,90 @@ export const GemIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 
     <path d="M6 3h12l4 6-10 13L2 9l4-6z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M11 3 8 9l4 13 4-13-3-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M2 9h20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Diamond Inspection Icons - Different Options
+export const DiamondExplodeIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    {/* Central diamond piece */}
+    <path d="M9 8h6l2 3-5 6-5-6 2-3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11 8 9 11l3 6 3-6-2-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Floating pieces around */}
+    <path d="M3 4l2 1-1 2-2-1 1-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M19 3l2 1-1 2-2-1 1-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 18l2 1-1 2-2-1 1-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M20 19l2 1-1 2-2-1 1-2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Motion lines */}
+    <path d="M6 5l1 1m10-3l1 1m-13 9l1 1m11 2l1 1" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+  </svg>
+);
+
+export const DiamondLayersIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    {/* Top layer */}
+    <path d="M8 2h8l3 4-7 8-7-8 3-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+    {/* Middle layer */}
+    <path d="M7 6h10l3 4-8 9-8-9 3-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+    {/* Bottom layer */}
+    <path d="M6 10h12l3 4-9 8-9-8 3-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Separation lines */}
+    <path d="M12 2v20" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeDasharray="2,2" opacity="0.5" />
+  </svg>
+);
+
+export const DiamondCutIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    {/* Left half of diamond */}
+    <path d="M6 3h6l2 6-6 13L2 9l4-6z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11 3 8 9l4 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2 9h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Right half separated */}
+    <path d="M16 5h4l2 4-4 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M18 5l-1 4 2 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 9h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Cut line */}
+    <path d="M12 1v22" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeDasharray="3,2" opacity="0.6" />
+  </svg>
+);
+
+export const DiamondAnalyzeIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    {/* Main diamond */}
+    <path d="M8 5h8l3 4-7 8-7-8 3-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M11 5 9 9l3 8 3-8-2-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 9h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Analysis grid overlay */}
+    <path d="M8 5l4 4m0 0l4-4m-4 4v8m-3-8l6 0m-6 4l6 0" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.5" />
+    
+    {/* Magnifying glass */}
+    <circle cx="19" cy="19" r="2" stroke="currentColor" strokeWidth="2" />
+    <path d="M21 21l-1-1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+export const DiamondFacetsIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    {/* Diamond outline */}
+    <path d="M8 4h8l3 4-7 9-7-9 3-4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Visible facet lines */}
+    <path d="M11 4 9 8l3 9 3-9-2-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 4l4 4m0 0l4-4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 8l-3 5m6 0l-3-5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+    
+    {/* Floating info points */}
+    <circle cx="4" cy="12" r="1" fill="currentColor" opacity="0.7" />
+    <circle cx="20" cy="12" r="1" fill="currentColor" opacity="0.7" />
+    <circle cx="12" cy="2" r="1" fill="currentColor" opacity="0.7" />
+    <circle cx="12" cy="20" r="1" fill="currentColor" opacity="0.7" />
   </svg>
 );
 

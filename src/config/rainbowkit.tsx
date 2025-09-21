@@ -23,6 +23,11 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 
+// Get API key from environment
+const API_KEY = import.meta.env.API_KEY || import.meta.env.VITE_API_KEY || '';
+
+console.log('🔑 [RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8)}...` : 'No API key found');
+
 // Wagmi v2 compatible configuration without WalletConnect dependency
 const chains = [mainnet, polygon, arbitrum, optimism, base] as const;
 
@@ -43,15 +48,16 @@ const connectors = connectorsForWallets(
   }
 );
 
+// Configure transports with proper RPC URLs
 const config = createConfig({
   connectors,
   chains,
   transports: {
-    [mainnet.id]: http(),
-    [polygon.id]: http(),
-    [arbitrum.id]: http(),
-    [optimism.id]: http(),
-    [base.id]: http(),
+    [mainnet.id]: http(API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://ethereum.publicnode.com'),
+    [polygon.id]: http(API_KEY ? `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://polygon-rpc.com'),
+    [arbitrum.id]: http(API_KEY ? `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://arb1.arbitrum.io/rpc'),
+    [optimism.id]: http(API_KEY ? `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.optimism.io'),
+    [base.id]: http(API_KEY ? `https://base-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.base.org'),
   },
 });
 

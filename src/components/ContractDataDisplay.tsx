@@ -20,7 +20,7 @@ const ContractDataDisplay: React.FC<ContractDataDisplayProps> = ({
   mode = 'compact',
   nestingLevel = 0
 }) => {
-  const renderValue = (value: any, definition: ABIInput, level: number): JSX.Element => {
+  const renderValue = (value: any, definition: ABIInput, level: number): React.ReactElement => {
     const fieldName = definition.name || 'value';
     const fieldType = definition.type;
 

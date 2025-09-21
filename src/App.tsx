@@ -21,6 +21,7 @@ import ComprehensiveContractSearch from "./components/ComprehensiveContractSearc
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { NotificationProvider } from "./components/NotificationManager";
 
 // Signature Calculator Component
 const SignatureCalculator: React.FC = () => {
@@ -34,7 +35,8 @@ const SignatureCalculator: React.FC = () => {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
-      alert("Error: " + errorMessage);
+      console.error("Error calculating selector:", errorMessage);
+      setSelector(""); // Clear selector on error
     }
   };
 
@@ -76,7 +78,8 @@ const SignatureCalculator: React.FC = () => {
 function App() {
   return (
     <ToolkitProvider>
-      <div className="app">
+      <NotificationProvider>
+        <div className="app">
         <header>
           <div className="header-content">
             <div className="header-title">
@@ -110,7 +113,8 @@ function App() {
             </Routes>
           </ErrorBoundary>
         </main>
-      </div>
+        </div>
+      </NotificationProvider>
     </ToolkitProvider>
   );
 }
