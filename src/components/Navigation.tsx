@@ -6,12 +6,6 @@ const Navigation: React.FC = () => {
   return (
     <nav className="tabs">
       <NavLink 
-        to="/generator" 
-        className={({ isActive }) => isActive ? "active" : ""}
-      >
-        Calldata Generator
-      </NavLink>
-      <NavLink 
         to="/decoder" 
         className={({ isActive }) => isActive ? "active" : ""}
       >

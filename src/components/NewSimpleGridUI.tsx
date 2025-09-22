@@ -68,10 +68,8 @@ const NewSimpleGridUI: React.FC = () => {
   const headerStyle: React.CSSProperties = {
     fontSize: "32px",
     fontWeight: "bold",
-    background: "linear-gradient(45deg, #007bff, #28a745)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    backgroundClip: "text",
+    color: "#00ffff",
+    textShadow: "0 0 8px rgba(0, 255, 255, 0.5)",
     marginBottom: "8px",
   };
 
@@ -320,9 +318,9 @@ const NewSimpleGridUI: React.FC = () => {
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
         <h1 style={headerStyle}>New Simulation</h1>
-        <p style={{ color: "#888", fontSize: "16px" }}>
+        {/* <p style={{ color: "#888", fontSize: "16px" }}>
           Configure and simulate blockchain transactions
-        </p>
+        </p> */}
       </div>
 
       {/* Main Grid */}

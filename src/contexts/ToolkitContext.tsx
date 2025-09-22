@@ -50,13 +50,11 @@ interface ToolkitContextState {
   
   // Cross-tool actions
   transferToTransactionBuilder: (data: DecodedTransactionData | GeneratedCalldataData) => void;
-  transferToCalldataGenerator: (contractData: ContractData, functionName?: string) => void;
   transferToDecoder: (calldata: string) => void;
   
   // Navigation actions
   navigateToBuilder: () => void;
   navigateToDecoder: () => void;
-  navigateToGenerator: () => void;
 }
 
 // Create context
@@ -135,7 +133,6 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Navigation functions
   const navigateToBuilder = () => navigate('/builder');
   const navigateToDecoder = () => navigate('/decoder');
-  const navigateToGenerator = () => navigate('/generator');
 
   // Cross-tool transfer actions with auto-navigation
   const transferToTransactionBuilder = (data: DecodedTransactionData | GeneratedCalldataData) => {
@@ -151,11 +148,6 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
     navigateToBuilder();
   };
 
-  const transferToCalldataGenerator = (contractData: ContractData, functionName?: string) => {
-    addContractData(contractData);
-    setCurrentContract(contractData.address, contractData.abi);
-    navigateToGenerator();
-  };
 
   const transferToDecoder = (calldata: string) => {
     // Store calldata for decoder to pick up
@@ -177,11 +169,9 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
     setCurrentContract,
     clearContext,
     transferToTransactionBuilder,
-    transferToCalldataGenerator,
     transferToDecoder,
     navigateToBuilder,
     navigateToDecoder,
-    navigateToGenerator,
   };
 
   return (

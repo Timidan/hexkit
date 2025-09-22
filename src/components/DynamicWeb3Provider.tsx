@@ -53,12 +53,17 @@ export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({
           }
           
           .dynamic-widget-container button {
-            background: linear-gradient(135deg, #00ffff, #007fff) !important;
-            border: 2px solid #00ffff !important;
-            color: #000000 !important;
+            background: rgba(0, 255, 255, 0.15) !important;
+            backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(0, 255, 255, 0.3) !important;
+            color: #00ffff !important;
             font-weight: 600 !important;
-            text-shadow: none !important;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 255, 255, 0.4) !important;
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.5) !important;
+            box-shadow: 
+              0 8px 32px rgba(0, 255, 255, 0.2),
+              0 2px 8px rgba(0, 255, 255, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3),
+              inset 0 -1px 0 rgba(0, 255, 255, 0.2) !important;
             transition: all 0.3s ease !important;
           }
           

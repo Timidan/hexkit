@@ -1,19 +1,23 @@
-import React, { useState } from 'react';
-import { 
-  ChevronDown, 
-  Settings, 
+import React, { useState } from "react";
+import {
+  ChevronDown,
+  Settings,
   Play,
   Edit3,
   Code,
   Zap,
   Layers,
   Database,
-  Shield
-} from 'lucide-react';
+  Shield,
+} from "lucide-react";
 
 const BeautifulTenderlyUI: React.FC = () => {
-  const [contractSource, setContractSource] = useState<'project' | 'address'>('project');
-  const [functionMode, setFunctionMode] = useState<'function' | 'raw'>('function');
+  const [contractSource, setContractSource] = useState<"project" | "address">(
+    "project"
+  );
+  const [functionMode, setFunctionMode] = useState<"function" | "raw">(
+    "function"
+  );
   const [usePendingBlock, setUsePendingBlock] = useState(true);
   const [showBlockOverrides, setShowBlockOverrides] = useState(false);
   const [showStateOverrides, setShowStateOverrides] = useState(false);
@@ -23,17 +27,15 @@ const BeautifulTenderlyUI: React.FC = () => {
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
       <div className="px-8 py-8">
-        <h1 className="text-3xl font-bold text-white mb-2">New Simulation</h1>
-        <p className="text-gray-400">Configure and simulate blockchain transactions</p>
+        {/* <h1 className="text-3xl font-bold text-white mb-2">New Simulation</h1>
+        <p className="text-gray-400">Configure and simulate blockchain transactions</p> */}
       </div>
 
       {/* Main Content */}
       <div className="px-8 pb-8">
         <div className="max-w-7xl mx-auto">
-          
           {/* Top Row - Contract & Transaction Parameters */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            
             {/* LEFT: Contract Configuration */}
             <div className="space-y-6">
               <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
@@ -43,52 +45,68 @@ const BeautifulTenderlyUI: React.FC = () => {
                     Contract
                   </h2>
                 </div>
-                
+
                 <div className="p-6 space-y-6">
                   {/* Contract Source Selection Cards */}
                   <div className="space-y-3">
-                    <div 
+                    <div
                       className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                        contractSource === 'project' 
-                          ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
-                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
+                        contractSource === "project"
+                          ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20"
+                          : "border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70"
                       }`}
-                      onClick={() => setContractSource('project')}
+                      onClick={() => setContractSource("project")}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          contractSource === 'project' 
-                            ? 'border-blue-500 bg-blue-500' 
-                            : 'border-gray-500'
-                        }`}>
-                          {contractSource === 'project' && <div className="w-2.5 h-2.5 rounded-full bg-white"></div>}
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            contractSource === "project"
+                              ? "border-blue-500 bg-blue-500"
+                              : "border-gray-500"
+                          }`}
+                        >
+                          {contractSource === "project" && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
+                          )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">Select from Project</div>
-                          <div className="text-sm text-gray-400">Choose from saved contracts</div>
+                          <div className="font-medium text-white">
+                            Select from Project
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Choose from saved contracts
+                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div 
+
+                    <div
                       className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                        contractSource === 'address' 
-                          ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20' 
-                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
+                        contractSource === "address"
+                          ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20"
+                          : "border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70"
                       }`}
-                      onClick={() => setContractSource('address')}
+                      onClick={() => setContractSource("address")}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          contractSource === 'address' 
-                            ? 'border-blue-500 bg-blue-500' 
-                            : 'border-gray-500'
-                        }`}>
-                          {contractSource === 'address' && <div className="w-2.5 h-2.5 rounded-full bg-white"></div>}
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            contractSource === "address"
+                              ? "border-blue-500 bg-blue-500"
+                              : "border-gray-500"
+                          }`}
+                        >
+                          {contractSource === "address" && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
+                          )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">Insert any address</div>
-                          <div className="text-sm text-gray-400">Enter contract address manually</div>
+                          <div className="font-medium text-white">
+                            Insert any address
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Enter contract address manually
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -109,48 +127,64 @@ const BeautifulTenderlyUI: React.FC = () => {
 
                   {/* Function Mode Selection */}
                   <div className="space-y-3">
-                    <div 
+                    <div
                       className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                        functionMode === 'function' 
-                          ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
-                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
+                        functionMode === "function"
+                          ? "border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20"
+                          : "border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70"
                       }`}
-                      onClick={() => setFunctionMode('function')}
+                      onClick={() => setFunctionMode("function")}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          functionMode === 'function' 
-                            ? 'border-purple-500 bg-purple-500' 
-                            : 'border-gray-500'
-                        }`}>
-                          {functionMode === 'function' && <div className="w-2.5 h-2.5 rounded-full bg-white"></div>}
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            functionMode === "function"
+                              ? "border-purple-500 bg-purple-500"
+                              : "border-gray-500"
+                          }`}
+                        >
+                          {functionMode === "function" && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
+                          )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">Choose function and parameters</div>
-                          <div className="text-sm text-gray-400">Select from ABI functions</div>
+                          <div className="font-medium text-white">
+                            Choose function and parameters
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Select from ABI functions
+                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div 
+
+                    <div
                       className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                        functionMode === 'raw' 
-                          ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20' 
-                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70'
+                        functionMode === "raw"
+                          ? "border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20"
+                          : "border-gray-700 bg-gray-800/50 hover:border-gray-600 hover:bg-gray-800/70"
                       }`}
-                      onClick={() => setFunctionMode('raw')}
+                      onClick={() => setFunctionMode("raw")}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          functionMode === 'raw' 
-                            ? 'border-purple-500 bg-purple-500' 
-                            : 'border-gray-500'
-                        }`}>
-                          {functionMode === 'raw' && <div className="w-2.5 h-2.5 rounded-full bg-white"></div>}
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            functionMode === "raw"
+                              ? "border-purple-500 bg-purple-500"
+                              : "border-gray-500"
+                          }`}
+                        >
+                          {functionMode === "raw" && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
+                          )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">Enter raw input data</div>
-                          <div className="text-sm text-gray-400">Provide calldata directly</div>
+                          <div className="font-medium text-white">
+                            Enter raw input data
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Provide calldata directly
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -191,8 +225,12 @@ const BeautifulTenderlyUI: React.FC = () => {
                   <div className="p-4 bg-gray-800/50 rounded-xl border border-gray-700">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium text-white">Use Pending Block</div>
-                        <div className="text-sm text-gray-400">Simulate against pending state</div>
+                        <div className="font-medium text-white">
+                          Use Pending Block
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          Simulate against pending state
+                        </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -209,19 +247,25 @@ const BeautifulTenderlyUI: React.FC = () => {
                   {/* Grid Parameters */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Block Number</label>
-                      <input 
-                        type="text" 
+                      <label className="text-sm font-medium text-gray-300">
+                        Block Number
+                      </label>
+                      <input
+                        type="text"
                         placeholder="Latest"
                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                       />
-                      <div className="text-xs text-gray-500">Current: 30930267</div>
+                      <div className="text-xs text-gray-500">
+                        Current: 30930267
+                      </div>
                     </div>
-                    
+
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Tx Index</label>
-                      <input 
-                        type="text" 
+                      <label className="text-sm font-medium text-gray-300">
+                        Tx Index
+                      </label>
+                      <input
+                        type="text"
                         placeholder="0"
                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                       />
@@ -231,9 +275,11 @@ const BeautifulTenderlyUI: React.FC = () => {
 
                   {/* From Address */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">From Address</label>
-                    <input 
-                      type="text" 
+                    <label className="text-sm font-medium text-gray-300">
+                      From Address
+                    </label>
+                    <input
+                      type="text"
                       defaultValue="0x0000000000000000000000000000000000000000"
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-green-500 focus:outline-none"
                     />
@@ -242,9 +288,11 @@ const BeautifulTenderlyUI: React.FC = () => {
                   {/* Gas Settings */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Gas Limit</label>
-                      <input 
-                        type="text" 
+                      <label className="text-sm font-medium text-gray-300">
+                        Gas Limit
+                      </label>
+                      <input
+                        type="text"
                         defaultValue="800000"
                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-green-500 focus:outline-none"
                       />
@@ -252,11 +300,13 @@ const BeautifulTenderlyUI: React.FC = () => {
                         Use custom gas value
                       </button>
                     </div>
-                    
+
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Gas Price</label>
-                      <input 
-                        type="text" 
+                      <label className="text-sm font-medium text-gray-300">
+                        Gas Price
+                      </label>
+                      <input
+                        type="text"
                         defaultValue="0"
                         className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-green-500 focus:outline-none"
                       />
@@ -265,9 +315,11 @@ const BeautifulTenderlyUI: React.FC = () => {
 
                   {/* Value */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Value (ETH)</label>
-                    <input 
-                      type="text" 
+                    <label className="text-sm font-medium text-gray-300">
+                      Value (ETH)
+                    </label>
+                    <input
+                      type="text"
                       defaultValue="0"
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-green-500 focus:outline-none"
                     />
@@ -279,10 +331,9 @@ const BeautifulTenderlyUI: React.FC = () => {
 
           {/* Bottom Row - Advanced Options */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            
             {/* Block Header Overrides */}
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-              <div 
+              <div
                 className="p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
                 onClick={() => setShowBlockOverrides(!showBlockOverrides)}
               >
@@ -291,29 +342,37 @@ const BeautifulTenderlyUI: React.FC = () => {
                     <Layers className="w-5 h-5 text-orange-400" />
                     Block Header Overrides
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showBlockOverrides ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform ${showBlockOverrides ? "rotate-180" : ""}`}
+                  />
                 </h3>
               </div>
               {showBlockOverrides && (
                 <div className="p-4 space-y-4">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500" />
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500"
+                      />
                       Override Block Number
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Block number"
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500" />
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-orange-500 focus:ring-orange-500"
+                      />
                       Override Timestamp
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="Timestamp"
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500 focus:outline-none"
                     />
@@ -324,7 +383,7 @@ const BeautifulTenderlyUI: React.FC = () => {
 
             {/* State Overrides */}
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-              <div 
+              <div
                 className="p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
                 onClick={() => setShowStateOverrides(!showStateOverrides)}
               >
@@ -333,7 +392,9 @@ const BeautifulTenderlyUI: React.FC = () => {
                     <Database className="w-5 h-5 text-red-400" />
                     State Overrides
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showStateOverrides ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform ${showStateOverrides ? "rotate-180" : ""}`}
+                  />
                 </h3>
               </div>
               {showStateOverrides ? (
@@ -353,7 +414,7 @@ const BeautifulTenderlyUI: React.FC = () => {
 
             {/* Access Lists */}
             <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-              <div 
+              <div
                 className="p-4 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 transition-colors"
                 onClick={() => setShowAccessLists(!showAccessLists)}
               >
@@ -362,7 +423,9 @@ const BeautifulTenderlyUI: React.FC = () => {
                     <Shield className="w-5 h-5 text-cyan-400" />
                     Optional Access Lists
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showAccessLists ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform ${showAccessLists ? "rotate-180" : ""}`}
+                  />
                 </h3>
               </div>
               {showAccessLists ? (

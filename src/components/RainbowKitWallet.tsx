@@ -1,6 +1,7 @@
 import React from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Wallet, Zap } from 'lucide-react';
+import GlassButton from './ui/GlassButton';
 
 interface RainbowKitWalletProps {
   className?: string;
@@ -41,83 +42,29 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
             {(() => {
               if (!connected) {
                 return (
-                  <button 
-                    onClick={openConnectModal} 
-                    type="button"
-                    className="wallet-connect-btn"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '12px 24px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      border: 'none',
-                      borderRadius: '12px',
-                      color: 'white',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
-                      minWidth: '160px',
-                      justifyContent: 'center',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                    }}
+                  <GlassButton
+                    onClick={openConnectModal}
+                    variant="primary"
+                    size="md"
+                    icon={<Wallet size={18} />}
+                    style={{ minWidth: '160px' }}
                   >
-                    <Wallet size={18} />
                     Connect Wallet
-                  </button>
+                  </GlassButton>
                 );
               }
 
               if (chain.unsupported) {
                 return (
-                  <button 
-                    onClick={openChainModal} 
-                    type="button"
-                    className="wallet-connect-btn error"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '12px 24px',
-                      background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
-                      border: 'none',
-                      borderRadius: '12px',
-                      color: 'white',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)',
-                      minWidth: '160px',
-                      justifyContent: 'center',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 107, 107, 0.5)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #e55656 0%, #d54815 100%)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 107, 107, 0.3)';
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)';
-                    }}
+                  <GlassButton
+                    onClick={openChainModal}
+                    variant="danger"
+                    size="md"
+                    icon={<Zap size={18} />}
+                    style={{ minWidth: '160px' }}
                   >
-                    <Zap size={18} />
                     Wrong network
-                  </button>
+                  </GlassButton>
                 );
               }
 

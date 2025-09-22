@@ -44,9 +44,14 @@ import ContractInputComponent, {
 } from "./ContractInputComponent";
 import { useContractInputs } from "../hooks/useContractInputs";
 import DiamondContractPopup from "./DiamondContractPopup";
+import NetworkSelector, {
+  type ExtendedChain,
+  EXTENDED_NETWORKS,
+} from "./shared/NetworkSelector";
 
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { detectTokenType } from "../utils/universalTokenDetector";
+import { parseError, getErrorSeverity } from "../utils/errorParser";
 import {
   SourcifyLogo,
   BlockscoutLogo,
@@ -75,7 +80,7 @@ const SimpleGridUI: React.FC = () => {
 
   // Utility function to safely convert BigNumbers to strings
   const safeBigNumberToString = (obj: any): any => {
-    if (obj && typeof obj === 'object') {
+    if (obj && typeof obj === "object") {
       if (obj._hex && obj._isBigNumber) {
         return obj.toString();
       }
@@ -408,10 +413,12 @@ const SimpleGridUI: React.FC = () => {
     if (!selectedNetwork) {
       throw new Error("No network selected");
     }
-    
+
     // IMPORTANT: Always use the current SUPPORTED_CHAINS configuration, not cached network data
-    const currentNetworkConfig = SUPPORTED_CHAINS.find(chain => chain.id === selectedNetwork.id);
-    
+    const currentNetworkConfig = SUPPORTED_CHAINS.find(
+      (chain) => chain.id === selectedNetwork.id
+    );
+
     // Fallback public RPC URLs for common networks
     const fallbackRPCs: { [key: number]: string } = {
       1: "https://ethereum.publicnode.com", // Ethereum Mainnet
@@ -420,32 +427,56 @@ const SimpleGridUI: React.FC = () => {
       42161: "https://arb1.arbitrum.io/rpc", // Arbitrum
       10: "https://mainnet.optimism.io", // Optimism
     };
-    
+
     // Choose RPC URL - prioritize current configuration over cached data
     let rpcUrl = currentNetworkConfig?.rpcUrl || selectedNetwork.rpcUrl;
-    if (!rpcUrl || rpcUrl.includes('undefined') || rpcUrl.includes('null') || rpcUrl.includes('infura')) {
-      console.warn(`🌐 [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`);
+    if (
+      !rpcUrl ||
+      rpcUrl.includes("undefined") ||
+      rpcUrl.includes("null") ||
+      rpcUrl.includes("infura")
+    ) {
+      console.warn(
+        `🌐 [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`
+      );
       rpcUrl = fallbackRPCs[selectedNetwork.id];
       if (!rpcUrl) {
-        throw new Error(`No valid RPC URL available for network ${selectedNetwork.name} (ID: ${selectedNetwork.id})`);
+        throw new Error(
+          `No valid RPC URL available for network ${selectedNetwork.name} (ID: ${selectedNetwork.id})`
+        );
       }
       console.log(`🌐 [Provider] Using fallback RPC URL:`, rpcUrl);
     }
-    
+
     // Create network configuration for ethers
     const networkConfig = {
-      name: selectedNetwork.name.toLowerCase().replace(/\s+/g, '-'),
+      name: selectedNetwork.name.toLowerCase().replace(/\s+/g, "-"),
       chainId: selectedNetwork.id,
-      ensAddress: selectedNetwork.id === 1 ? "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" : undefined, // ENS only on mainnet
+      ensAddress:
+        selectedNetwork.id === 1
+          ? "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
+          : undefined, // ENS only on mainnet
     };
-    
-    console.log(`🌐 [Provider] Creating ethers provider for network:`, networkConfig);
+
+    console.log(
+      `🌐 [Provider] Creating ethers provider for network:`,
+      networkConfig
+    );
     console.log(`🌐 [Provider] Using RPC URL:`, rpcUrl);
     console.log(`🌐 [Provider] Selected Network Object:`, selectedNetwork);
-    console.log(`🌐 [Provider] Original selectedNetwork.rpcUrl:`, selectedNetwork.rpcUrl);
-    console.log(`🌐 [Provider] Current Network Config RPC:`, currentNetworkConfig?.rpcUrl);
-    console.log(`🌐 [Provider] Found Infura URL:`, selectedNetwork.rpcUrl?.includes('infura'));
-    
+    console.log(
+      `🌐 [Provider] Original selectedNetwork.rpcUrl:`,
+      selectedNetwork.rpcUrl
+    );
+    console.log(
+      `🌐 [Provider] Current Network Config RPC:`,
+      currentNetworkConfig?.rpcUrl
+    );
+    console.log(
+      `🌐 [Provider] Found Infura URL:`,
+      selectedNetwork.rpcUrl?.includes("infura")
+    );
+
     try {
       // Create provider with connection options for better reliability
       const provider = new ethers.providers.JsonRpcProvider(
@@ -456,22 +487,27 @@ const SimpleGridUI: React.FC = () => {
         },
         networkConfig
       );
-      
+
       // Override network detection to prevent "could not detect network" errors
       const originalDetectNetwork = provider.detectNetwork.bind(provider);
       provider.detectNetwork = async () => {
         try {
           return await originalDetectNetwork();
         } catch (error: any) {
-          console.warn(`🌐 [Provider] Network detection failed, using configured network:`, error.message);
+          console.warn(
+            `🌐 [Provider] Network detection failed, using configured network:`,
+            error.message
+          );
           return networkConfig as any;
         }
       };
-      
+
       return provider;
     } catch (error) {
       console.error(`🚨 [Provider] Failed to create provider:`, error);
-      throw new Error(`Failed to create provider for ${selectedNetwork.name}: ${error}`);
+      throw new Error(
+        `Failed to create provider for ${selectedNetwork.name}: ${error}`
+      );
     }
   };
 
@@ -3556,9 +3592,9 @@ const SimpleGridUI: React.FC = () => {
     >
       {/* Header */}
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <h1 style={headerStyle}>New Simulation</h1>
+        {/* <h1 style={headerStyle}>New Simulation</h1> */}
         <p style={{ color: "#888", fontSize: "16px" }}>
-          Configure and simulate blockchain transactions
+          {/* Configure and simulate blockchain transactions */}
         </p>
       </div>
 
@@ -3787,33 +3823,43 @@ const SimpleGridUI: React.FC = () => {
             <div style={{ marginBottom: "24px" }}>
               {/* Network Selection */}
               <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    color: "#ccc",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Network
-                </label>
-                <select
-                  style={inputStyle}
-                  value={selectedNetwork?.id || ""}
-                  onChange={(e) => {
-                    const chainId = parseInt(e.target.value);
+                <NetworkSelector
+                  selectedNetwork={
+                    selectedNetwork
+                      ? {
+                          id: selectedNetwork.id,
+                          name: selectedNetwork.name,
+                          rpcUrl: selectedNetwork.rpcUrl,
+                          blockExplorer: selectedNetwork.blockExplorer,
+                          isTestnet: false, // We'll determine this based on the network
+                          category: "mainnet" as const,
+                        }
+                      : null
+                  }
+                  onNetworkChange={(extendedChain: ExtendedChain) => {
+                    // Convert ExtendedChain back to Chain for compatibility
                     const chain = SUPPORTED_CHAINS.find(
-                      (c) => c.id === chainId
-                    );
-                    setSelectedNetwork(chain || null);
+                      (c) => c.id === extendedChain.id
+                    ) || {
+                      id: extendedChain.id,
+                      name: extendedChain.name,
+                      rpcUrl: extendedChain.rpcUrl || "",
+                      blockExplorer: extendedChain.blockExplorer || "",
+                      explorerUrl: extendedChain.blockExplorer || "",
+                      apiUrl: "",
+                      explorers: [],
+                      nativeCurrency: {
+                        name: "ETH",
+                        symbol: "ETH",
+                        decimals: 18,
+                      },
+                    };
+                    setSelectedNetwork(chain);
                   }}
-                >
-                  {SUPPORTED_CHAINS.map((chain) => (
-                    <option key={chain.id} value={chain.id}>
-                      {chain.name}
-                    </option>
-                  ))}
-                </select>
+                  showTestnets={true}
+                  size="md"
+                  variant="default"
+                />
               </div>
 
               {/* Contract Address Input */}
@@ -3951,9 +3997,9 @@ const SimpleGridUI: React.FC = () => {
                             {searchProgress.status === "searching" &&
                               ": Searching..."}
                             {searchProgress.status === "found" &&
-                              ": Found contract!"}
+                              ": Found Token!"}
                             {searchProgress.status === "not_found" &&
-                              ": Not found, trying next..."}
+                              ": Not found, trying next method..."}
                             {searchProgress.status === "error" &&
                               ": Error occurred"}
                           </div>
@@ -4830,7 +4876,8 @@ const SimpleGridUI: React.FC = () => {
                               justifyContent: "center",
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "rgba(59, 130, 246, 0.1)";
+                              e.currentTarget.style.background =
+                                "rgba(59, 130, 246, 0.1)";
                               e.currentTarget.style.color = "#2563eb";
                               e.currentTarget.style.transform = "scale(1.1)";
                             }}
@@ -4840,10 +4887,7 @@ const SimpleGridUI: React.FC = () => {
                               e.currentTarget.style.transform = "scale(1)";
                             }}
                           >
-                            <DiamondExplodeIcon
-                              width={18}
-                              height={18}
-                            />
+                            <DiamondExplodeIcon width={18} height={18} />
                           </button>
 
                           {selectedFacet && (
@@ -6420,7 +6464,8 @@ const SimpleGridUI: React.FC = () => {
                                           `💎 [Function Call] Using RPC URL:`,
                                           selectedNetwork.rpcUrl
                                         );
-                                        const provider = createEthersProvider(selectedNetwork);
+                                        const provider =
+                                          createEthersProvider(selectedNetwork);
                                         const contract = new ethers.Contract(
                                           contractAddress,
                                           contractABI,
@@ -6571,16 +6616,19 @@ const SimpleGridUI: React.FC = () => {
                                         console.log(
                                           `💎 [Function Call] Using ethers provider for selected network...`
                                         );
-                                        
+
                                         // Use the selected network's RPC instead of wagmi's publicClient
-                                        const provider = createEthersProvider(selectedNetwork);
+                                        const provider =
+                                          createEthersProvider(selectedNetwork);
                                         const contract = new ethers.Contract(
                                           contractAddress,
                                           contractABI,
                                           provider
                                         );
-                                        
-                                        const result = await contract[selectedFunctionObj.name](...args);
+
+                                        const result = await contract[
+                                          selectedFunctionObj.name
+                                        ](...args);
                                         console.log(
                                           `💎 [Function Call] Wagmi result:`,
                                           result
@@ -6785,9 +6833,12 @@ const SimpleGridUI: React.FC = () => {
                                         "Write function error:",
                                         error
                                       );
+                                      const parsedError = parseError(error);
+                                      const timeout = parsedError.type === 'auth' ? 4000 : 8000;
                                       showError(
                                         "Transaction Failed",
-                                        error.message || error.toString()
+                                        parsedError.message,
+                                        timeout
                                       );
                                     }
                                   }
@@ -6923,15 +6974,19 @@ const SimpleGridUI: React.FC = () => {
                                     const contractABI = getContractABI();
 
                                     // Estimate gas using the selected network's provider
-                                    const provider = createEthersProvider(selectedNetwork);
+                                    const provider =
+                                      createEthersProvider(selectedNetwork);
                                     const contract = new ethers.Contract(
                                       contractAddress,
                                       contractABI,
                                       provider
                                     );
-                                    
+
                                     // Estimate gas using ethers
-                                    const gasEstimate = await contract.estimateGas[selectedFunctionObj.name](...args);
+                                    const gasEstimate =
+                                      await contract.estimateGas[
+                                        selectedFunctionObj.name
+                                      ](...args);
 
                                     // Format gas estimate for display
                                     const gasLimitFormatted =
@@ -6949,9 +7004,10 @@ const SimpleGridUI: React.FC = () => {
                                       "Gas estimation error:",
                                       error
                                     );
+                                    const parsedError = parseError(error);
                                     showError(
                                       "Gas Estimation Failed",
-                                      error.message || "Failed to estimate gas"
+                                      parsedError.message
                                     );
                                   }
                                 }}
@@ -7149,7 +7205,12 @@ const SimpleGridUI: React.FC = () => {
                                                 functionResult.data,
                                                 (_, value) => {
                                                   // Convert BigNumbers to strings
-                                                  if (value && typeof value === 'object' && value._hex && value._isBigNumber) {
+                                                  if (
+                                                    value &&
+                                                    typeof value === "object" &&
+                                                    value._hex &&
+                                                    value._isBigNumber
+                                                  ) {
                                                     return value.toString();
                                                   }
                                                   return value;
@@ -7292,7 +7353,8 @@ const SimpleGridUI: React.FC = () => {
                                 "Calling contract with raw calldata..."
                               );
 
-                              const provider = createEthersProvider(selectedNetwork);
+                              const provider =
+                                createEthersProvider(selectedNetwork);
                               const result = await provider.call({
                                 to: contractAddress,
                                 data: generatedCallData,
@@ -7314,9 +7376,10 @@ const SimpleGridUI: React.FC = () => {
                               );
                             } catch (error: any) {
                               console.error("Raw call error:", error);
+                              const parsedError = parseError(error);
                               showError(
                                 "Call Failed",
-                                error.message || "Raw call execution failed"
+                                parsedError.message
                               );
                               setFunctionResult({
                                 data: undefined,
@@ -7422,9 +7485,12 @@ const SimpleGridUI: React.FC = () => {
                               });
                             } catch (error: any) {
                               console.error("Raw transaction error:", error);
+                              const parsedError = parseError(error);
+                              const timeout = parsedError.type === 'auth' ? 4000 : 8000;
                               showError(
                                 "Transaction Failed",
-                                error.message || "Raw transaction failed"
+                                parsedError.message,
+                                timeout
                               );
                             }
                           }}
@@ -8111,6 +8177,7 @@ const SimpleGridUI: React.FC = () => {
             ?.url?.replace("/api", "")
             ?.replace("/api/", "") || selectedNetwork?.blockExplorer
         }
+        chain={selectedNetwork || undefined}
       />
     </div>
   );

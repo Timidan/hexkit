@@ -104,7 +104,8 @@ const InPageNotification: React.FC<InPageNotificationProps> = ({
         top: '20px',
         right: '20px',
         minWidth: '320px',
-        maxWidth: '480px',
+        maxWidth: '420px',
+        width: 'fit-content',
         ...typeStyles,
         borderRadius: '8px',
         padding: '16px',
@@ -142,7 +143,12 @@ const InPageNotification: React.FC<InPageNotificationProps> = ({
             fontSize: '13px',
             lineHeight: '1.4',
             color: '#e5e7eb',
-            marginBottom: notification.action ? '12px' : '0'
+            marginBottom: notification.action ? '12px' : '0',
+            wordWrap: 'break-word',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            maxWidth: '100%',
+            whiteSpace: 'pre-wrap'
           }}>
             {notification.message}
           </div>

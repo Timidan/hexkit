@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { WalletInfo } from '../types/transaction'
 import { detectWallets, connectWallet, getChainName, formatAddress, switchChain } from '../utils/walletDetection'
 import { SUPPORTED_CHAINS } from '../utils/chains'
+import GlassButton from './ui/GlassButton'
 
 interface SimpleWalletConnectionProps {
   onWalletConnect: (wallet: WalletInfo) => void
@@ -199,31 +200,18 @@ const SimpleWalletConnection: React.FC<SimpleWalletConnectionProps> = ({
 
       <div className="wallet-list">
         {/* Enhanced Web3Modal Button */}
-        <button
+        <GlassButton
           onClick={openWeb3Modal}
-          className="wallet-option web3modal-btn"
+          variant="primary"
+          size="lg"
+          icon={<span style={{ fontSize: '20px' }}>🚀</span>}
           style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            padding: '12px 20px',
-            fontSize: '16px',
-            fontWeight: '600',
-            marginBottom: '16px',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            transition: 'transform 0.2s',
+            width: '100%',
+            marginBottom: '16px'
           }}
-          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0px)'}
         >
-          <span style={{ fontSize: '20px' }}>🚀</span>
-          <span>Connect with Web3Modal (100+ Wallets)</span>
-        </button>
+          Connect with Web3Modal (100+ Wallets)
+        </GlassButton>
 
         {availableWallets.length === 0 && (
           <div className="no-wallets">

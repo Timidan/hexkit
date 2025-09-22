@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { XCloseIcon, CopyIcon, GemIcon, ExternalLinkIcon } from './icons/IconLibrary';
+import { Search, AlertTriangle } from 'lucide-react';
 import { useNotifications } from './NotificationManager';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
+import SelectorDecoder, { type DecodedSelector } from './shared/SelectorDecoder';
 import { ethers } from 'ethers';
+import { SUPPORTED_CHAINS } from '../utils/chains';
+import type { Chain } from '../types';
 
 interface DiamondContractPopupProps {
   isOpen: boolean;
@@ -11,6 +15,7 @@ interface DiamondContractPopupProps {
   facets: DiamondFacet[];
   networkName: string;
   blockExplorerUrl?: string;
+  chain?: Chain;
 }
 
 interface FacetFunction {
@@ -28,19 +33,70 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   contractAddress,
   facets,
   networkName,
-  blockExplorerUrl
+  blockExplorerUrl,
+  chain
 }) => {
   const { showSuccess, showError } = useNotifications();
   const [selectedFacetIndex, setSelectedFacetIndex] = useState<number>(0);
   const [expandedABI, setExpandedABI] = useState<boolean>(false);
+  const [facetSelectors, setFacetSelectors] = useState<{[facetAddress: string]: string[]}>({});
+  const [isLoadingSelectors, setIsLoadingSelectors] = useState<{[facetAddress: string]: boolean}>({});
+  const [decodedSelectors, setDecodedSelectors] = useState<{[facetAddress: string]: DecodedSelector[]}>({});
 
   // Reset selected facet when popup opens
   useEffect(() => {
     if (isOpen) {
       setSelectedFacetIndex(0);
       setExpandedABI(false);
+      loadUnverifiedFacetSelectors();
     }
-  }, [isOpen]);
+  }, [isOpen, facets]);
+
+  // Load function selectors for unverified facets
+  const loadUnverifiedFacetSelectors = async () => {
+    if (!chain) return;
+    
+    const unverifiedFacets = facets.filter(facet => !facet.isVerified);
+    
+    for (const facet of unverifiedFacets) {
+      if (facetSelectors[facet.address]) continue; // Already loaded
+      
+      setIsLoadingSelectors(prev => ({ ...prev, [facet.address]: true }));
+      
+      try {
+        const selectors = await fetchFacetFunctionSelectors(contractAddress, facet.address, chain);
+        setFacetSelectors(prev => ({ ...prev, [facet.address]: selectors }));
+      } catch (error) {
+        console.warn(`Failed to load selectors for facet ${facet.address}:`, error);
+      } finally {
+        setIsLoadingSelectors(prev => ({ ...prev, [facet.address]: false }));
+      }
+    }
+  };
+
+  // Fetch function selectors for a specific facet using diamond's facetFunctionSelectors
+  const fetchFacetFunctionSelectors = async (diamondAddress: string, facetAddress: string, chain: Chain): Promise<string[]> => {
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+    
+    // Diamond contract ABI for facetFunctionSelectors function
+    const diamondABI = [
+      "function facetFunctionSelectors(address facet) external view returns (bytes4[] memory)"
+    ];
+    
+    const diamondContract = new ethers.Contract(diamondAddress, diamondABI, provider);
+    
+    try {
+      const selectors: string[] = await diamondContract.facetFunctionSelectors(facetAddress);
+      return selectors.map((selector: string) => selector.toLowerCase());
+    } catch (error) {
+      throw new Error(`Failed to fetch selectors: ${error}`);
+    }
+  };
+
+  // Handle decoded selectors for a facet
+  const handleSelectorDecoded = (facetAddress: string, decodedResults: DecodedSelector[]) => {
+    setDecodedSelectors(prev => ({ ...prev, [facetAddress]: decodedResults }));
+  };
 
   if (!isOpen) return null;
 
@@ -73,8 +129,51 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   };
 
   const getFacetFunctions = (facet: DiamondFacet): FacetFunction[] => {
+    // For verified facets, use ABI-based approach
+    if (facet.isVerified && facet.abi && facet.abi.length > 0) {
+      const functions: FacetFunction[] = [];
+      facet.abi.forEach((item: any) => {
+        if (item.type === 'function') {
+          // Calculate proper selector for the function
+          const inputTypes = item.inputs?.map((input: any) => input.type).join(',') || '';
+          const signature = `${item.name}(${inputTypes})`;
+          const selector = calculateFunctionSelector(signature);
+
+          functions.push({
+            name: item.name,
+            selector,
+            type: item.type,
+            stateMutability: item.stateMutability,
+            inputs: item.inputs,
+            outputs: item.outputs
+          });
+        }
+      });
+      return functions;
+    }
+
+    // For unverified facets, try to use decoded selectors from facetFunctionSelectors()
+    if (!facet.isVerified) {
+      const rawSelectors = facetSelectors[facet.address] || [];
+      const decodedResults = decodedSelectors[facet.address] || [];
+      
+      if (rawSelectors.length > 0) {
+        // Create functions from decoded selectors or raw selectors
+        return rawSelectors.map((selector: string) => {
+          const decoded = decodedResults.find(d => d.selector.toLowerCase() === selector.toLowerCase());
+          
+          return {
+            name: decoded?.signature || `Unknown Function (${selector})`,
+            selector: selector,
+            type: 'function' as const,
+            stateMutability: 'unknown' as any
+          };
+        });
+      }
+    }
+
+    // Fallback: try legacy functions structure
     if (!facet.abi || facet.abi.length === 0) {
-      // If no ABI available, check for read/write functions
       const allFunctions: FacetFunction[] = [];
       
       if (facet.functions?.read) {
@@ -107,33 +206,15 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
         });
       }
       
-      return allFunctions.length > 0 ? allFunctions : [{
-        name: 'No Functions Available',
-        selector: '0x00000000',
-        type: 'function' as const
-      }];
+      if (allFunctions.length > 0) return allFunctions;
     }
 
-    const functions: FacetFunction[] = [];
-    facet.abi.forEach((item: any) => {
-      if (item.type === 'function') {
-        // Calculate proper selector for the function
-        const inputTypes = item.inputs?.map((input: any) => input.type).join(',') || '';
-        const signature = `${item.name}(${inputTypes})`;
-        const selector = calculateFunctionSelector(signature);
-
-        functions.push({
-          name: item.name,
-          selector,
-          type: item.type,
-          stateMutability: item.stateMutability,
-          inputs: item.inputs,
-          outputs: item.outputs
-        });
-      }
-    });
-
-    return functions;
+    // Final fallback
+    return [{
+      name: 'No Functions Available',
+      selector: '0x00000000',
+      type: 'function' as const
+    }];
   };
 
   return (
@@ -405,6 +486,60 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                   }}>
                     Functions ({getFacetFunctions(selectedFacet).length})
                   </h4>
+
+                  {/* Show loading indicator for unverified facets */}
+                  {!selectedFacet.isVerified && isLoadingSelectors[selectedFacet.address] && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px',
+                      background: 'rgba(33, 150, 243, 0.1)',
+                      border: '1px solid rgba(33, 150, 243, 0.3)',
+                      borderRadius: '8px',
+                      marginBottom: '16px'
+                    }}>
+                      <Search size={16} className="animate-spin" />
+                      <span style={{ fontSize: '14px', color: '#64b5f6' }}>
+                        Loading function selectors...
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Selector Decoder for unverified facets */}
+                  {!selectedFacet.isVerified && facetSelectors[selectedFacet.address] && facetSelectors[selectedFacet.address].length > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <SelectorDecoder
+                        selectors={facetSelectors[selectedFacet.address]}
+                        onDecoded={(results) => handleSelectorDecoded(selectedFacet.address, results)}
+                        onError={(error) => showError('Decoder Error', error)}
+                        showProgress={false}
+                        className="facet-selector-decoder"
+                      />
+                    </div>
+                  )}
+
+                  {/* Unverified facet note */}
+                  {!selectedFacet.isVerified && (
+                    <div style={{
+                      padding: '12px',
+                      background: 'rgba(245, 158, 11, 0.1)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: '8px',
+                      marginBottom: '16px'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '12px',
+                        color: '#f59e0b'
+                      }}>
+                        <AlertTriangle size={14} />
+                        <span>Unverified Facet - Function names resolved using signature database</span>
+                      </div>
+                    </div>
+                  )}
                   
                   <div style={{ 
                     backgroundColor: '#0f1015',

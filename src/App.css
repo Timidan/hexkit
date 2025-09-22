@@ -693,34 +693,59 @@ button.btn-secondary:hover {
 
 .view-toggle .button.active,
 .toggle-buttons button.active {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
-  color: var(--bg-primary) !important;
-  border-color: var(--accent-primary) !important;
+  background: rgba(0, 255, 255, 0.15) !important;
+  backdrop-filter: blur(25px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
+  color: #00ffff !important;
+  border: 1px solid rgba(0, 255, 255, 0.4) !important;
+  box-shadow: 
+    0 12px 40px rgba(0, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 255, 255, 0.15) !important;
 }
 
-/* Make sure no buttons have white backgrounds */
+/* Make sure no buttons have white backgrounds - use liquid glass effect */
 button[style*="background"] {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
-  color: var(--bg-primary) !important;
+  background: rgba(0, 255, 255, 0.1) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  color: #00ffff !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 255, 255, 0.1) !important;
 }
 
-/* Override inline styles that might set white backgrounds */
+/* Override inline styles that might set white backgrounds - use liquid glass effect */
 button[style*="rgba(255, 255, 255"],
 button[style*="#fff"],
 button[style*="white"] {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
-  color: var(--bg-primary) !important;
-  border-color: var(--accent-primary) !important;
+  background: rgba(0, 255, 255, 0.1) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  color: #00ffff !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 255, 255, 0.1) !important;
 }
 
-/* Primary button */
+/* Primary button - liquid glass style */
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  color: var(--bg-primary);
+  background: rgba(0, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: #00ffff;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 255, 255, 0.1);
   padding: var(--space-3) var(--space-6);
   font-size: var(--text-base);
   font-weight: var(--font-weight-semibold);
-  border: 1px solid var(--accent-primary);
   min-height: 48px;
 }
 

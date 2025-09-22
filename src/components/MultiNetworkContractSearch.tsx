@@ -15,6 +15,7 @@ import {
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import { fetchContractABIMultiSource } from "../utils/multiSourceAbiFetcher";
 import type { Chain } from "../types";
+import GlassButton from "./ui/GlassButton";
 
 interface ContractSearchResult {
   chain: Chain;
@@ -446,23 +447,16 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
         </div>
 
         {/* Search Button */}
-        <button
+        <GlassButton
           onClick={searchContract}
           disabled={isSearching || !address || selectedChains.length === 0}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          variant="primary"
+          size="lg"
+          icon={isSearching ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
+          style={{ width: '100%' }}
         >
-          {isSearching ? (
-            <>
-              <Loader size={16} className="animate-spin" />
-              Searching...
-            </>
-          ) : (
-            <>
-              <Search size={16} />
-              Search Contract
-            </>
-          )}
-        </button>
+          {isSearching ? 'Searching...' : 'Search Contract'}
+        </GlassButton>
 
         {/* Progress */}
         {searchProgress && (

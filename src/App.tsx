@@ -16,7 +16,6 @@ import SimpleGridUI from "./components/SimpleGridUI";
 import NewSimpleGridUI from "./components/NewSimpleGridUI";
 import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
-import CalldataGenerator from "./components/CalldataGenerator";
 import ComprehensiveContractSearch from "./components/ComprehensiveContractSearch";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
@@ -99,8 +98,7 @@ function App() {
         <main className="content">
           <ErrorBoundary>
             <Routes>
-              <Route path="/" element={<Navigate to="/generator" replace />} />
-              <Route path="/generator" element={<CalldataGenerator />} />
+              <Route path="/" element={<Navigate to="/decoder" replace />} />
               <Route path="/decoder" element={<SmartDecoder />} />
               <Route path="/signatures" element={<SignatureCalculator />} />
               <Route path="/builder" element={<SimpleGridUI />} />
