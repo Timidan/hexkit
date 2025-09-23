@@ -84,6 +84,13 @@ export default defineConfig(({ mode }) => {
           secure: false,
           rewrite: (path) => path.replace(/^\/api\/arbitrum-blockscout/, ""),
         },
+        "/api/base-sepolia-blockscout": {
+          target: "https://base-sepolia.blockscout.com",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) =>
+            path.replace(/^\/api\/base-sepolia-blockscout/, ""),
+        },
         // Proxy for Etherscan APIs
         "/api/basescan": {
           target: "https://api.basescan.org",

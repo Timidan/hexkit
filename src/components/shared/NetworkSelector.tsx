@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { ChevronDown, Network, Wifi, WifiOff } from 'lucide-react';
 import type { Chain } from '../../types';
 
+const API_KEY =
+  (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
+    .API_KEY ||
+  (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
+    .VITE_API_KEY ||
+  '';
+
 // Enhanced chain configuration with testnet support
 export interface ExtendedChain extends Partial<Chain> {
   id: number;
@@ -142,7 +149,9 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 84532,
     name: 'Base Sepolia',
-    rpcUrl: 'https://base-sepolia.g.alchemy.com/v2/demo',
+    rpcUrl: API_KEY
+      ? `https://base-sepolia.g.alchemy.com/v2/${API_KEY}`
+      : 'https://sepolia.base.org',
     blockExplorer: 'https://sepolia.basescan.org',
     isTestnet: true,
     category: 'testnet',

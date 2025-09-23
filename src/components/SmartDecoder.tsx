@@ -28,10 +28,13 @@ import {
   type DecodedParameter 
 } from '../utils/advancedDecoder';
 import { useToolkit } from '../contexts/ToolkitContext';
+import type { Chain } from '../types';
 import DecodedDataViewer from './DecodedDataViewer';
 import AdvancedJsonEditor from './AdvancedJsonEditor';
 import AnimatedInput from './ui/AnimatedInput';
 import AnimatedButton from './ui/AnimatedButton';
+import ContractInfoDisplay from './ContractInfoDisplay';
+import GlassButton from './ui/GlassButton';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
@@ -68,6 +71,11 @@ const SmartDecoder: React.FC = () => {
   const [enableHeuristics, setEnableHeuristics] = useState(true);
   const [enableSignatureLookup, setEnableSignatureLookup] = useState(true);
   const [showAlternativeResults, setShowAlternativeResults] = useState(false);
+  
+  // Contract information for enhanced display
+  const [contractABI, setContractABI] = useState<any[] | null>(null);
+  const [contractMetadata, setContractMetadata] = useState<any>(null);
+  const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | 'signatures' | 'heuristic' | null>(null);
 
   const addDecodingStep = (step: string) => {
     setDecodingSteps(prev => [...prev, step]);
@@ -97,6 +105,127 @@ const SmartDecoder: React.FC = () => {
     });
   };
 
+  // Enhanced function to get real parameter names from ABI
+  const getParameterInfoFromABI = (functionName: string): { name: string; type: string }[] => {
+    try {
+      // Try to get from stored contract ABI first
+      if (contractABI && functionName) {
+        const matchingFunction = contractABI.find((item: any) => 
+          item.type === 'function' && item.name === functionName
+        );
+        if (matchingFunction?.inputs) {
+          return matchingFunction.inputs.map((input: any) => ({
+            name: input.name || 'param',
+            type: input.type || 'unknown'
+          }));
+        }
+      }
+
+      // Fallback to toolkit context
+      const toolkitTransaction = toolkit.lastDecodedTransaction;
+      if (toolkitTransaction?.abi && functionName) {
+        const abi = toolkitTransaction.abi;
+        const matchingFunction = abi.find((item: any) => 
+          item.type === 'function' && item.name === functionName
+        );
+        if (matchingFunction?.inputs) {
+          return matchingFunction.inputs.map((input: any) => ({
+            name: input.name || 'param',
+            type: input.type || 'unknown'
+          }));
+        }
+      }
+
+      // Fallback to manual ABI if available
+      if (manualABI && functionName) {
+        const abi = JSON.parse(manualABI);
+        const matchingFunction = abi.find((item: any) => 
+          item.type === 'function' && item.name === functionName
+        );
+        if (matchingFunction?.inputs) {
+          return matchingFunction.inputs.map((input: any) => ({
+            name: input.name || 'param',
+            type: input.type || 'unknown'
+          }));
+        }
+      }
+    } catch (error) {
+      console.log('Could not extract parameter info from ABI:', error);
+    }
+    
+    return [];
+  };
+
+  // Component for rendering ABI source badges
+  const renderAbiSourceBadge = () => {
+    if (!abiSource) return null;
+    
+    const badges = {
+      sourcify: { 
+        text: 'Sourcify', 
+        color: 'rgba(34, 197, 94, 0.8)', 
+        icon: '✓', 
+        description: 'Verified on Sourcify' 
+      },
+      blockscout: { 
+        text: 'Blockscout', 
+        color: 'rgba(59, 130, 246, 0.8)', 
+        icon: '🔍', 
+        description: 'Verified on Blockscout' 
+      },
+      etherscan: { 
+        text: 'Etherscan', 
+        color: 'rgba(99, 102, 241, 0.8)', 
+        icon: '📋', 
+        description: 'Verified on Etherscan' 
+      },
+      manual: { 
+        text: 'Manual ABI', 
+        color: 'rgba(245, 158, 11, 0.8)', 
+        icon: '📝', 
+        description: 'User-provided ABI' 
+      },
+      signatures: { 
+        text: 'Signature DB', 
+        color: 'rgba(168, 85, 247, 0.8)', 
+        icon: '🔐', 
+        description: 'Function signature database' 
+      },
+      heuristic: { 
+        text: 'Heuristic', 
+        color: 'rgba(239, 68, 68, 0.8)', 
+        icon: '🧠', 
+        description: 'Pattern-based analysis' 
+      }
+    };
+    
+    const badge = badges[abiSource];
+    if (!badge) return null;
+    
+    return (
+      <div 
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          background: badge.color,
+          color: 'white',
+          padding: '4px 8px',
+          borderRadius: '12px',
+          fontSize: '11px',
+          fontWeight: '600',
+          marginLeft: '8px',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)'
+        }}
+        title={badge.description}
+      >
+        <span style={{ fontSize: '10px' }}>{badge.icon}</span>
+        {badge.text}
+      </div>
+    );
+  };
+
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -116,6 +245,9 @@ const SmartDecoder: React.FC = () => {
     setContractAddress('');
     setManualABI('');
     setExpandedParams(new Set());
+    setContractABI(null);
+    setContractMetadata(null);
+    setAbiSource(null);
   };
 
   // Detect if a value looks like calldata and attempt to decode it
@@ -176,13 +308,13 @@ const SmartDecoder: React.FC = () => {
     }
   };
 
-  // Component for rendering expandable arrays with copy functionality
+  // Enhanced component for rendering expandable arrays with liquid glass styling
   const renderExpandableArray = (value: any[], valueId: string, paramType?: string): JSX.Element => {
     const isExpanded = expandedValues.has(valueId);
     const showExpandButton = value.length > 3;
     
     if (!showExpandButton) {
-      // Small arrays - show all items with copy button
+      // Small arrays - show all items with enhanced liquid glass copy button
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>
@@ -191,14 +323,24 @@ const SmartDecoder: React.FC = () => {
           <button
             onClick={() => copyToClipboard(JSON.stringify(value, null, 2), 'array')}
             style={{
-              background: 'none',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              padding: '4px',
+              background: 'rgba(0, 255, 255, 0.1)',
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              borderRadius: '6px',
+              padding: '6px 8px',
               cursor: 'pointer',
-              color: '#3b82f6',
+              color: '#ffffff',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              transition: 'all 0.2s ease',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.2)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.3)';
             }}
             title="Copy full array"
           >
@@ -214,33 +356,53 @@ const SmartDecoder: React.FC = () => {
           <button
             onClick={() => toggleValueExpansion(valueId)}
             style={{
-              background: 'none',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              padding: '4px 8px',
+              background: 'rgba(0, 255, 255, 0.1)',
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              borderRadius: '6px',
+              padding: '6px 12px',
               cursor: 'pointer',
-              color: '#3b82f6',
-              fontSize: '12px',
+              color: '#ffffff',
+              fontSize: '13px',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '6px',
+              transition: 'all 0.2s ease',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.2)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.3)';
             }}
           >
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             {isExpanded ? 'Collapse' : 'Show All'} ({value.length} items)
           </button>
           
           <button
             onClick={() => copyToClipboard(JSON.stringify(value, null, 2), 'array')}
             style={{
-              background: 'none',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '4px',
-              padding: '4px',
+              background: 'rgba(0, 255, 255, 0.1)',
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              borderRadius: '6px',
+              padding: '6px 8px',
               cursor: 'pointer',
-              color: '#3b82f6',
+              color: '#ffffff',
               display: 'flex',
-              alignItems: 'center'
+              alignItems: 'center',
+              transition: 'all 0.2s ease',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.2)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 255, 255, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.3)';
             }}
             title="Copy full array"
           >
@@ -250,43 +412,64 @@ const SmartDecoder: React.FC = () => {
 
         {isExpanded ? (
           <div style={{
-            background: 'rgba(59, 130, 246, 0.02)',
-            border: '1px solid rgba(59, 130, 246, 0.1)',
-            borderRadius: '6px',
-            padding: '12px',
+            background: 'rgba(0, 255, 255, 0.05)',
+            border: '1px solid rgba(0, 255, 255, 0.2)',
+            borderRadius: '8px',
+            padding: '16px',
             maxHeight: '300px',
-            overflow: 'auto'
+            overflow: 'auto',
+            backdropFilter: 'blur(10px)'
           }}>
-            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px', fontWeight: '600' }}>
+            <div style={{ fontSize: '12px', color: '#ffffff', marginBottom: '12px', fontWeight: '600', opacity: 0.8 }}>
               All {value.length} items:
             </div>
             {value.map((item, index) => (
               <div key={index} style={{
-                marginBottom: '4px',
-                fontSize: '12px',
+                marginBottom: '6px',
+                fontSize: '13px',
                 fontFamily: 'Monaco, Menlo, monospace',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '10px',
+                padding: '4px 0'
               }}>
-                <span style={{ color: '#6b7280', minWidth: '30px' }}>[{index}]:</span>
-                <span style={{ flex: 1, wordBreak: 'break-all' }}>
+                <span style={{ color: '#00ffff', minWidth: '35px', fontWeight: '500' }}>[{index}]:</span>
+                <span style={{ 
+                  flex: 1, 
+                  wordBreak: 'break-all', 
+                  color: '#ffffff',
+                  background: 'rgba(0, 255, 255, 0.08)',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(0, 255, 255, 0.15)'
+                }}>
                   {Array.isArray(item) ? `[Array of ${item.length} items]` : formatParameterValue(item)}
                 </span>
                 <button
                   onClick={() => copyToClipboard(String(item), `item ${index}`)}
                   style={{
-                    background: 'none',
-                    border: 'none',
+                    background: 'rgba(0, 255, 255, 0.1)',
+                    border: '1px solid rgba(0, 255, 255, 0.3)',
+                    borderRadius: '4px',
                     cursor: 'pointer',
-                    color: '#6b7280',
-                    padding: '2px',
+                    color: '#ffffff',
+                    padding: '4px 6px',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    transition: 'all 0.2s ease',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 255, 255, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(0, 255, 255, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 255, 255, 0.3)';
                   }}
                   title={`Copy item ${index}`}
                 >
-                  <Copy size={10} />
+                  <Copy size={11} />
                 </button>
               </div>
             ))}
@@ -1108,6 +1291,24 @@ const SmartDecoder: React.FC = () => {
               onConfirm: () => {
                 setContractConfirmation(null);
                 setCurrentSearchProgress([]);
+                // Store ABI and contract metadata for enhanced display
+                setContractABI(abi);
+                setContractMetadata({
+                  name: '', // Will be populated from contract analysis
+                  source: source.name,
+                  functions: abi.filter((item: any) => item.type === 'function').length,
+                  events: abi.filter((item: any) => item.type === 'event').length
+                });
+                // Set ABI source based on the source name
+                if (source.name.toLowerCase().includes('sourcify')) {
+                  setAbiSource('sourcify');
+                } else if (source.name.toLowerCase().includes('blockscout')) {
+                  setAbiSource('blockscout');
+                } else if (source.name.toLowerCase().includes('etherscan')) {
+                  setAbiSource('etherscan');
+                } else {
+                  setAbiSource('etherscan'); // Default fallback
+                }
                 resolve(abi);
               },
               onContinueSearch: () => {
@@ -1232,6 +1433,7 @@ const SmartDecoder: React.FC = () => {
         addDecodingStep(`✓ Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(calldata.trim(), customSignature);
         setDecodedResult(decoded);
+        setAbiSource('signatures');
         
         // Extract parameter names from signature if available
         const parameterInfo = parseSignatureParameters(customSignature);
@@ -1266,6 +1468,7 @@ const SmartDecoder: React.FC = () => {
             
             const decoded = decodeWithSignature(calldata.trim(), signature);
             setDecodedResult(decoded);
+            setAbiSource('signatures');
             
             // Extract parameter names from signature if available (will be generic for OpenChain)
             const parameterInfo = parseSignatureParameters(signature);
@@ -1311,6 +1514,7 @@ const SmartDecoder: React.FC = () => {
               signature: `${heuristicResults.bestGuess.description}`,
               args: heuristicResults.bestGuess.values || []
             });
+            setAbiSource('heuristic');
 
             // Share with toolkit context
             if (heuristicResults.bestGuess) {
@@ -1448,6 +1652,16 @@ const SmartDecoder: React.FC = () => {
 
       const abi = JSON.parse(manualABI);
       addDecodingStep('Using manual ABI, searching for matching function...');
+      
+      // Store manual ABI and metadata for enhanced display
+      setContractABI(abi);
+      setContractMetadata({
+        name: '', // Will be populated from contract analysis
+        source: 'Manual ABI',
+        functions: abi.filter((item: any) => item.type === 'function').length,
+        events: abi.filter((item: any) => item.type === 'event').length
+      });
+      setAbiSource('manual');
       
       const matchingFunction = findMatchingFunctionInABI(abi, selector);
       if (matchingFunction) {
@@ -1809,14 +2023,16 @@ const SmartDecoder: React.FC = () => {
           )}
         </div>
 
-        <div className="button-group">
-          <button
+        <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+          <GlassButton
             onClick={handleSmartDecode}
             disabled={isDecoding}
-            className="btn-primary"
+            variant="primary"
+            size="lg"
           >
+            <Zap size={18} style={{ marginRight: '8px' }} />
             {isDecoding ? 'Decoding...' : 'Decode Input Data'}
-          </button>
+          </GlassButton>
         </div>
       </div>
 
@@ -1876,14 +2092,15 @@ const SmartDecoder: React.FC = () => {
                 placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
               />
             </div>
-            <button
+            <GlassButton
               onClick={handleContractABIDecode}
               disabled={isFetchingABI}
-              className="btn-secondary"
-              style={decodedResult ? { background: '#10b981', color: 'white', borderColor: '#10b981' } : {}}
+              variant={decodedResult ? 'success' : 'primary'}
+              size="md"
             >
+              <Search size={16} style={{ marginRight: '8px' }} />
               {isFetchingABI ? 'Searching...' : decodedResult ? 'Fetch ABI & Re-decode' : 'Search Contract ABI'}
-            </button>
+            </GlassButton>
             <small>Searches both Etherscan & Blockscout APIs across Ethereum, Base, Arbitrum, Optimism, Polygon, BSC, Avalanche, Fantom</small>
           </div>
 
@@ -1905,13 +2122,14 @@ const SmartDecoder: React.FC = () => {
                 rows={4}
               />
             </div>
-            <button
+            <GlassButton
               onClick={handleManualABIDecode}
-              className="btn-secondary"
-              style={decodedResult ? { background: '#10b981', color: 'white', borderColor: '#10b981' } : {}}
+              variant={decodedResult ? 'success' : 'primary'}
+              size="md"
             >
+              <FileText size={16} style={{ marginRight: '8px' }} />
               {decodedResult ? 'Re-decode with ABI' : 'Decode with Manual ABI'}
-            </button>
+            </GlassButton>
           </div>
         </div>
       )}
@@ -1924,27 +2142,57 @@ const SmartDecoder: React.FC = () => {
         <div className="panel">
           <h3 style={{ color: '#059669', marginBottom: '16px' }}>✓ Successfully Decoded</h3>
           
+          {/* Enhanced Contract Information Display */}
+          {contractABI && contractAddress && (
+            <div style={{ marginBottom: '24px' }}>
+              <ContractInfoDisplay
+                abi={JSON.stringify(contractABI)}
+                contractAddress={contractAddress}
+                chain={{
+                  id: 1, // Default to Ethereum, will be enhanced later
+                  name: 'Ethereum',
+                  rpcUrl: 'https://eth.llamarpc.com',
+                  explorerUrl: 'https://etherscan.io',
+                  blockExplorer: 'etherscan.io',
+                  apiUrl: 'https://api.etherscan.io',
+                  explorers: [{ name: 'Etherscan', url: 'https://api.etherscan.io', type: 'etherscan' }],
+                  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
+                } as Chain}
+                contractMetadata={contractMetadata}
+              />
+            </div>
+          )}
+          
           <div className="form-group">
             <label>Function Name:</label>
             <code style={{ 
-              background: '#f3f4f6', 
-              padding: '4px 8px', 
-              borderRadius: '4px',
-              fontSize: '13px',
+              background: 'rgba(0, 255, 255, 0.1)', 
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              color: '#ffffff',
+              padding: '8px 12px', 
+              borderRadius: '6px',
+              fontSize: '14px',
               display: 'block',
-              marginTop: '4px'
+              marginTop: '4px',
+              fontFamily: 'monospace'
             }}>{decodedResult.name}</code>
           </div>
           
           <div className="form-group">
-            <label>Function Signature:</label>
+            <label style={{ display: 'flex', alignItems: 'center' }}>
+              Function Signature:
+              {renderAbiSourceBadge()}
+            </label>
             <code style={{ 
-              background: '#f3f4f6', 
-              padding: '4px 8px', 
-              borderRadius: '4px',
-              fontSize: '13px',
+              background: 'rgba(0, 255, 255, 0.1)', 
+              border: '1px solid rgba(0, 255, 255, 0.3)',
+              color: '#ffffff',
+              padding: '8px 12px', 
+              borderRadius: '6px',
+              fontSize: '14px',
               display: 'block',
-              marginTop: '4px'
+              marginTop: '4px',
+              fontFamily: 'monospace'
             }}>{decodedResult.signature}</code>
           </div>
 
@@ -1952,25 +2200,33 @@ const SmartDecoder: React.FC = () => {
             <div className="form-group">
               <label>Function Arguments:</label>
               
-              <div className="button-group" style={{ marginBottom: '12px' }}>
-                <button
-                  className={viewMode === 'simple' ? 'active' : ''}
+              <div style={{ 
+                display: 'flex', 
+                gap: '8px', 
+                marginBottom: '16px',
+                flexWrap: 'wrap'
+              }}>
+                <GlassButton
+                  variant={viewMode === 'simple' ? 'primary' : 'secondary'}
+                  size="sm"
                   onClick={() => setViewMode('simple')}
                 >
                   Simple View
-                </button>
-                <button
-                  className={viewMode === 'advanced' ? 'active' : ''}
+                </GlassButton>
+                <GlassButton
+                  variant={viewMode === 'advanced' ? 'primary' : 'secondary'}
+                  size="sm"
                   onClick={() => setViewMode('advanced')}
                 >
                   JSON View
-                </button>
-                <button
-                  className={viewMode === 'legacy' ? 'active' : ''}
+                </GlassButton>
+                <GlassButton
+                  variant={viewMode === 'legacy' ? 'primary' : 'secondary'}
+                  size="sm"
                   onClick={() => setViewMode('legacy')}
                 >
                   Structured View
-                </button>
+                </GlassButton>
               </div>
 
               {viewMode === 'simple' && (
@@ -1989,11 +2245,12 @@ const SmartDecoder: React.FC = () => {
                       // Use toolkit data - it should have real parameter names from ABI
                       parameterData = toolkitParams;
                     }
-                    // Fallback only if no toolkit data available
+                    // Fallback with enhanced parameter name extraction from ABI
                     else if (decodedResult?.args) {
+                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
                       parameterData = decodedResult.args.map((arg: any, index: number) => ({
-                        name: `param_${index}`,
-                        type: getParameterType(arg),
+                        name: abiParameterInfo[index]?.name || `param_${index}`,
+                        type: abiParameterInfo[index]?.type || getParameterType(arg),
                         value: arg
                       }));
                     }
@@ -2206,9 +2463,10 @@ const SmartDecoder: React.FC = () => {
                       // Use toolkit data - it should have real parameter names from ABI
                       parameterData = toolkitParams;
                     } else if (decodedResult?.args) {
+                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
                       parameterData = decodedResult.args.map((arg: any, index: number) => ({
-                        name: `param_${index}`,
-                        type: getParameterType(arg),
+                        name: abiParameterInfo[index]?.name || `param_${index}`,
+                        type: abiParameterInfo[index]?.type || getParameterType(arg),
                         value: arg
                       }));
                     }
@@ -2234,11 +2492,12 @@ const SmartDecoder: React.FC = () => {
                       paramNames = toolkitParams.map(p => p.name);
                       paramTypes = toolkitParams.map(p => p.type);
                     }
-                    // Fallback to decodedResult args with generic names
+                    // Fallback with enhanced parameter name extraction from ABI
                     else if (decodedResult?.args) {
+                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
                       parameterData = decodedResult.args;
-                      paramNames = decodedResult.args.map((_: any, index: number) => `param_${index}`);
-                      paramTypes = decodedResult.args.map((arg: any) => getParameterType(arg));
+                      paramNames = decodedResult.args.map((_: any, index: number) => abiParameterInfo[index]?.name || `param_${index}`);
+                      paramTypes = decodedResult.args.map((arg: any, index: number) => abiParameterInfo[index]?.type || getParameterType(arg));
                     }
                     
                     return (
@@ -2256,18 +2515,89 @@ const SmartDecoder: React.FC = () => {
             </div>
           )}
           
-          {/* Transfer Options */}
+          {/* Enhanced Export and Interoperability Options */}
           {showTransferOptions && (
             <div className="result-section">
-              <h4>Use This Data</h4>
-              <button 
-                onClick={handleTransferToBuilder}
-                className="btn-secondary"
-                style={{ marginBottom: '8px' }}
-              >
-                Send to Transaction Builder
-              </button>
-              <small style={{ display: 'block', color: '#6b7280' }}>Create a similar transaction with modified parameters</small>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <Code2 size={18} />
+                Export & Use This Data
+              </h4>
+              
+              <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                {/* Transaction Builder */}
+                <GlassButton
+                  onClick={handleTransferToBuilder}
+                  variant="success"
+                  size="md"
+                >
+                  <Building2 size={16} style={{ marginRight: '8px' }} />
+                  Transaction Builder
+                </GlassButton>
+                
+                {/* Copy as JSON */}
+                <GlassButton
+                  onClick={() => copyToClipboard(JSON.stringify({
+                    functionName: decodedResult.name,
+                    signature: decodedResult.signature,
+                    parameters: decodedResult.args?.map((arg: any, index: number) => {
+                      const abiParams = getParameterInfoFromABI(decodedResult.name);
+                      return {
+                        name: abiParams[index]?.name || `param_${index}`,
+                        type: abiParams[index]?.type || 'unknown',
+                        value: arg
+                      };
+                    }) || [],
+                    contractAddress: contractAddress || null,
+                    abiSource: abiSource
+                  }, null, 2), 'decoded data as JSON')}
+                  variant="primary"
+                  size="md"
+                >
+                  <Copy size={16} style={{ marginRight: '8px' }} />
+                  Copy JSON
+                </GlassButton>
+                
+                {/* Copy Parameters Only */}
+                <GlassButton
+                  onClick={() => copyToClipboard(JSON.stringify(decodedResult.args || [], null, 2), 'function parameters')}
+                  variant="secondary"
+                  size="md"
+                >
+                  <FileText size={16} style={{ marginRight: '8px' }} />
+                  Copy Parameters
+                </GlassButton>
+                
+                {/* Copy Function Signature */}
+                <GlassButton
+                  onClick={() => copyToClipboard(decodedResult.signature || '', 'function signature')}
+                  variant="secondary"
+                  size="md"
+                >
+                  <Code2 size={16} style={{ marginRight: '8px' }} />
+                  Copy Signature
+                </GlassButton>
+              </div>
+              
+              <div style={{ 
+                marginTop: '12px', 
+                padding: '12px', 
+                background: 'rgba(0, 255, 255, 0.05)', 
+                borderRadius: '8px',
+                border: '1px solid rgba(0, 255, 255, 0.1)'
+              }}>
+                <small style={{ 
+                  display: 'block', 
+                  color: '#ffffff', 
+                  opacity: 0.8,
+                  lineHeight: '1.4'
+                }}>
+                  <strong>💡 Export Options:</strong><br />
+                  • <strong>Transaction Builder:</strong> Create similar transactions with modified parameters<br />
+                  • <strong>JSON:</strong> Complete decoded data for external tools and APIs<br />
+                  • <strong>Parameters:</strong> Just the function arguments for quick reference<br />
+                  • <strong>Signature:</strong> Function signature for signature databases
+                </small>
+              </div>
             </div>
           )}
         </div>

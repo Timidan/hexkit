@@ -7,13 +7,6 @@ const API_KEY =
     .VITE_API_KEY ||
   "";
 
-// Debug API key loading
-console.log("🔑 [Chains] Environment variables:", {
-  API_KEY: (import.meta.env as any).API_KEY ? `${(import.meta.env as any).API_KEY.slice(0, 8)}...` : 'undefined',
-  VITE_API_KEY: (import.meta.env as any).VITE_API_KEY ? `${(import.meta.env as any).VITE_API_KEY.slice(0, 8)}...` : 'undefined',
-  resolvedKey: API_KEY ? `${API_KEY.slice(0, 8)}...` : 'empty'
-});
-
 export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 1,
@@ -56,6 +49,33 @@ export const SUPPORTED_CHAINS: Chain[] = [
       {
         name: "Blockscout",
         url: "https://base.blockscout.com/api",
+        type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
+    id: 84532,
+    name: "Base Sepolia",
+    rpcUrl: API_KEY
+      ? `https://base-sepolia.g.alchemy.com/v2/${API_KEY}`
+      : "https://sepolia.base.org",
+    explorerUrl: "https://sepolia.basescan.org",
+    blockExplorer: "https://sepolia.basescan.org",
+    apiUrl: "https://api-sepolia.basescan.org/api",
+    explorers: [
+      {
+        name: "Base Sepolia BaseScan",
+        url: "https://api-sepolia.basescan.org/api",
+        type: "etherscan",
+      },
+      {
+        name: "Base Sepolia Blockscout",
+        url: "https://base-sepolia.blockscout.com/api",
         type: "blockscout",
       },
     ],

@@ -5,7 +5,7 @@ import { Card, Button, LoadingSpinner, ErrorDisplay, Badge } from '../shared';
 import ContractAddressInput from './ContractAddressInput';
 import { fetchContractInfoComprehensive } from '../../utils/comprehensiveContractFetcher';
 import { detectTokenType } from '../../utils/universalTokenDetector';
-import { SUPPORTED_CHAINS } from '../../utils/chains';
+import { SUPPORTED_CHAINS, getChainById } from '../../utils/chains';
 import type { Chain, ContractInfo } from '../../types';
 import '../../styles/ContractComponents.css';
 
@@ -31,7 +31,12 @@ export interface ContractConnectorResult {
   chain: Chain;
   abi: any[];
   contractName?: string;
-  abiSource?: 'sourcify' | 'blockscout' | 'etherscan' | 'manual';
+  abiSource?:
+    | 'sourcify'
+    | 'blockscout'
+    | 'etherscan'
+    | 'blockscout-bytecode'
+    | 'manual';
   tokenInfo?: {
     type?: string;
     symbol?: string;
@@ -69,7 +74,14 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
   
   // Contract info state
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
-  const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | null>(null);
+  const [abiSource, setAbiSource] = useState<
+    | 'sourcify'
+    | 'blockscout'
+    | 'etherscan'
+    | 'blockscout-bytecode'
+    | 'manual'
+    | null
+  >(null);
   const [contractName, setContractName] = useState<string>('');
   const [tokenInfo, setTokenInfo] = useState<{
     type?: string;
@@ -185,9 +197,12 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
         message: 'Searching multiple sources...'
       });
 
+      const chainConfig =
+        getChainById(selectedNetwork?.id || 0) || selectedNetwork;
+
       const result = await fetchContractInfoComprehensive(
         checksumAddress,
-        selectedNetwork
+        chainConfig
       );
 
       if (result.success && result.abi) {
@@ -199,7 +214,13 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
         setContractInterface(iface);
         setReadFunctions(reads);
         setWriteFunctions(writes);
-        setAbiSource(result.source as 'sourcify' | 'blockscout' | 'etherscan');
+        setAbiSource(
+          result.source as
+            | 'sourcify'
+            | 'blockscout'
+            | 'etherscan'
+            | 'blockscout-bytecode'
+        );
         
         // Set contract name
         const extractedName = result.contractName || 'Unknown Contract';
@@ -208,7 +229,7 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
         // Create contract info
         const info: ContractInfo = {
           address: checksumAddress,
-          chain: selectedNetwork,
+          chain: chainConfig,
           abi: result.abi,
           name: extractedName,
           verified: true
@@ -233,10 +254,15 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
         if (onContractConnected) {
           const connectorResult: ContractConnectorResult = {
             address: checksumAddress,
-            chain: selectedNetwork,
+            chain: chainConfig,
             abi: parsedABI,
             contractName: extractedName,
-            abiSource: result.source as 'sourcify' | 'blockscout' | 'etherscan',
+            abiSource: result.source as
+              | 'sourcify'
+              | 'blockscout'
+              | 'etherscan'
+              | 'blockscout-bytecode'
+              | 'manual',
             tokenInfo: tokenInfo || undefined,
             readFunctions: reads,
             writeFunctions: writes,

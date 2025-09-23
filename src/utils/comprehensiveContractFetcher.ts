@@ -4,9 +4,19 @@ const API_KEY =
   (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
     .VITE_API_KEY ||
   "";
+const BLOCKSCOUT_BYTECODE_DB_URL =
+  (import.meta.env as unknown as {
+    VITE_BLOCKSCOUT_BYTECODE_DB_URL?: string;
+    BLOCKSCOUT_BYTECODE_DB_URL?: string;
+  }).VITE_BLOCKSCOUT_BYTECODE_DB_URL ||
+  (import.meta.env as unknown as {
+    VITE_BLOCKSCOUT_BYTECODE_DB_URL?: string;
+    BLOCKSCOUT_BYTECODE_DB_URL?: string;
+  }).BLOCKSCOUT_BYTECODE_DB_URL ||
+  "https://eth-bytecode-db.services.blockscout.com";
 import axios from "axios";
 import { ethers } from "ethers";
-import type { Chain } from "../types";
+import type { Chain, ExplorerAPI } from "../types";
 
 // CORS proxy not used in browser; proxies are configured in Vite
 
@@ -17,7 +27,11 @@ export interface ContractInfoResult {
   chain: Chain;
   contractName?: string;
   abi?: string;
-  source?: "sourcify" | "blockscout" | "etherscan";
+  source?:
+    | "sourcify"
+    | "blockscout"
+    | "etherscan"
+    | "blockscout-bytecode";
   explorerName?: string;
   verified?: boolean;
   // Optional tokenType for legacy UI; current detection happens elsewhere
@@ -88,6 +102,30 @@ interface SourcifyResponse {
   };
 }
 
+interface BlockscoutBytecodeSource {
+  contractName?: string;
+  compilerVersion?: string;
+  compilerSettings?: string;
+  sourceFiles?: Record<string, string>;
+  abi?: string | Record<string, unknown> | unknown[];
+  constructorArguments?: string;
+  matchType?: string;
+  sourceType?: string;
+}
+
+interface BlockscoutBytecodeSearchResponse {
+  ethBytecodeDbSources?: BlockscoutBytecodeSource[];
+  sourcifySources?: BlockscoutBytecodeSource[];
+  allianceSources?: BlockscoutBytecodeSource[];
+}
+
+const BLOCKSCOUT_API_FALLBACKS: Record<number, string[]> = {
+  8453: ["https://base.blockscout.com/api"],
+  84532: ["https://base-sepolia.blockscout.com/api"],
+  137: ["https://polygon.blockscout.com/api"],
+  42161: ["https://arbitrum.blockscout.com/api"],
+};
+
 // Enhanced search function with comprehensive progress tracking
 export const fetchContractInfoComprehensive = async (
   address: string,
@@ -132,6 +170,89 @@ export const fetchContractInfoComprehensive = async (
   };
 
   try {
+    const integrateAbiDetails = async (
+      result: ContractInfoResult
+    ): Promise<ContractInfoResult> => {
+      if (!result.success || !result.abi) {
+        return result;
+      }
+
+      try {
+        const parsedABI = JSON.parse(result.abi);
+        const externalFunctions = extractExternalFunctions(parsedABI);
+        console.log(
+          `🔍 Extracted ${externalFunctions?.length || 0} external functions`
+        );
+
+        let tokenInfo = result.tokenInfo;
+        if (!tokenInfo) {
+          addProgress("Token API", "searching", "Fetching token metadata...");
+          tokenInfo = await fetchTokenInfo(address, parsedABI, chain);
+          if (tokenInfo) {
+            addProgress(
+              "Token API",
+              "found",
+              `Token: ${tokenInfo.name} (${tokenInfo.symbol})`
+            );
+          } else {
+            addProgress(
+              "Token API",
+              "not_found",
+              "Could not fetch token metadata"
+            );
+          }
+        }
+
+        const updatedResult: ContractInfoResult = {
+          ...result,
+          externalFunctions,
+          tokenInfo,
+          searchProgress: [...searchProgress],
+        };
+
+        console.log(
+          `🔍 [DEBUG] Before fallbacks - Contract name: "${updatedResult.contractName}", Token name: "${tokenInfo?.name}"`
+        );
+
+        if (!updatedResult.contractName && tokenInfo?.name) {
+          updatedResult.contractName = tokenInfo.name;
+          console.log(
+            `🔍 [DEBUG] Using token name as contract name: "${tokenInfo.name}"`
+          );
+        }
+
+        if (!updatedResult.contractName) {
+          console.log(
+            `🔍 [DEBUG] No contract name found, trying ABI extraction...`
+          );
+          const contractABI = parsedABI.find(
+            (item: any) => item.type === "constructor"
+          );
+          if (contractABI && contractABI.name) {
+            updatedResult.contractName = contractABI.name;
+            console.log(
+              `🔍 [DEBUG] Using constructor name: "${contractABI.name}"`
+            );
+          } else {
+            const genericName = "Smart Contract";
+            updatedResult.contractName = genericName;
+            console.log(`🔍 [DEBUG] Using generic name: "${genericName}"`);
+          }
+        }
+
+        console.log(
+          `🔍 [DEBUG] Final contract name: "${updatedResult.contractName}"`
+        );
+        return updatedResult;
+      } catch (parseError) {
+        console.error("Error parsing ABI:", parseError);
+        return {
+          ...result,
+          error: `Failed to parse ABI: ${parseError}`,
+        };
+      }
+    };
+
     console.log(
       `🔍 Starting comprehensive search for ${address} on ${chain.name}`
     );
@@ -150,7 +271,11 @@ export const fetchContractInfoComprehensive = async (
         "found",
         `Found verified contract on Sourcify: ${sourcifyResult.contractName || "Unknown"}`
       );
-      finalResult = { ...finalResult, ...sourcifyResult };
+      finalResult = await integrateAbiDetails({
+        ...finalResult,
+        ...sourcifyResult,
+        success: true,
+      });
     } else {
       addProgress(
         "Sourcify",
@@ -175,7 +300,11 @@ export const fetchContractInfoComprehensive = async (
           "found",
           `Found verified contract on Blockscout: ${blockscoutResult.contractName || "Unknown"}`
         );
-        finalResult = { ...finalResult, ...blockscoutResult };
+        finalResult = await integrateAbiDetails({
+          ...finalResult,
+          ...blockscoutResult,
+          success: true,
+        });
       } else {
         addProgress(
           "Blockscout",
@@ -203,7 +332,11 @@ export const fetchContractInfoComprehensive = async (
           "found",
           `Found verified contract on Etherscan: ${etherscanResult.contractName || "Unknown"}`
         );
-        finalResult = { ...finalResult, ...etherscanResult };
+        finalResult = await integrateAbiDetails({
+          ...finalResult,
+          ...etherscanResult,
+          success: true,
+        });
       } else {
         addProgress(
           "Etherscan",
@@ -213,91 +346,74 @@ export const fetchContractInfoComprehensive = async (
       }
     }
 
+    // Priority 4: Blockscout Bytecode DB (only if all direct explorers failed)
+    if (!finalResult.success) {
+      console.log(
+        "🔍 [DEBUG] Explorer sources failed, trying Blockscout Bytecode DB..."
+      );
+      addProgress(
+        "Blockscout EBD",
+        "searching",
+        "Searching Blockscout's shared bytecode database..."
+      );
+      const bytecodeDbResult = await fetchFromBlockscoutBytecodeDB(
+        address,
+        chain
+      );
+
+      if (bytecodeDbResult.success) {
+        addProgress(
+          "Blockscout EBD",
+          "found",
+          `Recovered sources from Blockscout Bytecode DB: ${bytecodeDbResult.contractName || "Unknown"}`
+        );
+        finalResult = { ...finalResult, ...bytecodeDbResult };
+      } else {
+        addProgress(
+          "Blockscout EBD",
+          "not_found",
+          bytecodeDbResult.error ||
+            "No match in Blockscout's shared bytecode database"
+        );
+      }
+    }
+
     // If we have ABI from any source, extract external functions and detect token type
-    if (finalResult.success && finalResult.abi) {
-      try {
-        const parsedABI = JSON.parse(finalResult.abi);
+    finalResult = await integrateAbiDetails(finalResult);
 
-        // Extract external functions
-        const externalFunctions = extractExternalFunctions(parsedABI);
-        console.log(
-          `🔍 Extracted ${externalFunctions?.length || 0} external functions`
+    if (
+      finalResult.success &&
+      (!finalResult.externalFunctions || finalResult.externalFunctions.length === 0) &&
+      finalResult.source !== "blockscout-bytecode"
+    ) {
+      addProgress(
+        "Blockscout EBD",
+        "searching",
+        "No functions found. Searching Blockscout Bytecode DB for richer metadata..."
+      );
+      const enrichmentResult = await fetchFromBlockscoutBytecodeDB(
+        address,
+        chain
+      );
+
+      if (enrichmentResult.success) {
+        addProgress(
+          "Blockscout EBD",
+          "found",
+          `Recovered ABI from Blockscout Bytecode DB: ${enrichmentResult.contractName || "Unknown"}`
         );
-
-        // NOTE: Token type detection should only be done via ERC165 supportsInterface() calls in the main component
-        // This ABI-based detection is deprecated and removed
-
-        // NOTE: Token type detection should only be done via ERC165 supportsInterface() calls in the main component
-        // We'll fetch token info for any contract that might have token metadata functions
-        let tokenInfo;
-        if (true) {
-          // Always attempt to fetch token info - ERC165 detection in main component will determine actual type
-          addProgress("Token API", "searching", "Fetching token metadata...");
-          tokenInfo = await fetchTokenInfo(address, parsedABI, chain);
-          if (tokenInfo) {
-            addProgress(
-              "Token API",
-              "found",
-              `Token: ${tokenInfo.name} (${tokenInfo.symbol})`
-            );
-          } else {
-            addProgress(
-              "Token API",
-              "not_found",
-              "Could not fetch token metadata"
-            );
-          }
-        }
-
-        finalResult = {
+        finalResult = await integrateAbiDetails({
           ...finalResult,
-          externalFunctions,
-          tokenInfo,
-          searchProgress: [...searchProgress], // Copy to prevent reference issues
-        };
-
-        // Log the current state before any fallbacks
-        console.log(
-          `🔍 [DEBUG] Before fallbacks - Contract name: "${finalResult.contractName}", Token name: "${tokenInfo?.name}"`
+          ...enrichmentResult,
+          success: true,
+        });
+      } else {
+        addProgress(
+          "Blockscout EBD",
+          "not_found",
+          enrichmentResult.error ||
+            "Blockscout Bytecode DB did not return a richer ABI"
         );
-
-        // If we don't have contract name yet but it's a token, use token name
-        if (!finalResult.contractName && tokenInfo?.name) {
-          finalResult.contractName = tokenInfo.name;
-          console.log(
-            `🔍 [DEBUG] Using token name as contract name: "${tokenInfo.name}"`
-          );
-        }
-
-        // If we still don't have a contract name, try to extract from ABI
-        if (!finalResult.contractName) {
-          console.log(
-            `🔍 [DEBUG] No contract name found, trying ABI extraction...`
-          );
-          // Look for contract name in ABI
-          const contractABI = parsedABI.find(
-            (item: any) => item.type === "constructor"
-          );
-          if (contractABI && contractABI.name) {
-            finalResult.contractName = contractABI.name;
-            console.log(
-              `🔍 [DEBUG] Using constructor name: "${contractABI.name}"`
-            );
-          } else {
-            // Use a generic name - token type will be determined by ERC165 detection in main component
-            const genericName = "Smart Contract";
-            finalResult.contractName = genericName;
-            console.log(`🔍 [DEBUG] Using generic name: "${genericName}"`);
-          }
-        }
-
-        // Final state logging
-        console.log(
-          `🔍 [DEBUG] Final contract name: "${finalResult.contractName}"`
-        );
-      } catch (parseError) {
-        console.error("Error parsing ABI:", parseError);
-        finalResult.error = `Failed to parse ABI: ${parseError}`;
       }
     }
 
@@ -402,6 +518,127 @@ export const fetchContractInfoComprehensive = async (
       success: false,
       error: `Network error: ${error}`,
       searchProgress: [...searchProgress],
+    };
+  }
+};
+
+// Fetch contract sources from Blockscout's Ethereum Bytecode Database (cross-chain fallback)
+const fetchFromBlockscoutBytecodeDB = async (
+  address: string,
+  chain: Chain
+): Promise<Partial<ContractInfoResult>> => {
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+    const deployedBytecode = await withRetry(() => provider.getCode(address));
+
+    if (!deployedBytecode || deployedBytecode === "0x") {
+      return {
+        success: false,
+        error: "Contract has no runtime bytecode on this chain",
+      };
+    }
+
+    const requestBody = {
+      bytecode: deployedBytecode,
+      bytecodeType: "DEPLOYED_BYTECODE",
+      chain: String(chain.id),
+      address,
+      onlyLocal: false,
+    };
+
+    const response = await withRetry(() =>
+      axios.post<BlockscoutBytecodeSearchResponse>(
+        `${BLOCKSCOUT_BYTECODE_DB_URL}/api/v2/bytecodes/sources:search-all`,
+        requestBody,
+        {
+          timeout: 20000,
+        }
+      )
+    );
+
+    const pickSource = (
+      payload: BlockscoutBytecodeSearchResponse
+    ): BlockscoutBytecodeSource | undefined => {
+      const prioritized = [
+        payload.ethBytecodeDbSources,
+        payload.sourcifySources,
+        payload.allianceSources,
+      ];
+
+      for (const collection of prioritized) {
+        if (collection && collection.length > 0) {
+          return collection[0];
+        }
+      }
+
+      return undefined;
+    };
+
+    const primarySource = pickSource(response.data);
+
+    if (!primarySource) {
+      return {
+        success: false,
+        error: "No matching source found in Blockscout Bytecode DB",
+      };
+    }
+
+    const normalizeAbi = (
+      rawAbi: BlockscoutBytecodeSource["abi"]
+    ): string | undefined => {
+      if (!rawAbi) return undefined;
+      if (typeof rawAbi === "string") {
+        try {
+          JSON.parse(rawAbi);
+          return rawAbi;
+        } catch (parseErr) {
+          console.warn("🔍 [EBD] ABI string is not valid JSON, discarding.", parseErr);
+          return undefined;
+        }
+      }
+      try {
+        return JSON.stringify(rawAbi);
+      } catch (jsonErr) {
+        console.warn("🔍 [EBD] Failed to stringify ABI object.", jsonErr);
+        return undefined;
+      }
+    };
+
+    const abi = normalizeAbi(primarySource.abi);
+
+    if (!abi) {
+      return {
+        success: false,
+        error: "Blockscout Bytecode DB returned a match without ABI",
+      };
+    }
+
+    const contractName = primarySource.contractName || "Smart Contract";
+
+    return {
+      success: true,
+      abi,
+      contractName,
+      source: "blockscout-bytecode",
+      explorerName: "Blockscout Bytecode DB",
+      verified: true,
+    };
+  } catch (error: any) {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message || error.message;
+      return {
+        success: false,
+        error: `Blockscout Bytecode DB error${
+          status ? ` (status ${status})` : ""
+        }: ${message}`,
+      };
+    }
+
+    console.error("Blockscout Bytecode DB lookup failed:", error);
+    return {
+      success: false,
+      error: `Blockscout Bytecode DB error: ${error?.message || error}`,
     };
   }
 };
@@ -555,9 +792,22 @@ const fetchFromBlockscout = async (
       `🔍 [Blockscout] Fetching contract: ${address} on ${chain.name}`
     );
 
-    const blockscoutExplorer = chain.explorers?.find(
-      (e) => e.type === "blockscout"
-    );
+    const explorers: ExplorerAPI[] = [
+      ...(chain.explorers || []),
+    ];
+
+    const fallbackApis = BLOCKSCOUT_API_FALLBACKS[chain.id] || [];
+    fallbackApis.forEach((url) => {
+      if (!explorers.some((e) => e.url === url)) {
+        explorers.push({
+          name: "Blockscout",
+          url,
+          type: "blockscout",
+        });
+      }
+    });
+
+    const blockscoutExplorer = explorers.find((e) => e.type === "blockscout");
     if (!blockscoutExplorer) {
       return {
         success: false,
@@ -565,18 +815,38 @@ const fetchFromBlockscout = async (
       };
     }
 
-    // Try multiple Blockscout endpoints for ABI
     const blockscoutProxy =
       chain.id === 137
         ? "/api/polygon-blockscout"
         : chain.id === 42161
           ? "/api/arbitrum-blockscout"
-          : "/api/blockscout";
+          : chain.id === 84532
+            ? "/api/base-sepolia-blockscout"
+            : "/api/blockscout";
 
-    const abiEndpoints = [
-      `${blockscoutProxy}?module=contract&action=getabi&address=${address}`,
-      `${blockscoutProxy}/api/v2/smart-contracts/${address}`,
-    ];
+    const apiBases = new Set<string>([
+      blockscoutProxy,
+      blockscoutExplorer.url,
+      ...fallbackApis,
+    ]);
+
+    const normalizeBase = (base: string) => base.replace(/\/$/, "");
+
+    const buildStandardEndpoint = (base: string) => {
+      const normalized = normalizeBase(base);
+      return `${normalized}${normalized.endsWith("/api") ? "" : "/api"}?module=contract&action=getabi&address=${address}`;
+    };
+
+    const buildV2Endpoint = (base: string) => {
+      const normalized = normalizeBase(base);
+      return `${normalized}${normalized.endsWith("/api") ? "" : "/api"}/v2/smart-contracts/${address}`;
+    };
+
+    const abiEndpoints: string[] = [];
+    apiBases.forEach((base) => {
+      abiEndpoints.push(buildStandardEndpoint(base));
+      abiEndpoints.push(buildV2Endpoint(base));
+    });
 
     let abiResult: { abi: string; contractName?: string } | null = null;
 
@@ -589,25 +859,37 @@ const fetchFromBlockscout = async (
           })
         );
 
-        // Handle Etherscan-style response
-        if (response.data.status === "1" && response.data.result) {
+        if (response.data?.status === "1" && response.data.result) {
           abiResult = { abi: response.data.result };
           break;
         }
 
-        // Handle Blockscout v2 API response
-        if (response.data.abi && Array.isArray(response.data.abi)) {
+        const v2Abi =
+          response.data?.abi ||
+          response.data?.result?.abi ||
+          response.data?.result?.contract?.abi;
+
+        if (v2Abi) {
           abiResult = {
-            abi: JSON.stringify(response.data.abi),
-            contractName: response.data.name || response.data.contract_name,
+            abi: typeof v2Abi === "string" ? v2Abi : JSON.stringify(v2Abi),
+            contractName:
+              response.data?.contractName ||
+              response.data?.name ||
+              response.data?.result?.contractName ||
+              response.data?.result?.name,
           };
           break;
         }
       } catch (endpointError: any) {
         if (endpointError.response?.status === 404) {
-          console.log(`🔍 [Blockscout] Endpoint ${endpoint} returned 404 (expected for unverified contracts)`);
+          console.log(
+            `🔍 [Blockscout] Endpoint ${endpoint} returned 404 (expected for unverified contracts)`
+          );
         } else {
-          console.warn(`🔍 [Blockscout] Endpoint ${endpoint} failed:`, endpointError.message);
+          console.warn(
+            `🔍 [Blockscout] Endpoint ${endpoint} failed:`,
+            endpointError.message
+          );
         }
         continue;
       }
@@ -617,13 +899,12 @@ const fetchFromBlockscout = async (
       return { success: false, error: "Contract not found on Blockscout" };
     }
 
-    // If we have ABI but no contract name, try to fetch it separately
     if (!abiResult.contractName) {
       try {
         console.log(`🔍 [Blockscout] Fetching contract name separately...`);
         const nameEndpoints = [
-          `${blockscoutProxy}?module=contract&action=getsourcecode&address=${address}`,
-          `${blockscoutProxy}/api/v2/smart-contracts/${address}`,
+          buildStandardEndpoint(blockscoutExplorer.url),
+          buildV2Endpoint(blockscoutExplorer.url),
         ];
 
         for (const nameEndpoint of nameEndpoints) {
@@ -634,20 +915,19 @@ const fetchFromBlockscout = async (
               })
             );
 
-            // Handle Etherscan-style response
             if (
-              nameResponse.data.status === "1" &&
+              nameResponse.data?.status === "1" &&
               nameResponse.data.result?.[0]
             ) {
-              abiResult.contractName = nameResponse.data.result[0].ContractName;
+              abiResult.contractName =
+                nameResponse.data.result[0].ContractName;
               console.log(
                 `🔍 [Blockscout] Contract name from source code: ${abiResult.contractName}`
               );
               break;
             }
 
-            // Handle Blockscout v2 API response
-            if (nameResponse.data.name || nameResponse.data.contract_name) {
+            if (nameResponse.data?.name || nameResponse.data?.contract_name) {
               abiResult.contractName =
                 nameResponse.data.name || nameResponse.data.contract_name;
               console.log(
@@ -818,6 +1098,23 @@ const fetchTokenInfo = async (
         ).VITE_API_KEY;
       rpcUrl = key
         ? `https://base-mainnet.g.alchemy.com/v2/${key}`
+        : chain.rpcUrl;
+    } else if (chain.id === 84532) {
+      const key =
+        (
+          import.meta.env as unknown as {
+            API_KEY?: string;
+            VITE_API_KEY?: string;
+          }
+        ).API_KEY ||
+        (
+          import.meta.env as unknown as {
+            API_KEY?: string;
+            VITE_API_KEY?: string;
+          }
+        ).VITE_API_KEY;
+      rpcUrl = key
+        ? `https://base-sepolia.g.alchemy.com/v2/${key}`
         : chain.rpcUrl;
     } else if (chain.id === 137) {
       rpcUrl = `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`;

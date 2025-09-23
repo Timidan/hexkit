@@ -10,6 +10,7 @@ const getChainKey = (chain: Chain): ChainKey => {
   switch (chain.id) {
     case 1: return 'ETH';
     case 8453: return 'BASE';
+    case 84532: return 'BASE';
     case 137: return 'POLY';
     case 42161: return 'ARB';
     case 10: return 'OP';
@@ -29,7 +30,13 @@ export interface ContractAddressInputProps {
   error?: string | null;
   onFetchABI?: () => void;
   contractName?: string;
-  abiSource?: 'sourcify' | 'blockscout' | 'etherscan' | 'manual' | null;
+  abiSource?:
+    | 'sourcify'
+    | 'blockscout'
+    | 'etherscan'
+    | 'blockscout-bytecode'
+    | 'manual'
+    | null;
   tokenInfo?: {
     symbol?: string;
     name?: string;
@@ -53,6 +60,13 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   className = ''
 }) => {
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
+
+  const formatAbiSource = (source: NonNullable<ContractAddressInputProps['abiSource']>) => {
+    if (source === 'blockscout-bytecode') {
+      return 'blockscout-ebytecode';
+    }
+    return source;
+  };
 
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onAddressChange(e.target.value);
@@ -160,7 +174,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
             <span className="contract-info-value">{contractName}</span>
             {abiSource && (
               <Badge variant="info" size="sm">
-                {abiSource}
+                {formatAbiSource(abiSource)}
               </Badge>
             )}
           </div>

@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { ethers } from "ethers";
 import { SettingsIcon, SearchIcon, ZapIcon } from "./icons/IconLibrary";
 import { Card, Button, LoadingSpinner, ErrorDisplay, Badge } from "./shared";
@@ -17,6 +22,7 @@ import {
   type FacetProgressCallback,
 } from "../utils/diamondFacetFetcher";
 import "../styles/SimpleGridUI.css";
+import { useNotifications } from "./NotificationManager";
 
 const NewSimpleGridUI: React.FC = () => {
   // Main state
@@ -63,6 +69,8 @@ const NewSimpleGridUI: React.FC = () => {
   // Calldata decoder state
   const [showCalldataDecoder, setShowCalldataDecoder] = useState(false);
   const [calldataToDecodeFromSim, setCalldataToDecodeFromSim] = useState("");
+
+  const { showWarning, showError, showSuccess, showInfo } = useNotifications();
 
   // Styles
   const headerStyle: React.CSSProperties = {
@@ -114,6 +122,11 @@ const NewSimpleGridUI: React.FC = () => {
       setContractConnection(result);
       setIsConnected(true);
 
+      showSuccess(
+        "Contract connected",
+        `${result.contractName || "Contract"} loaded successfully.`
+      );
+
       // Check if it's a diamond contract
       if (result.tokenInfo?.type === "unknown" && result.abi) {
         // Try to detect diamond by checking for diamond-specific functions
@@ -135,14 +148,15 @@ const NewSimpleGridUI: React.FC = () => {
         }
       }
     },
-    []
+    [showSuccess]
   );
 
   const handleConnectionError = useCallback((error: string) => {
     console.error("Contract connection error:", error);
     setIsConnected(false);
     setContractConnection(null);
-  }, []);
+    showError("Connection failed", error);
+  }, [showError]);
 
   // Diamond facet loading
   const loadDiamondFacets = useCallback(
@@ -212,14 +226,27 @@ const NewSimpleGridUI: React.FC = () => {
           console.warn("Failed to extract calldata for decoder:", error);
         }
       }
+
+      if (result.success && selectedFunctionType === "write") {
+        showSuccess(
+          "Function executed",
+          `${selectedFunction?.name || "Function"} completed successfully.`
+        );
+      }
     },
-    [selectedFunction, selectedFunctionType, contractConnection]
+    [
+      selectedFunction,
+      selectedFunctionType,
+      contractConnection,
+      showSuccess,
+    ]
   );
 
   const handleExecutionError = useCallback((error: string) => {
     console.error("Function execution error:", error);
     setIsExecuting(false);
-  }, []);
+    showError("Function execution failed", error);
+  }, [showError]);
 
   // Calldata decoder handlers
   const handleCalldataDecoded = useCallback((result: DecodingResult) => {
@@ -233,7 +260,10 @@ const NewSimpleGridUI: React.FC = () => {
   // Simulation function
   const handleSimulateTransaction = useCallback(async () => {
     if (!contractConnection || !selectedFunction) {
-      alert("Please connect a contract and select a function first");
+      showWarning(
+        "Simulation unavailable",
+        "Connect a contract and choose a function before simulating."
+      );
       return;
     }
 
@@ -251,12 +281,36 @@ const NewSimpleGridUI: React.FC = () => {
 
       // You can add actual simulation logic here using Tenderly or other services
       console.log("Simulating transaction with calldata:", calldata);
+      showInfo(
+        "Simulation prepared",
+        "Calldata generated and ready for external simulation."
+      );
     } catch (error) {
       console.error("Simulation failed:", error);
+      showError(
+        "Simulation failed",
+        error instanceof Error ? error.message : String(error)
+      );
     } finally {
       setIsExecuting(false);
     }
-  }, [contractConnection, selectedFunction]);
+  }, [contractConnection, selectedFunction, showError, showInfo, showWarning]);
+
+  const readProvider = useMemo(() => {
+    if (!contractConnection?.chain?.rpcUrl) {
+      return null;
+    }
+
+    try {
+      return new ethers.providers.JsonRpcProvider(
+        contractConnection.chain.rpcUrl,
+        contractConnection.chain.id
+      );
+    } catch (error) {
+      console.error("Failed to create read provider:", error);
+      return null;
+    }
+  }, [contractConnection]);
 
   // Get functions for display (considering facet selection)
   const getFilteredFunctions = useCallback(
@@ -790,6 +844,12 @@ const NewSimpleGridUI: React.FC = () => {
                   onCallError={handleExecutionError}
                   showGasEstimation={true}
                   showValueInput={true}
+                  provider={
+                    selectedFunction.stateMutability === "view" ||
+                    selectedFunction.stateMutability === "pure"
+                      ? readProvider ?? undefined
+                      : undefined
+                  }
                 />
               </div>
             )}

@@ -50,6 +50,7 @@ import NetworkSelector, {
 } from "./shared/NetworkSelector";
 
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
+import { getChainById } from "../utils/chains";
 import { detectTokenType } from "../utils/universalTokenDetector";
 import { parseError, getErrorSeverity } from "../utils/errorParser";
 import {
@@ -217,7 +218,12 @@ const SimpleGridUI: React.FC = () => {
   const [isLoadingContractInfo, setIsLoadingContractInfo] = useState(false);
   const [usePendingBlock, setUsePendingBlock] = useState(true);
   const [abiSource, setAbiSource] = useState<
-    "sourcify" | "blockscout" | "etherscan" | "manual" | null
+    | "sourcify"
+    | "blockscout"
+    | "etherscan"
+    | "blockscout-bytecode"
+    | "manual"
+    | null
   >(null);
 
   // Contract address and network state
@@ -3133,9 +3139,12 @@ const SimpleGridUI: React.FC = () => {
       console.log("🔍 Starting comprehensive contract fetch...");
 
       // Use the comprehensive contract fetcher with progress tracking
+      const chainConfig =
+        getChainById(selectedNetwork?.id || 0) || (selectedNetwork as Chain);
+
       const result = await fetchContractInfoComprehensive(
         contractAddress,
-        selectedNetwork,
+        chainConfig,
         (progress) => {
           setSearchProgress(progress);
         }
@@ -4460,7 +4469,9 @@ const SimpleGridUI: React.FC = () => {
                                       ? "rgba(59, 130, 246, 0.2)"
                                       : abiSource === "etherscan"
                                         ? "rgba(168, 85, 247, 0.2)"
-                                        : "rgba(107, 114, 128, 0.2)",
+                                        : abiSource === "blockscout-bytecode"
+                                          ? "rgba(45, 212, 191, 0.2)"
+                                          : "rgba(107, 114, 128, 0.2)",
                                 color:
                                   abiSource === "sourcify"
                                     ? "#22c55e"
@@ -4468,11 +4479,28 @@ const SimpleGridUI: React.FC = () => {
                                       ? "#3b82f6"
                                       : abiSource === "etherscan"
                                         ? "#a855f7"
-                                        : "#6b7280",
+                                        : abiSource === "blockscout-bytecode"
+                                          ? "#14b8a6"
+                                          : "#6b7280",
                               }}
-                              title={`Contract ABI verified from ${abiSource.charAt(0).toUpperCase() + abiSource.slice(1)} - ${abiSource === "sourcify" ? "Source code verified with reproducible builds" : abiSource === "blockscout" ? "Verified contract explorer" : "Blockchain explorer verification"}`}
+                              title={`Contract ABI verified from ${
+                                abiSource === "blockscout-bytecode"
+                                  ? "Blockscout Bytecode DB"
+                                  : abiSource.charAt(0).toUpperCase() +
+                                    abiSource.slice(1)
+                              } - ${
+                                abiSource === "sourcify"
+                                  ? "Source code verified with reproducible builds"
+                                  : abiSource === "blockscout"
+                                    ? "Verified contract explorer"
+                                    : abiSource === "blockscout-bytecode"
+                                      ? "Shared bytecode database fallback"
+                                      : "Blockchain explorer verification"
+                              }`}
                             >
-                              {abiSource}
+                              {abiSource === "blockscout-bytecode"
+                                ? "blockscout-ebytecode"
+                                : abiSource}
                             </div>
                             <div
                               style={{
@@ -4483,10 +4511,26 @@ const SimpleGridUI: React.FC = () => {
                                 justifyContent: "center",
                                 cursor: "help",
                               }}
-                              title={`Contract ABI verified from ${abiSource.charAt(0).toUpperCase() + abiSource.slice(1)} - ${abiSource === "sourcify" ? "Source code verified with reproducible builds" : abiSource === "blockscout" ? "Verified contract explorer" : "Blockchain explorer verification"}`}
+                              title={`Contract ABI verified from ${
+                                abiSource === "blockscout-bytecode"
+                                  ? "Blockscout Bytecode DB"
+                                  : abiSource.charAt(0).toUpperCase() +
+                                    abiSource.slice(1)
+                              } - ${
+                                abiSource === "sourcify"
+                                  ? "Source code verified with reproducible builds"
+                                  : abiSource === "blockscout"
+                                    ? "Verified contract explorer"
+                                    : abiSource === "blockscout-bytecode"
+                                      ? "Shared bytecode database fallback"
+                                      : "Blockchain explorer verification"
+                              }`}
                             >
                               {abiSource === "sourcify" && <SourcifyLogo />}
-                              {abiSource === "blockscout" && <BlockscoutLogo />}
+                              {(abiSource === "blockscout" ||
+                                abiSource === "blockscout-bytecode") && (
+                                <BlockscoutLogo />
+                              )}
                               {abiSource === "etherscan" && <EtherscanLogo />}
                               {abiSource === "manual" && <ManualLogo />}
                             </div>
@@ -6220,23 +6264,41 @@ const SimpleGridUI: React.FC = () => {
                             <button
                               style={{
                                 padding: "8px 12px",
-                                background: !isConnected
-                                  ? "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)"
-                                  : selectedFunctionType === "read"
-                                    ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
-                                    : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                                border: "none",
-                                borderRadius: "6px",
-                                color: "white",
+                                background:
+                                  selectedFunctionType === "write"
+                                    ? isConnected
+                                      ? "rgba(245, 158, 11, 0.18)"
+                                      : "rgba(148, 163, 184, 0.16)"
+                                    : "rgba(34, 197, 94, 0.18)",
+                                border:
+                                  selectedFunctionType === "write"
+                                    ? isConnected
+                                      ? "1px solid rgba(245, 158, 11, 0.45)"
+                                      : "1px solid rgba(148, 163, 184, 0.35)"
+                                    : "1px solid rgba(34, 197, 94, 0.45)",
+                                borderRadius: "8px",
+                                color: "#f8fafc",
                                 fontWeight: "600",
                                 fontSize: "13px",
-                                cursor: isConnected ? "pointer" : "not-allowed",
-                                opacity: isConnected ? 1 : 0.6,
+                                cursor:
+                                  selectedFunctionType === "write" && !isConnected
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  selectedFunctionType === "write" && !isConnected
+                                    ? 0.6
+                                    : 1,
                                 transition: "all 0.2s ease",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "8px",
                                 flex: 1,
+                                boxShadow:
+                                  selectedFunctionType === "write"
+                                    ? "0 6px 20px rgba(245, 158, 11, 0.15)"
+                                    : "0 6px 20px rgba(34, 197, 94, 0.15)",
+                                backdropFilter: "blur(16px)",
+                                WebkitBackdropFilter: "blur(16px)",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.transform =
@@ -6247,12 +6309,16 @@ const SimpleGridUI: React.FC = () => {
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.transform =
                                   "translateY(0)";
-                                e.currentTarget.style.boxShadow = "none";
+                                e.currentTarget.style.boxShadow =
+                                  selectedFunctionType === "write"
+                                    ? "0 6px 20px rgba(245, 158, 11, 0.15)"
+                                    : "0 6px 20px rgba(34, 197, 94, 0.15)";
                               }}
                               onClick={async () => {
                                 if (!selectedFunctionObj || !contractAddress) {
-                                  alert(
-                                    "Please select a contract and function"
+                                  showWarning(
+                                    "Selection required",
+                                    "Select both a contract and a function before executing."
                                   );
                                   return;
                                 }
@@ -6265,8 +6331,9 @@ const SimpleGridUI: React.FC = () => {
                                   if (openConnectModal) {
                                     openConnectModal();
                                   } else {
-                                    alert(
-                                      "Please connect your wallet to send transactions"
+                                    showWarning(
+                                      "Wallet required",
+                                      "Connect your wallet to send transactions."
                                     );
                                   }
                                   return;
@@ -6857,8 +6924,10 @@ const SimpleGridUI: React.FC = () => {
                                       isLoading: false,
                                     });
                                   } else {
-                                    alert(
-                                      `Error: ${overallError.message || overallError.toString()}`
+                                    showError(
+                                      "Transaction failed",
+                                      overallError.message ||
+                                        overallError.toString()
                                     );
                                   }
                                 }
