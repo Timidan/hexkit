@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ethers } from "ethers";
 import "./App.css";
 import { ToolIcon, HashIcon, ZapIcon } from "./components/icons/IconLibrary";
@@ -22,8 +22,83 @@ import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
 
+interface ToolRoute {
+  path: string;
+  render: () => React.ReactElement;
+}
+
+const TOOL_ROUTES: ToolRoute[] = [
+  { path: "/decoder", render: () => <SmartDecoder /> },
+  { path: "/signatures", render: () => <SignatureCalculator /> },
+  { path: "/builder", render: () => <SimpleGridUI /> },
+  { path: "/new-builder", render: () => <NewSimpleGridUI /> },
+  { path: "/database", render: () => <SignatureDatabase /> },
+  { path: "/contract-search", render: () => <ComprehensiveContractSearch /> },
+];
+
+const PersistentTools: React.FC = () => {
+  const location = useLocation();
+  const elementsRef = useRef<Record<string, React.ReactElement>>({});
+  const [visitedPaths, setVisitedPaths] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (TOOL_ROUTES.some((route) => route.path === location.pathname)) {
+      initial.add(location.pathname);
+    }
+    return initial;
+  });
+
+  useEffect(() => {
+    if (TOOL_ROUTES.some((route) => route.path === location.pathname)) {
+      setVisitedPaths((prev) => {
+        if (prev.has(location.pathname)) return prev;
+        const next = new Set(prev);
+        next.add(location.pathname);
+        return next;
+      });
+    }
+  }, [location.pathname]);
+
+  const activeRoute = useMemo(
+    () => TOOL_ROUTES.find((route) => route.path === location.pathname),
+    [location.pathname]
+  );
+
+  if (!activeRoute) {
+    return <Navigate to="/decoder" replace />;
+  }
+
+  const ensureElement = (route: ToolRoute) => {
+    if (!elementsRef.current[route.path]) {
+      elementsRef.current[route.path] = route.render();
+    }
+    return elementsRef.current[route.path];
+  };
+
+  return (
+    <>
+      {TOOL_ROUTES.map((route) => {
+        if (!visitedPaths.has(route.path) && route.path !== activeRoute.path) {
+          return null;
+        }
+
+        const element = ensureElement(route);
+        const isActive = route.path === activeRoute.path;
+
+        return (
+          <div
+            key={route.path}
+            style={{ display: isActive ? "block" : "none", width: "100%" }}
+          >
+            {element}
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
 // Signature Calculator Component
-const SignatureCalculator: React.FC = () => {
+function SignatureCalculator(): React.ReactElement {
   const [signature, setSignature] = useState("");
   const [selector, setSelector] = useState("");
 
@@ -72,7 +147,7 @@ const SignatureCalculator: React.FC = () => {
       )}
     </div>
   );
-};
+}
 
 function App() {
   return (
@@ -99,15 +174,7 @@ function App() {
           <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Navigate to="/decoder" replace />} />
-              <Route path="/decoder" element={<SmartDecoder />} />
-              <Route path="/signatures" element={<SignatureCalculator />} />
-              <Route path="/builder" element={<SimpleGridUI />} />
-              <Route path="/new-builder" element={<NewSimpleGridUI />} />
-              <Route path="/database" element={<SignatureDatabase />} />
-              <Route
-                path="/contract-search"
-                element={<ComprehensiveContractSearch />}
-              />
+              <Route path="/*" element={<PersistentTools />} />
             </Routes>
           </ErrorBoundary>
         </main>

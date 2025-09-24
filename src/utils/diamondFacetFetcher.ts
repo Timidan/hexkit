@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Chain, ABIFetchResult } from "../types";
+import type { Chain, ExtendedABIFetchResult } from "../types";
 
 // Diamond facet information
 export interface DiamondFacet {
@@ -14,19 +14,21 @@ export interface DiamondFacet {
   };
 }
 
-// Extended ABI fetch result with contract name
-interface ExtendedABIFetchResult extends ABIFetchResult {
-  source?: string;
-  contractName?: string;
+// Progress callback for facet fetching
+export interface FacetProgressUpdate {
+  /** Number of facets that have finished processing (success or error). */
+  current: number;
+  /** Total number of facets detected on the diamond. */
+  total: number;
+  /** The facet address associated with this update. */
+  currentFacet: string;
+  /** Status of the facet currently being processed. */
+  status: "fetching" | "success" | "error";
+  /** 1-based ordinal of the facet within the address list. */
+  index: number;
 }
 
-// Progress callback for facet fetching
-export type FacetProgressCallback = (progress: {
-  current: number;
-  total: number;
-  currentFacet: string;
-  status: "fetching" | "success" | "error";
-}) => void;
+export type FacetProgressCallback = (progress: FacetProgressUpdate) => void;
 
 // Batch processing configuration
 const BATCH_SIZE = 4;
@@ -352,23 +354,30 @@ async function fetchFacetABI(
 }
 
 // Process facets in batches
+interface ProgressState {
+  completed: number;
+}
+
 async function processBatch(
   chain: Chain,
   facetAddresses: string[],
   batch: string[],
   progressCallback: FacetProgressCallback,
-  startIndex: number
+  startIndex: number,
+  progressState: ProgressState
 ): Promise<DiamondFacet[]> {
   const promises = batch.map(async (address, batchIndex) => {
     const globalIndex = startIndex + batchIndex;
+    const ordinal = globalIndex + 1;
 
     // Add error handling for progress callback
     try {
       progressCallback({
-        current: globalIndex + 1,
+        current: progressState.completed,
         total: facetAddresses.length,
         currentFacet: address || "Unknown",
         status: "fetching",
+        index: ordinal,
       });
     } catch (error) {
       console.warn("Progress callback failed:", error);
@@ -378,18 +387,22 @@ async function processBatch(
 
     try {
       if (facet) {
+        progressState.completed += 1;
         progressCallback({
-          current: globalIndex + 1,
+          current: progressState.completed,
           total: facetAddresses.length,
           currentFacet: address || "Unknown",
           status: "success",
+          index: ordinal,
         });
       } else {
+        progressState.completed += 1;
         progressCallback({
-          current: globalIndex + 1,
+          current: progressState.completed,
           total: facetAddresses.length,
           currentFacet: address || "Unknown",
           status: "error",
+          index: ordinal,
         });
       }
     } catch (error) {
@@ -414,6 +427,7 @@ export async function fetchDiamondFacets(
   }
 
   const allFacets: DiamondFacet[] = [];
+  const progressState: ProgressState = { completed: 0 };
 
   // Process facets in batches
   for (let i = 0; i < facetAddresses.length; i += BATCH_SIZE) {
@@ -423,7 +437,8 @@ export async function fetchDiamondFacets(
       facetAddresses,
       batch,
       progressCallback,
-      i
+      i,
+      progressState
     );
     allFacets.push(...batchResults);
   }

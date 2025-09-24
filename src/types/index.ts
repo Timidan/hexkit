@@ -32,3 +32,15 @@ export interface ContractInfo {
   name?: string;
   verified?: boolean;
 }
+
+export type {
+  ContractInfoResult,
+  ContractExternalFunction,
+  ContractTokenInfo,
+  ContractSearchProgress,
+} from './contractInfo';
+
+export type {
+  ExtendedABIFetchResult,
+  ExtendedABITokenInfo,
+} from './abi';

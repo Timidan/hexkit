@@ -8,6 +8,37 @@ interface ChainIconProps {
   rounded?: number;
 }
 
+const REMOTE_ICON_MAP: Partial<Record<ChainKey, { url: string; background?: string }>> = {
+  ETH: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  BASE: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  POLY: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  ARB: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  OP: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/optimism/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  BSC: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/binance/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  GNO: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/xdai/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+};
+
 const CircleBg: React.FC<
   React.PropsWithChildren<{ color: string; size: number; rounded: number }>
 > = ({ color, size, rounded, children }) => (
@@ -30,6 +61,45 @@ const ChainIcon: React.FC<ChainIconProps> = ({
   size = 24,
   rounded = 12,
 }) => {
+  const remoteConfig = REMOTE_ICON_MAP[chain];
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasError(false);
+  }, [chain, remoteConfig?.url]);
+
+  if (remoteConfig && !hasError) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: rounded,
+          overflow: "hidden",
+          background: remoteConfig.background || "#111827",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <img
+          src={remoteConfig.url}
+          alt={`${chain} icon`}
+          width={size}
+          height={size}
+          style={{
+            width: size,
+            height: size,
+            objectFit: "contain",
+          }}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setHasError(true)}
+        />
+      </div>
+    );
+  }
+
   switch (chain) {
     case "ETH":
       return (

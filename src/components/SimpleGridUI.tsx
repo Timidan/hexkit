@@ -31,7 +31,7 @@ import "../styles/ContractDataDisplay.css";
 // import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
-import type { Chain, ABIFetchResult, ContractInfo } from "../types";
+import type { Chain, ContractInfo, ExtendedABIFetchResult } from "../types";
 import {
   fetchDiamondFacets,
   getDiamondFacetAddresses,
@@ -59,11 +59,6 @@ import {
   EtherscanLogo,
   ManualLogo,
 } from "./SourceLogos";
-
-// Extended ABI fetch result with contract name
-interface ExtendedABIFetchResult extends ABIFetchResult {
-  contractName?: string;
-}
 
 const SimpleGridUI: React.FC = () => {
   // Wagmi hooks for wallet integration
@@ -253,7 +248,39 @@ const SimpleGridUI: React.FC = () => {
     total: number;
     currentFacet: string;
     status: "fetching" | "success" | "error";
-  }>({ current: 0, total: 0, currentFacet: "", status: "fetching" });
+    index: number;
+  }>({ current: 0, total: 0, currentFacet: "", status: "fetching", index: 0 });
+  type FacetDetailStatus = "pending" | "fetching" | "success" | "error";
+  const [facetProgressDetails, setFacetProgressDetails] = useState<
+    Array<{ index: number; address: string; status: FacetDetailStatus }>
+  >([]);
+  const [showFacetDetails, setShowFacetDetails] = useState(false);
+  const facetStatusColors: Record<FacetDetailStatus, string> = {
+    pending: "#6b7280",
+    fetching: "#38bdf8",
+    success: "#22c55e",
+    error: "#ef4444",
+  };
+  const facetStatusLabels: Record<FacetDetailStatus, string> = {
+    pending: "Pending",
+    fetching: "Loading",
+    success: "Ready",
+    error: "Error",
+  };
+  const abbreviateFacet = (address: string) =>
+    address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
+  const completedFacetDetails = facetProgressDetails.filter(
+    (detail) => detail.status === "success"
+  );
+  const displayedCompletedFacetDetails = completedFacetDetails.slice(-3);
+  const currentFacetDetail =
+    facetProgressDetails.find((detail) => detail.status === "fetching") ||
+    (facetProgress.index > 0 && facetProgress.index - 1 < facetProgressDetails.length
+      ? facetProgressDetails[facetProgress.index - 1]
+      : undefined);
+  const upcomingFacetDetails = facetProgressDetails
+    .filter((detail) => detail.status === "pending")
+    .slice(0, 2);
 
   // All available functions across all facets for search
   const allReadFunctions: ethers.utils.FunctionFragment[] =
@@ -7694,17 +7721,58 @@ const SimpleGridUI: React.FC = () => {
                   hideUI
                   onProgressChange={(p) => {
                     setFacetProgress(p);
+                    setFacetProgressDetails((prev) => {
+                      let next = prev;
+                      if (prev.length === 0 || prev.length !== p.total) {
+                        next = Array.from({ length: p.total }, (_, idx) => ({
+                          index: idx + 1,
+                          address:
+                            idx + 1 === p.index && p.currentFacet
+                              ? p.currentFacet
+                              : prev[idx]?.address || "",
+                          status: "pending" as FacetDetailStatus,
+                        }));
+                      } else {
+                        next = prev.map((entry) => ({ ...entry }));
+                      }
+
+                      const idx = p.index - 1;
+                      if (idx >= 0 && idx < next.length) {
+                        const status: FacetDetailStatus =
+                          p.status === "fetching" ? "fetching" : p.status;
+                        next[idx] = {
+                          ...next[idx],
+                          address: p.currentFacet || next[idx].address,
+                          status,
+                        };
+                      }
+
+                      for (let i = 0; i < p.current && i < next.length; i += 1) {
+                        if (
+                          next[i].status === "pending" ||
+                          next[i].status === "fetching"
+                        ) {
+                          next[i] = { ...next[i], status: "success" };
+                        }
+                      }
+
+                      return next;
+                    });
                     // Update search progress to show diamond facet loading
                     if (p?.currentFacet) {
                       setSearchProgress({
                         source: "Diamond Facets",
                         status: p.status === "error" ? "error" : "searching",
-                        message: `Loading facet ${p.current}/${p.total}: ${p.currentFacet}`,
+                        message: `Loading facet ${p.index}/${p.total}: ${p.currentFacet}`,
                       });
                     }
                   }}
                   onLoadingChange={(l) => {
                     setFacetLoading(l);
+                    if (l) {
+                      setFacetProgressDetails([]);
+                      setShowFacetDetails(false);
+                    }
                     if (!l) {
                       // Diamond facet loading completed
                       setSearchProgress({
@@ -7734,42 +7802,152 @@ const SimpleGridUI: React.FC = () => {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      fontSize: "12px",
-                      color: "#9ca3af",
+                      alignItems: "center",
+                      gap: "12px",
                       marginBottom: "6px",
                     }}
                   >
-                    <span>Loading diamond facets...</span>
-                    <span>
-                      {facetProgress.current} / {facetProgress.total}
-                    </span>
+                    <div style={{ flexGrow: 1 }}>
+                      <div style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "6px" }}>
+                        Processing facet
+                        <strong style={{ color: "#38bdf8", marginLeft: "6px" }}>
+                          {facetProgress.index}/{facetProgress.total}
+                        </strong>
+                        {facetProgress.currentFacet && (
+                          <span style={{ marginLeft: "6px", color: "#cbd5f5" }}>
+                            ({abbreviateFacet(facetProgress.currentFacet)})
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {displayedCompletedFacetDetails.map((detail) => (
+                          <span
+                            key={`done-${detail.index}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "4px 8px",
+                              borderRadius: "999px",
+                              fontSize: "11px",
+                              background: "rgba(34,197,94,0.15)",
+                              color: "#4ade80",
+                            }}
+                          >
+                            ✔ {abbreviateFacet(detail.address)}
+                          </span>
+                        ))}
+                        {currentFacetDetail && (
+                          <span
+                            key={`current-${currentFacetDetail.index}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "4px 8px",
+                              borderRadius: "999px",
+                              fontSize: "11px",
+                              background: "rgba(96,165,250,0.18)",
+                              color: "#60a5fa",
+                            }}
+                          >
+                            ⏳ {abbreviateFacet(currentFacetDetail.address)}
+                          </span>
+                        )}
+                        {upcomingFacetDetails.map((detail) => (
+                          <span
+                            key={`upcoming-${detail.index}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              padding: "4px 8px",
+                              borderRadius: "999px",
+                              fontSize: "11px",
+                              background: "rgba(148,163,184,0.12)",
+                              color: "#cbd5f5",
+                            }}
+                          >
+                            → {abbreviateFacet(detail.address)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          color: "#ffffff",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Completed {facetProgress.current} / {facetProgress.total}
+                      </div>
+                      {facetProgress.total > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowFacetDetails((prev) => !prev)}
+                          style={{
+                            marginTop: "6px",
+                            fontSize: "11px",
+                            color: "#a855f7",
+                            background: "transparent",
+                            border: "1px solid rgba(168,85,247,0.4)",
+                            borderRadius: "4px",
+                            padding: "2px 6px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {showFacetDetails ? "Hide details" : "Show details"}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      height: "6px",
-                      background: "#2a2a2a",
-                      borderRadius: "4px",
-                      overflow: "hidden",
-                    }}
-                  >
+                  {showFacetDetails && facetProgressDetails.length > 0 && (
                     <div
                       style={{
-                        width: `${facetProgress.total > 0 ? Math.min(100, Math.max(0, (facetProgress.current / facetProgress.total) * 100)) : 0}%`,
-                        height: "100%",
-                        background: "#7c3aed",
-                      }}
-                    />
-                  </div>
-                  {facetProgress.currentFacet && (
-                    <div
-                      style={{
-                        marginTop: "6px",
-                        fontSize: "11px",
-                        color: "#6b7280",
-                        fontFamily: "monospace",
+                        marginTop: "8px",
+                        padding: "8px",
+                        background: "rgba(255,255,255,0.03)",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        maxHeight: "160px",
+                        overflowY: "auto",
                       }}
                     >
-                      {facetProgress.currentFacet}
+                      {facetProgressDetails.map((detail) => (
+                          <div
+                            key={detail.index}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              fontSize: "11px",
+                              color: facetStatusColors[detail.status],
+                              marginBottom: "4px",
+                              fontFamily: "monospace",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: "6px",
+                                height: "6px",
+                                borderRadius: "50%",
+                                backgroundColor: facetStatusColors[detail.status],
+                              }}
+                            />
+                            <span style={{ flexShrink: 0, minWidth: "72px" }}>
+                              Facet {detail.index}:
+                            </span>
+                            <span style={{ flexGrow: 1 }}>
+                              {detail.address || "Pending"}
+                            </span>
+                            <span style={{ color: "#9ca3af", fontSize: "10px" }}>
+                              {facetStatusLabels[detail.status]}
+                            </span>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

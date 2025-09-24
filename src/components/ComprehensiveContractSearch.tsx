@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  fetchContractInfoComprehensive,
-  type ContractInfoResult,
-} from "../utils/comprehensiveContractFetcher";
+import { type ContractInfoResult } from "../utils/comprehensiveContractFetcher";
 import type { Chain } from "../types";
 import {
   Loader2,
@@ -16,6 +13,7 @@ import {
   Radio,
   Wifi,
 } from "lucide-react";
+import { useContractLookup } from "../hooks/useContractLookup";
 
 interface ComprehensiveContractSearchProps {
   onContractFound?: (result: ContractInfoResult) => void;
@@ -27,16 +25,28 @@ const ComprehensiveContractSearch: React.FC<
 > = ({ onContractFound, onLoadingChange }) => {
   const [contractAddress, setContractAddress] = useState("");
   const [selectedChain, setSelectedChain] = useState<Chain | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<ContractInfoResult | null>(
     null
   );
   const [error, setError] = useState<string>("");
   const [searchProgress, setSearchProgress] = useState<
-    ContractInfoResult["searchProgress"]
+    NonNullable<ContractInfoResult["searchProgress"]>
   >([]);
   const [originalResult, setOriginalResult] =
     useState<ContractInfoResult | null>(null);
+
+  const {
+    loading: isLoading,
+    error: lookupError,
+    result,
+    refetch,
+    cancel,
+  } = useContractLookup(contractAddress, selectedChain, {
+    auto: false,
+    progressCallback: (progress) => {
+      setSearchProgress((prev) => [...prev, progress]);
+    },
+  });
 
   // Supported chains
   const supportedChains: Chain[] = [
@@ -148,30 +158,14 @@ const ComprehensiveContractSearch: React.FC<
       return;
     }
 
-    setIsLoading(true);
     setError("");
     setSearchResult(null);
     setSearchProgress([]);
 
     try {
-
-      const result = await fetchContractInfoComprehensive(
-        contractAddress,
-        selectedChain
-      );
-      setSearchResult(result);
-      setOriginalResult(result);
-      setSearchProgress(result.searchProgress || []);
-
-      if (result.success) {
-        onContractFound?.(result);
-      } else {
-        setError(result.error || "Failed to fetch contract information");
-      }
+      await refetch();
     } catch (error) {
       setError("Network error occurred while fetching contract information");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -189,6 +183,30 @@ const ComprehensiveContractSearch: React.FC<
         return <Search className="w-4 h-4 text-gray-400" />;
     }
   };
+
+  useEffect(() => () => {
+    cancel();
+  }, [cancel]);
+
+  useEffect(() => {
+    if (!lookupError) return;
+    setError(lookupError);
+  }, [lookupError]);
+
+  useEffect(() => {
+    if (!result) return;
+
+    setSearchResult(result);
+    setOriginalResult(result);
+    setSearchProgress(result.searchProgress || []);
+
+    if (result.success) {
+      onContractFound?.(result);
+      setError("");
+    } else if (result.error) {
+      setError(result.error);
+    }
+  }, [onContractFound, result]);
 
   const getTokenIcon = (tokenType: string) => {
     switch (tokenType) {
