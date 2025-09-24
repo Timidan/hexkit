@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Network, Wifi, WifiOff } from 'lucide-react';
 import type { Chain } from '../../types';
+import ChainIcon, { type ChainKey } from '../icons/ChainIcon';
 
 const API_KEY =
   (import.meta.env as unknown as { API_KEY?: string; VITE_API_KEY?: string })
@@ -19,6 +20,7 @@ export interface ExtendedChain extends Partial<Chain> {
   category?: 'mainnet' | 'testnet' | 'local';
   icon?: string;
   color?: string;
+  chainKey?: ChainKey;
 }
 
 // Comprehensive network list with mainnets and testnets
@@ -32,7 +34,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#627eea',
-    icon: '⟠'
+    icon: '⟠',
+    chainKey: 'ETH'
   },
   {
     id: 137,
@@ -42,7 +45,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#8247e5',
-    icon: '⬟'
+    icon: '⬟',
+    chainKey: 'POLY'
   },
   {
     id: 42161,
@@ -52,7 +56,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#28a0f0',
-    icon: '🔵'
+    icon: '🔵',
+    chainKey: 'ARB'
   },
   {
     id: 10,
@@ -62,7 +67,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#ff0420',
-    icon: '🔴'
+    icon: '🔴',
+    chainKey: 'OP'
   },
   {
     id: 8453,
@@ -72,7 +78,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#0052ff',
-    icon: '🟦'
+    icon: '🟦',
+    chainKey: 'BASE'
   },
   {
     id: 56,
@@ -82,7 +89,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#f3ba2f',
-    icon: '🟡'
+    icon: '🟡',
+    chainKey: 'BSC'
   },
   {
     id: 100,
@@ -92,7 +100,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#3e6957',
-    icon: '🟢'
+    icon: '🟢',
+    chainKey: 'GNO'
   },
   
   // Testnets
@@ -104,7 +113,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#627eea',
-    icon: '⟠'
+    icon: '⟠',
+    chainKey: 'ETH'
   },
   {
     id: 5,
@@ -114,7 +124,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#627eea',
-    icon: '⟠'
+    icon: '⟠',
+    chainKey: 'ETH'
   },
   {
     id: 80001,
@@ -124,7 +135,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#8247e5',
-    icon: '⬟'
+    icon: '⬟',
+    chainKey: 'POLY'
   },
   {
     id: 421614,
@@ -134,7 +146,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#28a0f0',
-    icon: '🔵'
+    icon: '🔵',
+    chainKey: 'ARB'
   },
   {
     id: 11155420,
@@ -144,7 +157,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#ff0420',
-    icon: '🔴'
+    icon: '🔴',
+    chainKey: 'OP'
   },
   {
     id: 84532,
@@ -156,7 +170,8 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#0052ff',
-    icon: '🟦'
+    icon: '🟦',
+    chainKey: 'BASE'
   },
   {
     id: 97,
@@ -166,9 +181,38 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#f3ba2f',
-    icon: '🟡'
+    icon: '🟡',
+    chainKey: 'BSC'
   },
 ];
+
+const getDefaultChainKey = (id: number): ChainKey => {
+  switch (id) {
+    case 1:
+    case 5:
+    case 11155111:
+      return 'ETH';
+    case 137:
+    case 80001:
+      return 'POLY';
+    case 42161:
+    case 421614:
+      return 'ARB';
+    case 10:
+    case 11155420:
+      return 'OP';
+    case 8453:
+    case 84532:
+      return 'BASE';
+    case 56:
+    case 97:
+      return 'BSC';
+    case 100:
+      return 'GNO';
+    default:
+      return 'ETH';
+  }
+};
 
 export interface NetworkSelectorProps {
   selectedNetwork: ExtendedChain | null;
@@ -190,11 +234,45 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   variant = 'default'
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [showTestnetToggle, setShowTestnetToggle] = useState(showTestnets);
+  const [networkCategory, setNetworkCategory] = useState<'live' | 'testnet'>(
+    selectedNetwork?.isTestnet ? 'testnet' : showTestnets ? 'testnet' : 'live'
+  );
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Filter networks based on testnet preference
-  const filteredNetworks = networks.filter(network => 
-    showTestnetToggle ? true : !network.isTestnet
+  useEffect(() => {
+    if (!selectedNetwork) return;
+    setNetworkCategory(selectedNetwork.isTestnet ? 'testnet' : 'live');
+  }, [selectedNetwork?.id, selectedNetwork?.isTestnet]);
+
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('keydown', handleEscape, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside, true);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+  }, [isDropdownOpen]);
+
+  const filteredNetworks = networks.filter((network) =>
+    networkCategory === 'testnet' ? network.isTestnet : !network.isTestnet
   );
 
   const mainnetCount = networks.filter(n => !n.isTestnet).length;
@@ -231,16 +309,41 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
 
   const sizeStyles = getSizeStyles();
 
-  const getNetworkIcon = (network: ExtendedChain) => {
-    return network.icon || '🌐';
-  };
-
   const getNetworkStatus = (network: ExtendedChain) => {
     return network.isTestnet ? 'Testnet' : 'Mainnet';
   };
 
+  const renderNetworkIcon = (
+    network?: ExtendedChain | null,
+    size = sizeStyles.icon
+  ) => {
+    if (!network) {
+      return (
+        <span role="img" aria-label="network" style={{ fontSize: size }}>
+          🌐
+        </span>
+      );
+    }
+
+    const resolvedKey = network.chainKey ?? getDefaultChainKey(network.id);
+
+    return (
+      <ChainIcon
+        chain={resolvedKey}
+        size={size}
+        rounded={Math.max(6, Math.round(size / 2))}
+      />
+    );
+  };
+
+  const dropdownIconSize = Math.max(20, sizeStyles.icon);
+
   return (
-    <div className={`network-selector ${className}`} style={{ position: 'relative' }}>
+    <div
+      ref={containerRef}
+      className={`network-selector ${className}`}
+      style={{ position: 'relative' }}
+    >
       {variant === 'default' && (
         <label style={{
           fontSize: '14px',
@@ -297,7 +400,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
             borderRadius: '8px',
             border: selectedNetwork?.color ? `1px solid ${selectedNetwork.color}40` : '1px solid rgba(255, 255, 255, 0.2)'
           }}>
-            {selectedNetwork ? getNetworkIcon(selectedNetwork) : '🌐'}
+            {renderNetworkIcon(selectedNetwork)}
           </div>
           
           {variant === 'default' && (
@@ -356,7 +459,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           maxHeight: '400px',
           overflowY: 'auto'
         }}>
-          {/* Testnet toggle */}
+          {/* Category selector */}
           <div style={{
             padding: '12px 16px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -365,7 +468,9 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
             }}>
               <div style={{
                 display: 'flex',
@@ -374,27 +479,101 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
                 fontSize: '12px',
                 color: '#9ca3af'
               }}>
-                <span>{mainnetCount} Mainnets • {testnetCount} Testnets</span>
+                <span>{mainnetCount} Live • {testnetCount} Testnets</span>
               </div>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowTestnetToggle(!showTestnetToggle);
-                }}
-                style={{
-                  padding: '4px 8px',
-                  background: showTestnetToggle ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                  border: `1px solid ${showTestnetToggle ? 'rgba(245, 158, 11, 0.4)' : 'rgba(255, 255, 255, 0.2)'}`,
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  color: showTestnetToggle ? '#fbbf24' : '#9ca3af',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {showTestnetToggle ? 'Hide Testnets' : 'Show Testnets'}
-              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'rgba(148, 163, 184, 0.8)'
+                  }}
+                >
+                  Network Type
+                </span>
+                <div
+                  data-style-version="glass-v2"
+                  role="tablist"
+                  aria-label="Network Type"
+                  style={{
+                    display: 'inline-flex',
+                    position: 'relative',
+                    padding: '2px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(148, 163, 184, 0.16)',
+                    background: 'rgba(15, 23, 42, 0.55)',
+                    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.45)',
+                    backdropFilter: 'blur(14px)',
+                    WebkitBackdropFilter: 'blur(14px)'
+                  }}
+                >
+                  {(['live', 'testnet'] as const).map((category) => {
+                    const isActive = networkCategory === category;
+                    const handleSelect = (event: React.SyntheticEvent) => {
+                      event.stopPropagation();
+                      setNetworkCategory(category);
+                    };
+
+                    return (
+                      <div
+                        key={category}
+                        role="tab"
+                        aria-selected={isActive}
+                        tabIndex={0}
+                        onClick={handleSelect}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            handleSelect(event);
+                          }
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          padding: '8px 18px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: isActive ? '#f9fafb' : '#cbd5f5',
+                          background: isActive
+                            ? 'rgba(99, 102, 241, 0.32)'
+                            : 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          transition: 'all 0.2s ease',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          borderRadius: '10px',
+                          boxShadow: isActive
+                            ? '0 12px 24px rgba(99, 102, 241, 0.35)'
+                            : 'none'
+                        }}
+                      >
+                        <span>{category === 'live' ? 'Live' : 'Testnet'}</span>
+                        {isActive ? (
+                          <span
+                            style={{
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              background:
+                                category === 'live'
+                                  ? 'linear-gradient(135deg, #34d399, #22c55e)'
+                                  : 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                              boxShadow:
+                                category === 'live'
+                                  ? '0 0 10px rgba(34, 197, 94, 0.65)'
+                                  : '0 0 10px rgba(245, 158, 11, 0.65)'
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -424,9 +603,9 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
               }}
             >
               <div style={{
-                fontSize: '20px',
-                width: '32px',
-                height: '32px',
+                fontSize: dropdownIconSize,
+                width: `${dropdownIconSize + 8}px`,
+                height: `${dropdownIconSize + 8}px`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -434,7 +613,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
                 borderRadius: '8px',
                 border: network.color ? `1px solid ${network.color}40` : '1px solid rgba(255, 255, 255, 0.2)'
               }}>
-                {getNetworkIcon(network)}
+                {renderNetworkIcon(network, dropdownIconSize)}
               </div>
               
               <div style={{ flex: 1 }}>
