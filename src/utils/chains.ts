@@ -86,6 +86,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
     },
   },
   {
+    id: 4202,
+    name: "Lisk Sepolia",
+    rpcUrl: "https://rpc.sepolia-api.lisk.com",
+    explorerUrl: "https://sepolia-blockscout.lisk.com",
+    blockExplorer: "https://sepolia-blockscout.lisk.com",
+    apiUrl: "https://sepolia-blockscout.lisk.com/api",
+    explorers: [
+      {
+        name: "Blockscout",
+        url: "https://sepolia-blockscout.lisk.com/api",
+        type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "Sepolia Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
     id: 137,
     name: "Polygon",
     rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`,

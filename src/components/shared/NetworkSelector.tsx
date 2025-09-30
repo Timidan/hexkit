@@ -161,6 +161,17 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     chainKey: 'OP'
   },
   {
+    id: 4202,
+    name: 'Lisk Sepolia',
+    rpcUrl: 'https://rpc.sepolia-api.lisk.com',
+    blockExplorer: 'https://sepolia-blockscout.lisk.com',
+    isTestnet: true,
+    category: 'testnet',
+    color: '#0f74ff',
+    icon: '🔷',
+    chainKey: 'LISK'
+  },
+  {
     id: 84532,
     name: 'Base Sepolia',
     rpcUrl: API_KEY
@@ -209,6 +220,8 @@ const getDefaultChainKey = (id: number): ChainKey => {
       return 'BSC';
     case 100:
       return 'GNO';
+    case 4202:
+      return 'LISK';
     default:
       return 'ETH';
   }

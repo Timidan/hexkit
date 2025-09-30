@@ -1,6 +1,14 @@
 import React from "react";
 
-export type ChainKey = "ETH" | "BASE" | "POLY" | "ARB" | "OP" | "BSC" | "GNO";
+export type ChainKey =
+  | "ETH"
+  | "BASE"
+  | "POLY"
+  | "ARB"
+  | "OP"
+  | "BSC"
+  | "GNO"
+  | "LISK";
 
 interface ChainIconProps {
   chain: ChainKey;
@@ -35,6 +43,10 @@ const REMOTE_ICON_MAP: Partial<Record<ChainKey, { url: string; background?: stri
   },
   GNO: {
     url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/xdai/info/logo.png?raw=1",
+    background: "#0f172a",
+  },
+  LISK: {
+    url: "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/lisk/info/logo.png?raw=1",
     background: "#0f172a",
   },
 };
@@ -152,6 +164,16 @@ const ChainIcon: React.FC<ChainIconProps> = ({
       return (
         <CircleBg color="#48A9A6" size={size} rounded={rounded}>
           <circle cx="12" cy="12" r="4" fill="#FFFFFF" />
+        </CircleBg>
+      );
+    case "LISK":
+      return (
+        <CircleBg color="#0F74FF" size={size} rounded={rounded}>
+          <path
+            d="M12 6 L7 15 L12 18 L17 15 Z"
+            fill="#FFFFFF"
+            opacity="0.9"
+          />
         </CircleBg>
       );
     default:

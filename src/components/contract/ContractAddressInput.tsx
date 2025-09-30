@@ -16,6 +16,7 @@ const getChainKey = (chain: Chain): ChainKey => {
     case 10: return 'OP';
     case 56: return 'BSC';
     case 100: return 'GNO';
+    case 4202: return 'LISK';
     default: return 'ETH';
   }
 };
