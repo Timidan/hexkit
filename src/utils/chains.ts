@@ -34,6 +34,33 @@ export const SUPPORTED_CHAINS: Chain[] = [
     },
   },
   {
+    id: 11155111,
+    name: "Ethereum Sepolia",
+    rpcUrl: API_KEY
+      ? `https://eth-sepolia.g.alchemy.com/v2/${API_KEY}`
+      : "https://rpc.sepolia.ethpandaops.io",
+    explorerUrl: "https://sepolia.etherscan.io",
+    blockExplorer: "https://sepolia.etherscan.io",
+    apiUrl: "https://api-sepolia.etherscan.io/api",
+    explorers: [
+      {
+        name: "Etherscan",
+        url: "https://api-sepolia.etherscan.io/api",
+        type: "etherscan",
+      },
+      {
+        name: "Blockscout",
+        url: "https://eth-sepolia.blockscout.com/api",
+        type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "Sepolia Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
     id: 8453,
     name: "Base",
     rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`,
@@ -77,6 +104,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
         name: "Base Sepolia Blockscout",
         url: "https://base-sepolia.blockscout.com/api",
         type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
+    id: 17000,
+    name: "Holesky",
+    rpcUrl: "https://ethereum-holesky.publicnode.com",
+    explorerUrl: "https://holesky.etherscan.io",
+    blockExplorer: "https://holesky.etherscan.io",
+    apiUrl: "https://api-holesky.etherscan.io/api",
+    explorers: [
+      {
+        name: "Holesky Etherscan",
+        url: "https://api-holesky.etherscan.io/api",
+        type: "etherscan",
       },
     ],
     nativeCurrency: {
@@ -131,6 +178,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
     },
   },
   {
+    id: 80002,
+    name: "Polygon Amoy",
+    rpcUrl: "https://rpc-amoy.polygon.technology",
+    explorerUrl: "https://amoy.polygonscan.com",
+    blockExplorer: "https://amoy.polygonscan.com",
+    apiUrl: "https://api-amoy.polygonscan.com/api",
+    explorers: [
+      {
+        name: "PolygonScan Amoy",
+        url: "https://api-amoy.polygonscan.com/api",
+        type: "etherscan",
+      },
+    ],
+    nativeCurrency: {
+      name: "MATIC",
+      symbol: "MATIC",
+      decimals: 18,
+    },
+  },
+  {
     id: 42161,
     name: "Arbitrum",
     rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`,
@@ -147,6 +214,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
         name: "Arbitrum Blockscout",
         url: "https://arbitrum.blockscout.com/api",
         type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
+    id: 421614,
+    name: "Arbitrum Sepolia",
+    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+    explorerUrl: "https://sepolia.arbiscan.io",
+    blockExplorer: "https://sepolia.arbiscan.io",
+    apiUrl: "https://api-sepolia.arbiscan.io/api",
+    explorers: [
+      {
+        name: "Arbiscan Sepolia",
+        url: "https://api-sepolia.arbiscan.io/api",
+        type: "etherscan",
       },
     ],
     nativeCurrency: {
@@ -176,6 +263,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
     },
   },
   {
+    id: 11155420,
+    name: "Optimism Sepolia",
+    rpcUrl: "https://sepolia.optimism.io",
+    explorerUrl: "https://sepolia-optimism.etherscan.io",
+    blockExplorer: "https://sepolia-optimism.etherscan.io",
+    apiUrl: "https://api-sepolia-optimism.etherscan.io/api",
+    explorers: [
+      {
+        name: "Optimism Sepolia Etherscan",
+        url: "https://api-sepolia-optimism.etherscan.io/api",
+        type: "etherscan",
+      },
+    ],
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
     id: 56,
     name: "BSC",
     rpcUrl: "https://bsc-dataseed.binance.org/",
@@ -192,6 +299,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
     nativeCurrency: {
       name: "BNB",
       symbol: "BNB",
+      decimals: 18,
+    },
+  },
+  {
+    id: 97,
+    name: "BNB Testnet",
+    rpcUrl: "https://bsc-testnet.public.blastapi.io",
+    explorerUrl: "https://testnet.bscscan.com",
+    blockExplorer: "https://testnet.bscscan.com",
+    apiUrl: "https://api-testnet.bscscan.com/api",
+    explorers: [
+      {
+        name: "BscScan Testnet",
+        url: "https://api-testnet.bscscan.com/api",
+        type: "etherscan",
+      },
+    ],
+    nativeCurrency: {
+      name: "BNB",
+      symbol: "tBNB",
       decimals: 18,
     },
   },

@@ -108,7 +108,9 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 11155111,
     name: 'Sepolia',
-    rpcUrl: 'https://eth-sepolia.g.alchemy.com/v2/demo',
+    rpcUrl: (API_KEY
+      ? `https://eth-sepolia.g.alchemy.com/v2/${API_KEY}`
+      : 'https://rpc.sepolia.ethpandaops.io'),
     blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
     category: 'testnet',
@@ -117,10 +119,10 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     chainKey: 'ETH'
   },
   {
-    id: 5,
-    name: 'Goerli',
-    rpcUrl: 'https://eth-goerli.g.alchemy.com/v2/demo',
-    blockExplorer: 'https://goerli.etherscan.io',
+    id: 17000,
+    name: 'Holesky',
+    rpcUrl: 'https://ethereum-holesky.publicnode.com',
+    blockExplorer: 'https://holesky.etherscan.io',
     isTestnet: true,
     category: 'testnet',
     color: '#627eea',
@@ -128,10 +130,10 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     chainKey: 'ETH'
   },
   {
-    id: 80001,
-    name: 'Polygon Mumbai',
-    rpcUrl: 'https://polygon-mumbai.g.alchemy.com/v2/demo',
-    blockExplorer: 'https://mumbai.polygonscan.com',
+    id: 80002,
+    name: 'Polygon Amoy',
+    rpcUrl: 'https://rpc-amoy.polygon.technology',
+    blockExplorer: 'https://amoy.polygonscan.com',
     isTestnet: true,
     category: 'testnet',
     color: '#8247e5',
@@ -141,7 +143,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 421614,
     name: 'Arbitrum Sepolia',
-    rpcUrl: 'https://arb-sepolia.g.alchemy.com/v2/demo',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
     blockExplorer: 'https://sepolia.arbiscan.io',
     isTestnet: true,
     category: 'testnet',
@@ -152,7 +154,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 11155420,
     name: 'Optimism Sepolia',
-    rpcUrl: 'https://opt-sepolia.g.alchemy.com/v2/demo',
+    rpcUrl: 'https://sepolia.optimism.io',
     blockExplorer: 'https://sepolia-optimism.etherscan.io',
     isTestnet: true,
     category: 'testnet',
@@ -187,7 +189,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 97,
     name: 'BNB Testnet',
-    rpcUrl: 'https://data-seed-prebsc-1-s1.binance.org:8545',
+    rpcUrl: 'https://bsc-testnet.public.blastapi.io',
     blockExplorer: 'https://testnet.bscscan.com',
     isTestnet: true,
     category: 'testnet',
@@ -200,11 +202,11 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
 const getDefaultChainKey = (id: number): ChainKey => {
   switch (id) {
     case 1:
-    case 5:
+    case 17000:
     case 11155111:
       return 'ETH';
     case 137:
-    case 80001:
+    case 80002:
       return 'POLY';
     case 42161:
     case 421614:

@@ -30,6 +30,7 @@ dist-ssr
 .env
 CURSOR.md
 scripts
+!scripts/testnet-probe.js
 IMPLEMENTATION_OVERRIDES.md
 REFACTORING_DOCUMENTATION.md
 src/assets/jsx

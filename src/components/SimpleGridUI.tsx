@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   useAccount,
   useWalletClient,
@@ -226,8 +226,27 @@ const SimpleGridUI: React.FC = () => {
   const [selectedNetwork, setSelectedNetwork] = useState<Chain | null>(
     SUPPORTED_CHAINS[0]
   );
+  const extendedSelectedNetwork = useMemo<ExtendedChain | null>(() => {
+    if (!selectedNetwork) {
+      return null;
+    }
+
+    const baseNetwork = EXTENDED_NETWORKS.find(
+      (network) => network.id === selectedNetwork.id
+    );
+    const isTestnet = baseNetwork?.isTestnet ?? false;
+    const category = baseNetwork?.category ?? (isTestnet ? "testnet" : "mainnet");
+
+    return {
+      ...(baseNetwork ?? {}),
+      ...selectedNetwork,
+      isTestnet,
+      category,
+    };
+  }, [selectedNetwork]);
   const [isLoadingABI, setIsLoadingABI] = useState(false);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
+  const fetchRequestRef = useRef<number>(0);
   const [abiError, setAbiError] = useState<string | null>(null);
   const [searchProgress, setSearchProgress] = useState<{
     source: string;
@@ -459,6 +478,14 @@ const SimpleGridUI: React.FC = () => {
       137: "https://polygon-rpc.com", // Polygon
       42161: "https://arb1.arbitrum.io/rpc", // Arbitrum
       10: "https://mainnet.optimism.io", // Optimism
+      11155111: "https://rpc.sepolia.ethpandaops.io", // Ethereum Sepolia
+      17000: "https://ethereum-holesky.publicnode.com", // Holesky
+      80002: "https://rpc-amoy.polygon.technology", // Polygon Amoy
+      421614: "https://sepolia-rollup.arbitrum.io/rpc", // Arbitrum Sepolia
+      11155420: "https://sepolia.optimism.io", // Optimism Sepolia
+      84532: "https://sepolia.base.org", // Base Sepolia
+      4202: "https://rpc.sepolia-api.lisk.com", // Lisk Sepolia
+      97: "https://bsc-testnet.public.blastapi.io", // BNB Testnet
     };
 
     // Choose RPC URL - prioritize current configuration over cached data
@@ -3117,6 +3144,10 @@ const SimpleGridUI: React.FC = () => {
     updateCallData();
   }, [updateCallData]);
 
+  useEffect(() => {
+    fetchRequestRef.current += 1;
+  }, [selectedNetwork?.id]);
+
   const handleInputChange = (inputKey: string, value: string) => {
     setFunctionInputs((prev) => {
       const newInputs = {
@@ -3161,6 +3192,19 @@ const SimpleGridUI: React.FC = () => {
     setSelectedFunctionObj(null);
     setFunctionInputs({});
     setGeneratedCallData("0x");
+    setContractName("");
+    setTokenInfo(null);
+    setTokenDetection(null);
+    setIsERC20(false);
+    setIsERC721(false);
+    setIsERC1155(false);
+    setIsERC777(false);
+    setIsERC4626(false);
+    setIsERC2981(false);
+    setFunctionResult(null);
+    const requestId = Date.now();
+    fetchRequestRef.current = requestId;
+    const isStale = () => fetchRequestRef.current !== requestId;
 
     try {
       console.log("🔍 Starting comprehensive contract fetch...");
@@ -3173,9 +3217,16 @@ const SimpleGridUI: React.FC = () => {
         contractAddress,
         chainConfig,
         (progress) => {
+          if (isStale()) {
+            return;
+          }
           setSearchProgress(progress);
         }
       );
+
+      if (isStale()) {
+        return;
+      }
 
       if (result.success && result.abi) {
         console.log("✅ Contract found via comprehensive search");
@@ -3188,6 +3239,10 @@ const SimpleGridUI: React.FC = () => {
             abi: result.abi,
             verified: true,
           };
+
+          if (isStale()) {
+            return;
+          }
 
           setContractInfo(contractInfoObj);
           setAbiError(null);
@@ -3221,6 +3276,10 @@ const SimpleGridUI: React.FC = () => {
             functionNames,
             eventSignatures
           );
+
+          if (isStale()) {
+            return;
+          }
 
           // Set contract name from search result
           if (result.contractName) {
@@ -3269,6 +3328,10 @@ const SimpleGridUI: React.FC = () => {
             // Always run ERC165 universal detection and prefer its result
             const result = await detectTokenType(provider, contractAddress);
 
+            if (isStale()) {
+              return;
+            }
+
             setTokenDetection({
               type: result.type,
               confidence: result.type === "unknown" ? 0 : 0.95,
@@ -3313,6 +3376,10 @@ const SimpleGridUI: React.FC = () => {
 
           const provider = createEthersProvider(selectedNetwork);
           const det = await detectTokenType(provider, contractAddress);
+
+          if (isStale()) {
+            return;
+          }
           setTokenDetection({
             type: det.type,
             confidence: det.type === "unknown" ? 0 : 0.95,
@@ -3333,10 +3400,15 @@ const SimpleGridUI: React.FC = () => {
         }
       }
     } catch (error) {
+      if (fetchRequestRef.current !== requestId) {
+        return;
+      }
       console.error("Error in comprehensive contract fetch:", error);
       setAbiError("Network error occurred while fetching contract information");
     } finally {
-      setIsLoadingABI(false);
+      if (fetchRequestRef.current === requestId) {
+        setIsLoadingABI(false);
+      }
     }
   };
 
@@ -3860,18 +3932,7 @@ const SimpleGridUI: React.FC = () => {
               {/* Network Selection */}
               <div style={{ marginBottom: "16px" }}>
                 <NetworkSelector
-                  selectedNetwork={
-                    selectedNetwork
-                      ? {
-                          id: selectedNetwork.id,
-                          name: selectedNetwork.name,
-                          rpcUrl: selectedNetwork.rpcUrl,
-                          blockExplorer: selectedNetwork.blockExplorer,
-                          isTestnet: false, // We'll determine this based on the network
-                          category: "mainnet" as const,
-                        }
-                      : null
-                  }
+                  selectedNetwork={extendedSelectedNetwork}
                   onNetworkChange={(extendedChain: ExtendedChain) => {
                     // Convert ExtendedChain back to Chain for compatibility
                     const chain = SUPPORTED_CHAINS.find(
@@ -6288,6 +6349,28 @@ const SimpleGridUI: React.FC = () => {
                               marginBottom: "12px",
                             }}
                           >
+                            {selectedFunctionType === "write" &&
+                              !isConnected &&
+                              openConnectModal && (
+                                <button
+                                  type="button"
+                                  onClick={openConnectModal}
+                                  style={{
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(59, 130, 246, 0.4)",
+                                    background: "rgba(59, 130, 246, 0.16)",
+                                    color: "#cbd5f5",
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                >
+                                  Connect wallet
+                                </button>
+                              )}
+
                             <button
                               style={{
                                 padding: "8px 12px",
@@ -6421,23 +6504,37 @@ const SimpleGridUI: React.FC = () => {
                                           `💎 [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : "N/A"}`
                                         );
 
-                                        if (facet.abi && facet.isVerified) {
-                                          const facetABI = Array.isArray(
-                                            facet.abi
-                                          )
-                                            ? facet.abi
-                                            : JSON.parse(facet.abi as string);
-                                          const functionCount = facetABI.filter(
-                                            (item: any) =>
-                                              item.type === "function"
-                                          ).length;
-                                          console.log(
-                                            `💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions`
-                                          );
-                                          combinedABI.push(...facetABI);
+                                        if (facet.abi) {
+                                          let facetABI: any[] = [];
+                                          try {
+                                            facetABI = Array.isArray(facet.abi)
+                                              ? facet.abi
+                                              : JSON.parse(facet.abi as string);
+                                          } catch (parseError) {
+                                            console.log(
+                                              `💎 [Diamond] Facet ${index + 1} ABI parsing failed`,
+                                              parseError
+                                            );
+                                            facetABI = [];
+                                          }
+
+                                          if (facetABI.length > 0) {
+                                            const functionCount = facetABI.filter(
+                                              (item: any) =>
+                                                item.type === "function"
+                                            ).length;
+                                            console.log(
+                                              `💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions (source=${facet.inferenceSource || facet.source}, confidence=${facet.confidence || (facet.isVerified ? "verified" : "inferred")})`
+                                            );
+                                            combinedABI.push(...facetABI);
+                                          } else {
+                                            console.log(
+                                              `💎 [Diamond] Facet ${index + 1} has no functions after parsing`
+                                            );
+                                          }
                                         } else {
                                           console.log(
-                                            `💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI or not verified`
+                                            `💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI data`
                                           );
                                         }
                                       });
@@ -6891,8 +6988,35 @@ const SimpleGridUI: React.FC = () => {
                                       console.log(
                                         `📝 [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
                                       );
+                                      const activeWalletClient = walletClient;
+                                      if (!activeWalletClient) {
+                                        showError('Wallet Disconnected', 'Wallet client became unavailable.');
+                                        return;
+                                      }
+
+                                      const resolvedClientChainId = (typeof activeWalletClient.getChainId === 'function'
+                                        ? await activeWalletClient.getChainId()
+                                        : activeWalletClient.chain?.id) ?? chainId;
+
+                                      if (
+                                        selectedNetwork &&
+                                        resolvedClientChainId !== selectedNetwork.id
+                                      ) {
+                                        const expectedName = selectedNetwork.name || 'selected network';
+                                        showError(
+                                          'Network Mismatch',
+                                          `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                        );
+                                        setFunctionResult({
+                                          data: null,
+                                          error: `Wallet network mismatch. Expected ${expectedName}.`,
+                                          isLoading: false,
+                                        });
+                                        return;
+                                      }
+
                                       const hash =
-                                        await walletClient!.writeContract({
+                                        await activeWalletClient.writeContract({
                                           address:
                                             contractAddress as `0x${string}`,
                                           abi: contractABI,
@@ -7128,8 +7252,8 @@ const SimpleGridUI: React.FC = () => {
                                 gap: "8px",
                               }}
                             >
-                              💡 Connect your wallet in the header to execute
-                              transactions
+                              💡 Connect your wallet using the button above to
+                              execute transactions
                             </div>
                           )}
 
@@ -7550,12 +7674,34 @@ const SimpleGridUI: React.FC = () => {
                                 }
                               }
 
+                              const activeWalletClient = walletClient;
+                              if (!activeWalletClient) {
+                                showError('Wallet Disconnected', 'Wallet client became unavailable.');
+                                return;
+                              }
+
+                              const resolvedClientChainId = (typeof activeWalletClient.getChainId === 'function'
+                                ? await activeWalletClient.getChainId()
+                                : activeWalletClient.chain?.id) ?? chainId;
+
+                              if (
+                                selectedNetwork &&
+                                resolvedClientChainId !== selectedNetwork.id
+                              ) {
+                                const expectedName = selectedNetwork.name || 'selected network';
+                                showError(
+                                  'Network Mismatch',
+                                  `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                );
+                                return;
+                              }
+
                               showInfo(
                                 "Sending Transaction",
                                 "Broadcasting raw transaction..."
                               );
 
-                              const hash = await walletClient.sendTransaction({
+                              const hash = await activeWalletClient.sendTransaction({
                                 to: contractAddress as `0x${string}`,
                                 data: generatedCallData as `0x${string}`,
                               });
@@ -7668,55 +7814,89 @@ const SimpleGridUI: React.FC = () => {
                     console.log(
                       "🔍 [Diamond] Updating function lists with facet functions..."
                     );
-                    const allReadFunctions: ethers.utils.FunctionFragment[] =
-                      [];
-                    const allWriteFunctions: ethers.utils.FunctionFragment[] =
-                      [];
+                    const readMap = new Map<
+                      string,
+                      ethers.utils.FunctionFragment
+                    >();
+                    const writeMap = new Map<
+                      string,
+                      ethers.utils.FunctionFragment
+                    >();
+
+                    const registerFunction = (
+                      fragment: ethers.utils.FunctionFragment,
+                      includeRead: boolean,
+                      includeWrite: boolean
+                    ) => {
+                      const key = fragment.format(
+                        ethers.utils.FormatTypes.full
+                      );
+                      if (includeRead && !readMap.has(key)) {
+                        readMap.set(key, fragment);
+                      }
+                      if (includeWrite && !writeMap.has(key)) {
+                        writeMap.set(key, fragment);
+                      }
+                    };
 
                     facets.forEach((facet) => {
-                      if (facet.abi) {
+                      const rawAbi = (() => {
+                        if (!facet.abi) return [];
+                        if (Array.isArray(facet.abi)) return facet.abi;
                         try {
-                          const facetABI = Array.isArray(facet.abi)
-                            ? facet.abi
-                            : JSON.parse(facet.abi as string);
-
-                          facetABI.forEach((item: any) => {
-                            if (item.type === "function") {
-                              try {
-                                const funcFragment =
-                                  ethers.utils.FunctionFragment.from(item);
-                                if (
-                                  funcFragment.stateMutability === "view" ||
-                                  funcFragment.stateMutability === "pure"
-                                ) {
-                                  allReadFunctions.push(funcFragment);
-                                } else {
-                                  allWriteFunctions.push(funcFragment);
-                                }
-                              } catch (err) {
-                                console.log(
-                                  "Failed to parse function fragment:",
-                                  item,
-                                  err
-                                );
-                              }
-                            }
-                          });
+                          return JSON.parse(facet.abi as string);
                         } catch (err) {
                           console.log(
                             "Failed to parse facet ABI:",
                             facet.address,
                             err
                           );
+                          return [];
                         }
+                      })();
+
+                      const registerFacetItem = (item: any) => {
+                        if (!item || item.type !== "function") return;
+                        try {
+                          const fragment = ethers.utils.FunctionFragment.from(
+                            item
+                          );
+                          const mutability = fragment.stateMutability;
+                          const isRead =
+                            mutability === "view" || mutability === "pure";
+                          const includeRead = isRead;
+                          const includeWrite = !isRead;
+                          registerFunction(fragment, includeRead, includeWrite);
+                        } catch (err) {
+                          console.log(
+                            "Failed to parse function fragment for facet",
+                            facet.address,
+                            err,
+                            item
+                          );
+                        }
+                      };
+
+                      rawAbi.forEach(registerFacetItem);
+
+                      if (rawAbi.length === 0 && facet.functions) {
+                        const combinedFunctions = [
+                          ...(Array.isArray(facet.functions.read)
+                            ? facet.functions.read
+                            : []),
+                          ...(Array.isArray(facet.functions.write)
+                            ? facet.functions.write
+                            : []),
+                        ];
+                        combinedFunctions.forEach(registerFacetItem);
                       }
                     });
 
                     console.log(
-                      `🔍 [Diamond] Found ${allReadFunctions.length} read functions and ${allWriteFunctions.length} write functions from facets`
+                      `🔍 [Diamond] Aggregated ${readMap.size} read functions and ${writeMap.size} write functions from facets`
                     );
-                    setReadFunctions(allReadFunctions);
-                    setWriteFunctions(allWriteFunctions);
+                    setReadFunctions(Array.from(readMap.values()));
+                    setWriteFunctions(Array.from(writeMap.values()));
                   }}
                   hideUI
                   onProgressChange={(p) => {

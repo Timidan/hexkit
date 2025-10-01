@@ -257,6 +257,7 @@ const NewSimpleGridUI: React.FC = () => {
         );
         const facets = await fetchDiamondFacets(
           chain,
+          address,
           facetAddresses,
           progressCallback
         );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   fetchDiamondFacets,
   getDiamondFacetAddresses,
@@ -57,6 +57,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [facets, setFacets] = useState<DiamondFacet[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef<number>(0);
 
   const detailStatusColors: Record<FacetDetailStatus, string> = {
     pending: "#6b7280",
@@ -75,6 +76,9 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
 
   const loadFacets = useCallback(async () => {
+    const requestId = Date.now();
+    requestIdRef.current = requestId;
+
     try {
       setIsLoading(true);
       onLoadingChange?.(true);
@@ -83,11 +87,14 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
       setShowDetails(false);
       setFacetDetails([]);
 
-      // Get facet addresses
       const facetAddresses = await getDiamondFacetAddresses(
         chain,
         diamondAddress
       );
+
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
 
       setProgress({
         current: 0,
@@ -111,11 +118,14 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         return;
       }
 
-      // Fetch facet ABIs with progress tracking
       const loadedFacets = await fetchDiamondFacets(
         chain,
+        diamondAddress,
         facetAddresses,
         (p) => {
+          if (requestIdRef.current !== requestId) {
+            return;
+          }
           setProgress(p);
           setFacetDetails((prev) => {
             let next = prev;
@@ -158,11 +168,18 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         }
       );
 
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setFacets(loadedFacets);
       onFacetsLoaded(loadedFacets);
       setIsLoading(false);
       onLoadingChange?.(false);
     } catch (error) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
       console.error("Diamond facet loading failed:", error);
       setError(
         `Failed to load facets: ${error instanceof Error ? error.message : "Unknown error"}`

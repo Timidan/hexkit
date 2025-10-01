@@ -259,95 +259,223 @@ export async function analyzeContractWithWhatsABI(
 /**
  * Create function stubs from selectors with signature lookup
  */
+export interface SelectorFunctionStub {
+  signature: string;
+  selector: string;
+  abi: any;
+  confidence: 'inferred' | 'extracted';
+}
+
+const WRITE_KEYWORDS = [
+  'set',
+  'add',
+  'remove',
+  'update',
+  'create',
+  'mint',
+  'burn',
+  'transfer',
+  'approve',
+  'deposit',
+  'withdraw',
+  'claim',
+  'execute',
+  'upgrade',
+  'init',
+  'initialize',
+  'configure',
+  'register',
+  'enable',
+  'disable',
+  'pause',
+  'unpause',
+  'refund',
+  'sweep',
+  'distribute',
+];
+
+const READ_KEYWORDS = [
+  'get',
+  'is',
+  'has',
+  'can',
+  'supports',
+  'balance',
+  'owner',
+  'symbol',
+  'name',
+  'decimals',
+  'allowance',
+  'total',
+  'token',
+  'uri',
+  'max',
+  'min',
+  'fee',
+  'price',
+  'rate',
+  'pending',
+  'current',
+  'version',
+  'supply',
+  'available',
+  'index',
+  'list',
+  'info',
+  'details',
+];
+
+function inferStateMutability(fragment: ethers.utils.FunctionFragment): 'view' | 'nonpayable' {
+  const name = fragment.name?.toLowerCase() || '';
+  const hasOutputs = Array.isArray(fragment.outputs) ? fragment.outputs.length > 0 : false;
+
+  if (WRITE_KEYWORDS.some((keyword) => name.startsWith(keyword))) {
+    return 'nonpayable';
+  }
+
+  if (READ_KEYWORDS.some((keyword) => name.startsWith(keyword))) {
+    return 'view';
+  }
+
+  if (!hasOutputs) {
+    return 'nonpayable';
+  }
+
+  return 'view';
+}
+
 export async function createFunctionStubsFromSelectors(
   selectors: string[],
   facetAddress: string,
   facetName: string
-): Promise<any[]> {
-  const functions: any[] = [];
-  
+): Promise<SelectorFunctionStub[]> {
+  const stubs: SelectorFunctionStub[] = [];
+
   console.log(`🔧 Creating function stubs for ${facetName} with ${selectors.length} selectors`);
-  
+
   // Try to resolve signatures using WhatsABI's signature lookup
   try {
     const signatureLookup = new whatsabi.loaders.OpenChainSignatureLookup();
-    
+
     for (const selector of selectors) {
       try {
-        // Try to get function signature
         const signatures = await signatureLookup.loadFunctions(selector);
-        
+
         if (signatures && signatures.length > 0) {
-          // Use first (most common) signature
-          const signature = signatures[0];
-          const functionName = signature.split('(')[0];
-          
-          // Create basic ABI entry
-          functions.push({
-            name: functionName,
-            type: 'function',
-            inputs: [], // Would need parsing to get exact inputs
-            outputs: [],
-            stateMutability: 'nonpayable', // Default assumption
-            selector,
-            facetAddress,
-            facetName,
-            isWhatsABI: true,
-            confidence: 'inferred'
-          });
-          
-          console.log(`  ✅ Resolved ${selector} → ${signature}`);
-        } else {
-          // Fallback: create generic function stub
-          functions.push({
-            name: `function_${selector.slice(2, 10)}`,
-            type: 'function',
-            inputs: [],
-            outputs: [],
-            stateMutability: 'nonpayable',
-            selector,
-            facetAddress,
-            facetName,
-            isWhatsABI: true,
-            confidence: 'extracted'
-          });
+          const rawSignature = signatures[0] as string | { name?: string };
+          const signature =
+            typeof rawSignature === 'string'
+              ? rawSignature
+              : rawSignature?.name || '';
+
+          if (!signature) {
+            throw new Error('Unable to resolve signature string');
+          }
+
+          try {
+            const fragment = ethers.utils.FunctionFragment.from(signature);
+            const abiJson = fragment.format(ethers.utils.FormatTypes.json);
+            const abiEntry = JSON.parse(abiJson);
+            const inferredState = inferStateMutability(fragment);
+
+            abiEntry.stateMutability = inferredState;
+            abiEntry.constant = inferredState === 'view';
+            abiEntry.payable = false;
+
+            stubs.push({
+              signature,
+              selector,
+              abi: {
+                ...abiEntry,
+                selector,
+                facetAddress,
+                facetName,
+                inferred: true,
+                confidence: 'inferred',
+              },
+              confidence: 'inferred',
+            });
+
+            console.log(`  ✅ Resolved ${selector} → ${signature}`);
+            continue;
+          } catch (parseError) {
+            console.warn(`  ⚠️ Failed to parse signature ${signature}:`, parseError);
+          }
         }
-      } catch (error) {
-        // Create basic stub if signature lookup fails
-        functions.push({
-          name: `function_${selector.slice(2, 10)}`,
-          type: 'function',
-          inputs: [],
-          outputs: [],
-          stateMutability: 'nonpayable',
+
+        // If no signatures or parsing failed, fall back to generic stub
+        const fallbackName = `function_${selector.slice(2, 10)}`;
+        const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+        const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+        fallbackAbi.stateMutability = 'nonpayable';
+        fallbackAbi.constant = false;
+        fallbackAbi.payable = false;
+
+        stubs.push({
+          signature: fallbackName,
           selector,
-          facetAddress,
-          facetName,
-          isWhatsABI: true,
-          confidence: 'extracted'
+          abi: {
+            ...fallbackAbi,
+            selector,
+            facetAddress,
+            facetName,
+            inferred: true,
+            confidence: 'extracted',
+          },
+          confidence: 'extracted',
+        });
+      } catch (error) {
+        console.warn(`  ⚠️ Selector lookup failed for ${selector}:`, error);
+
+        const fallbackName = `function_${selector.slice(2, 10)}`;
+        const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+        const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+        fallbackAbi.stateMutability = 'nonpayable';
+        fallbackAbi.constant = false;
+        fallbackAbi.payable = false;
+
+        stubs.push({
+          signature: fallbackName,
+          selector,
+          abi: {
+            ...fallbackAbi,
+            selector,
+            facetAddress,
+            facetName,
+            inferred: true,
+            confidence: 'extracted',
+          },
+          confidence: 'extracted',
         });
       }
     }
   } catch (error) {
     console.warn('⚠️ Signature lookup failed, using basic stubs:', error);
-    
-    // Fallback: create basic function stubs
+
     for (const selector of selectors) {
-      functions.push({
-        name: `function_${selector.slice(2, 10)}`,
-        type: 'function',
-        inputs: [],
-        outputs: [],
-        stateMutability: 'nonpayable',
+      const fallbackName = `function_${selector.slice(2, 10)}`;
+      const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+      const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+      fallbackAbi.stateMutability = 'nonpayable';
+      fallbackAbi.constant = false;
+      fallbackAbi.payable = false;
+
+      stubs.push({
+        signature: fallbackName,
         selector,
-        facetAddress,
-        facetName,
-        isWhatsABI: true,
-        confidence: 'extracted'
+        abi: {
+          ...fallbackAbi,
+          selector,
+          facetAddress,
+          facetName,
+          inferred: true,
+          confidence: 'extracted',
+        },
+        confidence: 'extracted',
       });
     }
   }
-  
-  console.log(`✅ Created ${functions.length} function stubs for ${facetName}`);
-  return functions;
+
+  console.log(`✅ Created ${stubs.length} function stubs for ${facetName}`);
+  return stubs;
 }

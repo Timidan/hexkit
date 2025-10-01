@@ -91,6 +91,12 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) =>
             path.replace(/^\/api\/base-sepolia-blockscout/, ""),
         },
+        "/api/lisk-sepolia-blockscout": {
+          target: "https://sepolia-blockscout.lisk.com",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/lisk-sepolia-blockscout/, ""),
+        },
         // Proxy for Etherscan APIs
         "/api/basescan": {
           target: "https://api.basescan.org",
@@ -98,17 +104,41 @@ export default defineConfig(({ mode }) => {
           secure: false,
           rewrite: (path) => path.replace(/^\/api\/basescan/, ""),
         },
+        "/api/base-sepolia-basescan": {
+          target: "https://api-sepolia.basescan.org",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/base-sepolia-basescan/, ""),
+        },
         "/api/etherscan": {
           target: "https://api.etherscan.io",
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api\/etherscan/, ""),
         },
+        "/api/sepolia-etherscan": {
+          target: "https://api-sepolia.etherscan.io",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/sepolia-etherscan/, ""),
+        },
+        "/api/holesky-etherscan": {
+          target: "https://api-holesky.etherscan.io",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/holesky-etherscan/, ""),
+        },
         "/api/polygonscan": {
           target: "https://api.polygonscan.com",
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/api\/polygonscan/, ""),
+        },
+        "/api/amoy-polygonscan": {
+          target: "https://api-amoy.polygonscan.com",
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/amoy-polygonscan/, ""),
         },
         "/api/arbiscan": {
           target: "https://api.arbiscan.io",
@@ -124,6 +154,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api\/repo/, ""),
         },
       },
+      allowedHosts: ["https://spt2wbxn-5173.uks1.devtunnels.ms"],
     },
   };
 });

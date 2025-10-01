@@ -8,6 +8,44 @@ const BLOCKSCOUT_API_FALLBACKS: Record<number, string[]> = {
   84532: ['https://base-sepolia.blockscout.com/api'],
   137: ['https://polygon.blockscout.com/api'],
   42161: ['https://arbitrum.blockscout.com/api'],
+  4202: ['https://sepolia-blockscout.lisk.com/api'],
+};
+
+const extractContractName = (data: any): string | undefined => {
+  const candidates = [
+    data?.contractName,
+    data?.name,
+    data?.ContractName,
+    data?.contract_name,
+    data?.result?.contractName,
+    data?.result?.ContractName,
+    data?.result?.name,
+    data?.result?.contract_name,
+    data?.result?.contract?.name,
+    data?.result?.contract?.contract_name,
+    data?.result?.smart_contract?.name,
+    data?.result?.smart_contract?.contract_name,
+    data?.contract?.name,
+    data?.contract?.contract_name,
+    data?.smart_contract?.name,
+    data?.smart_contract?.contract_name,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const normalized = candidate.trim();
+      if (
+        normalized.length === 0 ||
+        /^smart contract$/i.test(normalized) ||
+        /^contract$/i.test(normalized)
+      ) {
+        continue;
+      }
+      return normalized;
+    }
+  }
+
+  return undefined;
 };
 
 const normalizeBase = (base: string) => base.replace(/\/$/, '');
@@ -70,6 +108,8 @@ export const fetchFromBlockscout = async (
         ? '/api/arbitrum-blockscout'
         : chain.id === 84532
         ? '/api/base-sepolia-blockscout'
+        : chain.id === 4202
+        ? '/api/lisk-sepolia-blockscout'
         : '/api/blockscout';
 
     const apiBases = new Set<string>([
@@ -96,7 +136,10 @@ export const fetchFromBlockscout = async (
         );
 
         if (response.data?.status === '1' && response.data.result) {
-          abiResult = { abi: response.data.result };
+          abiResult = {
+            abi: response.data.result,
+            contractName: extractContractName(response.data),
+          };
           break;
         }
 
@@ -108,11 +151,7 @@ export const fetchFromBlockscout = async (
         if (v2Abi) {
           abiResult = {
             abi: typeof v2Abi === 'string' ? v2Abi : JSON.stringify(v2Abi),
-            contractName:
-              response.data?.contractName ||
-              response.data?.name ||
-              response.data?.result?.contractName ||
-              response.data?.result?.name,
+            contractName: extractContractName(response.data),
           };
           break;
         }
@@ -142,23 +181,11 @@ export const fetchFromBlockscout = async (
               })
             );
 
-            if (
-              nameResponse.data?.status === '1' &&
-              nameResponse.data.result?.[0]
-            ) {
-              abiResult.contractName =
-                nameResponse.data.result[0].ContractName;
+            const candidateName = extractContractName(nameResponse.data);
+            if (candidateName) {
+              abiResult.contractName = candidateName;
               console.log(
-                `🔍 [Blockscout] Contract name from source code: ${abiResult.contractName}`
-              );
-              break;
-            }
-
-            if (nameResponse.data?.name || nameResponse.data?.contract_name) {
-              abiResult.contractName =
-                nameResponse.data.name || nameResponse.data.contract_name;
-              console.log(
-                `🔍 [Blockscout] Contract name from v2 API: ${abiResult.contractName}`
+                `🔍 [Blockscout] Contract name resolved: ${abiResult.contractName}`
               );
               break;
             }

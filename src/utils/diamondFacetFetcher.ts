@@ -1,5 +1,11 @@
 import axios from "axios";
+import { ethers } from "ethers";
 import type { Chain, ExtendedABIFetchResult } from "../types";
+import {
+  fetchFromWhatsABI,
+  createFunctionStubsFromSelectors,
+  type SelectorFunctionStub,
+} from "./whatsabiFetcher";
 
 // Diamond facet information
 export interface DiamondFacet {
@@ -12,6 +18,9 @@ export interface DiamondFacet {
     read: unknown[];
     write: unknown[];
   };
+  selectors?: string[];
+  confidence?: "verified" | "inferred" | "extracted";
+  inferenceSource?: "verified" | "whatsabi" | "selectors";
 }
 
 // Progress callback for facet fetching
@@ -64,25 +73,27 @@ function getRpcUrl(chain: Chain): string {
 // Helper to get explorer API URLs (using Vite proxy paths)
 function getExplorerUrls(chain: Chain, address: string) {
   const id = chain.id;
-  // Etherscan-family proxy path
-  const etherscanBase =
-    id === 8453
-      ? "/api/basescan"
-      : id === 1
-        ? "/api/etherscan"
-        : id === 137
-          ? "/api/polygonscan"
-          : id === 42161
-            ? "/api/arbiscan"
-            : "/api/etherscan";
-  // Blockscout proxy path (Base by default)
-  const blockscoutBase =
-    id === 137
-      ? "/api/polygon-blockscout"
-      : id === 42161
-        ? "/api/arbitrum-blockscout"
-        : "/api/blockscout";
-  // Sourcify proxy path
+
+  const etherscanProxyMap: Record<number, string> = {
+    1: "/api/etherscan",
+    8453: "/api/basescan",
+    11155111: "/api/sepolia-etherscan",
+    17000: "/api/holesky-etherscan",
+    84532: "/api/base-sepolia-basescan",
+    137: "/api/polygonscan",
+    80002: "/api/amoy-polygonscan",
+    42161: "/api/arbiscan",
+  };
+
+  const blockscoutProxyMap: Record<number, string> = {
+    137: "/api/polygon-blockscout",
+    42161: "/api/arbitrum-blockscout",
+    84532: "/api/base-sepolia-blockscout",
+    4202: "/api/lisk-sepolia-blockscout",
+  };
+
+  const etherscanBase = etherscanProxyMap[id] || "/api/etherscan";
+  const blockscoutBase = blockscoutProxyMap[id] || "/api/blockscout";
   const sourcifyBase = "/api/sourcify";
 
   return {
@@ -187,7 +198,11 @@ async function fetchFromBlockscout(
         ? "/api/polygon-blockscout"
         : id === 42161
           ? "/api/arbitrum-blockscout"
-          : "/api/blockscout";
+          : id === 84532
+            ? "/api/base-sepolia-blockscout"
+            : id === 4202
+              ? "/api/lisk-sepolia-blockscout"
+              : "/api/blockscout";
 
     // Try Etherscan-style and Blockscout v2 endpoints
     const endpoints = [
@@ -285,16 +300,52 @@ function categorizeFunctions(abi: unknown[]): {
 }
 
 // Fetch ABI for a single facet
+async function fetchFacetSelectors(
+  chain: Chain,
+  diamondAddress: string,
+  facetAddress: string
+): Promise<string[]> {
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+    const diamondContract = new ethers.Contract(
+      diamondAddress,
+      [
+        "function facetFunctionSelectors(address facet) external view returns (bytes4[] memory)",
+      ],
+      provider
+    );
+
+    const selectors: string[] = await diamondContract.facetFunctionSelectors(
+      facetAddress
+    );
+    return (selectors || []).map((selector) => selector.toLowerCase());
+  } catch (error) {
+    console.warn(
+      `Failed to fetch facetFunctionSelectors for ${facetAddress}:`,
+      error
+    );
+    return [];
+  }
+}
+
 async function fetchFacetABI(
   chain: Chain,
+  diamondAddress: string,
   facetAddress: string
 ): Promise<DiamondFacet | null> {
   const sources = [
     () => fetchFromSourcify(chain, facetAddress),
     () => fetchFromEtherscan(chain, facetAddress),
     () => fetchFromBlockscout(chain, facetAddress),
-    // WhatsABI fallback disabled for facets to avoid API key or heavy analysis
   ];
+
+  let resolvedAbi: unknown[] | null = null;
+  let resolvedName = "Facet";
+  let resolvedSource = "Unknown";
+  let isVerified = false;
+  let confidence: "verified" | "inferred" | "extracted" = "extracted";
+  let selectors: string[] = [];
+  let selectorStubs: SelectorFunctionStub[] = [];
 
   for (const source of sources) {
     try {
@@ -302,36 +353,21 @@ async function fetchFacetABI(
       if (
         result &&
         result.success &&
-        result.abi &&
-        (typeof result.abi === "string"
-          ? JSON.parse(result.abi).length > 0
-          : false)
+        typeof result.abi === "string"
       ) {
-        // Parse ABI only once and reuse it
-        const parsedABI =
-          typeof result.abi === "string"
-            ? JSON.parse(result.abi)
-            : (result.abi as unknown[]);
-        const functions = categorizeFunctions(parsedABI as unknown[]);
-        // Prefer name from source; otherwise use a generic label
-        const nameFromSource =
+        const parsedABI = JSON.parse(result.abi) as unknown[];
+        if (!Array.isArray(parsedABI) || parsedABI.length === 0) {
+          continue;
+        }
+        resolvedAbi = parsedABI as unknown[];
+        resolvedName =
           result.contractName && String(result.contractName).trim() !== ""
             ? String(result.contractName)
             : "Facet";
-        // Consider facet verified if we successfully fetched a non-empty ABI from a known source
-        const verified =
-          Array.isArray(parsedABI) &&
-          parsedABI.length > 0 &&
-          !!result.source &&
-          result.source !== "Unknown";
-        return {
-          address: facetAddress,
-          name: nameFromSource,
-          abi: parsedABI as unknown[],
-          source: result.source || "Unknown",
-          isVerified: verified,
-          functions,
-        };
+        resolvedSource = result.source || "Unknown";
+        isVerified = true;
+        confidence = "verified";
+        break;
       }
     } catch (error) {
       console.warn(
@@ -342,14 +378,76 @@ async function fetchFacetABI(
     }
   }
 
-  // If all sources fail, return unverified facet
+  // WhatsABI fallback for unverified facets
+  if (!resolvedAbi) {
+    try {
+      const whatsabiResult = await fetchFromWhatsABI(facetAddress, chain);
+      if (whatsabiResult.success && whatsabiResult.abi) {
+        resolvedAbi = JSON.parse(whatsabiResult.abi) as unknown[];
+        resolvedName = whatsabiResult.contractName || "Facet";
+        resolvedSource = "WhatsABI";
+        confidence = whatsabiResult.confidence;
+        selectors = whatsabiResult.selectors || [];
+      }
+    } catch (error) {
+      console.warn(
+        `WhatsABI analysis failed for facet ${facetAddress}:`,
+        error
+      );
+    }
+  }
+
+  // Selector-based inference if we still don't have an ABI or if WhatsABI returned empty
+  if (!resolvedAbi || (Array.isArray(resolvedAbi) && resolvedAbi.length === 0)) {
+    selectors = selectors.length
+      ? selectors
+      : await fetchFacetSelectors(chain, diamondAddress, facetAddress);
+
+    if (selectors.length > 0) {
+      try {
+        selectorStubs = await createFunctionStubsFromSelectors(
+          selectors,
+          facetAddress,
+          resolvedName
+        );
+        resolvedAbi = selectorStubs.map((stub) => stub.abi);
+        resolvedSource = "Selectors";
+        confidence = selectorStubs.some((stub) => stub.confidence === "inferred")
+          ? "inferred"
+          : "extracted";
+      } catch (error) {
+        console.warn(
+          `Failed to build selector stubs for facet ${facetAddress}:`,
+          error
+        );
+      }
+    }
+  }
+
+  if (!resolvedAbi) {
+    resolvedAbi = [];
+  }
+
+  const functions = categorizeFunctions(resolvedAbi);
+
+  // If we inferred the ABI via selectors but state classification is empty, expose inferred functions via read list
+  if (!isVerified && functions.read.length === 0 && resolvedAbi.length > 0) {
+    functions.read = resolvedAbi.filter((item) => {
+      const entry = item as { type?: string };
+      return entry?.type === "function";
+    });
+  }
+
   return {
     address: facetAddress,
-    name: "Facet",
-    abi: [],
-    source: "Unknown",
-    isVerified: false,
-    functions: { read: [], write: [] },
+    name: resolvedName,
+    abi: resolvedAbi,
+    source: resolvedSource,
+    isVerified,
+    functions,
+    selectors,
+    confidence,
+    inferenceSource: isVerified ? "verified" : resolvedSource === "WhatsABI" ? "whatsabi" : resolvedSource === "Selectors" ? "selectors" : undefined,
   };
 }
 
@@ -360,6 +458,7 @@ interface ProgressState {
 
 async function processBatch(
   chain: Chain,
+  diamondAddress: string,
   facetAddresses: string[],
   batch: string[],
   progressCallback: FacetProgressCallback,
@@ -383,7 +482,7 @@ async function processBatch(
       console.warn("Progress callback failed:", error);
     }
 
-    const facet = await fetchFacetABI(chain, address);
+    const facet = await fetchFacetABI(chain, diamondAddress, address);
 
     try {
       if (facet) {
@@ -419,6 +518,7 @@ async function processBatch(
 // Main function to fetch all Diamond facets
 export async function fetchDiamondFacets(
   chain: Chain,
+  diamondAddress: string,
   facetAddresses: string[],
   progressCallback: FacetProgressCallback
 ): Promise<DiamondFacet[]> {
@@ -434,6 +534,7 @@ export async function fetchDiamondFacets(
     const batch = facetAddresses.slice(i, i + BATCH_SIZE);
     const batchResults = await processBatch(
       chain,
+      diamondAddress,
       facetAddresses,
       batch,
       progressCallback,
