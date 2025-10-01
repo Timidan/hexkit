@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef
+} from "react";
 import {
   useAccount,
   useWalletClient,
@@ -31,6 +37,7 @@ import "../styles/ContractDataDisplay.css";
 // import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
+import InlineWalletConnect from "./InlineWalletConnect";
 import type { Chain, ContractInfo, ExtendedABIFetchResult } from "../types";
 import {
   fetchDiamondFacets,
@@ -62,7 +69,7 @@ import {
 
 const SimpleGridUI: React.FC = () => {
   // Wagmi hooks for wallet integration
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain: accountChain } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
   const chainId = useChainId();
@@ -349,6 +356,24 @@ const SimpleGridUI: React.FC = () => {
       }
       return allWrites;
     }, [writeFunctions, isDiamond, diamondFacets]);
+
+  const isFetchingContractDetails = isLoadingABI || isLoadingContractInfo;
+  const totalFacetReads = React.useMemo(
+    () => diamondFacets.reduce((acc, facet) => acc + facet.functions.read.length, 0),
+    [diamondFacets]
+  );
+  const totalFacetWrites = React.useMemo(
+    () => diamondFacets.reduce((acc, facet) => acc + facet.functions.write.length, 0),
+    [diamondFacets]
+  );
+  const isFacetDataPending =
+    isDiamond && (facetLoading || (diamondFacets.length === 0 && isFetchingContractDetails));
+  const resolvedContractName =
+    contractName && contractName.trim().length > 0
+      ? contractName
+      : isFetchingContractDetails
+        ? "Loading contract…"
+        : "Unknown Contract";
 
   // Derived: filtered functions when Diamond + a facet is selected
   const filteredReadFunctions: ethers.utils.FunctionFragment[] =
@@ -4112,6 +4137,12 @@ const SimpleGridUI: React.FC = () => {
                               {searchProgress.message}
                             </div>
                           )}
+
+                          {selectedFunctionType === "write" && (
+                            <div style={{ marginTop: "12px" }}>
+                              <InlineWalletConnect size="compact" />
+                            </div>
+                          )}
                         </div>
                       ) : (
                         "Initializing search..."
@@ -4327,7 +4358,7 @@ const SimpleGridUI: React.FC = () => {
                           gap: "8px",
                         }}
                       >
-                        {contractName || "Unknown Contract"}
+                        {resolvedContractName}
                         {isDiamond && (
                           <span
                             title="Diamond contract"
@@ -4354,14 +4385,22 @@ const SimpleGridUI: React.FC = () => {
                           fontWeight: 500,
                         }}
                       >
-                        Symbol:{" "}
-                        {tokenDetection?.tokenInfo?.symbol ||
-                          tokenInfo?.symbol ||
-                          "Unknown"}
-                        {(tokenDetection?.tokenInfo?.decimals !== undefined
-                          ? tokenDetection.tokenInfo.decimals
-                          : tokenInfo?.decimals || 0) > 0 &&
-                          ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                        {tokenDetection?.tokenInfo?.symbol || tokenInfo?.symbol
+                          ? (
+                              <>
+                                Symbol:{" "}
+                                {tokenDetection?.tokenInfo?.symbol ||
+                                  tokenInfo?.symbol}
+                                {(tokenDetection?.tokenInfo?.decimals !==
+                                  undefined
+                                  ? tokenDetection.tokenInfo.decimals
+                                  : tokenInfo?.decimals || 0) > 0 &&
+                                  ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                              </>
+                            )
+                          : isFetchingContractDetails
+                            ? "Fetching token metadata…"
+                            : "Symbol: Unknown"}
                       </div>
                     </div>
                   </div>
@@ -4514,7 +4553,7 @@ const SimpleGridUI: React.FC = () => {
                           gap: "8px",
                         }}
                       >
-                        {contractName}
+                        {resolvedContractName}
                         {isDiamond && (
                           <span
                             title="Diamond contract"
@@ -4840,17 +4879,22 @@ const SimpleGridUI: React.FC = () => {
                                 fontWeight: "500",
                               }}
                             >
-                              Symbol:{" "}
-                              {tokenDetection?.tokenInfo?.symbol ||
-                                tokenInfo?.symbol ||
-                                (contractName?.includes(".")
-                                  ? contractName.split(".").pop()
-                                  : "Unknown")}
-                              {(tokenDetection?.tokenInfo?.decimals !==
-                              undefined
-                                ? tokenDetection.tokenInfo.decimals
-                                : tokenInfo?.decimals || 0) > 0 &&
-                                ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                              {tokenDetection?.tokenInfo?.symbol || tokenInfo?.symbol
+                                ? (
+                                    <>
+                                      Symbol:{" "}
+                                      {tokenDetection?.tokenInfo?.symbol ||
+                                        tokenInfo?.symbol}
+                                      {(tokenDetection?.tokenInfo?.decimals !==
+                                        undefined
+                                        ? tokenDetection.tokenInfo.decimals
+                                        : tokenInfo?.decimals || 0) > 0 &&
+                                        ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                                    </>
+                                  )
+                                : isFetchingContractDetails
+                                  ? "Fetching token metadata…"
+                                  : "Symbol: Unknown"}
                             </div>
                           )}
                         </div>
@@ -4896,38 +4940,47 @@ const SimpleGridUI: React.FC = () => {
                     <div
                       style={{ display: "flex", gap: "16px", fontSize: "12px" }}
                     >
-                      <span
-                        style={{
-                          color: "#22c55e",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        <BookOpenIcon
-                          width={16}
-                          height={16}
-                          style={{ marginRight: "4px" }}
-                        />
-                        {diamondFacets
-                          .reduce((acc, f) => acc + f.functions.read.length, 0)
-                          .toString()}{" "}
-                        read functions
-                      </span>
-                      <span
-                        style={{
-                          color: "#f59e0b",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        ✍️{" "}
-                        {diamondFacets
-                          .reduce((acc, f) => acc + f.functions.write.length, 0)
-                          .toString()}{" "}
-                        write functions
-                      </span>
+                      {isFacetDataPending ? (
+                        <span
+                          style={{
+                            color: "#cbd5f5",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <Loader2Icon width={14} height={14} className="animate-spin" />
+                          Loading facet details…
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            style={{
+                              color: "#22c55e",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <BookOpenIcon
+                              width={16}
+                              height={16}
+                              style={{ marginRight: "4px" }}
+                            />
+                            {totalFacetReads.toString()} read functions
+                          </span>
+                          <span
+                            style={{
+                              color: "#f59e0b",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            ✍️ {totalFacetWrites.toString()} write functions
+                          </span>
+                        </>
+                      )}
                     </div>
                     <div style={{ fontSize: "11px", color: "#666" }}>
                       {selectedNetwork?.name}
@@ -6349,28 +6402,6 @@ const SimpleGridUI: React.FC = () => {
                               marginBottom: "12px",
                             }}
                           >
-                            {selectedFunctionType === "write" &&
-                              !isConnected &&
-                              openConnectModal && (
-                                <button
-                                  type="button"
-                                  onClick={openConnectModal}
-                                  style={{
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(59, 130, 246, 0.4)",
-                                    background: "rgba(59, 130, 246, 0.16)",
-                                    color: "#cbd5f5",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                    transition: "all 0.2s ease",
-                                  }}
-                                >
-                                  Connect wallet
-                                </button>
-                              )}
-
                             <button
                               style={{
                                 padding: "8px 12px",
@@ -6994,14 +7025,23 @@ const SimpleGridUI: React.FC = () => {
                                         return;
                                       }
 
-                                      const resolvedClientChainId = (typeof activeWalletClient.getChainId === 'function'
-                                        ? await activeWalletClient.getChainId()
-                                        : activeWalletClient.chain?.id) ?? chainId;
+                                      const resolvedClientChainId =
+                                        accountChain?.id ??
+                                        activeWalletClient.chain?.id ??
+                                        chainId;
 
                                       if (
                                         selectedNetwork &&
                                         resolvedClientChainId !== selectedNetwork.id
                                       ) {
+                                        console.warn(
+                                          '[Network Check] wallet mismatch: accountChain',
+                                          accountChain?.id,
+                                          'client chain',
+                                          activeWalletClient.chain?.id,
+                                          'fallback',
+                                          chainId
+                                        );
                                         const expectedName = selectedNetwork.name || 'selected network';
                                         showError(
                                           'Network Mismatch',
@@ -7674,15 +7714,16 @@ const SimpleGridUI: React.FC = () => {
                                 }
                               }
 
-                              const activeWalletClient = walletClient;
-                              if (!activeWalletClient) {
-                                showError('Wallet Disconnected', 'Wallet client became unavailable.');
-                                return;
-                              }
+                                      const activeWalletClient = walletClient;
+                                      if (!activeWalletClient) {
+                                        showError('Wallet Disconnected', 'Wallet client became unavailable.');
+                                        return;
+                                      }
 
-                              const resolvedClientChainId = (typeof activeWalletClient.getChainId === 'function'
-                                ? await activeWalletClient.getChainId()
-                                : activeWalletClient.chain?.id) ?? chainId;
+                                      const resolvedClientChainId =
+                                        accountChain?.id ??
+                                        activeWalletClient.chain?.id ??
+                                        chainId;
 
                               if (
                                 selectedNetwork &&
@@ -8554,7 +8595,7 @@ const SimpleGridUI: React.FC = () => {
       </div>
 
       {/* Action Button */}
-      <div style={{ textAlign: "center" }}>
+      <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: "16px" }}>
         <button
           style={{
             padding: "16px 48px",
@@ -8589,6 +8630,8 @@ const SimpleGridUI: React.FC = () => {
           <PlayIcon width={20} height={20} />
           Simulate Transaction
         </button>
+
+        <InlineWalletConnect />
       </div>
 
       {/* Diamond Contract Popup */}
