@@ -4,13 +4,13 @@ import {
   Search,
   Diamond,
   Building2,
-  Copy,
   ExternalLink,
   ChevronDown,
   Loader,
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import InlineCopyButton from "./ui/InlineCopyButton";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import { fetchContractABIMultiSource } from "../utils/multiSourceAbiFetcher";
 import DiamondFunctionCaller from "./DiamondFunctionCaller";
@@ -330,14 +330,12 @@ const UniversalContractInterface: React.FC = () => {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  onClick={() =>
-                    navigator.clipboard.writeText(contractInfo.address)
-                  }
-                  className="p-2 text-gray-400 hover:text-white transition-colors"
-                >
-                  <Copy size={16} />
-                </button>
+                <InlineCopyButton
+                  value={contractInfo.address}
+                  ariaLabel="Copy contract address"
+                  iconSize={14}
+                  size={32}
+                />
                 <a
                   href={`${contractInfo.chain.explorerUrl}/address/${contractInfo.address}`}
                   target="_blank"

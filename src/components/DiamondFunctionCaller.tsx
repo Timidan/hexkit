@@ -4,7 +4,6 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
-  Copy,
   AlertCircle,
   CheckCircle,
   Clock,
@@ -12,6 +11,7 @@ import {
   Eye,
   Wallet,
 } from "lucide-react";
+import InlineCopyButton from "./ui/InlineCopyButton";
 import type { Chain } from "../types";
 import {
   parseTransactionError,
@@ -637,23 +637,12 @@ const DiamondFunctionCaller: React.FC<Props> = ({
                   >
                     {result.transactionHash}
                   </code>
-                  <button
-                    onClick={() =>
-                      navigator.clipboard.writeText(result.transactionHash!)
-                    }
-                    style={{
-                      background: "none",
-                      border: "1px solid rgba(34, 197, 94, 0.3)",
-                      borderRadius: "3px",
-                      padding: "2px 6px",
-                      cursor: "pointer",
-                      color: "#22c55e",
-                      fontSize: "10px",
-                    }}
-                    title="Copy transaction hash"
-                  >
-                    <Copy size={10} />
-                  </button>
+                  <InlineCopyButton
+                    value={result.transactionHash ?? ''}
+                    ariaLabel="Copy transaction hash"
+                    iconSize={10}
+                    size={28}
+                  />
                 </div>
               </div>
             )}

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 interface SmartInputProps {
   value: string;
@@ -146,7 +147,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyTextToClipboard(value);
       // Could add a temporary success indicator here
     } catch (error) {
       console.warn('Failed to copy to clipboard:', error);

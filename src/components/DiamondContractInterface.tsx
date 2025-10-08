@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ethers } from 'ethers';
-import { GemIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon, CopyIcon } from './icons/IconLibrary';
+import { GemIcon, CheckCircleIcon, XCircleIcon, AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
+import InlineCopyButton from './ui/InlineCopyButton';
 import { 
   Network, 
   Building2, 
@@ -290,15 +291,12 @@ const DiamondContractInterface: React.FC = () => {
                       >
                         <ExternalLink size={16} />
                       </a>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(facet.address);
-                        }}
-                        className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
-                      >
-                        <CopyIcon width={16} height={16} />
-                      </button>
+                      <InlineCopyButton
+                        value={facet.address}
+                        ariaLabel="Copy facet address"
+                        iconSize={14}
+                        size={30}
+                      />
                     </div>
                   </div>
                 </div>

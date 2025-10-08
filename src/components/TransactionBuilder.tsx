@@ -15,7 +15,6 @@ import {
   Loader,
   ChevronDown,
   ChevronRight,
-  Copy,
   ExternalLink,
   Clock,
   Layers,
@@ -38,6 +37,7 @@ import ABIFetcher from './ABIFetcher';
 import ContractInfoDisplay from './ContractInfoDisplay';
 import { SUPPORTED_CHAINS } from '../utils/chains';
 import { simulateTransaction } from '../utils/transactionSimulation';
+import InlineCopyButton from './ui/InlineCopyButton';
 import { parseTransactionError, formatErrorForUser } from '../utils/errorParser';
 import { useToolkit } from '../contexts/ToolkitContext';
 import { 
@@ -524,16 +524,12 @@ export default function TransactionBuilder() {
                         </p>
                       </div>
                       <div className="flex items-center gap-1 ml-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(facet.facetAddress);
-                          }}
-                          className="text-gray-400 hover:text-gray-600"
-                          title="Copy address"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
+                        <InlineCopyButton
+                          value={facet.facetAddress}
+                          ariaLabel="Copy facet address"
+                          iconSize={12}
+                          size={30}
+                        />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

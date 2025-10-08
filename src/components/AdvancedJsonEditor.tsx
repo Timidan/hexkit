@@ -1,18 +1,21 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { JsonEditor } from 'json-edit-react';
 import { ethers } from 'ethers';
-import { 
-  FileText, 
-  Target, 
-  Trash2, 
-  Copy, 
-  BarChart3, 
-  Search, 
-  Maximize, 
+import {
+  FileText,
+  Target,
+  Trash2,
+  BarChart3,
+  Search,
+  Maximize,
   Minimize,
   Settings,
   TrendingUp
 } from 'lucide-react';
+import { CopyIcon } from './icons/IconLibrary';
+import { copyTextToClipboard } from '../utils/clipboard';
+
+const COPY_ICON_MARKUP = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" stroke="currentColor" stroke-width="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
 interface AdvancedJsonEditorProps {
   data: any[];
@@ -32,6 +35,7 @@ const AdvancedJsonEditor: React.FC<AdvancedJsonEditorProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedLevel, setExpandedLevel] = useState(2);
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   // Convert array data to object with parameter names for better editing experience
   const editorData = useMemo(() => {
@@ -262,6 +266,49 @@ const AdvancedJsonEditor: React.FC<AdvancedJsonEditorProps> = ({
     return filtered;
   }, [editorData, searchTerm]);
 
+  const attachCopyButtons = useCallback(() => {
+    const container = editorRef.current;
+    if (!container) return;
+
+    const valueNodes = Array.from(container.querySelectorAll<HTMLElement>('.jer-value'));
+    valueNodes.forEach((node) => {
+      const parent = node.parentElement;
+      if (!parent) return;
+
+      parent.classList.add('json-editor-value-container');
+      node.classList.add('json-editor-value-text');
+
+      const copyValue = node.textContent ?? '';
+      let button = parent.querySelector<HTMLButtonElement>('.json-editor-copy-button');
+
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'json-editor-copy-button';
+        button.title = 'Copy value';
+        button.setAttribute('aria-label', 'Copy value');
+        button.innerHTML = COPY_ICON_MARKUP;
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          const valueToCopy = button?.dataset.copyValue ?? '';
+          if (valueToCopy) {
+            copyTextToClipboard(valueToCopy).catch(() => {});
+          }
+        });
+        parent.appendChild(button);
+      }
+
+      button.dataset.copyValue = copyValue;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raf = window.requestAnimationFrame(() => attachCopyButtons());
+    return () => window.cancelAnimationFrame(raf);
+  }, [attachCopyButtons, filteredData, expandedLevel, searchTerm, isFullscreen]);
+
   return (
     <div className={`advanced-json-editor ${className} ${isFullscreen ? 'fullscreen' : ''}`}>
       {/* Header Controls */}
@@ -314,10 +361,16 @@ const AdvancedJsonEditor: React.FC<AdvancedJsonEditorProps> = ({
         </button>
 
         <button
-          onClick={() => navigator.clipboard.writeText(JSON.stringify(data, null, 2))}
+          onClick={async () => {
+            try {
+              await copyTextToClipboard(JSON.stringify(data, null, 2));
+            } catch (error) {
+              console.warn('Failed to copy JSON', error);
+            }
+          }}
           className="copy-btn"
         >
-          <Copy size={16} className="inline mr-2" />Copy JSON
+          <CopyIcon width={16} height={16} style={{ marginRight: '8px' }} />Copy JSON
         </button>
         
         <div className="data-stats">
@@ -337,7 +390,9 @@ const AdvancedJsonEditor: React.FC<AdvancedJsonEditorProps> = ({
 
       {/* Main JSON Editor */}
       <div className="json-editor-container">
-        <div style={{
+        <div
+          ref={editorRef}
+          style={{
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '8px',
@@ -345,7 +400,8 @@ const AdvancedJsonEditor: React.FC<AdvancedJsonEditorProps> = ({
           maxHeight: isFullscreen ? 'calc(100vh - 200px)' : '600px',
           overflow: 'auto',
           padding: '16px'
-        }}>
+        }}
+        >
           <JsonEditor
             data={filteredData}
             setData={handleDataChange}

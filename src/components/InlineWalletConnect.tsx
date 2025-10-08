@@ -1,18 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSwitchChain,
+} from "wagmi";
 import type { Connector } from "wagmi";
 
 interface InlineWalletConnectProps {
   size?: "compact" | "regular";
+  chainId?: number;
+  chainName?: string;
 }
 
 const shortenAddress = (address?: string) =>
   address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
 
 const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
-  size = "regular"
+  size = "regular",
+  chainId,
+  chainName,
 }) => {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const { disconnect } = useDisconnect();
   const {
     connect,
@@ -21,6 +30,11 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
     isLoading,
     pendingConnector
   } = useConnect();
+  const {
+    switchChain,
+    isPending: isSwitchPending,
+    error: switchError,
+  } = useSwitchChain();
 
   const readyConnectors = useMemo(
     () => connectors.filter((connector) => connector.ready),
@@ -44,9 +58,27 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
     readyConnectors.find((connector) => connector.id === selectedId) ||
     readyConnectors[0];
 
+  const desiredChainId = chainId;
+  const needsSwitch = Boolean(
+    desiredChainId && isConnected && chain?.id !== desiredChainId
+  );
+
   const handleConnect = () => {
-    if (activeConnector) {
-      connect({ connector: activeConnector });
+    if (!activeConnector) {
+      return;
+    }
+
+    if (needsSwitch && desiredChainId) {
+      switchChain({ chainId: desiredChainId });
+      return;
+    }
+
+    connect({ connector: activeConnector, chainId: desiredChainId });
+  };
+
+  const handleSwitch = () => {
+    if (desiredChainId) {
+      switchChain({ chainId: desiredChainId });
     }
   };
 
@@ -73,22 +105,44 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
           >
             {shortenAddress(address)}
           </span>
-          <button
-            type="button"
-            onClick={() => disconnect()}
-            style={{
-              padding: "8px 14px",
-              borderRadius: "8px",
-              border: "1px solid rgba(248, 113, 113, 0.4)",
-              background: "rgba(248, 113, 113, 0.16)",
-              color: "#fecaca",
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Disconnect
-          </button>
+          {needsSwitch ? (
+            <button
+              type="button"
+              onClick={handleSwitch}
+              disabled={isSwitchPending}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(59, 130, 246, 0.45)",
+                background: "rgba(59, 130, 246, 0.22)",
+                color: "#bfdbfe",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {isSwitchPending
+                ? "Switching…"
+                : `Switch to ${chainName || `chain ${desiredChainId}`}`}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => disconnect()}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid rgba(248, 113, 113, 0.4)",
+                background: "rgba(248, 113, 113, 0.16)",
+                color: "#fecaca",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Disconnect
+            </button>
+          )}
         </>
       ) : (
         <>
@@ -139,6 +193,11 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
             </span>
           )}
         </>
+      )}
+      {switchError && (
+        <span style={{ fontSize: "11px", color: "#f87171" }}>
+          {switchError.message}
+        </span>
       )}
     </div>
   );

@@ -37,7 +37,6 @@ import {
   Code,
   Database,
   Eye,
-  Copy,
   Download,
   Upload,
   Edit,
@@ -59,6 +58,7 @@ import {
   Play,
   Pause
 } from 'lucide-react';
+import { CopyIcon } from './IconLibrary';
 
 // Icon mapping from emojis to Lucide icons
 export const iconMap = {
@@ -171,7 +171,7 @@ export const UIIcons = {
   search: <Search size={16} />,
   filter: <Filter size={16} />,
   refresh: <RefreshCw size={16} />,
-  copy: <Copy size={16} />,
+  copy: <CopyIcon width={16} height={16} />,
   edit: <Edit size={16} />,
   save: <Save size={16} />,
   delete: <Trash2 size={16} />,

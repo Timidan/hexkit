@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { DiamondFacet } from "../utils/diamondFacetFetcher";
-import { CopyIcon } from "./icons/IconLibrary";
+import InlineCopyButton from "./ui/InlineCopyButton";
 
 interface FacetMiniModalProps {
   facets: DiamondFacet[];
@@ -151,24 +151,12 @@ export const FacetMiniModal: React.FC<FacetMiniModalProps> = ({
                     }}
                   >
                     {shorten(facet.address)}
-                    <button
-                      title="Copy address"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigator.clipboard.writeText(facet.address);
-                      }}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        padding: 0,
-                        cursor: "pointer",
-                        color: "#9ca3af",
-                        display: "inline-flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <CopyIcon width={12} height={12} />
-                    </button>
+                    <InlineCopyButton
+                      value={facet.address}
+                      ariaLabel="Copy facet address"
+                      iconSize={12}
+                      size={30}
+                    />
                   </span>
                 </div>
                 <span style={{ fontSize: 11, color: "#9ca3af" }}>

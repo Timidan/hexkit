@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
+import { ChevronDownIcon, ChevronRightIcon, CopyIcon } from './icons/IconLibrary';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 interface ErrorSuggestion {
   action: string;
@@ -170,11 +171,18 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
           {showDetails && (
             <div className="details-content">
               <pre className="details-text">{technicalDetails}</pre>
-              <button 
-                onClick={() => navigator.clipboard.writeText(technicalDetails)}
+              <button
+                onClick={async () => {
+                  try {
+                    await copyTextToClipboard(technicalDetails);
+                  } catch (error) {
+                    console.warn('Failed to copy error details', error);
+                  }
+                }}
                 className="copy-details-btn"
               >
-                📋 Copy Details
+                <CopyIcon width={14} height={14} style={{ marginRight: '6px' }} />
+                Copy Details
               </button>
             </div>
           )}

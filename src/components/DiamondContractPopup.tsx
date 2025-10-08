@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { XCloseIcon, CopyIcon, GemIcon, ExternalLinkIcon } from './icons/IconLibrary';
+import { XCloseIcon, GemIcon, ExternalLinkIcon, CopyIcon } from './icons/IconLibrary';
 import { Search, AlertTriangle } from 'lucide-react';
 import { useNotifications } from './NotificationManager';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
@@ -7,6 +7,8 @@ import SelectorDecoder, { type DecodedSelector } from './shared/SelectorDecoder'
 import { ethers } from 'ethers';
 import { SUPPORTED_CHAINS } from '../utils/chains';
 import type { Chain } from '../types';
+import InlineCopyButton from './ui/InlineCopyButton';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 interface DiamondContractPopupProps {
   isOpen: boolean;
@@ -93,6 +95,15 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
     }
   };
 
+  const handleCopyWithToast = async (text: string, label: string) => {
+    try {
+      await copyTextToClipboard(text);
+      showSuccess('Copied!', `${label} copied to clipboard`);
+    } catch (err) {
+      showError('Copy Failed', 'Failed to copy to clipboard');
+    }
+  };
+
   // Handle decoded selectors for a facet
   const handleSelectorDecoded = (facetAddress: string, decodedResults: DecodedSelector[]) => {
     setDecodedSelectors(prev => ({ ...prev, [facetAddress]: decodedResults }));
@@ -101,15 +112,6 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   if (!isOpen) return null;
 
   const selectedFacet = facets[selectedFacetIndex];
-
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showSuccess('Copied!', `${label} copied to clipboard`);
-    } catch (err) {
-      showError('Copy Failed', 'Failed to copy to clipboard');
-    }
-  };
 
   const calculateFunctionSelector = (functionSignature: string): string => {
     // Use ethers to calculate the proper function selector
@@ -278,19 +280,16 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                 marginTop: '4px'
               }}>
                 {contractAddress}
-                <button
-                  onClick={() => copyToClipboard(contractAddress, 'Contract address')}
-                  style={{
-                    marginLeft: '8px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#6b7280',
-                    padding: '2px'
-                  }}
-                >
-                  <CopyIcon width={14} height={14} />
-                </button>
+                <span style={{ marginLeft: '8px' }}>
+                  <InlineCopyButton
+                    value={contractAddress}
+                    ariaLabel="Copy contract address"
+                    iconSize={14}
+                    size={32}
+                    onCopySuccess={() => showSuccess('Copied!', 'Contract address copied to clipboard')}
+                    onCopyError={() => showError('Copy Failed', 'Failed to copy to clipboard')}
+                  />
+                </span>
               </div>
             </div>
           </div>
@@ -461,18 +460,14 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                     fontFamily: 'monospace'
                   }}>
                     {selectedFacet.address}
-                    <button
-                      onClick={() => copyToClipboard(selectedFacet.address, 'Facet address')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#6b7280',
-                        padding: '2px'
-                      }}
-                    >
-                      <CopyIcon width={14} height={14} />
-                    </button>
+                    <InlineCopyButton
+                      value={selectedFacet.address}
+                      ariaLabel="Copy facet address"
+                      iconSize={14}
+                      size={32}
+                      onCopySuccess={() => showSuccess('Copied!', 'Facet address copied to clipboard')}
+                      onCopyError={() => showError('Copy Failed', 'Failed to copy to clipboard')}
+                    />
                   </div>
                 </div>
 
@@ -590,18 +585,14 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                           fontFamily: 'monospace'
                         }}>
                           {func.selector}
-                          <button
-                            onClick={() => copyToClipboard(func.selector, 'Function selector')}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              color: '#6b7280',
-                              padding: '2px'
-                            }}
-                          >
-                            <CopyIcon width={12} height={12} />
-                          </button>
+                          <InlineCopyButton
+                            value={func.selector}
+                            ariaLabel={`Copy selector for ${func.name}`}
+                            iconSize={12}
+                            size={28}
+                            onCopySuccess={() => showSuccess('Copied!', 'Function selector copied to clipboard')}
+                            onCopyError={() => showError('Copy Failed', 'Failed to copy selector')}
+                          />
                         </div>
                       </div>
                     ))}
@@ -644,7 +635,7 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                         </button>
                         
                         <button
-                          onClick={() => copyToClipboard(JSON.stringify(selectedFacet.abi, null, 2), 'Facet ABI')}
+                          onClick={() => handleCopyWithToast(JSON.stringify(selectedFacet.abi, null, 2), 'Facet ABI')}
                           style={{
                             padding: '6px 12px',
                             background: 'rgba(16, 185, 129, 0.1)',

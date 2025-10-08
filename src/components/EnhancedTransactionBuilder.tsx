@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { 
-  Building2, 
-  Diamond, 
-  Search, 
-  Loader, 
-  CheckCircle, 
-  XCircle, 
-  Eye, 
-  Copy, 
+import {
+  Building2,
+  Diamond,
+  Search,
+  Loader,
+  CheckCircle,
+  XCircle,
+  Eye,
   ExternalLink,
   Zap,
   Settings,
@@ -17,6 +16,7 @@ import {
   Wallet,
   Play
 } from 'lucide-react';
+import InlineCopyButton from './ui/InlineCopyButton';
 import { SUPPORTED_CHAINS } from '../utils/chains';
 import SimpleWalletConnection from './SimpleWalletConnection';
 import type { Chain } from '../types';
@@ -446,12 +446,12 @@ const EnhancedTransactionBuilder: React.FC = () => {
             </h3>
             
             <div className="flex gap-2">
-              <button
-                onClick={() => navigator.clipboard.writeText(contractInfo.address)}
-                className="p-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <Copy size={16} />
-              </button>
+              <InlineCopyButton
+                value={contractInfo.address}
+                ariaLabel="Copy contract address"
+                iconSize={14}
+                size={32}
+              />
               <a
                 href={`${contractInfo.chain.explorerUrl}/address/${contractInfo.address}`}
                 target="_blank"

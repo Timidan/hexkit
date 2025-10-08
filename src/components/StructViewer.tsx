@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
 import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
+import InlineCopyButton from './ui/InlineCopyButton';
 
 interface StructField {
   name: string;
@@ -116,13 +117,12 @@ const StructViewer: React.FC<StructViewerProps> = ({
         return (
           <div className="address-value">
             <span className="address-text">{value}</span>
-            <button 
-              className="copy-btn" 
-              onClick={() => navigator.clipboard.writeText(value)}
-              title="Copy address"
-            >
-              📋
-            </button>
+            <InlineCopyButton
+              value={String(value)}
+              ariaLabel="Copy address"
+              iconSize={12}
+              size={30}
+            />
           </div>
         );
 

@@ -1,7 +1,11 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { JsonEditor } from 'json-edit-react';
-import { ChevronDownIcon, ChevronRightIcon } from './icons/IconLibrary';
+import { ChevronDownIcon, ChevronRightIcon, CopyIcon } from './icons/IconLibrary';
+import CopyableKeyValue from './ui/CopyableKeyValue';
+import { copyTextToClipboard } from '../utils/clipboard';
+
+const COPY_ICON_MARKUP = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" stroke="currentColor" stroke-width="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
 interface DecodedDataViewerProps {
   data: any[];
@@ -41,6 +45,7 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
   const [showRawData, setShowRawData] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editableRawData, setEditableRawData] = useState<any>(null);
+  const rawEditorRef = useRef<HTMLDivElement | null>(null);
 
   // All helper functions must be declared first due to hoisting
   const sanitizeValue = useCallback((value: any): any => {
@@ -76,14 +81,57 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
     }
   }, []);
 
+  const sanitizedData = useMemo(() => data.map(sanitizeValue), [data, sanitizeValue]);
+
   // Initialize editable raw data when component mounts or data changes
   useEffect(() => {
-    if (data && data.length > 0) {
-      // Create sanitized version for editing
-      const sanitizedData = data.map(sanitizeValue);
+    if (sanitizedData && sanitizedData.length > 0) {
       setEditableRawData(sanitizedData);
     }
-  }, [data, sanitizeValue]);
+  }, [sanitizedData]);
+
+  const attachCopyButtons = useCallback(() => {
+    const container = rawEditorRef.current;
+    if (!container) return;
+
+    const valueNodes = Array.from(container.querySelectorAll<HTMLElement>('.jer-value'));
+    valueNodes.forEach((node) => {
+      const parent = node.parentElement;
+      if (!parent) return;
+
+      parent.classList.add('json-editor-value-container');
+      node.classList.add('json-editor-value-text');
+
+      const copyValue = node.textContent ?? '';
+      let button = parent.querySelector<HTMLButtonElement>('.json-editor-copy-button');
+
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'json-editor-copy-button';
+        button.title = 'Copy value';
+        button.setAttribute('aria-label', 'Copy value');
+        button.innerHTML = COPY_ICON_MARKUP;
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          const valueToCopy = button?.dataset.copyValue ?? '';
+          if (valueToCopy) {
+            copyTextToClipboard(valueToCopy).catch(() => {});
+          }
+        });
+        parent.appendChild(button);
+      }
+
+      button.dataset.copyValue = copyValue;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showRawData || typeof window === 'undefined') return;
+    const raf = window.requestAnimationFrame(() => attachCopyButtons());
+    return () => window.cancelAnimationFrame(raf);
+  }, [attachCopyButtons, showRawData, editableRawData]);
 
   const detectValueType = useCallback((value: any): string => {
     if (typeof value === 'boolean') return 'bool';
@@ -389,8 +437,13 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
     setExpandedGroups(new Set());
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    if (!text) return;
+    try {
+      await copyTextToClipboard(text);
+    } catch (error) {
+      console.warn('Failed to copy value', error);
+    }
   };
 
   const handleRawDataChange = (newData: any) => {
@@ -518,20 +571,28 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
             <button onClick={exportAsJSON} className="control-btn export">
               💾 Export JSON
             </button>
+            <button
+              onClick={() => copyToClipboard(JSON.stringify(sanitizedData, null, 2))}
+              className="control-btn"
+            >
+              <CopyIcon width={16} height={16} style={{ marginRight: '6px' }} />
+              Copy JSON
+            </button>
           </div>
         </div>
       </div>
 
       {showRawData && (
-        <div className="raw-data-section">
-          <div className="raw-data-header">
+      <div className="raw-data-section">
+        <div className="raw-data-header">
             <h4>🔧 Interactive Raw Data Editor</h4>
             <div className="raw-data-controls">
-              <button 
+              <button
                 onClick={() => copyToClipboard(JSON.stringify(editableRawData, null, 2))}
                 className="control-btn"
               >
-                📋 Copy Edited
+                <CopyIcon width={16} height={16} style={{ marginRight: '6px' }} />
+                Copy Edited
               </button>
               <button 
                 onClick={resetRawData}
@@ -547,7 +608,7 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
               </button>
             </div>
           </div>
-          <div className="json-editor-wrapper">
+          <div className="json-editor-wrapper" ref={rawEditorRef}>
             {editableRawData && (
               <JsonEditor
                 data={editableRawData}
@@ -572,13 +633,17 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
       <div className="groups-container">
         {filteredGroups.map((group, groupIndex) => (
           <div key={groupIndex} className="parameter-group">
-            <div 
+            <div
               className="group-header"
               onClick={() => toggleGroup(groupIndex)}
             >
               <div className="group-info">
                 <span className="toggle-icon">
-                  {expandedGroups.has(groupIndex) ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
+                  {expandedGroups.has(groupIndex) ? (
+                    <ChevronDownIcon width={12} height={12} />
+                  ) : (
+                    <ChevronRightIcon width={12} height={12} />
+                  )}
                 </span>
                 <span className="group-title">{group.pattern}</span>
                 <span className="group-count">({group.count} items)</span>
@@ -586,12 +651,12 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  const groupData = group.items.map(item => item.decoded);
+                  const groupData = group.items.map((item) => item.decoded);
                   copyToClipboard(JSON.stringify(groupData, null, 2));
                 }}
                 className="copy-group-btn"
               >
-                📋
+                <CopyIcon width={14} height={14} />
               </button>
             </div>
 
@@ -603,23 +668,37 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
                       <span className="item-index">#{item.index}</span>
                     </div>
                     <div className="item-parameters">
-                      {Object.entries(item.decoded).map(([paramName, param], paramIndex) => {
-                        const typedParam = param as { value: any; type: string; displayValue: string };
-                        return (
-                          <div key={paramIndex} className="parameter">
-                            <div className="param-info">
-                              <span className="param-name">{paramName}</span>
-                              <span className="param-type">({typedParam.type})</span>
-                            </div>
-                            <div className="param-value">
-                              <span className="display-value">{typedParam.displayValue}</span>
-                              {typedParam.displayValue !== String(typedParam.value) && (
-                                <span className="raw-value">{String(typedParam.value)}</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {Object.entries(item.decoded).map(
+                        ([paramName, param], paramIndex) => {
+                          const typedParam = param as {
+                            value: any;
+                            type: string;
+                            displayValue: string;
+                          };
+                          return (
+                            <CopyableKeyValue
+                              key={paramIndex}
+                              label={paramName}
+                              value={typedParam.value}
+                              valueDisplay={
+                                <div className="param-value">
+                                  <span className="display-value">
+                                    {typedParam.displayValue}
+                                  </span>
+                                  {typedParam.displayValue !==
+                                    String(typedParam.value) && (
+                                    <span className="raw-value">
+                                      {String(typedParam.value)}
+                                    </span>
+                                  )}
+                                </div>
+                              }
+                              type={typedParam.type}
+                              className="parameter"
+                            />
+                          );
+                        }
+                      )}
                     </div>
                   </div>
                 ))}

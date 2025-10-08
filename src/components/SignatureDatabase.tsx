@@ -4,7 +4,6 @@ import {
   SearchIcon, 
   DatabaseIcon, 
   HashtagIcon, 
-  CopyIcon, 
   PlusIcon, 
   TrashIcon,
   FolderOpenIcon,
@@ -13,11 +12,12 @@ import {
   PenToolIcon,
   FileTextIcon
 } from './icons/IconLibrary';
-import { 
+import {
   Download,
   Upload,
   Building2
 } from 'lucide-react';
+import InlineCopyButton from './ui/InlineCopyButton';
 import {
   lookupFunctionSignatures,
   lookupEventSignatures,
@@ -426,10 +426,6 @@ const SignatureDatabase: React.FC = () => {
     setSelectedFiles([]);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   const clearCache = (type?: 'function' | 'event' | 'custom') => {
     clearSignatureCache(type);
     loadCachedData();
@@ -551,26 +547,24 @@ const SignatureDatabase: React.FC = () => {
                     <div key={hash} className="signature-result">
                       <div className="hash-header">
                         <strong>{hash}</strong>
-                        <button
-                          onClick={() => copyToClipboard(hash)}
-                          className="copy-btn"
-                          title="Copy hash"
-                        >
-                          📋
-                        </button>
+                        <InlineCopyButton
+                          value={hash}
+                          ariaLabel="Copy hash"
+                          iconSize={12}
+                          size={28}
+                        />
                       </div>
                       {signatures && signatures.length > 0 ? (
                         <div className="signatures-list">
                           {signatures.map((sig, index) => (
                             <div key={index} className="signature-item">
                               <code>{sig.name}</code>
-                              <button
-                                onClick={() => copyToClipboard(sig.name)}
-                                className="copy-btn"
-                                title="Copy signature"
-                              >
-                                📋
-                              </button>
+                              <InlineCopyButton
+                                value={sig.name}
+                                ariaLabel="Copy signature"
+                                iconSize={12}
+                                size={28}
+                              />
                               {sig.filtered && <span className="filtered-badge">Filtered</span>}
                             </div>
                           ))}

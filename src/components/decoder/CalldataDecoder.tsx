@@ -9,12 +9,13 @@ import {
   type SignatureResponse,
   type CustomSignature
 } from '../../utils/signatureDatabase';
-import { 
+import {
   decodeWithHeuristics,
   type HeuristicDecodingResult,
   type DecodedParameter 
 } from '../../utils/advancedDecoder';
 import '../../styles/SharedComponents.css';
+import { copyTextToClipboard } from '../../utils/clipboard';
 
 export interface CalldataDecoderProps {
   /** Input calldata to decode */
@@ -73,7 +74,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       console.log(`Copied ${label} to clipboard`);
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);

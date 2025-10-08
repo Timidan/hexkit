@@ -9,6 +9,7 @@ import {
   RotateCw,
   Building2
 } from 'lucide-react';
+import { copyTextToClipboard } from '../utils/clipboard';
 import {
   lookupFunctionSignatures,
   getCachedSignatures,
@@ -81,8 +82,9 @@ const AdvancedSmartDecoder: React.FC = () => {
   };
 
   const copyToClipboard = async (text: string, label: string) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       console.log(`Copied ${label} to clipboard`);
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);

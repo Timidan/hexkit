@@ -12,7 +12,6 @@ import {
   useChainId,
   useSwitchChain,
 } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useNotifications } from "./NotificationManager";
 import {
   ChevronDownIcon,
@@ -32,12 +31,18 @@ import {
 } from "./icons/IconLibrary";
 import { ethers } from "ethers";
 import { ContractResultFormatter } from "../utils/resultFormatter";
-import ContractDataDisplay from "./ContractDataDisplay";
-import "../styles/ContractDataDisplay.css";
+import CopyableResult from "./ui/CopyableResult";
+import ComplexValueViewer from "./ui/ComplexValueViewer";
+import {
+  createNodeFromValue,
+  serializeNode,
+  type ComplexValueMetadata,
+} from "../utils/complexValueBuilder";
 // import { whatsabi } from "@shazow/whatsabi";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import ChainIcon, { type ChainKey } from "./icons/ChainIcon";
 import InlineWalletConnect from "./InlineWalletConnect";
+import InlineCopyButton from "./ui/InlineCopyButton";
 import type { Chain, ContractInfo, ExtendedABIFetchResult } from "../types";
 import {
   fetchDiamondFacets,
@@ -67,6 +72,103 @@ import {
   ManualLogo,
 } from "./SourceLogos";
 
+const stringifyResultData = (value: any): string => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  const replacer = (_key: string, val: any) => {
+    if (ethers.BigNumber.isBigNumber(val)) {
+      return val.toString();
+    }
+    if (typeof val === "bigint") {
+      return val.toString();
+    }
+    if (val && typeof val === "object") {
+      if (val._isBigNumber && val._hex) {
+        try {
+          return ethers.BigNumber.from(val._hex).toString();
+        } catch {
+          return val.toString?.() ?? val;
+        }
+      }
+      if (val.type === "BigNumber" && val.hex) {
+        try {
+          return ethers.BigNumber.from(val.hex).toString();
+        } catch {
+          return val.toString?.() ?? val;
+        }
+      }
+    }
+    return val;
+  };
+
+  try {
+    return JSON.stringify(value, replacer, 2);
+  } catch (error) {
+    try {
+      return String(value);
+    } catch {
+      console.warn("Unable to stringify result", error);
+      return "";
+    }
+  }
+};
+
+const normalizeResultString = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  return stringifyResultData(value);
+};
+
+const mapOutputToMetadata = (
+  output: any,
+  index: number
+): ComplexValueMetadata => ({
+  label: output?.name || `field_${index}`,
+  name: output?.name,
+  type: output?.type,
+  components: Array.isArray(output?.components)
+    ? output.components.map((component: any, componentIndex: number) =>
+        mapOutputToMetadata(component, componentIndex)
+      )
+    : undefined,
+});
+
+const deriveResultMetadata = (
+  functionABI?: { outputs?: any[] }
+): ComplexValueMetadata | undefined => {
+  if (!functionABI?.outputs || functionABI.outputs.length === 0) {
+    return undefined;
+  }
+
+  if (functionABI.outputs.length === 1) {
+    const output = functionABI.outputs[0];
+    return {
+      label: output?.name || "result",
+      name: output?.name,
+      type: output?.type,
+      components: Array.isArray(output?.components)
+        ? output.components.map((component: any, componentIndex: number) =>
+            mapOutputToMetadata(component, componentIndex)
+          )
+        : undefined,
+    };
+  }
+
+  return {
+    label: "Result",
+    type: "tuple",
+    components: functionABI.outputs.map((output: any, idx: number) =>
+      mapOutputToMetadata(output, idx)
+    ),
+  };
+};
+
 const SimpleGridUI: React.FC = () => {
   // Wagmi hooks for wallet integration
   const { address, isConnected, chain: accountChain } = useAccount();
@@ -74,7 +176,6 @@ const SimpleGridUI: React.FC = () => {
   const publicClient = usePublicClient();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const { openConnectModal } = useConnectModal();
   const { showSuccess, showError, showWarning, showInfo, showNotification } =
     useNotifications();
 
@@ -98,6 +199,24 @@ const SimpleGridUI: React.FC = () => {
     }
     return obj;
   };
+
+  const getWalletChainId = useCallback(
+    async (client?: any | null): Promise<number | undefined> => {
+      let current = accountChain?.id ?? client?.chain?.id ?? chainId;
+      if (client && typeof client.getChainId === 'function') {
+        try {
+          const fetched = await client.getChainId();
+          if (typeof fetched === 'number') {
+            current = fetched;
+          }
+        } catch (err) {
+          console.warn('[Wallet] Failed to read chainId from walletClient', err);
+        }
+      }
+      return current;
+    },
+    [accountChain?.id, chainId]
+  );
 
   // Add CSS keyframes for spinning animation and result formatting
   React.useEffect(() => {
@@ -188,6 +307,59 @@ const SimpleGridUI: React.FC = () => {
     decimals?: number;
     assetAddress?: string;
   } | null>(null);
+
+  const sanitizeAbiEntries = React.useCallback((abiItems: any[]): any[] => {
+    if (!Array.isArray(abiItems)) {
+      return [];
+    }
+
+    const sanitized: any[] = [];
+
+    abiItems.forEach((item) => {
+      if (!item || typeof item !== "object") {
+        return;
+      }
+
+      // Preserve non-function fragments (events, errors, etc.)
+      if ((item as any).type !== "function") {
+        sanitized.push(item);
+        return;
+      }
+
+      const func = item as {
+        name?: string;
+        stateMutability?: string;
+        constant?: boolean;
+        payable?: boolean;
+      };
+
+      if (typeof func.stateMutability === "string" && func.stateMutability) {
+        sanitized.push(item);
+        return;
+      }
+
+      if (!func.name) {
+        console.warn(
+          "⚠️ [ABI Sanitize] Skipping function without name/stateMutability:",
+          item
+        );
+        return;
+      }
+
+      const inferredStateMutability = func.constant === true
+        ? "view"
+        : func.payable === true
+          ? "payable"
+          : "nonpayable";
+
+      sanitized.push({
+        ...item,
+        stateMutability: inferredStateMutability,
+      });
+    });
+
+    return sanitized;
+  }, []);
 
   // Token detection state
   const [isERC20, setIsERC20] = useState(false);
@@ -802,7 +974,7 @@ const SimpleGridUI: React.FC = () => {
 
     if (result.success && result.abi) {
       try {
-        const parsedABI = JSON.parse(result.abi);
+        const parsedABI = sanitizeAbiEntries(JSON.parse(result.abi));
         const contractInfoObj: ContractInfo = {
           address,
           chain,
@@ -3033,7 +3205,9 @@ const SimpleGridUI: React.FC = () => {
       try {
         if (!contractInfo?.abi) return "0x";
 
-        const parsedABI = JSON.parse(contractInfo.abi);
+          const parsedABI = sanitizeAbiEntries(
+            JSON.parse(contractInfo.abi)
+          );
         const targetFunction = parsedABI.find(
           (item: {
             type: string;
@@ -3257,7 +3431,7 @@ const SimpleGridUI: React.FC = () => {
         console.log("✅ Contract found via comprehensive search");
 
         try {
-          const parsedABI = JSON.parse(result.abi);
+          const parsedABI = sanitizeAbiEntries(JSON.parse(result.abi));
           const contractInfoObj: ContractInfo = {
             address: result.address,
             chain: result.chain,
@@ -3445,7 +3619,9 @@ const SimpleGridUI: React.FC = () => {
 
     try {
       // Validate ABI by trying to parse it
-      const parsedABI = JSON.parse(manualAbi.trim());
+      const parsedABI = sanitizeAbiEntries(
+        JSON.parse(manualAbi.trim())
+      );
 
       const contractInfoObj: ContractInfo = {
         address: contractAddress,
@@ -4140,7 +4316,11 @@ const SimpleGridUI: React.FC = () => {
 
                           {selectedFunctionType === "write" && (
                             <div style={{ marginTop: "12px" }}>
-                              <InlineWalletConnect size="compact" />
+                              <InlineWalletConnect
+                                size="compact"
+                                chainId={selectedNetwork?.id}
+                                chainName={selectedNetwork?.name}
+                              />
                             </div>
                           )}
                         </div>
@@ -6326,7 +6506,7 @@ const SimpleGridUI: React.FC = () => {
                               fontSize: "11px",
                               paddingRight: "80px",
                               background: "#0a0a0a",
-                              border: "1px solid #333",
+                              border: "none",
                               color: "#22c55e",
                               marginBottom: "0",
                               minHeight: "40px",
@@ -6354,39 +6534,14 @@ const SimpleGridUI: React.FC = () => {
                               transform: "translateY(-50%)",
                               display: "flex",
                               alignItems: "center",
-                              gap: "4px",
                             }}
                           >
-                            <span
-                              style={{
-                                fontSize: "10px",
-                                color: "#888",
-                                cursor: "pointer",
-                                padding: "2px 6px",
-                                borderRadius: "3px",
-                                background: "#2a2a2a",
-                                border: "1px solid #444",
-                                transition: "all 0.2s ease",
-                              }}
-                              onClick={() =>
-                                navigator.clipboard.writeText(generatedCallData)
-                              }
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "#007bff";
-                                e.currentTarget.style.color = "#fff";
-                                e.currentTarget.style.transform = "scale(1.05)";
-                                e.currentTarget.style.borderColor = "#007bff";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "#2a2a2a";
-                                e.currentTarget.style.color = "#888";
-                                e.currentTarget.style.transform = "scale(1)";
-                                e.currentTarget.style.borderColor = "#444";
-                              }}
-                              title="Copy calldata"
-                            >
-                              Copy
-                            </span>
+                            <InlineCopyButton
+                              value={generatedCallData}
+                              ariaLabel="Copy generated calldata"
+                              iconSize={16}
+                              size={34}
+                            />
                           </div>
                         </div>
                       </div>
@@ -6469,14 +6624,10 @@ const SimpleGridUI: React.FC = () => {
                                   selectedFunctionType === "write" &&
                                   (!isConnected || !walletClient)
                                 ) {
-                                  if (openConnectModal) {
-                                    openConnectModal();
-                                  } else {
-                                    showWarning(
-                                      "Wallet required",
-                                      "Connect your wallet to send transactions."
-                                    );
-                                  }
+                                  showWarning(
+                                    "Wallet required",
+                                    "Connect your wallet to send transactions."
+                                  );
                                   return;
                                 }
 
@@ -6550,14 +6701,26 @@ const SimpleGridUI: React.FC = () => {
                                           }
 
                                           if (facetABI.length > 0) {
-                                            const functionCount = facetABI.filter(
+                                            const sanitizedFacetAbi =
+                                              sanitizeAbiEntries(facetABI);
+                                            const functionCount = sanitizedFacetAbi.filter(
                                               (item: any) =>
                                                 item.type === "function"
                                             ).length;
+                                            const skippedEntries =
+                                              facetABI.length -
+                                              sanitizedFacetAbi.length;
                                             console.log(
                                               `💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions (source=${facet.inferenceSource || facet.source}, confidence=${facet.confidence || (facet.isVerified ? "verified" : "inferred")})`
                                             );
-                                            combinedABI.push(...facetABI);
+                                            if (skippedEntries > 0) {
+                                              console.warn(
+                                                `⚠️ [ABI Sanitize] Skipped ${skippedEntries} incomplete fragment(s) from facet ${facet.address}`
+                                              );
+                                            }
+                                            combinedABI.push(
+                                              ...sanitizedFacetAbi
+                                            );
                                           } else {
                                             console.log(
                                               `💎 [Diamond] Facet ${index + 1} has no functions after parsing`
@@ -6604,7 +6767,7 @@ const SimpleGridUI: React.FC = () => {
                                         );
                                       }
 
-                                      return combinedABI;
+                                      return sanitizeAbiEntries(combinedABI);
                                     } else if (isDiamond) {
                                       // Diamond detected but facets not loaded yet - try creating minimal ABI for this function
                                       console.log(
@@ -6622,8 +6785,8 @@ const SimpleGridUI: React.FC = () => {
                                       console.log(
                                         "📄 [Regular] Using regular contract ABI"
                                       );
-                                      return JSON.parse(
-                                        contractInfo?.abi || "[]"
+                                      return sanitizeAbiEntries(
+                                        JSON.parse(contractInfo?.abi || "[]")
                                       );
                                     }
                                   };
@@ -6942,24 +7105,18 @@ const SimpleGridUI: React.FC = () => {
                                   } else {
                                     try {
                                       // Network validation before write function execution
-                                      const currentWalletChain = chainId;
+                                      const currentWalletChain = accountChain?.id;
                                       const appSelectedChain =
                                         selectedNetwork?.id;
 
-                                      console.log(
-                                        `🔗 [Network Check] Wallet chain: ${currentWalletChain}, App chain: ${appSelectedChain}`
-                                      );
-
                                       if (
+                                        appSelectedChain !== undefined &&
+                                        currentWalletChain !== undefined &&
                                         currentWalletChain !== appSelectedChain
                                       ) {
                                         const networkName =
                                           selectedNetwork?.name ||
                                           `Chain ${appSelectedChain}`;
-
-                                        console.log(
-                                          `⚠️ [Network Mismatch] Wallet on chain ${currentWalletChain}, app expects chain ${appSelectedChain}`
-                                        );
 
                                         // Show info notification about automatic network switch
                                         showInfo(
@@ -6980,6 +7137,27 @@ const SimpleGridUI: React.FC = () => {
                                             await new Promise((resolve) =>
                                               setTimeout(resolve, 1500)
                                             );
+
+                                            const updatedChainId = await getWalletChainId(
+                                              walletClient
+                                            );
+                                            if (
+                                              updatedChainId !==
+                                                undefined &&
+                                              updatedChainId !==
+                                                appSelectedChain
+                                            ) {
+                                              showError(
+                                                "Network Switch Failed",
+                                                `Wallet is still on chain ${updatedChainId}. Please switch to ${networkName}.`
+                                              );
+                                              setFunctionResult({
+                                                data: null,
+                                                error: `Switch to ${networkName} before executing.`,
+                                                isLoading: false,
+                                              });
+                                              return;
+                                            }
 
                                             showSuccess(
                                               "Network Switched",
@@ -7019,29 +7197,20 @@ const SimpleGridUI: React.FC = () => {
                                       console.log(
                                         `📝 [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
                                       );
-                                      const activeWalletClient = walletClient;
-                                      if (!activeWalletClient) {
-                                        showError('Wallet Disconnected', 'Wallet client became unavailable.');
-                                        return;
-                                      }
+                                     const activeWalletClient = walletClient;
+                                     if (!activeWalletClient) {
+                                       showError('Wallet Disconnected', 'Wallet client became unavailable.');
+                                       return;
+                                     }
 
                                       const resolvedClientChainId =
-                                        accountChain?.id ??
-                                        activeWalletClient.chain?.id ??
-                                        chainId;
+                                        await getWalletChainId(activeWalletClient);
 
                                       if (
                                         selectedNetwork &&
+                                        resolvedClientChainId !== undefined &&
                                         resolvedClientChainId !== selectedNetwork.id
                                       ) {
-                                        console.warn(
-                                          '[Network Check] wallet mismatch: accountChain',
-                                          accountChain?.id,
-                                          'client chain',
-                                          activeWalletClient.chain?.id,
-                                          'fallback',
-                                          chainId
-                                        );
                                         const expectedName = selectedNetwork.name || 'selected network';
                                         showError(
                                           'Network Mismatch',
@@ -7190,11 +7359,13 @@ const SimpleGridUI: React.FC = () => {
                                     );
 
                                     // Network validation
-                                    const currentWalletChain = chainId;
+                                    const currentWalletChain = accountChain?.id;
                                     const appSelectedChain =
                                       selectedNetwork?.id;
 
                                     if (
+                                      appSelectedChain !== undefined &&
+                                      currentWalletChain !== undefined &&
                                       currentWalletChain !== appSelectedChain
                                     ) {
                                       const networkName =
@@ -7307,182 +7478,122 @@ const SimpleGridUI: React.FC = () => {
                                     fontWeight: "600",
                                     color: "#888",
                                     marginBottom: "8px",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
                                   }}
                                 >
-                                  <span>Function Result</span>
-                                  {!functionResult.error &&
-                                    !functionResult.isLoading && (
-                                      <button
-                                        onClick={() => {
-                                          const textToCopy =
-                                            functionResult.formattedResult
-                                              ?.displayValue ||
-                                            JSON.stringify(
-                                              functionResult.data,
-                                              null,
-                                              2
-                                            );
-                                          navigator.clipboard.writeText(
-                                            textToCopy
-                                          );
-                                          // Quick visual feedback
-                                          const btn =
-                                            event?.target as HTMLButtonElement;
-                                          if (btn) {
-                                            const original = btn.textContent;
-                                            btn.textContent = "Copied!";
-                                            setTimeout(
-                                              () =>
-                                                (btn.textContent = original),
-                                              1000
-                                            );
-                                          }
-                                        }}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: "rgba(34, 197, 94, 0.2)",
-                                          border:
-                                            "1px solid rgba(34, 197, 94, 0.4)",
-                                          borderRadius: "4px",
-                                          color: "#22c55e",
-                                          fontSize: "10px",
-                                          cursor: "pointer",
-                                          fontFamily: "monospace",
-                                        }}
-                                      >
-                                        Copy
-                                      </button>
-                                    )}
+                                  Function Result
                                 </div>
 
-                                <div
-                                  style={{
-                                    background: "#1a1a1a",
-                                    border: functionResult.error
-                                      ? "1px solid #dc2626"
-                                      : "1px solid #333",
-                                    borderRadius: "6px",
-                                    padding: "12px",
-                                    fontFamily:
-                                      "Monaco, Menlo, Ubuntu Mono, monospace",
-                                    fontSize: "12px",
-                                    lineHeight: "1.4",
-                                    color: functionResult.error
-                                      ? "#dc2626"
-                                      : "#22c55e",
-                                    maxHeight: "300px",
-                                    overflowY: "auto",
-                                    whiteSpace: "pre-wrap",
-                                    wordBreak: "break-word",
-                                  }}
-                                >
-                                  {functionResult.isLoading ? (
+                                {functionResult.isLoading ? (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "8px",
+                                      color: "#888",
+                                      background: "rgba(15, 23, 42, 0.6)",
+                                      border: "1px solid rgba(148, 163, 184, 0.25)",
+                                      borderRadius: "8px",
+                                      padding: "12px",
+                                      fontFamily:
+                                        "Monaco, Menlo, Ubuntu Mono, monospace",
+                                    }}
+                                  >
                                     <div
                                       style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "8px",
-                                        color: "#888",
+                                        width: "12px",
+                                        height: "12px",
+                                        border: "2px solid #333",
+                                        borderTop: "2px solid #888",
+                                        borderRadius: "50%",
+                                        animation: "spin 1s linear infinite",
                                       }}
-                                    >
-                                      <div
-                                        style={{
-                                          width: "12px",
-                                          height: "12px",
-                                          border: "2px solid #333",
-                                          borderTop: "2px solid #888",
-                                          borderRadius: "50%",
-                                          animation: "spin 1s linear infinite",
-                                        }}
-                                      />
-                                      Executing function...
-                                    </div>
-                                  ) : functionResult.error ? (
-                                    <div>
-                                      <div
-                                        style={{
-                                          color: "#888",
-                                          marginBottom: "8px",
-                                        }}
-                                      >
-                                        ❌ Error:
-                                      </div>
-                                      {functionResult.error}
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      <div
-                                        style={{
-                                          color: "#888",
-                                          marginBottom: "8px",
-                                        }}
-                                      >
-                                        ✅ Result (
-                                        {functionResult.formattedResult?.type ||
-                                          "unknown"}
-                                        ):
-                                      </div>
-                                      {functionResult.functionABI &&
+                                    />
+                                    Executing function...
+                                  </div>
+                                ) : functionResult.error ? (
+                                  <CopyableResult
+                                    title="❌ Error"
+                                    tone="error"
+                                    plainText={String(functionResult.error)}
+                                    copyText={String(functionResult.error)}
+                                    monospace
+                                  />
+                                ) : (
+                                  (() => {
+                                    const hasStructuredOutputs =
+                                      functionResult.functionABI &&
                                       functionResult.functionABI.outputs &&
-                                      functionResult.functionABI.outputs
-                                        .length > 0 ? (
-                                        <ContractDataDisplay
-                                          data={functionResult.data}
-                                          abiDefinition={{
-                                            name:
-                                              functionResult.functionABI.outputs
-                                                .length === 1
-                                                ? functionResult.functionABI
-                                                    .outputs[0].name || "result"
-                                                : "result",
-                                            type:
-                                              functionResult.functionABI.outputs
-                                                .length === 1
-                                                ? functionResult.functionABI
-                                                    .outputs[0].type
-                                                : "tuple",
-                                            components:
-                                              functionResult.functionABI.outputs
-                                                .length === 1
-                                                ? functionResult.functionABI
-                                                    .outputs[0].components
-                                                : functionResult.functionABI
-                                                    .outputs,
-                                          }}
-                                          mode="compact"
-                                        />
-                                      ) : (
-                                        <div
-                                          className="result-container"
-                                          dangerouslySetInnerHTML={{
-                                            __html:
-                                              functionResult.formattedResult
-                                                ?.htmlContent ||
-                                              `<pre>${JSON.stringify(
-                                                functionResult.data,
-                                                (_, value) => {
-                                                  // Convert BigNumbers to strings
-                                                  if (
-                                                    value &&
-                                                    typeof value === "object" &&
-                                                    value._hex &&
-                                                    value._isBigNumber
-                                                  ) {
-                                                    return value.toString();
-                                                  }
-                                                  return value;
-                                                },
-                                                2
-                                              )}</pre>`,
-                                          }}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                      functionResult.functionABI.outputs.length > 0;
+
+                                    const resultType =
+                                      functionResult.formattedResult?.type ||
+                                      "unknown";
+
+                                    const metadata = hasStructuredOutputs
+                                      ? deriveResultMetadata(
+                                          functionResult.functionABI
+                                        )
+                                      : undefined;
+
+                                    const structuredNode =
+                                      hasStructuredOutputs && metadata
+                                        ? createNodeFromValue(
+                                            functionResult.data,
+                                            metadata
+                                          )
+                                        : null;
+
+                                    const defaultCopySource =
+                                      functionResult.formattedResult?.displayValue ??
+                                      functionResult.data ??
+                                      "";
+
+                                    const copyText = structuredNode
+                                      ? serializeNode(structuredNode)
+                                      : stringifyResultData(defaultCopySource);
+
+                                    const plainTextFallback =
+                                      !structuredNode &&
+                                      !functionResult.formattedResult?.htmlContent
+                                        ? normalizeResultString(
+                                            functionResult.formattedResult
+                                              ?.displayValue ?? functionResult.data
+                                          )
+                                        : undefined;
+
+                                    return (
+                                      <CopyableResult
+                                        title={`✅ Result (${resultType})`}
+                                        tone="success"
+                                        copyText={copyText}
+                                        htmlContent={
+                                          structuredNode
+                                            ? undefined
+                                            : functionResult.formattedResult
+                                                ?.htmlContent || undefined
+                                        }
+                                        plainText={plainTextFallback}
+                                        monospace
+                                      >
+                                        {structuredNode && (
+                                          <ComplexValueViewer
+                                            node={structuredNode}
+                                            showControls
+                                            options={{
+                                              collapse: {
+                                                root: false,
+                                                depth: 2,
+                                                arrayItems: 4,
+                                                objectKeys: 8,
+                                              },
+                                              previewItems: 3,
+                                            }}
+                                          />
+                                        )}
+                                      </CopyableResult>
+                                    );
+                                  })()
+                                )}
                               </div>
                             )}
                         </div>
@@ -7722,18 +7833,18 @@ const SimpleGridUI: React.FC = () => {
 
                                       const resolvedClientChainId =
                                         accountChain?.id ??
-                                        activeWalletClient.chain?.id ??
-                                        chainId;
+                                        activeWalletClient.chain?.id;
 
-                              if (
-                                selectedNetwork &&
-                                resolvedClientChainId !== selectedNetwork.id
-                              ) {
-                                const expectedName = selectedNetwork.name || 'selected network';
-                                showError(
-                                  'Network Mismatch',
-                                  `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
-                                );
+                                      if (
+                                        selectedNetwork &&
+                                        resolvedClientChainId !== undefined &&
+                                        resolvedClientChainId !== selectedNetwork.id
+                                      ) {
+                                        const expectedName = selectedNetwork.name || 'selected network';
+                                        showError(
+                                          'Network Mismatch',
+                                          `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                        );
                                 return;
                               }
 
@@ -7795,24 +7906,23 @@ const SimpleGridUI: React.FC = () => {
                           >
                             Raw Call Result
                           </div>
-                          <div
-                            style={{
-                              background: "#1a1a1a",
-                              border: "1px solid #333",
-                              borderRadius: "6px",
-                              padding: "12px",
-                              fontFamily: "monospace",
-                              fontSize: "12px",
-                              color: functionResult.error
-                                ? "#ef4444"
-                                : "#22c55e",
-                              wordBreak: "break-all",
-                            }}
-                          >
-                            {functionResult.error ||
-                              functionResult.data ||
-                              "No result"}
-                          </div>
+                          {(() => {
+                            const rawString = functionResult.error
+                              ? String(functionResult.error)
+                              : normalizeResultString(
+                                  functionResult.data ?? "No result"
+                                );
+
+                            return (
+                              <CopyableResult
+                                title="📦 Raw Output"
+                                tone={functionResult.error ? "error" : "info"}
+                                plainText={rawString}
+                                copyText={rawString}
+                                monospace
+                              />
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -8631,7 +8741,10 @@ const SimpleGridUI: React.FC = () => {
           Simulate Transaction
         </button>
 
-        <InlineWalletConnect />
+        <InlineWalletConnect
+          chainId={selectedNetwork?.id}
+          chainName={selectedNetwork?.name}
+        />
       </div>
 
       {/* Diamond Contract Popup */}

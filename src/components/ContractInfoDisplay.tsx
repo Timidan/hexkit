@@ -4,7 +4,6 @@ import {
   FileText,
   CheckCircle,
   AlertTriangle,
-  Copy,
   Coins,
   Hash,
   Activity,
@@ -16,6 +15,7 @@ import {
   Image,
   Loader,
 } from "lucide-react";
+import InlineCopyButton from "./ui/InlineCopyButton";
 import type { ContractInfo } from "../utils/contractAnalyzer";
 import type { Chain } from "../types";
 import {
@@ -937,33 +937,12 @@ const ContractInfoDisplay: React.FC<ContractInfoDisplayProps> = ({
             {contractAddress}
           </code>
           <div style={{ display: "flex", gap: "6px" }}>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(contractAddress);
-                // You could add a toast notification here
-              }}
-              title="Copy contract address"
-              style={{
-                background: "rgba(59, 130, 246, 0.15)",
-                border: "1px solid rgba(59, 130, 246, 0.3)",
-                borderRadius: "6px",
-                padding: "6px",
-                cursor: "pointer",
-                color: "#3b82f6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(59, 130, 246, 0.15)";
-              }}
-            >
-              <Copy size={14} />
-            </button>
+            <InlineCopyButton
+              value={contractAddress}
+              ariaLabel="Copy contract address"
+              iconSize={14}
+              size={32}
+            />
             <a
               href={`${chain.explorerUrl}/address/${contractAddress}`}
               target="_blank"

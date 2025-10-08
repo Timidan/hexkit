@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import type { JSX } from 'react';
 import { ethers } from 'ethers';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Search, 
-  FileText, 
-  Settings, 
-  Sparkles, 
-  Copy,
+import {
+  CheckCircle,
+  XCircle,
+  Search,
+  FileText,
+  Settings,
+  Sparkles,
   Building2,
   Code2,
   Zap,
@@ -35,6 +34,8 @@ import AnimatedInput from './ui/AnimatedInput';
 import AnimatedButton from './ui/AnimatedButton';
 import ContractInfoDisplay from './ContractInfoDisplay';
 import GlassButton from './ui/GlassButton';
+import { CopyIcon } from './icons/IconLibrary';
+import { copyTextToClipboard } from '../utils/clipboard';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
@@ -227,8 +228,9 @@ const SmartDecoder: React.FC = () => {
   };
 
   const copyToClipboard = async (text: string, label: string) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyTextToClipboard(text);
       // Could add a toast notification here
       console.log(`Copied ${label} to clipboard`);
     } catch (err) {
@@ -271,12 +273,13 @@ const SmartDecoder: React.FC = () => {
       if (customSignature) {
         console.log(`✅ Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(cleanValue, customSignature);
+        const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         return {
           type: 'decoded_calldata',
           selector,
           signature: customSignature,
           functionName: decoded.name,
-          args: decoded.args,
+          args: sanitizedArgs,
           source: 'custom'
         };
       }
@@ -289,12 +292,13 @@ const SmartDecoder: React.FC = () => {
         const signature = signatures[0].name;
         console.log(`✅ Found on OpenChain: ${signature}`);
         const decoded = decodeWithSignature(cleanValue, signature);
+        const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         return {
           type: 'decoded_calldata',
           selector,
           signature,
           functionName: decoded.name,
-          args: decoded.args,
+          args: sanitizedArgs,
           source: 'openchain'
         };
       }
@@ -344,7 +348,7 @@ const SmartDecoder: React.FC = () => {
             }}
             title="Copy full array"
           >
-            <Copy size={12} />
+            <CopyIcon width={12} height={12} />
           </button>
         </div>
       );
@@ -406,7 +410,7 @@ const SmartDecoder: React.FC = () => {
             }}
             title="Copy full array"
           >
-            <Copy size={12} />
+            <CopyIcon width={12} height={12} />
           </button>
         </div>
 
@@ -469,7 +473,7 @@ const SmartDecoder: React.FC = () => {
                   }}
                   title={`Copy item ${index}`}
                 >
-                  <Copy size={11} />
+                  <CopyIcon width={11} height={11} />
                 </button>
               </div>
             ))}
@@ -935,6 +939,24 @@ const SmartDecoder: React.FC = () => {
     }
   };
 
+  const sanitizeDecodedValue = (value: any): any => {
+    if (Array.isArray(value)) {
+      return Array.from(value, sanitizeDecodedValue);
+    }
+
+    if (value && typeof value === 'object') {
+      if (ethers.BigNumber.isBigNumber(value)) {
+        return value.toString();
+      }
+
+      if (value instanceof Uint8Array) {
+        return ethers.utils.hexlify(value);
+      }
+    }
+
+    return value;
+  };
+
   // Helper function to format parameter values nicely
   const formatParameterValue = (value: any, paramType?: string): string => {
     if (value === null || value === undefined) return 'null';
@@ -1059,14 +1081,83 @@ const SmartDecoder: React.FC = () => {
     return null;
   };
 
+  const normalizeCalldataHex = (calldataHex: string): string => {
+    const trimmed = calldataHex.trim();
+
+    if (!trimmed) {
+      throw new Error('Calldata is empty.');
+    }
+
+    const withoutWhitespace = trimmed
+      .replace(/\s+/g, '')
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+
+    if (!withoutWhitespace) {
+      throw new Error('Calldata is empty.');
+    }
+
+    let prefixed = withoutWhitespace;
+    if (!(prefixed.startsWith('0x') || prefixed.startsWith('0X'))) {
+      addDecodingStep('Added missing 0x prefix to calldata input.');
+      prefixed = `0x${prefixed}`;
+    }
+
+    const rawHexBody = prefixed.slice(2);
+    let sanitizedHexBody = '';
+    let removedInvalid = 0;
+
+    for (const char of rawHexBody) {
+      if (/^[0-9a-fA-F]$/.test(char)) {
+        sanitizedHexBody += char;
+      } else {
+        removedInvalid++;
+      }
+    }
+
+    if (!sanitizedHexBody) {
+      throw new Error('Calldata must contain hexadecimal characters (0-9, a-f).');
+    }
+
+    if (removedInvalid > 0) {
+      addDecodingStep(`Removed ${removedInvalid} non-hex character${removedInvalid === 1 ? '' : 's'} from calldata input.`);
+    }
+
+    if (sanitizedHexBody.length % 2 !== 0) {
+      const selectorPart = sanitizedHexBody.slice(0, 8);
+      let parameterPart = sanitizedHexBody.slice(8);
+
+      if (!parameterPart) {
+        sanitizedHexBody = sanitizedHexBody + '0';
+      } else {
+        parameterPart = `${parameterPart}0`;
+        sanitizedHexBody = selectorPart + parameterPart;
+      }
+
+      addDecodingStep('Calldata length was odd; appended a 0 nibble to parameter data to restore 32-byte alignment.');
+    }
+
+    return `0x${sanitizedHexBody}`;
+  };
+
   const decodeWithSignature = (calldataHex: string, signature: string): any => {
     try {
       const abi = [`function ${signature}`];
       const iface = new ethers.utils.Interface(abi);
-      const decoded = iface.parseTransaction({ data: calldataHex });
-      return decoded;
-    } catch (error) {
-      throw new Error(`Failed to decode with signature ${signature}: ${error}`);
+      const normalizedCalldata = normalizeCalldataHex(calldataHex);
+      return iface.parseTransaction({ data: normalizedCalldata });
+    } catch (error: any) {
+      const reason = typeof error?.reason === 'string' ? error.reason : undefined;
+      const message = typeof error?.message === 'string' ? error.message : undefined;
+
+      if (reason && reason.includes('hex data is odd-length')) {
+        throw new Error('Calldata hex must contain an even number of characters after the 0x prefix.');
+      }
+
+      if (message && message.includes('hex data is odd-length')) {
+        throw new Error('Calldata hex must contain an even number of characters after the 0x prefix.');
+      }
+
+      throw new Error(`Failed to decode with signature ${signature}: ${message ?? error}`);
     }
   };
 
@@ -1432,17 +1523,19 @@ const SmartDecoder: React.FC = () => {
       if (customSignature) {
         addDecodingStep(`✓ Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(calldata.trim(), customSignature);
-        setDecodedResult(decoded);
+        const sanitizedArgs = sanitizeDecodedValue(decoded.args);
+        const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
+        setDecodedResult(sanitizedDecoded);
         setAbiSource('signatures');
-        
+
         // Extract parameter names from signature if available
         const parameterInfo = parseSignatureParameters(customSignature);
-        
+
         // Share decoded data with toolkit context
         toolkit.setDecodedTransaction({
-          functionName: decoded.name,
+          functionName: sanitizedDecoded.name,
           functionSignature: customSignature,
-          parameters: decoded.args ? decoded.args.map((arg: any, index: number) => ({
+          parameters: sanitizedArgs ? sanitizedArgs.map((arg: any, index: number) => ({
             name: parameterInfo[index]?.name || `param_${index}`,
             type: parameterInfo[index]?.type || 'unknown',
             value: arg
@@ -1465,19 +1558,21 @@ const SmartDecoder: React.FC = () => {
             const signature = signatures[0].name;
             addDecodingStep(`✓ Found on OpenChain: ${signature}`);
             addDecodingStep(`⚠️ Note: OpenChain only provides parameter types, not names`);
-            
+
             const decoded = decodeWithSignature(calldata.trim(), signature);
-            setDecodedResult(decoded);
+            const sanitizedArgs = sanitizeDecodedValue(decoded.args);
+            const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
+            setDecodedResult(sanitizedDecoded);
             setAbiSource('signatures');
-            
+
             // Extract parameter names from signature if available (will be generic for OpenChain)
             const parameterInfo = parseSignatureParameters(signature);
-            
+
             // Share decoded data with toolkit context
             toolkit.setDecodedTransaction({
-              functionName: decoded.name,
+              functionName: sanitizedDecoded.name,
               functionSignature: signature,
-              parameters: decoded.args ? decoded.args.map((arg: any, index: number) => ({
+              parameters: sanitizedArgs ? sanitizedArgs.map((arg: any, index: number) => ({
                 name: parameterInfo[index]?.name || `param_${index}`,
                 type: parameterInfo[index]?.type || 'unknown',
                 value: arg
@@ -1584,18 +1679,20 @@ const SmartDecoder: React.FC = () => {
       if (matchingFunction) {
         addDecodingStep(`✓ Found matching function: ${matchingFunction.signature}`);
         const decoded = decodeWithSignature(calldata, matchingFunction.signature);
-        setDecodedResult(decoded);
+        const sanitizedArgs = sanitizeDecodedValue(decoded.args);
+        const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
+        setDecodedResult(sanitizedDecoded);
         setShowFallbackOptions(false);
-        
+
         // Share decoded data with toolkit context including contract address and ABI
         toolkit.setDecodedTransaction({
-          functionName: decoded.name,
+          functionName: sanitizedDecoded.name,
           functionSignature: matchingFunction.signature,
           contractAddress: contractAddress.trim(),
           parameters: matchingFunction.inputs ? matchingFunction.inputs.map((input: any, index: number) => ({
             name: input.name,
             type: input.type,
-            value: decoded.args ? decoded.args[index] : undefined
+            value: sanitizedArgs ? sanitizedArgs[index] : undefined
           })) : [],
           abi,
           calldata: calldata.trim()
@@ -1667,17 +1764,19 @@ const SmartDecoder: React.FC = () => {
       if (matchingFunction) {
         addDecodingStep(`✓ Found matching function: ${matchingFunction.signature}`);
         const decoded = decodeWithSignature(calldata, matchingFunction.signature);
-        setDecodedResult(decoded);
+        const sanitizedArgs = sanitizeDecodedValue(decoded.args);
+        const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
+        setDecodedResult(sanitizedDecoded);
         setShowFallbackOptions(false);
-        
+
         // Share decoded data with toolkit context
         toolkit.setDecodedTransaction({
-          functionName: decoded.name,
+          functionName: sanitizedDecoded.name,
           functionSignature: matchingFunction.signature,
           parameters: matchingFunction.inputs ? matchingFunction.inputs.map((input: any, index: number) => ({
             name: input.name,
             type: input.type,
-            value: decoded.args ? decoded.args[index] : undefined
+            value: sanitizedArgs ? sanitizedArgs[index] : undefined
           })) : [],
           abi,
           calldata: calldata.trim()
@@ -2553,7 +2652,7 @@ const SmartDecoder: React.FC = () => {
                   variant="primary"
                   size="md"
                 >
-                  <Copy size={16} style={{ marginRight: '8px' }} />
+                  <CopyIcon width={16} height={16} style={{ marginRight: '8px' }} />
                   Copy JSON
                 </GlassButton>
                 

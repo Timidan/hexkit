@@ -18,6 +18,7 @@ import {
   optimism,
   base,
 } from 'wagmi/chains';
+import type { Chain } from 'wagmi/chains';
 import {
   QueryClientProvider,
   QueryClient,
@@ -29,7 +30,33 @@ const API_KEY = import.meta.env.API_KEY || import.meta.env.VITE_API_KEY || '';
 console.log('🔑 [RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8)}...` : 'No API key found');
 
 // Wagmi v2 compatible configuration without WalletConnect dependency
-const chains = [mainnet, polygon, arbitrum, optimism, base] as const;
+const liskSepolia = {
+  id: 4202,
+  name: 'Lisk Sepolia',
+  network: 'lisk-sepolia',
+  nativeCurrency: {
+    name: 'Lisk Sepolia Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.sepolia-api.lisk.com'],
+    },
+    public: {
+      http: ['https://rpc.sepolia-api.lisk.com'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Lisk Sepolia Explorer',
+      url: 'https://sepolia-blockscout.lisk.com',
+    },
+  },
+  testnet: true,
+} as const satisfies Chain;
+
+const chains = [mainnet, polygon, arbitrum, optimism, base, liskSepolia] as const;
 
 const connectors = connectorsForWallets(
   [
@@ -58,6 +85,7 @@ const config = createConfig({
     [arbitrum.id]: http(API_KEY ? `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://arb1.arbitrum.io/rpc'),
     [optimism.id]: http(API_KEY ? `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.optimism.io'),
     [base.id]: http(API_KEY ? `https://base-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.base.org'),
+    [liskSepolia.id]: http('https://rpc.sepolia-api.lisk.com'),
   },
 });
 

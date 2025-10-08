@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
-import { BookOpenIcon, EditIcon, CopyIcon } from './icons/IconLibrary';
+import { BookOpenIcon, EditIcon } from './icons/IconLibrary';
+import InlineCopyButton from './ui/InlineCopyButton';
 
 interface FacetSidebarProps {
   facets: DiamondFacet[];
@@ -25,10 +26,6 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
       newExpanded.add(facetAddress);
     }
     setExpandedFacets(newExpanded);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
   };
 
   const shortenAddress = (address: string) => {
@@ -125,23 +122,12 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
                     gap: '8px'
                   }}>
                     <span>{shortenAddress(facet.address)}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(facet.address);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#888',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        padding: '2px'
-                      }}
-                      title="Copy address"
-                    >
-                      <CopyIcon width={12} height={12} />
-                    </button>
+                    <InlineCopyButton
+                      value={facet.address}
+                      ariaLabel="Copy facet address"
+                      iconSize={12}
+                      size={30}
+                    />
                   </div>
                 </div>
                 <div style={{

@@ -1,15 +1,15 @@
 import React from 'react';
 import { DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Wallet, 
-  ChevronDown, 
-  Settings, 
-  LogOut, 
-  Copy,
+import {
+  Wallet,
+  ChevronDown,
+  Settings,
+  LogOut,
   ExternalLink,
   Zap
 } from 'lucide-react';
+import InlineCopyButton from './ui/InlineCopyButton';
 
 interface DynamicWalletButtonProps {
   className?: string;
@@ -30,14 +30,6 @@ export const DynamicWalletButton: React.FC<DynamicWalletButtonProps> = ({
   // Handle wallet connection
   const handleConnect = () => {
     setShowAuthFlow(true);
-  };
-
-  // Copy wallet address
-  const copyAddress = async () => {
-    if (primaryWallet?.address) {
-      await navigator.clipboard.writeText(primaryWallet.address);
-      // Could add toast notification here
-    }
   };
 
   // Format address for display
@@ -179,13 +171,15 @@ export const DynamicWalletButton: React.FC<DynamicWalletButtonProps> = ({
 
               {/* Actions Section */}
               <div className="dropdown-section">
-                <button 
-                  className="dropdown-action"
-                  onClick={copyAddress}
-                >
-                  <Copy size={16} />
+                <div className="dropdown-action" style={{ justifyContent: 'space-between' }}>
                   <span>Copy Address</span>
-                </button>
+                  <InlineCopyButton
+                    value={walletInfo.address}
+                    ariaLabel="Copy wallet address"
+                    iconSize={14}
+                    size={30}
+                  />
+                </div>
                 
                 <button 
                   className="dropdown-action"
