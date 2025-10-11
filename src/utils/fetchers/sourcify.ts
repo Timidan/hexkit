@@ -46,8 +46,13 @@ export const fetchFromSourcify = async (
   address: string,
   chain: Chain
 ): Promise<Partial<ContractInfoResult>> => {
+  const normalizedAddress = address?.toLowerCase();
+  if (!normalizedAddress || !normalizedAddress.startsWith('0x') || normalizedAddress.length !== 42) {
+    return { success: false, error: 'Invalid contract address format' };
+  }
+
   try {
-    for (const url of buildRepoUrls(chain.id, address)) {
+    for (const url of buildRepoUrls(chain.id, normalizedAddress)) {
       try {
         const metadataResponse = await withRetry(() =>
           axios.get(url, {
@@ -81,7 +86,7 @@ export const fetchFromSourcify = async (
       }
     }
 
-    const checkUrl = `/api/sourcify/server/v2/contract/${chain.id}/${address}?fields=abi,metadata`;
+    const checkUrl = `/api/sourcify/server/v2/contract/${chain.id}/${normalizedAddress}?fields=abi,metadata`;
     const response = await withRetry(() =>
       axios.get<SourcifyResponse>(checkUrl, {
         timeout: 15000,

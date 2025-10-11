@@ -1,4 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  startTransition,
+} from 'react';
 
 import '../../styles/ComplexValueViewer.css';
 import InlineCopyButton from './InlineCopyButton';
@@ -16,6 +24,7 @@ import {
   type NormalizedViewerOptions,
   type ViewerOptions,
 } from '../../utils/complexValueBuilder';
+import { CollapseAllIcon, ExpandAllIcon } from '../icons/IconLibrary';
 
 interface ComplexValueViewerProps {
   value?: any;
@@ -31,6 +40,10 @@ type GlobalAction = {
   type: 'collapse' | 'expand';
   timestamp: number;
 };
+
+const VIRTUALIZATION_THRESHOLD = 24;
+const DEFAULT_ROW_HEIGHT = 48;
+const VIRTUAL_OVERSCAN = 6;
 
 const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   value,
@@ -79,15 +92,17 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   return (
     <div className={classes.join(' ')}>
       {showControls && node.children && node.children.length > 0 && (
-        <div className="cv-collapse-all">
+        <div className="cv-collapse-all" role="group" aria-label="Tree controls">
           <button
             type="button"
             className="cv-action-btn"
             onClick={() =>
               setGlobalAction({ type: 'collapse', timestamp: Date.now() })
             }
+            title="Collapse all nodes"
+            aria-label="Collapse all nodes"
           >
-            Collapse All
+            <CollapseAllIcon width={16} height={16} />
           </button>
           <button
             type="button"
@@ -95,8 +110,10 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
             onClick={() =>
               setGlobalAction({ type: 'expand', timestamp: Date.now() })
             }
+            title="Expand all nodes"
+            aria-label="Expand all nodes"
           >
-            Expand All
+            <ExpandAllIcon width={16} height={16} />
           </button>
         </div>
       )}
@@ -118,7 +135,8 @@ interface NodeRendererProps {
   globalAction: GlobalAction | null;
 }
 
-const NodeRenderer: React.FC<NodeRendererProps> = ({
+
+const NodeRendererComponent: React.FC<NodeRendererProps> = ({
   node,
   depth,
   options,
@@ -135,11 +153,13 @@ const NodeRenderer: React.FC<NodeRendererProps> = ({
 
   useEffect(() => {
     setCollapsed(defaultCollapsed);
-  }, [defaultCollapsed, node]);
+  }, [defaultCollapsed]);
 
   useEffect(() => {
     if (!globalAction) return;
-    setCollapsed(globalAction.type === 'collapse');
+    startTransition(() => {
+      setCollapsed(globalAction.type === 'collapse');
+    });
   }, [globalAction]);
 
   const preview = useMemo(() => {
@@ -150,13 +170,35 @@ const NodeRenderer: React.FC<NodeRendererProps> = ({
 
   const summary = useMemo(() => buildSummary(node), [node]);
 
-  const copyValue = useMemo(() => serializeNode(node), [node]);
+  const simpleCopyValue = useMemo(() => {
+    if (node.value === undefined) return undefined;
+    if (typeof node.value === 'string') return node.value;
+    if (typeof node.value === 'number' || typeof node.value === 'boolean') {
+      return String(node.value);
+    }
+    if (typeof node.value === 'bigint') {
+      return node.value.toString();
+    }
+    return formatDisplayValue(node.value, node.type);
+  }, [node.value, node.type]);
+
+  const hasCopyCapability = useMemo(() => {
+    if (simpleCopyValue && simpleCopyValue.length > 0) return true;
+    if (node.raw !== undefined) return true;
+    if (node.children && node.children.length > 0) return true;
+    return false;
+  }, [node.children, node.raw, simpleCopyValue]);
+
+  const getSerializedCopyValue = useCallback(() => serializeNode(node), [node]);
 
   const displayValue = node.value !== undefined
     ? formatDisplayValue(node.value, node.type)
     : preview;
 
   const valueKind = determineValueKind(node.value ?? displayValue, node.type);
+
+  const shouldVirtualize =
+    !collapsed && node.children && node.children.length > VIRTUALIZATION_THRESHOLD;
 
   return (
     <div
@@ -169,7 +211,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = ({
         <ToggleButton
           hidden={!isCollapsible}
           collapsed={collapsed}
-          onToggle={() => setCollapsed((prev) => !prev)}
+          onToggle={() =>
+            startTransition(() => setCollapsed((prev) => !prev))
+          }
         />
 
         <div className="cv-key-stack">
@@ -186,10 +230,11 @@ const NodeRenderer: React.FC<NodeRendererProps> = ({
           </div>
         )}
 
-        {copyValue && copyValue.length > 0 && (
+        {hasCopyCapability && (
           <div className="cv-copy-button-wrapper">
             <InlineCopyButton
-              value={copyValue}
+              value={simpleCopyValue}
+              getValue={simpleCopyValue ? undefined : getSerializedCopyValue}
               ariaLabel={`Copy ${node.label}`}
               iconSize={14}
               size={28}
@@ -199,21 +244,194 @@ const NodeRenderer: React.FC<NodeRendererProps> = ({
       </div>
 
       {isCollapsible && !collapsed && node.children && (
-        <div className="cv-children">
-          {node.children.map((child, index) => (
-            <NodeRenderer
-              key={`${child.label ?? 'child'}-${index}`}
-              node={child}
-              depth={depth + 1}
-              options={options}
-              globalAction={globalAction}
-            />
-          ))}
-        </div>
+        shouldVirtualize ? (
+          <VirtualizedChildList
+            nodes={node.children}
+            depth={depth + 1}
+            options={options}
+            globalAction={globalAction}
+          />
+        ) : (
+          <div className="cv-children cv-children--plain">
+            {node.children.map((child, index) => (
+              <div key={`${child.label ?? 'child'}-${index}`} className="cv-child">
+                <NodeRenderer
+                  node={child}
+                  depth={depth + 1}
+                  options={options}
+                  globalAction={globalAction}
+                />
+              </div>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
 };
+
+const NodeRenderer = React.memo(NodeRendererComponent, (prev, next) => {
+  if (prev.node !== next.node) return false;
+  if (prev.depth !== next.depth) return false;
+  if (prev.options !== next.options) return false;
+
+  const prevAction = prev.globalAction;
+  const nextAction = next.globalAction;
+
+  if (prevAction === nextAction) return true;
+  if (!prevAction || !nextAction) return false;
+  return (
+    prevAction.type === nextAction.type &&
+    prevAction.timestamp === nextAction.timestamp
+  );
+});
+
+interface VirtualizedChildListProps {
+  nodes: ComplexValueNode[];
+  depth: number;
+  options: NormalizedViewerOptions;
+  globalAction: GlobalAction | null;
+}
+
+interface VirtualizedRowProps {
+  node: ComplexValueNode;
+  depth: number;
+  options: NormalizedViewerOptions;
+  globalAction: GlobalAction | null;
+  onMeasure: (height: number) => void;
+}
+
+function VirtualizedChildList({
+  nodes,
+  depth,
+  options,
+  globalAction,
+}: VirtualizedChildListProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [viewportHeight, setViewportHeight] = useState<number>(0);
+  const [scrollTop, setScrollTop] = useState<number>(0);
+  const estimatedHeightRef = useRef<number>(DEFAULT_ROW_HEIGHT);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      setViewportHeight(el.clientHeight || 0);
+    };
+    updateHeight();
+    const resizeObserver = new ResizeObserver(() => updateHeight());
+    resizeObserver.observe(el);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  const handleScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      setScrollTop(event.currentTarget.scrollTop);
+    },
+    []
+  );
+
+  const total = nodes.length;
+  const estimatedHeight = estimatedHeightRef.current || DEFAULT_ROW_HEIGHT;
+  const startIndex = Math.max(
+    0,
+    Math.floor(scrollTop / estimatedHeight) - VIRTUAL_OVERSCAN
+  );
+  const visibleCount = viewportHeight
+    ? Math.ceil(viewportHeight / estimatedHeight) + VIRTUAL_OVERSCAN * 2
+    : total;
+  const endIndex = Math.min(total, startIndex + visibleCount);
+  const paddingTop = startIndex * estimatedHeight;
+  const paddingBottom = Math.max(0, (total - endIndex) * estimatedHeight);
+
+  const handleMeasure = useCallback((height: number) => {
+    if (!height || Number.isNaN(height)) return;
+    estimatedHeightRef.current = Math.max(
+      24,
+      Math.min(
+        estimatedHeightRef.current * 0.6 + height * 0.4,
+        400
+      )
+    );
+  }, []);
+
+  const rows: React.ReactNode[] = [];
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const child = nodes[index];
+    rows.push(
+      <VirtualizedRow
+        key={`${child.label ?? 'child'}-${index}`}
+        node={child}
+        depth={depth}
+        options={options}
+        globalAction={globalAction}
+        onMeasure={handleMeasure}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="cv-children cv-children--virtual"
+      onScroll={handleScroll}
+    >
+      <div
+        className="cv-virtual-spacer"
+        style={{ paddingTop, paddingBottom }}
+      >
+        {rows}
+      </div>
+    </div>
+  );
+}
+
+function VirtualizedRow({
+  node,
+  depth,
+  options,
+  globalAction,
+  onMeasure,
+}: VirtualizedRowProps) {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const height = el.offsetHeight || DEFAULT_ROW_HEIGHT;
+      onMeasure(height);
+    };
+    measure();
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!entries.length) return;
+      const { height } = entries[0].contentRect;
+      if (height) {
+        onMeasure(height);
+      }
+    });
+
+    resizeObserver.observe(el);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [onMeasure]);
+
+  return (
+    <div ref={rowRef} className="cv-child">
+      <NodeRenderer
+        node={node}
+        depth={depth}
+        options={options}
+        globalAction={globalAction}
+      />
+    </div>
+  );
+}
 
 interface ToggleButtonProps {
   hidden?: boolean;

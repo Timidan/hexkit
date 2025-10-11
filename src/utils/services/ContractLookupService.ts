@@ -25,6 +25,8 @@ export interface ContractLookupOptions {
   useCache?: boolean;
   cacheMaxAgeMs?: number;
   signal?: AbortSignal;
+  etherscanApiKey?: string;
+  blockscoutApiKey?: string;
 }
 
 const DEFAULT_CACHE_MAX_AGE = 5 * 60 * 1000;
@@ -56,6 +58,8 @@ export class ContractLookupService {
       useCache = true,
       cacheMaxAgeMs = DEFAULT_CACHE_MAX_AGE,
       signal,
+      etherscanApiKey,
+      blockscoutApiKey,
     } = options;
 
     const searchProgress: LookupProgress = [];
@@ -119,7 +123,11 @@ export class ContractLookupService {
         chain,
         addProgress,
         searchProgress,
-        signal
+        {
+          signal,
+          etherscanApiKey,
+          blockscoutApiKey,
+        }
       );
 
       if (useCache && result.success) {
@@ -158,8 +166,13 @@ export class ContractLookupService {
       message?: string
     ) => void,
     searchProgress: LookupProgress,
-    signal?: AbortSignal
+    options: {
+      signal?: AbortSignal;
+      etherscanApiKey?: string;
+      blockscoutApiKey?: string;
+    } = {}
   ): Promise<ContractInfoResult> {
+    const { signal, etherscanApiKey, blockscoutApiKey } = options;
     let finalResult: ContractInfoResult = {
       success: false,
       address,
@@ -229,6 +242,7 @@ export class ContractLookupService {
       } catch (parseError) {
         return {
           ...result,
+          success: false,
           error: `Failed to parse ABI: ${parseError}`,
         };
       }
@@ -275,7 +289,7 @@ export class ContractLookupService {
         'Searching Blockscout for verified contract...'
       );
       const blockscoutResult = await withRetry(
-        () => fetchFromBlockscout(address, chain),
+        () => fetchFromBlockscout(address, chain, blockscoutApiKey),
         {
           retries: 2,
           delayMs: 500,
@@ -311,7 +325,7 @@ export class ContractLookupService {
         'Searching Etherscan for verified contract...'
       );
       const etherscanResult = await withRetry(
-        () => fetchFromEtherscan(address, chain),
+        () => fetchFromEtherscan(address, chain, etherscanApiKey),
         {
           retries: 2,
           delayMs: 500,

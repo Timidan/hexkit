@@ -3815,11 +3815,11 @@ const SimpleGridUI: React.FC = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "1.6fr 1fr",
-    gap: "30px",
-    maxWidth: "1600px",
+    gridTemplateColumns: "minmax(0, 2.25fr) minmax(0, 1fr)",
+    gap: "32px",
+    maxWidth: "1840px",
     margin: "0 auto",
-    padding: "20px",
+    padding: "20px 28px",
   };
 
   const inputStyle = {
@@ -6989,12 +6989,17 @@ const SimpleGridUI: React.FC = () => {
                                         const formattedResult =
                                           ContractResultFormatter.formatResult(
                                             result,
-                                            functionObjToUse
+                                            functionObjToUse ??
+                                              selectedFunctionObj ?? {
+                                                outputs: [],
+                                              }
                                           );
                                         setFunctionResult({
                                           data: safeBigNumberToString(result),
                                           formattedResult: formattedResult,
-                                          functionABI: functionObjToUse,
+                                          functionABI:
+                                            functionObjToUse ??
+                                            selectedFunctionObj,
                                           isLoading: false,
                                         });
                                       } else {
@@ -7067,12 +7072,17 @@ const SimpleGridUI: React.FC = () => {
                                         const formattedResult =
                                           ContractResultFormatter.formatResult(
                                             result,
-                                            functionObjToUse2
+                                            functionObjToUse2 ??
+                                              selectedFunctionObj ?? {
+                                                outputs: [],
+                                              }
                                           );
                                         setFunctionResult({
                                           data: safeBigNumberToString(result),
                                           formattedResult: formattedResult,
-                                          functionABI: functionObjToUse2,
+                                          functionABI:
+                                            functionObjToUse2 ??
+                                            selectedFunctionObj,
                                           isLoading: false,
                                         });
                                       }
@@ -7576,17 +7586,17 @@ const SimpleGridUI: React.FC = () => {
                                         monospace
                                       >
                                         {structuredNode && (
-                                          <ComplexValueViewer
-                                            node={structuredNode}
-                                            showControls
-                                            options={{
-                                              collapse: {
-                                                root: false,
-                                                depth: 2,
-                                                arrayItems: 4,
-                                                objectKeys: 8,
+                                            <ComplexValueViewer
+                                              node={structuredNode}
+                                              showControls
+                                              options={{
+                                                collapse: {
+                                                root: true,
+                                                depth: 3,
+                                                arrayItems: 12,
+                                                objectKeys: 12,
                                               },
-                                              previewItems: 3,
+                                                previewItems: 4,
                                             }}
                                           />
                                         )}

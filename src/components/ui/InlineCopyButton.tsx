@@ -6,7 +6,8 @@ import { copyTextToClipboard } from '../../utils/clipboard';
 export type InlineCopyState = 'idle' | 'copied' | 'error';
 
 interface InlineCopyButtonProps {
-  value: string;
+  value?: string;
+  getValue?: () => string | Promise<string | undefined | null> | undefined;
   ariaLabel: string;
   title?: string;
   className?: string;
@@ -25,6 +26,7 @@ const STATE_RESET_MS = 1600;
 
 const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
   value,
+  getValue,
   ariaLabel,
   title,
   className = '',
@@ -76,15 +78,20 @@ const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
     event.preventDefault();
     event.stopPropagation();
 
-    if (!value || disabled) {
+    if (disabled) {
       return;
     }
 
     try {
-      await copyTextToClipboard(value);
+      const resolved =
+        value ?? (typeof getValue === 'function' ? await getValue() : '');
+      if (!resolved) {
+        return;
+      }
+      await copyTextToClipboard(resolved);
       setState('copied');
       onStateChange?.('copied');
-      onCopySuccess?.(value);
+      onCopySuccess?.(resolved);
       scheduleReset();
     } catch (error) {
       console.warn('Copy failed', error);

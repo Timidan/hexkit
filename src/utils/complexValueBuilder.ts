@@ -47,7 +47,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 export const DEFAULT_OPTIONS: NormalizedViewerOptions = {
   collapse: {
-    root: false,
+    root: true,
     depth: 2,
     arrayItems: 6,
     objectKeys: 8,
@@ -64,7 +64,22 @@ export function createNodeFromValue(
   const type = normalizedMeta.type ?? inferTypeFromValue(value);
 
   if (Array.isArray(value)) {
+    const isTupleArray =
+      typeof normalizedMeta.type === 'string' &&
+      normalizedMeta.type.startsWith('tuple') &&
+      normalizedMeta.type.endsWith('[]') &&
+      Array.isArray(normalizedMeta.components) &&
+      normalizedMeta.components.length > 0;
+
     const children = value.map((entry, index) => {
+      if (isTupleArray) {
+        return createNodeFromValue(entry, {
+          label: `[${index}]`,
+          type: normalizedMeta.type.replace(/\[\]$/, ''),
+          components: normalizedMeta.components,
+        });
+      }
+
       const componentMeta = selectComponentMeta(normalizedMeta, index);
       return createNodeFromValue(entry, {
         ...componentMeta,
@@ -121,25 +136,10 @@ export function shouldCollapseNode(
   }
 
   if (depth === 0) {
-    return Boolean(config.root);
+    return config.root ?? true;
   }
 
-  if (node.type && node.type.includes('[]')) {
-    return node.children.length >= (config.arrayItems ?? DEFAULT_OPTIONS.collapse.arrayItems);
-  }
-
-  if (typeof config.depth === 'number' && depth >= config.depth) {
-    return true;
-  }
-
-  if (
-    typeof config.objectKeys === 'number' &&
-    node.children.length >= config.objectKeys
-  ) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 export function collapsedPreview(
@@ -148,6 +148,28 @@ export function collapsedPreview(
 ): string {
   if (!node.children || node.children.length === 0) {
     return '';
+  }
+
+  const isArrayNode =
+    (node.type && node.type.includes('[]')) ||
+    Array.isArray(node.raw) ||
+    node.children.every((child) => /^\[\d+\]$/.test(child.label ?? ''));
+
+  if (isArrayNode) {
+    const items = node.children.map((child) => {
+      if (child.children && child.children.length > 0 && child.value === undefined) {
+        return '{…}';
+      }
+      if (child.value !== undefined) {
+        return formatDisplayValue(child.value, child.type);
+      }
+      if (child.raw !== undefined) {
+        return formatDisplayValue(child.raw, child.type);
+      }
+      return '…';
+    });
+
+    return `[${items.join(', ')}]`;
   }
 
   const items = node.children.slice(0, previewItems).map((child) => {
@@ -160,8 +182,10 @@ export function collapsedPreview(
     return '…';
   });
 
-  const suffix = node.children.length > previewItems ? ' …' : '';
-  return `[ ${items.join(', ')}${suffix ? ',' : ''}${suffix} ]`;
+  const suffixNeeded = node.children.length > previewItems;
+  const compactItems = items.join(', ');
+  const suffix = suffixNeeded ? `${compactItems.length > 0 ? ', ' : ''}…` : '';
+  return `[${compactItems}${suffix}]`;
 }
 
 export function buildSummary(node: ComplexValueNode): string {
@@ -195,18 +219,13 @@ export function formatDisplayValue(value: any, type?: string): string {
 
   if (typeof value === 'string') {
     if (type === 'address') {
-      return formatAddress(value);
-    }
-    if (type && type.startsWith('bytes') && value.length > 20) {
-      return `${value.slice(0, 10)}…${value.slice(-4)} (${(value.length - 2) / 2} bytes)`;
+      return value;
     }
     return value;
   }
 
   if (Array.isArray(value)) {
-    return `[${value
-      .map((item) => formatDisplayValue(item))
-      .join(', ')}]`;
+    return `[${value.map((item) => formatDisplayValue(item)).join(', ')}]`;
   }
 
   if (isPlainObject(value)) {
@@ -327,9 +346,6 @@ function normalizePrimitive(value: any, type?: string): any {
   }
 
   if (typeof value === 'string') {
-    if (type === 'address') {
-      return formatAddress(value);
-    }
     return value;
   }
 
@@ -394,12 +410,6 @@ function isBigNumberLike(value: any): boolean {
 }
 
 function formatAddress(value: string): string {
-  if (value === ZERO_ADDRESS) {
-    return '0x0000…0000';
-  }
-  if (/^0x[a-fA-F0-9]{40}$/.test(value)) {
-    return `${value.slice(0, 6)}…${value.slice(-4)}`;
-  }
   return value;
 }
 

@@ -26,6 +26,20 @@ export const MinusIcon: React.FC<IconProps> = ({ width = 24, height = 24, color 
   </svg>
 );
 
+export const CollapseAllIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    <path d="M6 8h12M6 14h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m10 16 2-2 2 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const ExpandAllIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
+    <path d="M6 10h12M6 16h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m10 10 2 2 2-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export const XCloseIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
   <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
     <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

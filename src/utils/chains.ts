@@ -63,7 +63,9 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 8453,
     name: "Base",
-    rpcUrl: `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`,
+    rpcUrl: API_KEY
+      ? `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`
+      : "https://mainnet.base.org",
     explorerUrl: "https://basescan.org",
     blockExplorer: "https://basescan.org",
     apiUrl: "https://api.basescan.org/api",
@@ -155,7 +157,9 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 137,
     name: "Polygon",
-    rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`,
+    rpcUrl: API_KEY
+      ? `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`
+      : "https://polygon-rpc.com",
     explorerUrl: "https://polygonscan.com",
     blockExplorer: "https://polygonscan.com",
     apiUrl: "https://api.polygonscan.com/api",
@@ -200,7 +204,9 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 42161,
     name: "Arbitrum",
-    rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`,
+    rpcUrl: API_KEY
+      ? `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`
+      : "https://arb1.arbitrum.io/rpc",
     explorerUrl: "https://arbiscan.io",
     blockExplorer: "https://arbiscan.io",
     apiUrl: "https://api.arbiscan.io/api",
@@ -245,7 +251,9 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 10,
     name: "Optimism",
-    rpcUrl: `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}`,
+    rpcUrl: API_KEY
+      ? `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}`
+      : "https://mainnet.optimism.io",
     explorerUrl: "https://optimistic.etherscan.io",
     blockExplorer: "https://optimistic.etherscan.io",
     apiUrl: "https://api-optimistic.etherscan.io/api",

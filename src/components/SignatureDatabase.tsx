@@ -35,6 +35,26 @@ import {
 type TabType = 'lookup' | 'search' | 'custom' | 'cache';
 
 const SignatureDatabase: React.FC = () => {
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (clipError) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch (fallbackError) {
+        console.warn('Failed to copy to clipboard', fallbackError || clipError);
+      }
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<TabType>('lookup');
   
   // Lookup tab state

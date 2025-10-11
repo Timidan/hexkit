@@ -21,6 +21,7 @@ import {
   type DiamondFacet,
   type FacetProgressCallback,
 } from "../utils/diamondFacetFetcher";
+import { universalApiKeyManager } from "../utils/universalApiKeys";
 import "../styles/SimpleGridUI.css";
 import { useNotifications } from "./NotificationManager";
 
@@ -255,11 +256,14 @@ const NewSimpleGridUI: React.FC = () => {
             status: "pending" as FacetDetailStatus,
           }))
         );
+        const etherscanApiKey =
+          universalApiKeyManager.getAPIKey("ETHERSCAN") || undefined;
         const facets = await fetchDiamondFacets(
           chain,
           address,
           facetAddresses,
-          progressCallback
+          progressCallback,
+          { etherscanApiKey }
         );
         setDiamondFacets(facets);
         setFacetProgress((prev) =>

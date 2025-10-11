@@ -33,7 +33,6 @@ console.log('🔑 [RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8
 const liskSepolia = {
   id: 4202,
   name: 'Lisk Sepolia',
-  network: 'lisk-sepolia',
   nativeCurrency: {
     name: 'Lisk Sepolia Ether',
     symbol: 'ETH',

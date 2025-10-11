@@ -230,7 +230,8 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
         // Try to fetch ABI for the facet
         const facetAbiResult = await fetchContractABIMultiSource(
           facetAddress,
-          chain
+          chain,
+          etherscanApiKey
         );
 
         const facetDetails: FacetDetails = {

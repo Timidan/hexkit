@@ -13,6 +13,9 @@ import type {
 const isValidAddress = (address: string) =>
   address?.startsWith("0x") && address.length === 42;
 
+const providerCache = new Map<number, ethers.providers.JsonRpcProvider>();
+const contractExistenceCache = new Map<string, boolean>();
+
 const formatTokenInfo = (
   tokenInfo?: ContractInfoResult["tokenInfo"]
 ): ExtendedABITokenInfo | undefined => {
@@ -57,12 +60,25 @@ const ensureContractExists = async (
   chain: Chain,
   provider?: ethers.providers.Provider
 ) => {
+  const cacheKey = `${chain.id}:${contractAddress.toLowerCase()}`;
+  if (contractExistenceCache.get(cacheKey) === true) {
+    return;
+  }
+
   const signer =
     provider ||
-    new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
-      name: chain.name,
-      chainId: chain.id,
-    });
+    (() => {
+      if (!providerCache.has(chain.id)) {
+        providerCache.set(
+          chain.id,
+          new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
+            name: chain.name,
+            chainId: chain.id,
+          })
+        );
+      }
+      return providerCache.get(chain.id)!;
+    })();
 
   const bytecode = await signer.getCode(contractAddress);
   if (!bytecode || bytecode === "0x") {
@@ -70,6 +86,8 @@ const ensureContractExists = async (
       `No contract deployed at ${contractAddress} on ${chain.name}`
     );
   }
+
+  contractExistenceCache.set(cacheKey, true);
 };
 
 const summarizeAttempts = (attempts: ExtendedABIFetchResult[]) =>
@@ -85,7 +103,7 @@ const summarizeAttempts = (attempts: ExtendedABIFetchResult[]) =>
 export const fetchContractABIMultiSource = async (
   contractAddress: string,
   chain: Chain,
-  _etherscanApiKey?: string,
+  etherscanApiKey?: string,
   provider?: ethers.providers.Provider
 ): Promise<ExtendedABIFetchResult> => {
   if (!isValidAddress(contractAddress)) {
@@ -109,7 +127,11 @@ export const fetchContractABIMultiSource = async (
   try {
     const comprehensive = await fetchContractInfoComprehensive(
       contractAddress,
-      chain
+      chain,
+      undefined,
+      {
+        etherscanApiKey,
+      }
     );
     const comprehensiveResult = toExtendedResult(comprehensive, {
       source: "aggregator",

@@ -53,7 +53,7 @@ const ContractDataDisplay: React.FC<ContractDataDisplayProps> = ({
       showControls={mode !== 'compact'}
       options={{
         collapse: {
-          root: mode === 'compact',
+          root: true,
           depth: mode === 'compact' ? 1 : 2,
           arrayItems: mode === 'compact' ? 4 : 8,
           objectKeys: mode === 'compact' ? 6 : 12,

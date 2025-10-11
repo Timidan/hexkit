@@ -4,6 +4,7 @@ import {
   getDiamondFacetAddresses,
   type DiamondFacet,
 } from "../utils/diamondFacetFetcher";
+import { universalApiKeyManager } from "../utils/universalApiKeys";
 import type { Chain } from "../types";
 
 interface InlineFacetLoaderProps {
@@ -78,6 +79,8 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   const loadFacets = useCallback(async () => {
     const requestId = Date.now();
     requestIdRef.current = requestId;
+    const etherscanApiKey =
+      universalApiKeyManager.getAPIKey("ETHERSCAN") || undefined;
 
     try {
       setIsLoading(true);
@@ -165,7 +168,8 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
             return next;
           });
           onProgressChange?.(p);
-        }
+        },
+        { etherscanApiKey }
       );
 
       if (requestIdRef.current !== requestId) {

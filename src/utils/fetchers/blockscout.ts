@@ -50,14 +50,16 @@ const extractContractName = (data: any): string | undefined => {
 
 const normalizeBase = (base: string) => base.replace(/\/$/, '');
 
-const buildStandardEndpoint = (base: string, address: string) => {
+const buildStandardEndpoint = (base: string, address: string, apiKey?: string) => {
   const normalized = normalizeBase(base);
-  return `${normalized}${normalized.endsWith('/api') ? '' : '/api'}?module=contract&action=getabi&address=${address}`;
+  const url = `${normalized}${normalized.endsWith('/api') ? '' : '/api'}?module=contract&action=getabi&address=${address}`;
+  return apiKey ? `${url}&apikey=${encodeURIComponent(apiKey)}` : url;
 };
 
-const buildV2Endpoint = (base: string, address: string) => {
+const buildV2Endpoint = (base: string, address: string, apiKey?: string) => {
   const normalized = normalizeBase(base);
-  return `${normalized}${normalized.endsWith('/api') ? '' : '/api'}/v2/smart-contracts/${address}`;
+  const url = `${normalized}${normalized.endsWith('/api') ? '' : '/api'}/v2/smart-contracts/${address}`;
+  return apiKey ? `${url}?token=${encodeURIComponent(apiKey)}` : url;
 };
 
 const fetchWithFallback = async (url: string) => {
@@ -77,8 +79,17 @@ const fetchWithFallback = async (url: string) => {
 
 export const fetchFromBlockscout = async (
   address: string,
-  chain: Chain
+  chain: Chain,
+  apiKey?: string
 ): Promise<Partial<ContractInfoResult>> => {
+  const normalizedAddress = address?.toLowerCase();
+  if (!normalizedAddress || !normalizedAddress.startsWith('0x') || normalizedAddress.length !== 42) {
+    return {
+      success: false,
+      error: 'Invalid contract address format',
+    };
+  }
+
   try {
     const explorers: ExplorerAPI[] = [...(chain.explorers || [])];
 
@@ -120,8 +131,8 @@ export const fetchFromBlockscout = async (
 
     const abiEndpoints: string[] = [];
     apiBases.forEach((base) => {
-      abiEndpoints.push(buildStandardEndpoint(base, address));
-      abiEndpoints.push(buildV2Endpoint(base, address));
+      abiEndpoints.push(buildStandardEndpoint(base, normalizedAddress, apiKey));
+      abiEndpoints.push(buildV2Endpoint(base, normalizedAddress, apiKey));
     });
 
     let abiResult: { abi: string; contractName?: string } | null = null;
@@ -136,11 +147,22 @@ export const fetchFromBlockscout = async (
         );
 
         if (response.data?.status === '1' && response.data.result) {
-          abiResult = {
-            abi: response.data.result,
-            contractName: extractContractName(response.data),
-          };
-          break;
+          const result = response.data.result;
+          if (
+            typeof result === 'string' &&
+            result !== 'Contract source code not verified'
+          ) {
+            try {
+              JSON.parse(result);
+              abiResult = {
+                abi: result,
+                contractName: extractContractName(response.data),
+              };
+              break;
+            } catch {
+              console.warn('🔍 [Blockscout] Invalid ABI payload from v1 endpoint');
+            }
+          }
         }
 
         const v2Abi =
@@ -149,11 +171,25 @@ export const fetchFromBlockscout = async (
           response.data?.result?.contract?.abi;
 
         if (v2Abi) {
-          abiResult = {
-            abi: typeof v2Abi === 'string' ? v2Abi : JSON.stringify(v2Abi),
-            contractName: extractContractName(response.data),
-          };
-          break;
+          if (
+            typeof v2Abi === 'string' &&
+            v2Abi === 'Contract source code not verified'
+          ) {
+            continue;
+          }
+          try {
+            const serialized =
+              typeof v2Abi === 'string' ? v2Abi : JSON.stringify(v2Abi);
+            JSON.parse(serialized);
+            abiResult = {
+              abi: serialized,
+              contractName: extractContractName(response.data),
+            };
+            break;
+          } catch {
+            console.warn('🔍 [Blockscout] Invalid ABI payload from v2 endpoint');
+            continue;
+          }
         }
       } catch (endpointError) {
         // handled inside withRetry logging
@@ -169,8 +205,8 @@ export const fetchFromBlockscout = async (
       try {
         console.log('🔍 [Blockscout] Fetching contract name separately...');
         const nameEndpoints = [
-          buildStandardEndpoint(blockscoutExplorer.url, address),
-          buildV2Endpoint(blockscoutExplorer.url, address),
+          buildStandardEndpoint(blockscoutExplorer.url, normalizedAddress, apiKey),
+          buildV2Endpoint(blockscoutExplorer.url, normalizedAddress, apiKey),
         ];
 
         for (const nameEndpoint of nameEndpoints) {

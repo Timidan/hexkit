@@ -6,7 +6,7 @@
 
 const DEFAULT_OPTIONS = {
   collapse: {
-    root: false,
+    root: true,
     depth: 2,
     arrayItems: 6,
     objectKeys: 8,
@@ -17,6 +17,23 @@ const DEFAULT_OPTIONS = {
 
 const ICON_EXPANDED = '▾';
 const ICON_COLLAPSED = '▸';
+const MIN_AUTO_COLLAPSE_ARRAY_SIZE = 12;
+const LARGE_CHILDREN_THRESHOLD = 120;
+const CHILD_BATCH_SIZE = 200;
+
+const COLLAPSE_SVG = `
+  <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+    <path d="M6 8h12M6 14h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="m10 16 2-2 2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+`;
+
+const EXPAND_SVG = `
+  <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
+    <path d="M6 10h12M6 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="m10 10 2 2 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+`;
 
 export class ComplexValueViewer {
   constructor(container, node, options = {}) {
@@ -27,6 +44,9 @@ export class ComplexValueViewer {
     this.container = container;
     this.options = mergeOptions(options);
     this.node = node || null;
+    this.collapsedState = new Map();
+    this.visibleChildrenState = new Map();
+    this.globalAction = null;
 
     this.container.classList.add('complex-value-viewer');
     this.render();
@@ -34,16 +54,17 @@ export class ComplexValueViewer {
 
   setNode(node) {
     this.node = node;
+    this.collapsedState.clear();
+    this.visibleChildrenState.clear();
     this.render();
   }
 
   collapseAll(collapsed = true) {
-    const nodes = this.container.querySelectorAll('.cv-node[data-collapsible="true"]');
-    nodes.forEach((nodeEl) => {
-      nodeEl.dataset.collapsed = collapsed ? 'true' : 'false';
-      const toggle = nodeEl.querySelector('.cv-toggle');
-      if (toggle) toggle.textContent = collapsed ? ICON_COLLAPSED : ICON_EXPANDED;
-    });
+    this.globalAction = collapsed ? 'collapse' : 'expand';
+    if (collapsed) {
+      this.visibleChildrenState.clear();
+    }
+    this.render();
   }
 
   render() {
@@ -63,8 +84,9 @@ export class ComplexValueViewer {
       this.container.appendChild(controls);
     }
 
-    const rootNode = this.renderNode(this.node, 0);
+    const rootNode = this.renderNode(this.node, 0, 'root');
     this.container.appendChild(rootNode);
+    this.globalAction = null;
   }
 
   createGlobalControls() {
@@ -73,12 +95,16 @@ export class ComplexValueViewer {
 
     const collapseBtn = document.createElement('button');
     collapseBtn.className = 'cv-action-btn';
-    collapseBtn.textContent = 'Collapse All';
+    collapseBtn.innerHTML = COLLAPSE_SVG;
+    collapseBtn.title = 'Collapse all nodes';
+    collapseBtn.setAttribute('aria-label', 'Collapse all nodes');
     collapseBtn.addEventListener('click', () => this.collapseAll(true));
 
     const expandBtn = document.createElement('button');
     expandBtn.className = 'cv-action-btn';
-    expandBtn.textContent = 'Expand All';
+    expandBtn.innerHTML = EXPAND_SVG;
+    expandBtn.title = 'Expand all nodes';
+    expandBtn.setAttribute('aria-label', 'Expand all nodes');
     expandBtn.addEventListener('click', () => this.collapseAll(false));
 
     buttonRow.appendChild(collapseBtn);
@@ -86,15 +112,26 @@ export class ComplexValueViewer {
     return buttonRow;
   }
 
-  renderNode(node, depth) {
+  renderNode(node, depth, pathKey) {
     const isCollapsible = Array.isArray(node.children) && node.children.length > 0;
     const element = document.createElement('div');
     element.className = 'cv-node';
     element.dataset.depth = String(depth);
     element.dataset.collapsible = isCollapsible ? 'true' : 'false';
 
-    const collapsedDefault = isCollapsible ? this.shouldCollapse(node, depth) : false;
-    element.dataset.collapsed = collapsedDefault ? 'true' : 'false';
+    const key = pathKey;
+    let collapsedState;
+    if (this.globalAction === 'collapse') {
+      collapsedState = true;
+    } else if (this.globalAction === 'expand') {
+      collapsedState = false;
+    } else if (this.collapsedState.has(key)) {
+      collapsedState = this.collapsedState.get(key);
+    } else {
+      collapsedState = isCollapsible ? this.shouldCollapse(node, depth) : false;
+    }
+    this.collapsedState.set(key, collapsedState);
+    element.dataset.collapsed = collapsedState ? 'true' : 'false';
 
     const header = document.createElement('div');
     header.className = 'cv-node-header';
@@ -104,13 +141,7 @@ export class ComplexValueViewer {
     if (!isCollapsible) {
       toggle.dataset.hidden = 'true';
     }
-    toggle.textContent = collapsedDefault ? ICON_COLLAPSED : ICON_EXPANDED;
-    toggle.addEventListener('click', () => {
-      if (!isCollapsible) return;
-      const collapsed = element.dataset.collapsed === 'true';
-      element.dataset.collapsed = collapsed ? 'false' : 'true';
-      toggle.textContent = collapsed ? ICON_EXPANDED : ICON_COLLAPSED;
-    });
+    toggle.textContent = collapsedState ? ICON_COLLAPSED : ICON_EXPANDED;
 
     const keyStack = document.createElement('div');
     keyStack.className = 'cv-key-stack';
@@ -135,11 +166,25 @@ export class ComplexValueViewer {
 
     const valueSpan = document.createElement('div');
     valueSpan.className = 'cv-value';
+
+    const updatePreview = () => {
+      if (!isCollapsible) return;
+      if (collapsedState) {
+        const preview = collapsedPreview(node, this.options.previewItems);
+        valueSpan.textContent = preview;
+        if (preview) {
+          delete valueSpan.dataset.hidden;
+        } else {
+          valueSpan.dataset.hidden = 'true';
+        }
+      } else {
+        valueSpan.textContent = '';
+        valueSpan.dataset.hidden = 'true';
+      }
+    };
+
     if (isCollapsible) {
-      valueSpan.textContent = collapsedDefault
-        ? collapsedPreview(node, this.options.previewItems)
-        : '';
-      if (!valueSpan.textContent) valueSpan.dataset.hidden = 'true';
+      updatePreview();
     } else if (node.value !== undefined) {
       valueSpan.textContent = formatDisplay(node.value, node.type);
       valueSpan.dataset.kind = determineKind(node.value, node.type);
@@ -173,12 +218,87 @@ export class ComplexValueViewer {
     element.appendChild(header);
 
     if (isCollapsible) {
+      let visibleCount = this.visibleChildrenState.has(key)
+        ? this.visibleChildrenState.get(key)
+        : computeInitialVisibleChildren(node);
+      if (this.globalAction === 'expand') {
+        visibleCount = node.children.length;
+      } else if (this.globalAction === 'collapse') {
+        visibleCount = computeInitialVisibleChildren(node);
+      }
+      visibleCount = Math.min(visibleCount, node.children.length);
+      this.visibleChildrenState.set(key, visibleCount);
+
       const childrenContainer = document.createElement('div');
       childrenContainer.className = 'cv-children';
-      node.children.forEach((child) => {
-        childrenContainer.appendChild(this.renderNode(child, depth + 1));
+
+      const loadMoreBtn = document.createElement('button');
+      loadMoreBtn.className = 'cv-load-more';
+
+      const renderSlice = () => {
+        childrenContainer.innerHTML = '';
+        if (!collapsedState) {
+          const slice = node.children.slice(0, visibleCount);
+          slice.forEach((child, index) => {
+            childrenContainer.appendChild(
+              this.renderNode(child, depth + 1, `${key}.${index}`)
+            );
+          });
+        }
+      };
+
+      const updateLoadMore = () => {
+        const remaining = collapsedState
+          ? node.children.length - visibleCount
+          : node.children.length - visibleCount;
+        if (collapsedState || remaining <= 0) {
+          loadMoreBtn.style.display = 'none';
+        } else {
+          loadMoreBtn.style.display = '';
+          loadMoreBtn.textContent = `Show next ${Math.min(
+            CHILD_BATCH_SIZE,
+            remaining
+          )} of ${remaining} remaining`;
+        }
+      };
+
+      loadMoreBtn.addEventListener('click', () => {
+        visibleCount = Math.min(
+          visibleCount + CHILD_BATCH_SIZE,
+          node.children.length
+        );
+        this.visibleChildrenState.set(key, visibleCount);
+        renderSlice();
+        updateLoadMore();
       });
+
+      const refreshChildren = () => {
+        renderSlice();
+        updateLoadMore();
+      };
+
+      toggle.addEventListener('click', () => {
+        collapsedState = !collapsedState;
+        this.collapsedState.set(key, collapsedState);
+        element.dataset.collapsed = collapsedState ? 'true' : 'false';
+        toggle.textContent = collapsedState ? ICON_COLLAPSED : ICON_EXPANDED;
+        updatePreview();
+        refreshChildren();
+      });
+
+      const observer = new MutationObserver(() => {
+        if (element.dataset.collapsed === 'true') {
+          loadMoreBtn.style.display = 'none';
+        } else {
+          refreshChildren();
+        }
+      });
+      observer.observe(element, { attributes: true, attributeFilter: ['data-collapsed'] });
+
+      refreshChildren();
+
       element.appendChild(childrenContainer);
+      element.appendChild(loadMoreBtn);
     }
 
     return element;
@@ -186,23 +306,18 @@ export class ComplexValueViewer {
 
   shouldCollapse(node, depth) {
     const { collapse } = this.options;
-    if (depth === 0) return collapse.root;
     if (!node.children || node.children.length === 0) return false;
-
-    if (node.type && node.type.includes('[]')) {
-      return node.children.length >= collapse.arrayItems;
-    }
-
-    if (depth >= collapse.depth) {
-      return true;
-    }
-
-    if (node.children.length >= collapse.objectKeys) {
-      return true;
-    }
-
-    return false;
+    if (depth === 0) return collapse.root ?? true;
+    return true;
   }
+}
+
+function computeInitialVisibleChildren(node) {
+  if (!node.children) return 0;
+  if (node.children.length <= LARGE_CHILDREN_THRESHOLD) {
+    return node.children.length;
+  }
+  return LARGE_CHILDREN_THRESHOLD;
 }
 
 export function createNodeFromValue(value, metadata = {}) {
@@ -214,8 +329,24 @@ export function createNodeFromValue(value, metadata = {}) {
   };
 
   if (Array.isArray(value)) {
+    const typeHint = type || inferTypeFromValue(value);
+    const isTupleArray =
+      typeof typeHint === 'string' &&
+      typeHint.startsWith('tuple') &&
+      typeHint.endsWith('[]') &&
+      Array.isArray(components) &&
+      components.length > 0;
+
     node.children = value.map((entry, index) => {
-      const componentMeta = Array.isArray(components) ? components[index] || components[0] || {} : {};
+      if (isTupleArray) {
+        return createNodeFromValue(entry, {
+          label: `[${index}]`,
+          type: typeHint.replace(/\[\]$/, ''),
+          components,
+        });
+      }
+
+      const componentMeta = Array.isArray(components) ? components[index] || {} : {};
       return createNodeFromValue(entry, {
         label: componentMeta?.name ?? `[${index}]`,
         type: componentMeta?.type ?? inferTypeFromValue(entry),
@@ -240,17 +371,6 @@ export function createNodeFromValue(value, metadata = {}) {
   }
 
   return node;
-}
-
-function mergeOptions(custom) {
-  return {
-    ...DEFAULT_OPTIONS,
-    ...custom,
-    collapse: {
-      ...DEFAULT_OPTIONS.collapse,
-      ...(custom.collapse || {}),
-    },
-  };
 }
 
 function inferType(node) {
@@ -287,9 +407,6 @@ function formatDisplay(value, type) {
   if (typeof value === 'string') {
     if (type === 'address') {
       return formatAddress(value);
-    }
-    if (type && type.startsWith('bytes') && value.length > 20) {
-      return `${value.slice(0, 10)}…${value.slice(-4)} (${(value.length - 2) / 2} bytes)`;
     }
     return value;
   }
@@ -335,6 +452,27 @@ function buildSummary(node) {
 function collapsedPreview(node, previewItems) {
   if (!node.children || node.children.length === 0) return '';
 
+  const isArrayNode =
+    (node.type && node.type.includes('[]')) ||
+    Array.isArray(node.raw) ||
+    node.children.every((child) => /^\[\d+\]$/.test(child.label || ''));
+
+  if (isArrayNode) {
+    const items = node.children.map((child) => {
+      if (child.children && child.children.length > 0 && child.value === undefined) {
+        return '{…}';
+      }
+      if (child.value !== undefined) {
+        return formatDisplay(child.value, child.type);
+      }
+      if (child.raw !== undefined) {
+        return formatDisplay(child.raw, child.type);
+      }
+      return '…';
+    });
+    return `[${items.join(', ')}]`;
+  }
+
   const items = node.children.slice(0, previewItems).map((child) => {
     if (child.children && child.children.length > 0) {
       return '{…}';
@@ -345,8 +483,10 @@ function collapsedPreview(node, previewItems) {
     return '…';
   });
 
-  const suffix = node.children.length > previewItems ? '…' : '';
-  return `[ ${items.join(', ')}${suffix ? ',' : ''}${suffix} ]`;
+  const list = items.join(', ');
+  const suffixNeeded = node.children.length > previewItems;
+  const suffix = suffixNeeded ? `${list.length > 0 ? ', ' : ''}…` : '';
+  return `[${list}${suffix}]`;
 }
 
 function isPlainObject(value) {
@@ -360,10 +500,10 @@ function isBigNumber(value) {
 
 function formatAddress(value) {
   if (value === '0x0000000000000000000000000000000000000000') {
-    return '0x0000…0000';
+    return value;
   }
   if (/^0x[a-fA-F0-9]{40}$/.test(value)) {
-    return `${value.slice(0, 6)}…${value.slice(-4)}`;
+    return value;
   }
   return value;
 }

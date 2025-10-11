@@ -6,6 +6,7 @@ import {
   createFunctionStubsFromSelectors,
   type SelectorFunctionStub,
 } from "./whatsabiFetcher";
+import { fetchContractABIMultiSource } from "./multiSourceAbiFetcher";
 
 // Diamond facet information
 export interface DiamondFacet {
@@ -39,8 +40,16 @@ export interface FacetProgressUpdate {
 
 export type FacetProgressCallback = (progress: FacetProgressUpdate) => void;
 
+interface FacetFetchOptions {
+  etherscanApiKey?: string;
+  blockscoutApiKey?: string;
+  provider?: ethers.providers.Provider;
+}
+
+const facetFetchCache = new Map<string, Promise<DiamondFacet | null>>();
+
 // Batch processing configuration
-const BATCH_SIZE = 4;
+const BATCH_SIZE = 6;
 const FETCH_TIMEOUT = 10000; // 10 seconds per facet
 
 // Get API key from environment
@@ -160,11 +169,13 @@ async function fetchFromSourcify(
 // Fetch ABI from Etherscan
 async function fetchFromEtherscan(
   chain: Chain,
-  address: string
+  address: string,
+  apiKey?: string
 ): Promise<ExtendedABIFetchResult | null> {
   try {
     const urls = getExplorerUrls(chain, address);
-    const response = await axios.get(urls.etherscan, {
+    const keyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
+    const response = await axios.get(`${urls.etherscan}${keyParam}`, {
       timeout: FETCH_TIMEOUT,
     });
 
@@ -188,7 +199,8 @@ async function fetchFromEtherscan(
 // Fetch ABI from Blockscout
 async function fetchFromBlockscout(
   chain: Chain,
-  address: string
+  address: string,
+  apiKey?: string
 ): Promise<ExtendedABIFetchResult | null> {
   try {
     const id = chain.id;
@@ -205,9 +217,11 @@ async function fetchFromBlockscout(
               : "/api/blockscout";
 
     // Try Etherscan-style and Blockscout v2 endpoints
+    const keyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
+    const tokenParam = apiKey ? `?token=${encodeURIComponent(apiKey)}` : "";
     const endpoints = [
-      `${basePath}/api?module=contract&action=getabi&address=${address}`,
-      `${basePath}/api/v2/smart-contracts/${address}`, // note: includes /api/v2 to survive proxy rewrite
+      `${basePath}/api?module=contract&action=getabi&address=${address}${keyParam}`,
+      `${basePath}/api/v2/smart-contracts/${address}${tokenParam}`, // note: includes /api/v2 to survive proxy rewrite
     ];
 
     let interimAbi: unknown[] | null = null;
@@ -218,9 +232,17 @@ async function fetchFromBlockscout(
         const response = await axios.get(url, { timeout: FETCH_TIMEOUT });
         // Etherscan-style
         if (response.data?.status === "1" && response.data?.result) {
-          const parsed = JSON.parse(response.data.result);
-          if (Array.isArray(parsed)) {
-            interimAbi = parsed as unknown[];
+          const rawResult = response.data.result;
+          if (rawResult === "Contract source code not verified") {
+            continue;
+          }
+          try {
+            const parsed = JSON.parse(rawResult);
+            if (Array.isArray(parsed)) {
+              interimAbi = parsed as unknown[];
+            }
+          } catch {
+            continue;
           }
           // v1 path does not include name, try to fetch name below
           continue;
@@ -239,8 +261,8 @@ async function fetchFromBlockscout(
     // If we have ABI from v1 but no name, fetch name via v2 or getsourcecode
     if (interimAbi && !interimName) {
       const nameEndpoints = [
-        `${basePath}/api?module=contract&action=getsourcecode&address=${address}`,
-        `${basePath}/api/v2/smart-contracts/${address}`,
+        `${basePath}/api?module=contract&action=getsourcecode&address=${address}${keyParam}`,
+        `${basePath}/api/v2/smart-contracts/${address}${tokenParam}`,
       ];
       for (const nurl of nameEndpoints) {
         try {
@@ -303,16 +325,18 @@ function categorizeFunctions(abi: unknown[]): {
 async function fetchFacetSelectors(
   chain: Chain,
   diamondAddress: string,
-  facetAddress: string
+  facetAddress: string,
+  provider?: ethers.providers.Provider
 ): Promise<string[]> {
   try {
-    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+    const rpcProvider =
+      provider ?? new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
     const diamondContract = new ethers.Contract(
       diamondAddress,
       [
         "function facetFunctionSelectors(address facet) external view returns (bytes4[] memory)",
       ],
-      provider
+      rpcProvider
     );
 
     const selectors: string[] = await diamondContract.facetFunctionSelectors(
@@ -331,52 +355,117 @@ async function fetchFacetSelectors(
 async function fetchFacetABI(
   chain: Chain,
   diamondAddress: string,
-  facetAddress: string
+  facetAddress: string,
+  options: FacetFetchOptions = {}
 ): Promise<DiamondFacet | null> {
-  const sources = [
-    () => fetchFromSourcify(chain, facetAddress),
-    () => fetchFromEtherscan(chain, facetAddress),
-    () => fetchFromBlockscout(chain, facetAddress),
-  ];
+  const cacheKey = `${chain.id}:${facetAddress.toLowerCase()}`;
+  if (facetFetchCache.has(cacheKey)) {
+    return facetFetchCache.get(cacheKey)!;
+  }
 
-  let resolvedAbi: unknown[] | null = null;
-  let resolvedName = "Facet";
-  let resolvedSource = "Unknown";
-  let isVerified = false;
-  let confidence: "verified" | "inferred" | "extracted" = "extracted";
-  let selectors: string[] = [];
-  let selectorStubs: SelectorFunctionStub[] = [];
+  const promise = (async (): Promise<DiamondFacet | null> => {
+    let resolvedAbi: unknown[] | null = null;
+    let resolvedName = "Facet";
+    let resolvedSource = "Unknown";
+    let isVerified = false;
+    let confidence: "verified" | "inferred" | "extracted" = "extracted";
+    let selectors: string[] = [];
+    let selectorStubs: SelectorFunctionStub[] = [];
 
-  for (const source of sources) {
     try {
-      const result = await source();
-      if (
-        result &&
-        result.success &&
-        typeof result.abi === "string"
-      ) {
-        const parsedABI = JSON.parse(result.abi) as unknown[];
-        if (!Array.isArray(parsedABI) || parsedABI.length === 0) {
-          continue;
+      const result = await fetchContractABIMultiSource(
+        facetAddress,
+        chain,
+        options.etherscanApiKey,
+        options.provider
+      );
+      if (result && result.success && typeof result.abi === "string") {
+        const parsed = JSON.parse(result.abi) as unknown[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          resolvedAbi = parsed;
+          resolvedName =
+            result.contractName && String(result.contractName).trim() !== ""
+              ? String(result.contractName)
+              : resolvedName;
+          resolvedSource = result.source || resolvedSource;
+          selectors = Array.isArray(result.selectors)
+            ? result.selectors.map((selector) => selector.toLowerCase())
+            : selectors;
+          if (
+            result.confidence === "verified" ||
+            result.confidence === "inferred" ||
+            result.confidence === "extracted"
+          ) {
+            confidence = result.confidence;
+            isVerified = result.confidence === "verified";
+          } else {
+            isVerified =
+              resolvedSource !== "whatsabi" && resolvedSource !== "Selectors";
+            confidence = isVerified ? "verified" : "extracted";
+          }
         }
-        resolvedAbi = parsedABI as unknown[];
-        resolvedName =
-          result.contractName && String(result.contractName).trim() !== ""
-            ? String(result.contractName)
-            : "Facet";
-        resolvedSource = result.source || "Unknown";
-        isVerified = true;
-        confidence = "verified";
-        break;
       }
     } catch (error) {
       console.warn(
-        `Failed to fetch ABI from source for ${facetAddress}:`,
+        `Aggregator ABI fetch failed for ${facetAddress}:`,
         error
       );
-      continue;
     }
-  }
+
+    if (!resolvedAbi) {
+      try {
+        const outcomes = await Promise.allSettled([
+          fetchFromSourcify(chain, facetAddress),
+          fetchFromEtherscan(chain, facetAddress, options.etherscanApiKey),
+          fetchFromBlockscout(
+            chain,
+            facetAddress,
+            options.blockscoutApiKey ?? options.etherscanApiKey
+          ),
+        ]);
+
+        const prioritized = outcomes.flatMap((outcome, idx) => {
+          if (outcome.status !== "fulfilled" || !outcome.value) return [];
+          return [{ result: outcome.value, order: idx }];
+        });
+
+        prioritized.sort((a, b) => a.order - b.order);
+
+        for (const candidate of prioritized) {
+          const result = candidate.result;
+          if (result && result.success && typeof result.abi === "string") {
+            try {
+              const parsed = JSON.parse(result.abi) as unknown[];
+              if (!Array.isArray(parsed) || parsed.length === 0) {
+                continue;
+              }
+              resolvedAbi = parsed;
+              resolvedName =
+                result.contractName && String(result.contractName).trim() !== ""
+                  ? String(result.contractName)
+                  : resolvedName;
+              resolvedSource = result.source || resolvedSource;
+              if (
+                result.confidence === "verified" ||
+                result.confidence === "inferred" ||
+                result.confidence === "extracted"
+              ) {
+                confidence = result.confidence;
+                isVerified = result.confidence === "verified";
+              }
+              break;
+            } catch (parseError) {
+              continue;
+            }
+          }
+        }
+      } catch (parallelError) {
+        console.warn(
+          `Parallel ABI sources failed for ${facetAddress}:`,
+          parallelError
+        );
+      }
+    }
 
   // WhatsABI fallback for unverified facets
   if (!resolvedAbi) {
@@ -401,7 +490,12 @@ async function fetchFacetABI(
   if (!resolvedAbi || (Array.isArray(resolvedAbi) && resolvedAbi.length === 0)) {
     selectors = selectors.length
       ? selectors
-      : await fetchFacetSelectors(chain, diamondAddress, facetAddress);
+      : await fetchFacetSelectors(
+          chain,
+          diamondAddress,
+          facetAddress,
+          options.provider
+        );
 
     if (selectors.length > 0) {
       try {
@@ -449,6 +543,17 @@ async function fetchFacetABI(
     confidence,
     inferenceSource: isVerified ? "verified" : resolvedSource === "WhatsABI" ? "whatsabi" : resolvedSource === "Selectors" ? "selectors" : undefined,
   };
+  })();
+
+  facetFetchCache.set(cacheKey, promise);
+
+  try {
+    const result = await promise;
+    return result;
+  } catch (error) {
+    facetFetchCache.delete(cacheKey);
+    throw error;
+  }
 }
 
 // Process facets in batches
@@ -463,7 +568,8 @@ async function processBatch(
   batch: string[],
   progressCallback: FacetProgressCallback,
   startIndex: number,
-  progressState: ProgressState
+  progressState: ProgressState,
+  options: FacetFetchOptions
 ): Promise<DiamondFacet[]> {
   const promises = batch.map(async (address, batchIndex) => {
     const globalIndex = startIndex + batchIndex;
@@ -482,7 +588,12 @@ async function processBatch(
       console.warn("Progress callback failed:", error);
     }
 
-    const facet = await fetchFacetABI(chain, diamondAddress, address);
+    const facet = await fetchFacetABI(
+      chain,
+      diamondAddress,
+      address,
+      options
+    );
 
     try {
       if (facet) {
@@ -520,7 +631,8 @@ export async function fetchDiamondFacets(
   chain: Chain,
   diamondAddress: string,
   facetAddresses: string[],
-  progressCallback: FacetProgressCallback
+  progressCallback: FacetProgressCallback,
+  options: FacetFetchOptions = {}
 ): Promise<DiamondFacet[]> {
   if (facetAddresses.length === 0) {
     return [];
@@ -528,6 +640,12 @@ export async function fetchDiamondFacets(
 
   const allFacets: DiamondFacet[] = [];
   const progressState: ProgressState = { completed: 0 };
+  const provider =
+    options.provider ?? new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+  const sharedOptions: FacetFetchOptions = {
+    ...options,
+    provider,
+  };
 
   // Process facets in batches
   for (let i = 0; i < facetAddresses.length; i += BATCH_SIZE) {
@@ -539,7 +657,8 @@ export async function fetchDiamondFacets(
       batch,
       progressCallback,
       i,
-      progressState
+      progressState,
+      sharedOptions
     );
     allFacets.push(...batchResults);
   }

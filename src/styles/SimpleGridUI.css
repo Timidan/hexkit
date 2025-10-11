@@ -27,10 +27,33 @@
 
 .simple-grid-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  max-width: 1400px;
+  grid-template-columns: minmax(860px, 1.8fr) minmax(320px, 0.7fr);
+  gap: 32px;
+  max-width: 1880px;
   margin: 0 auto;
+}
+
+@media (max-width: 1580px) {
+  .simple-grid-main {
+    grid-template-columns: minmax(780px, 1.6fr) minmax(300px, 0.8fr);
+    gap: 28px;
+    max-width: 1700px;
+  }
+}
+
+@media (max-width: 1380px) {
+  .simple-grid-main {
+    grid-template-columns: minmax(720px, 1.45fr) minmax(280px, 0.9fr);
+    gap: 24px;
+    max-width: 1500px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .simple-grid-main {
+    grid-template-columns: 1fr;
+    max-width: 900px;
+  }
 }
 
 .simple-grid-card {

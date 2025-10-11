@@ -27,8 +27,8 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
     connect,
     connectors,
     error,
-    isLoading,
-    pendingConnector
+    isPending,
+    variables,
   } = useConnect();
   const {
     switchChain,
@@ -58,9 +58,45 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
     readyConnectors.find((connector) => connector.id === selectedId) ||
     readyConnectors[0];
 
-  const desiredChainId = chainId;
+  type ConnectArgs = Parameters<typeof connect>;
+  type ConnectChainId = ConnectArgs[0] extends { chainId?: infer Id }
+    ? Id
+    : never;
+  type SwitchArgs = Parameters<typeof switchChain>;
+  type SwitchChainId = SwitchArgs[0] extends { chainId: infer Id }
+    ? Id
+    : never;
+
+  const supportedChainIds = useMemo(() => {
+    const ids = new Set<number>();
+    readyConnectors.forEach((connector) => {
+      const connectorChains = Array.isArray((connector as Connector).chains)
+        ? ((connector as Connector).chains as Array<{ id: number }>)
+        : [];
+      connectorChains.forEach((connectorChain) => {
+        if (typeof connectorChain.id === "number") {
+          ids.add(connectorChain.id);
+        }
+      });
+    });
+    return ids;
+  }, [readyConnectors]);
+
+  const normalizeChainId = <T extends number | undefined,>(
+    value: number | undefined
+  ): T | undefined => {
+    if (value === undefined) return undefined;
+    return supportedChainIds.has(value) ? (value as T) : undefined;
+  };
+
+  const desiredChainId = normalizeChainId<ConnectChainId & SwitchChainId>(
+    chainId
+  );
+
   const needsSwitch = Boolean(
-    desiredChainId && isConnected && chain?.id !== desiredChainId
+    desiredChainId !== undefined &&
+      isConnected &&
+      chain?.id !== desiredChainId
   );
 
   const handleConnect = () => {
@@ -68,17 +104,22 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
       return;
     }
 
-    if (needsSwitch && desiredChainId) {
-      switchChain({ chainId: desiredChainId });
+    if (needsSwitch && desiredChainId !== undefined) {
+      switchChain({ chainId: desiredChainId as SwitchChainId });
       return;
     }
 
-    connect({ connector: activeConnector, chainId: desiredChainId });
+    const connectChainId =
+      desiredChainId !== undefined ? (desiredChainId as ConnectChainId) : undefined;
+    connect({
+      connector: activeConnector,
+      ...(connectChainId !== undefined ? { chainId: connectChainId } : {}),
+    });
   };
 
   const handleSwitch = () => {
-    if (desiredChainId) {
-      switchChain({ chainId: desiredChainId });
+    if (desiredChainId !== undefined) {
+      switchChain({ chainId: desiredChainId as SwitchChainId });
     }
   };
 
@@ -170,7 +211,7 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
           <button
             type="button"
             onClick={handleConnect}
-            disabled={!activeConnector || isLoading}
+            disabled={!activeConnector || isPending}
             style={{
               padding: buttonPadding,
               borderRadius: "10px",
@@ -183,7 +224,9 @@ const InlineWalletConnect: React.FC<InlineWalletConnectProps> = ({
               opacity: activeConnector ? 1 : 0.5,
             }}
           >
-            {isLoading && pendingConnector?.id === activeConnector?.id
+            {isPending &&
+            (variables?.connector as Connector | undefined)?.id ===
+              activeConnector?.id
               ? "Connecting…"
               : `Connect ${activeConnector?.name ?? "Wallet"}`}
           </button>
