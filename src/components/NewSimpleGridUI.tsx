@@ -116,9 +116,9 @@ const NewSimpleGridUI: React.FC = () => {
 
   const gridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "1.6fr 1fr",
-    gap: "24px",
-    maxWidth: "1600px",
+    gridTemplateColumns: "minmax(1040px, 2.1fr) minmax(320px, 0.65fr)",
+    gap: "32px",
+    maxWidth: "2120px",
     margin: "0 auto",
   };
 

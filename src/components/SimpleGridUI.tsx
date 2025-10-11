@@ -3815,11 +3815,11 @@ const SimpleGridUI: React.FC = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 2.25fr) minmax(0, 1fr)",
-    gap: "32px",
-    maxWidth: "1840px",
+    gridTemplateColumns: "minmax(1080px, 2.4fr) minmax(320px, 0.6fr)",
+    gap: "36px",
+    maxWidth: "2080px",
     margin: "0 auto",
-    padding: "20px 28px",
+    padding: "24px 36px",
   };
 
   const inputStyle = {
