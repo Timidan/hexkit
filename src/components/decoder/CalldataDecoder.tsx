@@ -147,14 +147,14 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
     }
     
     const selector = cleanCalldata.slice(0, 10);
-    addDecodingStep(`🎯 Extracted function selector: ${selector}`);
+    addDecodingStep(` Extracted function selector: ${selector}`);
     
     // Try custom signatures first
     if (enableSignatureLookup) {
-      addDecodingStep('🔍 Searching custom signatures...');
+      addDecodingStep(' Searching custom signatures...');
       const customSignature = searchCustomSignatures(selector);
       if (customSignature) {
-        addDecodingStep(`✅ Found in custom signatures: ${customSignature}`);
+        addDecodingStep(` Found in custom signatures: ${customSignature}`);
         try {
           const decoded = decodeWithSignature(cleanCalldata, customSignature);
           return {
@@ -167,21 +167,21 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
             steps: decodingSteps
           };
         } catch (error) {
-          addDecodingStep(`❌ Custom signature failed: ${error}`);
+          addDecodingStep(` Custom signature failed: ${error}`);
         }
       }
     }
     
     // Try OpenChain lookup
     if (enableSignatureLookup) {
-      addDecodingStep('🌐 Searching OpenChain database...');
+      addDecodingStep(' Searching OpenChain database...');
       try {
         const openChainResult: SignatureResponse = await lookupFunctionSignatures([selector]);
         const signatures = openChainResult.result?.function?.[selector];
         
         if (signatures && signatures.length > 0) {
           const signature = signatures[0].name;
-          addDecodingStep(`✅ Found on OpenChain: ${signature}`);
+          addDecodingStep(` Found on OpenChain: ${signature}`);
           
           try {
             const decoded = decodeWithSignature(cleanCalldata, signature);
@@ -195,23 +195,23 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
               steps: decodingSteps
             };
           } catch (error) {
-            addDecodingStep(`❌ OpenChain signature failed: ${error}`);
+            addDecodingStep(` OpenChain signature failed: ${error}`);
           }
         } else {
-          addDecodingStep('❌ Not found in OpenChain database');
+          addDecodingStep(' Not found in OpenChain database');
         }
       } catch (error) {
-        addDecodingStep(`❌ OpenChain lookup failed: ${error}`);
+        addDecodingStep(` OpenChain lookup failed: ${error}`);
       }
     }
     
     // Try manual ABI if provided
     if (customABI) {
-      addDecodingStep('🔧 Trying custom ABI...');
+      addDecodingStep(' Trying custom ABI...');
       try {
         const iface = new ethers.utils.Interface(JSON.parse(customABI));
         const decoded = iface.parseTransaction({ data: cleanCalldata });
-        addDecodingStep(`✅ Decoded with custom ABI: ${decoded.name}`);
+        addDecodingStep(` Decoded with custom ABI: ${decoded.name}`);
         
         return {
           success: true,
@@ -222,17 +222,17 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
           steps: decodingSteps
         };
       } catch (error) {
-        addDecodingStep(`❌ Custom ABI failed: ${error}`);
+        addDecodingStep(` Custom ABI failed: ${error}`);
       }
     }
     
     // Try heuristic decoding
     if (enableHeuristics) {
-      addDecodingStep('🧠 Attempting heuristic decoding...');
+      addDecodingStep(' Attempting heuristic decoding...');
       try {
         const heuristicResult = await decodeWithHeuristics(cleanCalldata);
         if (heuristicResult.bestGuess || heuristicResult.decodedAttempts.length > 0) { // Check if heuristic decoding found results
-          addDecodingStep('✅ Heuristic decoding successful');
+          addDecodingStep(' Heuristic decoding successful');
           return {
             success: true,
             decodedData: heuristicResult,
@@ -242,7 +242,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
           };
         }
       } catch (error) {
-        addDecodingStep(`❌ Heuristic decoding failed: ${error}`);
+        addDecodingStep(` Heuristic decoding failed: ${error}`);
       }
     }
     
@@ -261,11 +261,11 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
     setDecodingResult(null);
     
     try {
-      addDecodingStep('🚀 Starting calldata decoding...');
+      addDecodingStep(' Starting calldata decoding...');
       const result = await detectAndDecodeCalldata(calldata);
       
       setDecodingResult(result);
-      addDecodingStep('🎉 Decoding completed successfully!');
+      addDecodingStep(' Decoding completed successfully!');
       
       if (onDecoded) {
         onDecoded(result);
@@ -273,7 +273,7 @@ const CalldataDecoder: React.FC<CalldataDecoderProps> = ({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown decoding error';
       setError(errorMessage);
-      addDecodingStep(`💥 Decoding failed: ${errorMessage}`);
+      addDecodingStep(` Decoding failed: ${errorMessage}`);
       
       if (onError) {
         onError(errorMessage);

@@ -296,7 +296,7 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
             etherscanApiKey
           );
 
-          console.log(`🔍 [${chain.name}] Contract info for ${address}:`, {
+          console.log(` [${chain.name}] Contract info for ${address}:`, {
             success: contractInfo.success,
             contractName: contractInfo.contractName,
             source: contractInfo.source,
@@ -677,11 +677,11 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
                 {facet.verified ? (
                   <div className="text-sm text-green-700">
-                    ✓ Verified contract with ABI available
+                     Verified contract with ABI available
                   </div>
                 ) : (
                   <div className="text-sm text-red-700">
-                    ⚠ Unverified contract - function calls may be limited
+                     Unverified contract - function calls may be limited
                   </div>
                 )}
               </div>

@@ -88,13 +88,13 @@ export const DynamicWeb3Provider: React.FC<DynamicWeb3ProviderProps> = ({
         // Event handlers for logging
         events: {
           onAuthSuccess: (user: unknown) => {
-            console.log("🚀 Dynamic: User authenticated", user);
+            console.log(" Dynamic: User authenticated", user);
           },
           onAuthFlowCancel: () => {
-            console.log("❌ Dynamic: Auth flow cancelled");
+            console.log(" Dynamic: Auth flow cancelled");
           },
           onLogout: () => {
-            console.log("🔌 Dynamic: User logged out");
+            console.log(" Dynamic: User logged out");
           },
         },
       }}

@@ -58,6 +58,18 @@
   margin-bottom: 12px;
 }
 
+.compact-array-remove.inline-action-icon {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+.compact-array-remove.inline-action-icon:hover,
+.compact-array-remove.inline-action-icon:focus-visible,
+.compact-array-remove.inline-action-icon.is-active {
+  background: rgba(239, 68, 68, 0.24);
+  color: #fecaca;
+}
+
 /* Compact Icon Buttons */
 .compact-icon-btn {
   width: 28px;

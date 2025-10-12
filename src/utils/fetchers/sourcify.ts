@@ -77,10 +77,10 @@ export const fetchFromSourcify = async (
       } catch (repoErr: any) {
         if (repoErr.response?.status === 404) {
           console.log(
-            `🔍 [Sourcify] Repo endpoint ${url} returned 404 (expected for unverified contracts)`
+            ` [Sourcify] Repo endpoint ${url} returned 404 (expected for unverified contracts)`
           );
         } else {
-          console.warn(`🔍 [Sourcify] Repo endpoint ${url} failed:`, repoErr.message);
+          console.warn(` [Sourcify] Repo endpoint ${url} failed:`, repoErr.message);
         }
         continue;
       }
@@ -120,7 +120,7 @@ export const fetchFromSourcify = async (
     if (error.response?.status === 404) {
       return { success: false, error: 'Contract not found on Sourcify' };
     }
-    console.error('🔍 [Sourcify] Error:', error);
+    console.error(' [Sourcify] Error:', error);
     return { success: false, error: `Sourcify error: ${error.message}` };
   }
 };

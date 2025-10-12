@@ -75,7 +75,7 @@ async function fetchDiamondFacets(
   chain: any,
   onProgress?: (progress: FacetFetchProgress) => void
 ): Promise<DiamondFacetFetchResult> {
-  console.log(`🔍 Fetching Diamond facets for ${contractAddress} on ${chain.name}...`);
+  console.log(` Fetching Diamond facets for ${contractAddress} on ${chain.name}...`);
   
   const result: DiamondFacetFetchResult = {
     facets: [],
@@ -91,7 +91,7 @@ async function fetchDiamondFacets(
     ], provider);
 
     const facetAddresses = await diamondContract.facetAddresses();
-    console.log(`📋 Found ${facetAddresses.length} facets:`, facetAddresses);
+    console.log(` Found ${facetAddresses.length} facets:`, facetAddresses);
 
     if (facetAddresses.length === 0) {
       result.errors.push('No facets found in Diamond contract');
@@ -99,7 +99,7 @@ async function fetchDiamondFacets(
     }
 
     // Fetch each facet individually
-    console.log('🔄 Fetching facets individually...');
+    console.log(' Fetching facets individually...');
     
     const batchSize = 4;
     const batches: string[][] = [];
@@ -109,7 +109,7 @@ async function fetchDiamondFacets(
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} facets`);
+      console.log(` Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} facets`);
 
       const batchPromises = batch.map(async (facetAddress, index) => {
         const globalIndex = batchIndex * batchSize + index;
@@ -125,7 +125,7 @@ async function fetchDiamondFacets(
           const facetInfo = await fetchSingleFacetInfo(facetAddress, chain);
           return facetInfo;
         } catch (error) {
-          console.error(`❌ Failed to fetch facet ${facetAddress}:`, error);
+          console.error(` Failed to fetch facet ${facetAddress}:`, error);
           return {
             address: facetAddress,
             name: `Unverified (${facetAddress.slice(0, 6)}...${facetAddress.slice(-4)})`,
@@ -150,18 +150,18 @@ async function fetchDiamondFacets(
     // Calculate total functions
     result.totalFunctions = result.facets.reduce((total, facet) => total + facet.functions.length, 0);
 
-    console.log(`✅ Fetched ${result.facets.length} facets with ${result.totalFunctions} total functions`);
+    console.log(` Fetched ${result.facets.length} facets with ${result.totalFunctions} total functions`);
     return result;
 
   } catch (error) {
-    console.error('❌ Error fetching Diamond facets:', error);
+    console.error(' Error fetching Diamond facets:', error);
     result.errors.push(error instanceof Error ? error.message : String(error));
     return result;
   }
 }
 
 async function fetchSingleFacetInfo(facetAddress: string, chain: any): Promise<DiamondFacetInfo> {
-  console.log(`🔍 Fetching info for facet ${facetAddress}...`);
+  console.log(` Fetching info for facet ${facetAddress}...`);
 
   // Try Etherscan first
   try {
@@ -170,7 +170,7 @@ async function fetchSingleFacetInfo(facetAddress: string, chain: any): Promise<D
       return result;
     }
   } catch (error) {
-    console.log(`❌ Etherscan failed for ${facetAddress}:`, error);
+    console.log(` Etherscan failed for ${facetAddress}:`, error);
   }
 
   // If Etherscan fails, return unverified facet
@@ -192,7 +192,7 @@ async function fetchFacetFromEtherscan(facetAddress: string, chain: any): Promis
     }
 
     const url = `${baseUrl}/api?module=contract&action=getabi&address=${facetAddress}&apikey=${apiKey}`;
-    console.log(`🔍 Fetching from Etherscan: ${url}`);
+    console.log(` Fetching from Etherscan: ${url}`);
 
     const response = await axios.get(url, { timeout: 10000 });
     
@@ -211,7 +211,7 @@ async function fetchFacetFromEtherscan(facetAddress: string, chain: any): Promis
 
     return null;
   } catch (error) {
-    console.log(`❌ Etherscan fetch failed for ${facetAddress}:`, error);
+    console.log(` Etherscan fetch failed for ${facetAddress}:`, error);
     return null;
   }
 }
@@ -265,7 +265,7 @@ function getEtherscanBaseUrl(chain: any): string | null {
 }
 
 async function testDiamondFacets() {
-  console.log('🧪 Testing Diamond Facet Fetching...\n');
+  console.log(' Testing Diamond Facet Fetching...\n');
 
   const testContracts = [
     {
@@ -281,9 +281,9 @@ async function testDiamondFacets() {
   ];
 
   for (const test of testContracts) {
-    console.log(`\n🔍 Testing ${test.name}...`);
-    console.log(`📍 Address: ${test.address}`);
-    console.log(`🌐 Chain: ${test.chain.name}`);
+    console.log(`\n Testing ${test.name}...`);
+    console.log(` Address: ${test.address}`);
+    console.log(` Chain: ${test.chain.name}`);
     
     try {
       const startTime = Date.now();
@@ -292,29 +292,29 @@ async function testDiamondFacets() {
         test.address,
         test.chain,
         (progress) => {
-          console.log(`📊 Progress: ${progress.current}/${progress.total} - ${progress.currentFacet} (${progress.status})`);
+          console.log(` Progress: ${progress.current}/${progress.total} - ${progress.currentFacet} (${progress.status})`);
         }
       );
 
       const endTime = Date.now();
       const duration = endTime - startTime;
 
-      console.log(`\n✅ Results for ${test.name}:`);
+      console.log(`\n Results for ${test.name}:`);
       console.log(`⏱️  Duration: ${duration}ms`);
-      console.log(`📋 Total Facets: ${result.facets.length}`);
-      console.log(`🔧 Total Functions: ${result.totalFunctions}`);
-      console.log(`❌ Errors: ${result.errors.length}`);
+      console.log(` Total Facets: ${result.facets.length}`);
+      console.log(` Total Functions: ${result.totalFunctions}`);
+      console.log(` Errors: ${result.errors.length}`);
 
       if (result.errors.length > 0) {
-        console.log(`\n❌ Errors:`);
+        console.log(`\n Errors:`);
         result.errors.forEach(error => console.log(`  - ${error}`));
       }
 
-      console.log(`\n📋 Facet Details:`);
+      console.log(`\n Facet Details:`);
       result.facets.forEach((facet, index) => {
         console.log(`\n  ${index + 1}. ${facet.name}`);
         console.log(`     Address: ${facet.address}`);
-        console.log(`     Verified: ${facet.verified ? '✅' : '❌'}`);
+        console.log(`     Verified: ${facet.verified ? '' : ''}`);
         console.log(`     Functions: ${facet.functions.length}`);
         
         if (facet.functions.length > 0) {
@@ -330,7 +330,7 @@ async function testDiamondFacets() {
       });
 
     } catch (error) {
-      console.log(`❌ Test failed for ${test.name}:`, error);
+      console.log(` Test failed for ${test.name}:`, error);
     }
 
     console.log('\n' + '='.repeat(80));

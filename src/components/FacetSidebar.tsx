@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
-import { BookOpenIcon, EditIcon } from './icons/IconLibrary';
+import { BookOpenIcon, EditIcon, ChevronRightIcon } from './icons/IconLibrary';
 import InlineCopyButton from './ui/InlineCopyButton';
 
 interface FacetSidebarProps {
@@ -141,13 +141,17 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
                   }}>
                     {totalFunctions} func{totalFunctions !== 1 ? 's' : ''}
                   </span>
-                  <span style={{
-                    color: '#888',
-                    fontSize: '12px',
-                    transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s ease'
-                  }}>
-                    ▶
+                  <span
+                    style={{
+                      color: '#888',
+                      fontSize: '12px',
+                      transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <ChevronRightIcon width={12} height={12} />
                   </span>
                 </div>
               </div>
@@ -283,7 +287,7 @@ export const FacetSidebar: React.FC<FacetSidebarProps> = ({
           padding: '40px 20px',
           color: '#888'
         }}>
-          <div style={{ fontSize: '24px', marginBottom: '12px' }}>💎</div>
+          <div style={{ fontSize: '24px', marginBottom: '12px' }}></div>
           <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '4px' }}>
             No facets found
           </div>

@@ -196,12 +196,12 @@ const StructViewer: React.FC<StructViewerProps> = ({
   };
 
   const getFieldIcon = (type: string): string => {
-    if (type === 'address') return '📍';
-    if (type === 'bool') return '🔘';
-    if (type.includes('uint') || type.includes('int')) return '🔢';
-    if (type.includes('bytes')) return '📄';
-    if (type.includes('[]')) return '📋';
-    return '⚪';
+    if (type === 'address') return '';
+    if (type === 'bool') return '';
+    if (type.includes('uint') || type.includes('int')) return '';
+    if (type.includes('bytes')) return '';
+    if (type.includes('[]')) return '';
+    return '';
   };
 
   return (

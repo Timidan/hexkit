@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import '../styles/CompactArrayStyles.css';
 import { PlusIcon, MinusIcon, TrashIcon, ShuffleIcon, Icon, AlertTriangleIcon } from './icons/IconLibrary';
+import InlineActionButton from './ui/InlineActionButton';
 
 interface ArgInputProps {
   abi?: any[];
@@ -26,7 +27,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     const inputs = func?.inputs || [];
     
     // Debug function inputs
-    console.log(`🔍 FUNCTION INPUTS for ${functionName}:`, inputs);
+    console.log(`[MinimalArgInput] FUNCTION INPUTS for ${functionName}:`, inputs);
     inputs.forEach((input: any, idx: number) => {
       console.log(`  [${idx}] ${input.name} (${input.type})`, {
         hasComponents: !!input.components,
@@ -193,7 +194,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     return '#74b9ff';
   };
 
-  // Helper to check if a struct is populated with valid data (for "✅ Filled" indicator)
+  // Helper to check if a struct is populated with valid data (for " Filled" indicator)
   const isStructPopulated = (structValue: any, components: any[]): boolean => {
     if (!structValue || !components) return false;
     // ALL fields must be filled with valid data, not just some
@@ -296,36 +297,37 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             )}
           </div>
           {isArrayItem && onRemove && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="remove-struct-btn"
-              title="Remove struct"
-            >
-              ×
-            </button>
-          )}
-          {!isArrayItem && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // Clear the struct
-                const emptyStruct: any = {};
-                components?.forEach((comp: any) => {
-                  emptyStruct[comp.name] = getDefaultValue(comp.type);
-                });
-                onChange(emptyStruct);
-              }}
-              className="clear-struct-btn"
-              title="Clear struct"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14ZM10 11v6M14 11v6"/>
-              </svg>
-            </button>
-          )}
+          <InlineActionButton
+            className="remove-struct-btn"
+            ariaLabel="Remove struct"
+            tooltip="Remove struct"
+            icon={<XCloseIcon width={14} height={14} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            size={28}
+            stopPropagation
+          />
+        )}
+        {!isArrayItem && (
+          <InlineActionButton
+            className="clear-struct-btn"
+            ariaLabel="Reset struct"
+            tooltip="Reset struct"
+            icon={<TrashIcon width={14} height={14} />}
+            onClick={(e) => {
+              e.stopPropagation();
+              const emptyStruct: any = {};
+              components?.forEach((comp: any) => {
+                emptyStruct[comp.name] = getDefaultValue(comp.type);
+              });
+              onChange(emptyStruct);
+            }}
+            size={28}
+            stopPropagation
+          />
+        )}
         </div>
         {!isCollapsed && (
           <div className="struct-fields">
@@ -370,7 +372,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     
     // Handle tuple arrays (tuple[]) - should use array rendering logic
     if (field.type.includes('tuple[]') || (field.type.includes('[]') && field.type.includes('tuple'))) {
-      console.log(`🔍 STRUCT FIELD TUPLE ARRAY: ${field.name} (${field.type})`, {
+      console.log(`[MinimalArgInput] STRUCT FIELD TUPLE ARRAY: ${field.name} (${field.type})`, {
         hasComponents: !!field.components,
         components: field.components
       });
@@ -387,7 +389,10 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           <div className="struct-array-container">
             <div className="struct-array-header">
               <span className="array-count">{arrayValue.length} structs</span>
-              <div
+              <InlineActionButton
+                ariaLabel="Add struct"
+                tooltip="Add struct"
+                icon={<PlusIcon width={16} height={16} />}
                 onClick={() => {
                   const newStruct: any = {};
                   if (components && components.length > 0) {
@@ -397,23 +402,9 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                   }
                   onChange([...arrayValue, newStruct]);
                 }}
-                title="Add struct"
-                style={{ 
-                  cursor: 'pointer', 
-                  color: '#4ade80', 
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s ease',
-                  opacity: 0.8
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
-              >
-                <PlusIcon width={16} height={16} />
-              </div>
+                size={30}
+                stopPropagation
+              />
             </div>
             
             {arrayValue.map((structValue: any, structIdx: number) => {
@@ -442,7 +433,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             
             {arrayValue.length === 0 && (
               <div className="empty-array">
-                <p>No structs added. Click "+" to create one.</p>
+                <p>No structs added. Use the add button to create one.</p>
               </div>
             )}
           </div>
@@ -512,7 +503,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     const typeColor = getTypeColor(input.type);
     
     // Debug all inputs
-    console.log(`🔍 ALL INPUTS: ${input.name} (${input.type})`, {
+    console.log(`[MinimalArgInput] INPUT: ${input.name} (${input.type})`, {
       hasComponents: !!input.components,
       componentsLength: input.components?.length,
       isArray: input.type.includes('[]'),
@@ -521,7 +512,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
     });
     
     if (input.type.includes('tuple')) {
-      console.log(`🚨 TUPLE DEBUG: ${input.name} (${input.type})`, {
+      console.log(`[MinimalArgInput] TUPLE DEBUG: ${input.name} (${input.type})`, {
         hasComponents: !!input.components,
         componentsLength: input.components?.length,
         isArray: input.type.includes('[]'),
@@ -555,12 +546,12 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
       const arrayValue = Array.isArray(value) ? value : [];
       
       // Debug logging
-      console.log(`🔍 Array field: ${input.name} (${input.type}), baseType: ${baseType}, hasComponents: ${!!input.components}, components:`, input.components);
+      console.log(`[MinimalArgInput] Array field: ${input.name} (${input.type}), baseType: ${baseType}, hasComponents: ${!!input.components}, components:`, input.components);
       
       // Handle arrays of structs/tuples - improved detection
       // For tuple arrays, always show struct interface even without components
       if (baseType === 'tuple' || input.type.includes('tuple[]')) {
-        console.log(`✅ TREATING AS STRUCT ARRAY: ${input.name} (${input.type})`);
+        console.log(` TREATING AS STRUCT ARRAY: ${input.name} (${input.type})`);
         // Use empty components array if none provided for tuple[]
         const components = input.components || [];
         return (
@@ -572,7 +563,10 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
             <div className="struct-array-container">
               <div className="struct-array-header">
                 <span className="array-count">{arrayValue.length} structs</span>
-                <div
+                <InlineActionButton
+                  ariaLabel="Add struct"
+                  tooltip="Add struct"
+                  icon={<PlusIcon width={16} height={16} />}
                   onClick={() => {
                     const newStruct: any = {};
                     if (components && components.length > 0) {
@@ -580,32 +574,13 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
                         newStruct[comp.name] = getDefaultValue(comp.type);
                       });
                     } else {
-                      // Fallback for tuple[] without components - create empty object
-                      console.warn(`⚠️ No components found for ${input.name} (${input.type}). Creating empty tuple.`);
+                      console.warn(`No components found for ${input.name} (${input.type}). Creating empty tuple.`);
                     }
                     updateArg(index, [...arrayValue, newStruct]);
                   }}
-                  title="Add struct"
-                  style={{ 
-                    cursor: 'pointer', 
-                    color: '#4ade80', 
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
-                    borderRadius: '12px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    background: 'rgba(74, 222, 128, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(74, 222, 128, 0.2)',
-                    boxShadow: '0 8px 32px rgba(74, 222, 128, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                    opacity: 0.9
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <PlusIcon width={16} height={16} />
-                </div>
+                  size={32}
+                  stopPropagation
+                />
               </div>
               
               {arrayValue.map((structValue: any, structIdx: number) => {
@@ -634,7 +609,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
               
               {arrayValue.length === 0 && (
                 <div className="empty-array">
-                  <p>No structs added. Click "Add Struct" to create one.</p>
+                  <p>No structs added. Use the add button to create one.</p>
                 </div>
               )}
             </div>
@@ -644,7 +619,7 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
       
       // Handle nested arrays (uint256[][], etc.) - simplified for now
       if (baseType.includes('[]')) {
-        console.log(`🔍 NESTED ARRAY: ${input.name} (${input.type}) - Using fallback text input`);
+        console.log(`[MinimalArgInput] NESTED ARRAY: ${input.name} (${input.type}) - fallback text input`);
         return (
           <div key={index} className="arg-row">
             <div className="arg-label">
@@ -708,86 +683,42 @@ const MinimalArgInput: React.FC<ArgInputProps> = ({
           {/* Compact input controls */}
           <div className="compact-array-controls">
             <div className="array-input-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div
+              <InlineActionButton
+                ariaLabel="Add item"
+                tooltip="Add item"
+                icon={<PlusIcon width={16} height={16} />}
                 onClick={() => {
                   const typeInfo = SolidityTypes.getTypeInfo(baseType);
                   const defaultValue = typeInfo.defaultValue;
                   updateArg(index, [...arrayValue, defaultValue]);
                 }}
-                title="Add new item"
-                style={{ 
-                  cursor: 'pointer', 
-                  color: '#4ade80', 
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s ease',
-                  opacity: 0.8
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
-              >
-                <PlusIcon width={16} height={16} />
-              </div>
-              
+                size={30}
+              />
+
               {arrayValue.length > 0 && (
-                <div
+                <InlineActionButton
+                  ariaLabel="Remove last item"
+                  tooltip="Remove last item"
+                  icon={<MinusIcon width={16} height={16} />}
                   onClick={() => {
                     const newArray = [...arrayValue];
                     newArray.pop();
                     updateArg(index, newArray);
                   }}
-                  title="Remove last item"
-                  style={{ 
-                    cursor: 'pointer', 
-                    color: '#f87171', 
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
-                    borderRadius: '12px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    background: 'rgba(248, 113, 113, 0.1)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(248, 113, 113, 0.2)',
-                    boxShadow: '0 8px 32px rgba(248, 113, 113, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                    opacity: 0.9
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <MinusIcon width={16} height={16} />
-                </div>
+                  size={30}
+                />
               )}
-              
+
               {arrayValue.length > 0 && (
-                <div
+                <InlineActionButton
+                  ariaLabel="Clear items"
+                  tooltip="Clear items"
+                  icon={<TrashIcon width={16} height={16} />}
                   onClick={() => {
                     updateArg(index, []);
                   }}
-                  title="Clear all items"
-                  style={{ 
-                    cursor: 'pointer', 
-                    color: '#ef4444', 
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px',
-                    borderRadius: '12px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    background: 'rgba(239, 68, 68, 0.12)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    boxShadow: '0 8px 32px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                    opacity: 0.9
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  <TrashIcon width={16} height={16} />
-                </div>
+                  size={30}
+                />
               )}
               
               {arrayValue.length > 1 && (

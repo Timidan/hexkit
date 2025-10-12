@@ -9,7 +9,7 @@ const TestComponent: React.FC = () => {
       fontSize: '30px',
       textAlign: 'center'
     }}>
-      🔥 THIS IS THE NEW COMPONENT - IT'S WORKING! 🔥
+       THIS IS THE NEW COMPONENT - IT'S WORKING! 
     </div>
   );
 };

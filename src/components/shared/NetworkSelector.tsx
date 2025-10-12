@@ -18,7 +18,6 @@ export interface ExtendedChain extends Partial<Chain> {
   blockExplorer?: string;
   isTestnet?: boolean;
   category?: 'mainnet' | 'testnet' | 'local';
-  icon?: string;
   color?: string;
   chainKey?: ChainKey;
 }
@@ -34,7 +33,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#627eea',
-    icon: '⟠',
     chainKey: 'ETH'
   },
   {
@@ -45,7 +43,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#8247e5',
-    icon: '⬟',
     chainKey: 'POLY'
   },
   {
@@ -56,7 +53,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#28a0f0',
-    icon: '🔵',
     chainKey: 'ARB'
   },
   {
@@ -67,7 +63,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#ff0420',
-    icon: '🔴',
     chainKey: 'OP'
   },
   {
@@ -78,7 +73,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#0052ff',
-    icon: '🟦',
     chainKey: 'BASE'
   },
   {
@@ -89,7 +83,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#f3ba2f',
-    icon: '🟡',
     chainKey: 'BSC'
   },
   {
@@ -100,7 +93,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: false,
     category: 'mainnet',
     color: '#3e6957',
-    icon: '🟢',
     chainKey: 'GNO'
   },
   
@@ -115,7 +107,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#627eea',
-    icon: '⟠',
     chainKey: 'ETH'
   },
   {
@@ -126,7 +117,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#627eea',
-    icon: '⟠',
     chainKey: 'ETH'
   },
   {
@@ -137,7 +127,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#8247e5',
-    icon: '⬟',
     chainKey: 'POLY'
   },
   {
@@ -148,7 +137,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#28a0f0',
-    icon: '🔵',
     chainKey: 'ARB'
   },
   {
@@ -159,7 +147,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#ff0420',
-    icon: '🔴',
     chainKey: 'OP'
   },
   {
@@ -170,7 +157,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#0f74ff',
-    icon: '🔷',
     chainKey: 'LISK'
   },
   {
@@ -183,7 +169,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#0052ff',
-    icon: '🟦',
     chainKey: 'BASE'
   },
   {
@@ -194,7 +179,6 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     isTestnet: true,
     category: 'testnet',
     color: '#f3ba2f',
-    icon: '🟡',
     chainKey: 'BSC'
   },
 ];
@@ -333,11 +317,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
     size = sizeStyles.icon
   ) => {
     if (!network) {
-      return (
-        <span role="img" aria-label="network" style={{ fontSize: size }}>
-          🌐
-        </span>
-      );
+      return <Network size={size} />;
     }
 
     const resolvedKey = network.chainKey ?? getDefaultChainKey(network.id);

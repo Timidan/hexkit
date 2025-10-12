@@ -222,12 +222,12 @@ const getERC721Info = async (contract: ethers.Contract): Promise<Partial<Contrac
 
 export const getContractTypeIcon = (type: ContractInfo['contractType']): string => {
   switch (type) {
-    case 'ERC20': return '🪙';
-    case 'ERC721': return '🖼️';
-    case 'ERC1155': return '🎨';
-    case 'PROXY': return '🔄';
-    case 'MULTISIG': return '🔐';
-    default: return '📋';
+    case 'ERC20': return 'erc20';
+    case 'ERC721': return 'erc721';
+    case 'ERC1155': return 'erc1155';
+    case 'PROXY': return 'proxy';
+    case 'MULTISIG': return 'multisig';
+    default: return 'contract';
   }
 };
 

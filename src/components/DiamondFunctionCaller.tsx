@@ -308,7 +308,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       // Create contract instance
       const contract = new ethers.Contract(contractAddress, [func], provider);
 
-      console.log(`📞 Calling ${func.name} with args:`, parsedArgs);
+      console.log(` Calling ${func.name} with args:`, parsedArgs);
 
       // Call the function using a typed index accessor
       const startTime = Date.now();
@@ -319,7 +319,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
       const result = await contractFns[func.name](...parsedArgs);
       const endTime = Date.now();
 
-      console.log(`✅ ${func.name} result:`, result);
+      console.log(` ${func.name} result:`, result);
 
       setCallResults((prev) => ({
         ...prev,
@@ -330,7 +330,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         },
       }));
     } catch (error: unknown) {
-      console.error(`❌ Error calling ${func.name}:`, error);
+      console.error(` Error calling ${func.name}:`, error);
 
       setCallResults((prev) => ({
         ...prev,
@@ -391,7 +391,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         connectedWallet.signer
       );
 
-      console.log(`🚀 Executing ${func.name} with args:`, parsedArgs);
+      console.log(` Executing ${func.name} with args:`, parsedArgs);
 
       // Estimate gas first
       let gasEstimate: ethers.BigNumber | undefined;
@@ -402,11 +402,11 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         >;
         gasEstimate = await estimateFns[func.name](...parsedArgs);
         console.log(
-          `⛽ Gas estimate for ${func.name}:`,
+          ` Gas estimate for ${func.name}:`,
           gasEstimate.toString()
         );
       } catch (gasError) {
-        console.warn(`⚠️ Gas estimation failed for ${func.name}:`, gasError);
+        console.warn(`Gas estimation failed for ${func.name}:`, gasError);
       }
 
       // Execute the transaction
@@ -427,13 +427,13 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         gasLimit: gasEstimate ? gasEstimate.mul(120).div(100) : undefined, // Add 20% buffer
       });
 
-      console.log(`📄 Transaction sent: ${tx.hash}`);
+      console.log(` Transaction sent: ${tx.hash}`);
 
       // Wait for confirmation
       const receipt = await tx.wait();
       const endTime = Date.now();
 
-      console.log(`✅ Transaction confirmed: ${receipt.transactionHash}`);
+      console.log(` Transaction confirmed: ${receipt.transactionHash}`);
 
       setCallResults((prev) => ({
         ...prev,
@@ -447,7 +447,7 @@ const DiamondFunctionCaller: React.FC<Props> = ({
         },
       }));
     } catch (error: unknown) {
-      console.error(`❌ Error executing ${func.name}:`, error);
+      console.error(` Error executing ${func.name}:`, error);
 
       setCallResults((prev) => ({
         ...prev,

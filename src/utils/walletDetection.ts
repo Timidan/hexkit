@@ -11,7 +11,7 @@ export const detectWallets = (): WalletInfo[] => {
     if (ethereum.isMetaMask) {
       wallets.push({
         name: 'MetaMask',
-        icon: '🦊',
+        icon: 'metamask',
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
@@ -25,7 +25,7 @@ export const detectWallets = (): WalletInfo[] => {
     if (ethereum.isRabby) {
       wallets.push({
         name: 'Rabby',
-        icon: '🐰',
+        icon: 'rabby',
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
@@ -39,7 +39,7 @@ export const detectWallets = (): WalletInfo[] => {
     if (!ethereum.isMetaMask && !ethereum.isRabby) {
       wallets.push({
         name: 'Browser Wallet',
-        icon: '💳',
+        icon: 'browser',
         isInstalled: true,
         isConnected: ethereum.selectedAddress !== null,
         accounts: ethereum.selectedAddress ? [ethereum.selectedAddress] : [],
@@ -55,7 +55,7 @@ export const detectWallets = (): WalletInfo[] => {
     const coinbase = (window as any).coinbaseWalletExtension;
     wallets.push({
       name: 'Coinbase Wallet',
-      icon: '📱',
+      icon: 'coinbase',
       isInstalled: true,
       isConnected: false, // Would need to check connection status
       accounts: [],

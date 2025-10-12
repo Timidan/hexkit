@@ -99,7 +99,7 @@ const UniversalAPIKeyModal: React.FC<UniversalAPIKeyModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content api-key-modal-wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>🔐 Universal API Keys</h3>
+          <h3> Universal API Keys</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
@@ -127,7 +127,7 @@ const UniversalAPIKeyModal: React.FC<UniversalAPIKeyModalProps> = ({
               >
                 {provider.name}
                 {universalApiKeyManager.hasAPIKey(providerKey as ApiProviderKey) && (
-                  <span className="key-indicator">✅</span>
+                  <span className="key-indicator"></span>
                 )}
               </button>
             ))}
@@ -182,7 +182,7 @@ const UniversalAPIKeyModal: React.FC<UniversalAPIKeyModalProps> = ({
           </div>
 
           <div className="security-note">
-            <p>🔒 <strong>Security:</strong> Your API keys are stored locally in your browser and never sent to our servers.</p>
+            <p> <strong>Security:</strong> Your API keys are stored locally in your browser and never sent to our servers.</p>
           </div>
         </div>
 

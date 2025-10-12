@@ -1,4 +1,6 @@
 import React from 'react';
+import { GemIcon } from './icons/IconLibrary';
+import { UIIcons } from './icons/IconMap';
 
 interface DiamondFacetLoadingModalProps {
   isOpen: boolean;
@@ -18,7 +20,31 @@ export const DiamondFacetLoadingModal: React.FC<DiamondFacetLoadingModalProps> =
 }) => {
   if (!isOpen) return null;
 
-  const progressPercentage = (progress.current / progress.total) * 100;
+  const total = progress.total > 0 ? progress.total : 1;
+  const progressPercentage = Math.min(
+    100,
+    Math.max(0, (progress.current / total) * 100)
+  );
+
+  const statusConfig = {
+    fetching: {
+      label: 'Fetching ABI…',
+      color: '#60a5fa',
+      icon: UIIcons.loading,
+    },
+    completed: {
+      label: 'Completed',
+      color: '#10b981',
+      icon: UIIcons.success,
+    },
+    error: {
+      label: 'Error occurred',
+      color: '#ef4444',
+      icon: UIIcons.error,
+    },
+  } as const;
+
+  const status = statusConfig[progress.status] ?? statusConfig.fetching;
 
   return (
     <div
@@ -56,7 +82,10 @@ export const DiamondFacetLoadingModal: React.FC<DiamondFacetLoadingModalProps> =
               marginBottom: '8px',
             }}
           >
-            �� Fetching Diamond Facets
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <GemIcon width={24} height={24} />
+              <span>Fetching Diamond Facets</span>
+            </span>
           </div>
           <div
             style={{
@@ -158,13 +187,15 @@ export const DiamondFacetLoadingModal: React.FC<DiamondFacetLoadingModalProps> =
           <div
             style={{
               fontSize: '14px',
-              color: progress.status === 'error' ? '#ef4444' : '#10b981',
+              color: status.color,
               fontWeight: '500',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
             }}
           >
-            {progress.status === 'fetching' && '🔄 Fetching ABI...'}
-            {progress.status === 'completed' && '✅ Completed'}
-            {progress.status === 'error' && '❌ Error occurred'}
+            <span aria-hidden="true">{status.icon}</span>
+            <span>{status.label}</span>
           </div>
         </div>
 

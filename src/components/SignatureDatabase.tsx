@@ -551,7 +551,7 @@ const SignatureDatabase: React.FC = () => {
             </div>
 
             <button onClick={handleLookup} disabled={isLookingUp}>
-              {isLookingUp ? 'Looking up...' : '🔍 Lookup Signatures'}
+              {isLookingUp ? 'Looking up...' : 'Lookup Signatures'}
             </button>
 
             {lookupResults && lookupResults.result && (
@@ -629,7 +629,7 @@ const SignatureDatabase: React.FC = () => {
             </div>
 
             <button onClick={handleSearch} disabled={isSearching}>
-              {isSearching ? 'Searching...' : '🔍 Search Signatures'}
+              {isSearching ? 'Searching...' : 'Search Signatures'}
             </button>
 
             {searchResults && (
@@ -639,7 +639,7 @@ const SignatureDatabase: React.FC = () => {
                 {/* Function Results */}
                 {searchResults.result?.function && Object.keys(searchResults.result.function).length > 0 && (
                   <div className="search-category">
-                    <h5>🔧 Functions ({Object.keys(searchResults.result.function).length})</h5>
+                    <h5>Functions ({Object.keys(searchResults.result.function).length})</h5>
                     <div className="signatures-list">
                       {Object.entries(searchResults.result.function).map(([hash, signatures]) => 
                         signatures.map((sig, index) => (
@@ -654,14 +654,14 @@ const SignatureDatabase: React.FC = () => {
                                 className="copy-btn"
                                 title="Copy signature"
                               >
-                                📋
+                                <CopyIcon width={14} height={14} />
                               </button>
                               <button
                                 onClick={() => copyToClipboard(hash)}
                                 className="copy-btn"
                                 title="Copy function hash"
                               >
-                                #️⃣
+                                <HashtagIcon width={14} height={14} />
                               </button>
                             </div>
                             {sig.filtered && <span className="filtered-badge">Filtered</span>}
@@ -675,7 +675,7 @@ const SignatureDatabase: React.FC = () => {
                 {/* Event Results */}
                 {searchResults.result?.event && Object.keys(searchResults.result.event).length > 0 && (
                   <div className="search-category">
-                    <h5>📋 Events ({Object.keys(searchResults.result.event).length})</h5>
+                    <h5>Events ({Object.keys(searchResults.result.event).length})</h5>
                     <div className="signatures-list">
                       {Object.entries(searchResults.result.event).map(([hash, signatures]) => 
                         signatures.map((sig, index) => (
@@ -690,14 +690,14 @@ const SignatureDatabase: React.FC = () => {
                                 className="copy-btn"
                                 title="Copy signature"
                               >
-                                📋
+                                <CopyIcon width={14} height={14} />
                               </button>
                               <button
                                 onClick={() => copyToClipboard(hash)}
                                 className="copy-btn"
                                 title="Copy event hash"
                               >
-                                #️⃣
+                                <HashtagIcon width={14} height={14} />
                               </button>
                             </div>
                             {sig.filtered && <span className="filtered-badge">Filtered</span>}
@@ -758,7 +758,7 @@ const SignatureDatabase: React.FC = () => {
                     className="file-upload-btn"
                     type="button"
                   >
-                    📁 Select Artifacts Folder
+                    Select Artifacts Folder
                   </button>
                   {contractPath && (
                     <div className="selected-files">
@@ -768,7 +768,7 @@ const SignatureDatabase: React.FC = () => {
                         className="clear-files-btn"
                         type="button"
                       >
-                        ✕
+                        
                       </button>
                     </div>
                   )}
@@ -793,17 +793,17 @@ const SignatureDatabase: React.FC = () => {
                 disabled={isExtracting}
                 className="extract-btn"
               >
-                {isExtracting ? 'Extracting...' : '🔍 Extract Signatures'}
+                {isExtracting ? 'Extracting...' : 'Extract Signatures'}
               </button>
 
               {/* Extracted Signatures Preview */}
               {(extractedSignatures.functions.length > 0 || extractedSignatures.events.length > 0) && (
                 <div className="extracted-preview">
-                  <h5>📋 Extracted Signatures</h5>
+                  <h5>Extracted Signatures</h5>
                   
                   {extractedSignatures.functions.length > 0 && (
                     <div className="signature-category">
-                      <h6>🔧 Functions ({extractedSignatures.functions.length})</h6>
+                      <h6>Functions ({extractedSignatures.functions.length})</h6>
                       <div className="signature-preview-list">
                         {extractedSignatures.functions.slice(0, 5).map((sig, index) => (
                           <div key={index} className="signature-preview">
@@ -822,7 +822,7 @@ const SignatureDatabase: React.FC = () => {
 
                   {extractedSignatures.events.length > 0 && (
                     <div className="signature-category">
-                      <h6>📋 Events ({extractedSignatures.events.length})</h6>
+                      <h6>Events ({extractedSignatures.events.length})</h6>
                       <div className="signature-preview-list">
                         {extractedSignatures.events.slice(0, 5).map((sig, index) => (
                           <div key={index} className="signature-preview">
@@ -844,21 +844,21 @@ const SignatureDatabase: React.FC = () => {
                       onClick={addAllExtractedSignatures}
                       className="add-all-btn"
                     >
-                      ➕ Add All ({extractedSignatures.functions.length + extractedSignatures.events.length}) Signatures
+                       Add All ({extractedSignatures.functions.length + extractedSignatures.events.length}) Signatures
                     </button>
                     <button 
                       onClick={() => addExtractedSignatures(extractedSignatures.functions, 'function')}
                       disabled={extractedSignatures.functions.length === 0}
                       className="add-functions-btn"
                     >
-                      ➕ Add Functions ({extractedSignatures.functions.length})
+                       Add Functions ({extractedSignatures.functions.length})
                     </button>
                     <button 
                       onClick={() => addExtractedSignatures(extractedSignatures.events, 'event')}
                       disabled={extractedSignatures.events.length === 0}
                       className="add-events-btn"
                     >
-                      ➕ Add Events ({extractedSignatures.events.length})
+                       Add Events ({extractedSignatures.events.length})
                     </button>
                   </div>
                 </div>
@@ -867,7 +867,7 @@ const SignatureDatabase: React.FC = () => {
 
             {/* Manual Signature Entry */}
             <div className="manual-signature-section">
-              <h4>✍️ Add Individual Signature</h4>
+              <h4>Add Individual Signature</h4>
               
               <div className="form-group">
                 <label>Signature</label>
@@ -897,7 +897,7 @@ const SignatureDatabase: React.FC = () => {
               </div>
 
               <button onClick={handleAddCustomSignature}>
-                ➕ Add Custom Signature
+                 Add Custom Signature
               </button>
             </div>
 
@@ -940,7 +940,7 @@ const SignatureDatabase: React.FC = () => {
                       }}
                       title="Clear all custom signatures"
                     >
-                      🗑️
+                      <TrashIcon width={12} height={12} />
                     </button>
                   </div>
                 </summary>
@@ -990,7 +990,7 @@ const SignatureDatabase: React.FC = () => {
                         }}
                         title="Copy signature"
                       >
-                        📋
+                        
                       </button>
                     </div>
                   ))}
@@ -1055,7 +1055,7 @@ const SignatureDatabase: React.FC = () => {
                       }}
                       title="Clear all function signatures"
                     >
-                      🗑️
+                      <TrashIcon width={12} height={12} />
                     </button>
                   </div>
                 </summary>
@@ -1105,7 +1105,7 @@ const SignatureDatabase: React.FC = () => {
                         }}
                         title="Copy signature"
                       >
-                        📋
+                        
                       </button>
                     </div>
                   ))}
@@ -1152,7 +1152,7 @@ const SignatureDatabase: React.FC = () => {
                       }}
                       title="Clear all event signatures"
                     >
-                      🗑️
+                      <TrashIcon width={12} height={12} />
                     </button>
                   </div>
                 </summary>
@@ -1202,7 +1202,7 @@ const SignatureDatabase: React.FC = () => {
                         }}
                         title="Copy signature"
                       >
-                        📋
+                        
                       </button>
                     </div>
                   ))}
@@ -1215,7 +1215,16 @@ const SignatureDatabase: React.FC = () => {
                 onClick={() => clearCache()}
                 className="clear-all-btn"
               >
-                🗑️ Clear All Cache
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <TrashIcon width={14} height={14} />
+                  <span>Clear All Cache</span>
+                </span>
               </button>
             </div>
           </div>
@@ -1224,7 +1233,7 @@ const SignatureDatabase: React.FC = () => {
         {/* Error Display */}
         {error && (
           <div className="error-message">
-            ❌ {error}
+             {error}
           </div>
         )}
       </main>
@@ -1247,7 +1256,7 @@ const SignatureDatabase: React.FC = () => {
                 Upload Contract Files
               </h3>
               <button onClick={closeFileModal} className="modal-close">
-                ✕
+                
               </button>
             </div>
             <div className="modal-body">
@@ -1264,7 +1273,7 @@ const SignatureDatabase: React.FC = () => {
                   {...({ webkitdirectory: "" } as any)}
                 />
                 <label htmlFor="contract-files" className="file-input-label">
-                  📁 Select Folder
+                   Select Folder
                 </label>
               </div>
               
@@ -1274,10 +1283,10 @@ const SignatureDatabase: React.FC = () => {
                     <h4>Found Contracts ({Object.keys(parsedContracts).length}):</h4>
                     <div className="selection-controls">
                       <button onClick={selectAllContracts} className="select-all-btn">
-                        ✓ All
+                         All
                       </button>
                       <button onClick={deselectAllContracts} className="deselect-all-btn">
-                        ✗ None
+                         None
                       </button>
                     </div>
                   </div>

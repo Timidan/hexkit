@@ -196,7 +196,7 @@ const StructInputHelper: React.FC<StructInputHelperProps> = ({
               className={`struct-toggle-btn ${isExpanded ? 'expanded' : ''}`}
               title={isExpanded ? 'Switch to text input' : 'Edit as structured fields'}
             >
-              {isExpanded ? '📝 Text' : '🏗️ Struct'}
+              {isExpanded ? ' Text' : ' Struct'}
             </button>
           </div>
         )}
@@ -212,13 +212,13 @@ const StructInputHelper: React.FC<StructInputHelperProps> = ({
       {isExpanded && shouldShowStructHelper && (
         <div className="struct-fields-editor">
           <div className="struct-editor-header">
-            <h4>📋 Struct Fields</h4>
+            <h4> Struct Fields</h4>
             <button
               type="button"
               onClick={addStructField}
               className="add-field-btn"
             >
-              ➕ Add Field
+               Add Field
             </button>
           </div>
 
@@ -258,7 +258,7 @@ const StructInputHelper: React.FC<StructInputHelperProps> = ({
                     className="remove-field-btn"
                     title="Remove field"
                   >
-                    ❌
+                    
                   </button>
                 </div>
                 <input

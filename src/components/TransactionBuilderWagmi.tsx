@@ -229,7 +229,7 @@ const TransactionBuilderWagmi: React.FC = () => {
 
   return (
     <div className="transaction-builder">
-      <h2>🔨 Transaction Builder</h2>
+      <h2>Transaction Builder</h2>
 
       <WalletConnectionNew />
 
@@ -237,7 +237,7 @@ const TransactionBuilderWagmi: React.FC = () => {
         <div className="builder-content">
           {/* Contract and ABI Section */}
           <div className="builder-section">
-            <h3>📋 Contract Setup</h3>
+            <h3>Contract Setup</h3>
 
             <ABIFetcher
               onABIFetched={setAbi}
@@ -340,7 +340,7 @@ const TransactionBuilderWagmi: React.FC = () => {
               </div>
 
               <button onClick={buildTransaction} className="build-btn">
-                🔨 Build Transaction
+                Build Transaction
               </button>
             </div>
           )}
@@ -348,7 +348,7 @@ const TransactionBuilderWagmi: React.FC = () => {
           {/* Transaction Preview Section */}
           {builtTransaction && (
             <div className="builder-section">
-              <h3>📄 Transaction Preview</h3>
+              <h3>Transaction Preview</h3>
 
               <div className="transaction-preview">
                 <div className="tx-field">
@@ -378,7 +378,7 @@ const TransactionBuilderWagmi: React.FC = () => {
                   disabled={isSimulating}
                   className="simulate-btn"
                 >
-                  {isSimulating ? "Simulating..." : "🔍 Simulate Transaction"}
+                {isSimulating ? "Simulating..." : "Simulate Transaction"}
                 </button>
 
                 <button
@@ -391,11 +391,11 @@ const TransactionBuilderWagmi: React.FC = () => {
                     opacity: simulation && !simulation.success ? 0.5 : 1,
                   }}
                 >
-                  {isSending ? "Sending..." : "🚀 Send Transaction"}
+                {isSending ? "Sending..." : "Send Transaction"}
                 </button>
 
                 <button onClick={resetBuilder} className="reset-btn">
-                  🔄 Reset
+                  Reset
                 </button>
               </div>
             </div>
@@ -404,14 +404,14 @@ const TransactionBuilderWagmi: React.FC = () => {
           {/* Simulation Results */}
           {simulation && (
             <div className="builder-section">
-              <h3>🔍 Simulation Results</h3>
+              <h3>Simulation Results</h3>
 
               <div
                 className={`simulation-result ${simulation.success ? "success" : "error"}`}
               >
                 {simulation.success ? (
                   <div>
-                    <p>✅ Simulation successful!</p>
+                    <p> Simulation successful!</p>
                     <div className="simulation-details">
                       <div>Gas Used: {simulation.gasUsed}</div>
                       <div>Gas Limit: {simulation.gasLimit}</div>
@@ -431,7 +431,7 @@ const TransactionBuilderWagmi: React.FC = () => {
                   </div>
                 ) : (
                   <div>
-                    <p>❌ Simulation failed!</p>
+                    <p> Simulation failed!</p>
                     <div className="simulation-error">{simulation.error}</div>
                   </div>
                 )}
@@ -442,7 +442,7 @@ const TransactionBuilderWagmi: React.FC = () => {
           {/* Transaction Receipt */}
           {receipt && (
             <div className="builder-section">
-              <h3>✅ Transaction Sent</h3>
+              <h3> Transaction Sent</h3>
 
               <div className="transaction-receipt success">
                 <p>Transaction successfully sent!</p>
@@ -470,7 +470,7 @@ const TransactionBuilderWagmi: React.FC = () => {
           {/* Error Display */}
           {error && (
             <div className="builder-section">
-              <div className="error-message">❌ {error}</div>
+              <div className="error-message"> {error}</div>
             </div>
           )}
         </div>

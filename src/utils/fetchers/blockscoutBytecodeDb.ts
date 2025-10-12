@@ -92,7 +92,7 @@ export const fetchFromBlockscoutBytecodeDB = async (
           return rawAbi;
         } catch (parseErr) {
           console.warn(
-            '🔍 [EBD] ABI string is not valid JSON, discarding.',
+            ' [EBD] ABI string is not valid JSON, discarding.',
             parseErr
           );
           return undefined;
@@ -101,7 +101,7 @@ export const fetchFromBlockscoutBytecodeDB = async (
       try {
         return JSON.stringify(rawAbi);
       } catch (jsonErr) {
-        console.warn('🔍 [EBD] Failed to stringify ABI object.', jsonErr);
+        console.warn(' [EBD] Failed to stringify ABI object.', jsonErr);
         return undefined;
       }
     };

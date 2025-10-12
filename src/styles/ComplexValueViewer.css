@@ -40,7 +40,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -52,45 +52,31 @@
   background: rgba(15, 23, 42, 0.35);
 }
 
-.cv-toggle {
-  position: relative;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: none;
-  color: var(--cv-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  padding: 0;
+.cv-toggle-button.inline-action-icon {
+  background: rgba(30, 41, 59, 0.82);
+  color: rgba(226, 232, 240, 0.92);
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
 }
 
-.cv-toggle::after {
-  content: '';
-  position: absolute;
-  inset: -6px;
-  border-radius: 999px;
-  background: rgba(99, 102, 241, 0.18);
-  opacity: 0;
-  transform: scale(0.75);
-  transition: all 0.15s ease;
-}
-
-.cv-toggle[data-hidden="true"] {
-  visibility: hidden;
-}
-
-.cv-toggle:hover {
+.cv-toggle-button.inline-action-icon:hover,
+.cv-toggle-button.inline-action-icon:focus-visible,
+.cv-toggle-button.inline-action-icon.is-active {
+  background: rgba(99, 102, 241, 0.24);
   color: #f8fafc;
 }
 
-.cv-toggle:hover::after,
-.cv-toggle:focus-visible::after {
-  opacity: 1;
-  transform: scale(1);
+.cv-toggle-button.inline-action-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cv-toggle-spacer {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
 }
 
 
@@ -98,7 +84,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 48%;
+  flex: 0 0 clamp(160px, 28vw, 260px);
   min-width: 0;
 }
 
@@ -151,14 +137,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
 .cv-copy-button-wrapper .inline-copy-icon {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  min-height: 26px;
-  border-radius: 7px;
+  width: 100%;
+  height: 100%;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 9px;
   background: rgba(79, 70, 229, 0.16);
   border: 1px solid rgba(99, 102, 241, 0.35);
   color: #c7d2fe;
@@ -171,9 +159,9 @@
 }
 
 .cv-copy {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   background: rgba(79, 70, 229, 0.16);
   border: 1px solid rgba(99, 102, 241, 0.35);
   display: inline-flex;
@@ -253,32 +241,7 @@
   justify-content: flex-end;
   align-items: center;
   margin-bottom: 8px;
-}
-
-.cv-action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--cv-text-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.cv-action-btn:hover {
-  color: #f8fafc;
-  border-color: rgba(148, 163, 184, 0.55);
-  background: rgba(30, 41, 59, 0.85);
-}
-
-.cv-action-btn svg {
-  width: 16px;
-  height: 16px;
-  color: inherit;
+  padding: 0 10px;
 }
 
 .cv-inline-pill {

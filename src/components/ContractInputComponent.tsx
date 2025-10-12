@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/CompactArrayStyles.css';
 import { PlusIcon, XCloseIcon } from './icons/IconLibrary';
+import InlineActionButton from './ui/InlineActionButton';
 
 interface ABIInput {
   name: string;
@@ -103,18 +104,18 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   }, [inputDefinition]);
 
   const handleValueChange = useCallback((newValue: any) => {
-    console.log(`🎯 [HandleValueChange] ${inputDefinition.name} (${inputDefinition.type})`);
-    console.log(`🎯 [HandleValueChange] NewValue:`, newValue, typeof newValue);
+    console.log(`[ContractInput] HandleValueChange ${inputDefinition.name} (${inputDefinition.type})`);
+    console.log(`[ContractInput] NewValue:`, newValue, typeof newValue);
     
     setCurrentValue(newValue);
     const validation = validateValue(newValue);
-    console.log(`🎯 [HandleValueChange] Validation:`, validation);
+    console.log(`[ContractInput] Validation:`, validation);
     
     setIsValid(validation.isValid);
     setErrorMessage(validation.error);
     
     if (onChange) {
-      console.log(`🎯 [HandleValueChange] Calling onChange with:`, newValue, validation.isValid);
+      console.log(`[ContractInput] Calling onChange with:`, newValue, validation.isValid);
       onChange(newValue, validation.isValid);
     }
   }, [validateValue, onChange, inputDefinition.name, inputDefinition.type]);
@@ -126,30 +127,30 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   };
 
   const handleArrayItemChange = (itemId: string, newValue: any) => {
-    console.log(`🔍 [ArrayItemChange] Starting for ${inputDefinition.name}[${itemId}]`);
-    console.log(`🔍 [ArrayItemChange] Input type: ${inputDefinition.type}`);
-    console.log(`🔍 [ArrayItemChange] Received newValue:`, newValue, typeof newValue);
+    console.log(`[ContractInput] ArrayItemChange start ${inputDefinition.name}[${itemId}]`);
+    console.log(`[ContractInput] Input type: ${inputDefinition.type}`);
+    console.log(`[ContractInput] Received newValue:`, newValue, typeof newValue);
     
     // Parse the value for the base type to ensure proper type conversion
     const baseType = inputDefinition.type.replace('[]', '');
-    console.log(`🔍 [ArrayItemChange] BaseType: ${baseType}`);
+    console.log(`[ContractInput] BaseType: ${baseType}`);
     
     const parsedValue = typeof newValue === 'string' ? parseValueForType(newValue, baseType) : newValue;
-    console.log(`🔍 [ArrayItemChange] ParsedValue:`, parsedValue, typeof parsedValue);
+    console.log(`[ContractInput] ParsedValue:`, parsedValue, typeof parsedValue);
     
     const updatedItems = arrayItems.map(item => 
       item.id === itemId ? { ...item, value: parsedValue } : item
     );
-    console.log(`🔍 [ArrayItemChange] Updated items:`, updatedItems);
+    console.log(`[ContractInput] Updated items:`, updatedItems);
     
     setArrayItems(updatedItems);
     
     const arrayValue = updatedItems.map(item => item.value);
-    console.log(`🔍 [ArrayItemChange] Final array value:`, arrayValue);
-    console.log(`🔍 [ArrayItemChange] Array value types:`, arrayValue.map(v => typeof v));
-    console.log(`🔍 [ArrayItemChange] CRITICAL: Is this an array?`, Array.isArray(arrayValue));
-    console.log(`🔍 [ArrayItemChange] CRITICAL: Array length:`, arrayValue.length);
-    console.log(`🔍 [ArrayItemChange] CRITICAL: JSON stringify:`, JSON.stringify(arrayValue));
+    console.log(`[ContractInput] Final array value:`, arrayValue);
+    console.log(`[ContractInput] Array value types:`, arrayValue.map(v => typeof v));
+    console.log(`[ContractInput] Value is array:`, Array.isArray(arrayValue));
+    console.log(`[ContractInput] Array length:`, arrayValue.length);
+    console.log(`[ContractInput] JSON stringify:`, JSON.stringify(arrayValue));
     
     handleValueChange(arrayValue);
   };
@@ -290,26 +291,20 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
                 parentPath={`${parentPath}.${inputDefinition.name}`}
               />
             </div>
-            <button
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#dc3545'
-              }}
+            <InlineActionButton
+              className="compact-array-remove"
+              ariaLabel={`Remove item ${index}`}
+              tooltip="Remove item"
+              icon={<XCloseIcon width={16} height={16} />}
               onClick={() => removeArrayItem(item.id)}
               disabled={(() => {
                 const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
                 const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
                 return arrayItems.length <= minSize;
               })()}
-            >
-              <XCloseIcon width={16} height={16} />
-            </button>
+              stopPropagation
+              size={30}
+            />
           </div>
         ))}
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
@@ -318,44 +313,26 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
             const maxSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : Infinity;
             return arrayItems.length < maxSize;
           })() && (
-            <button
+            <InlineActionButton
+              ariaLabel="Add item"
+              tooltip="Add item"
+              icon={<PlusIcon width={18} height={18} />}
               onClick={addArrayItem}
-              title="Add item"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#28a745'
-              }}
-            >
-              <PlusIcon width={20} height={20} />
-            </button>
+              size={34}
+            />
           )}
           {(() => {
             const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
             const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
             return arrayItems.length > minSize;
           })() && (
-            <button
+            <InlineActionButton
+              ariaLabel="Remove last item"
+              tooltip="Remove last item"
+              icon={<XCloseIcon width={18} height={18} />}
               onClick={() => removeArrayItem(arrayItems[arrayItems.length - 1].id)}
-              title="Remove last item"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#dc3545'
-              }}
-            >
-              <XCloseIcon width={20} height={20} />
-            </button>
+              size={34}
+            />
           )}
         </div>
       </div>

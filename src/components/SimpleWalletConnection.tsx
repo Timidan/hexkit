@@ -155,7 +155,7 @@ const SimpleWalletConnection: React.FC<SimpleWalletConnectionProps> = ({
               className="disconnect-btn"
               title="Disconnect wallet"
             >
-              ✕
+              
             </button>
           </div>
 
@@ -168,7 +168,7 @@ const SimpleWalletConnection: React.FC<SimpleWalletConnectionProps> = ({
 
           {isWrongChain() && (
             <div className="wrong-chain-warning">
-              <p>⚠️ Unsupported network. Please switch to a supported chain:</p>
+              <p>Unsupported network. Please switch to a supported chain:</p>
               <div className="chain-switcher">
                 {SUPPORTED_CHAINS.map((chain) => (
                   <button
@@ -195,7 +195,7 @@ const SimpleWalletConnection: React.FC<SimpleWalletConnectionProps> = ({
 
   return (
     <div className="wallet-connection disconnected">
-      <h3>🔗 Connect Wallet</h3>
+      <h3> Connect Wallet</h3>
       <p>Connect your wallet to build and simulate transactions</p>
 
       <div className="wallet-list">
@@ -204,7 +204,7 @@ const SimpleWalletConnection: React.FC<SimpleWalletConnectionProps> = ({
           onClick={openWeb3Modal}
           variant="primary"
           size="lg"
-          icon={<span style={{ fontSize: '20px' }}>🚀</span>}
+          icon={<span style={{ fontSize: '20px' }}></span>}
           style={{
             width: '100%',
             marginBottom: '16px'

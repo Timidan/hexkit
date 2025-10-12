@@ -6,6 +6,7 @@ import {
 } from "../utils/diamondFacetFetcher";
 import { universalApiKeyManager } from "../utils/universalApiKeys";
 import type { Chain } from "../types";
+import { UIIcons } from "./icons/IconMap";
 
 interface InlineFacetLoaderProps {
   chain: Chain;
@@ -357,7 +358,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       color: "#4ade80",
                     }}
                   >
-                    ✔ {abbreviate(detail.address)}
+                     {abbreviate(detail.address)}
                   </span>
                 ))}
 
@@ -377,7 +378,8 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       color: "#60a5fa",
                     }}
                   >
-                    ⏳ {abbreviate(currentFacetEntry.address)}
+                    <span aria-hidden="true">{UIIcons.loading}</span>
+                    {abbreviate(currentFacetEntry.address)}
                   </span>
                 )}
 

@@ -148,16 +148,16 @@ export default function TransactionBuilder() {
 
     const detectDiamond = async () => {
       if (contractAddress.length < 42) {
-        console.log('❌ Invalid contract address length, skipping diamond detection');
+        console.log(' Invalid contract address length, skipping diamond detection');
         return;
       }
 
       if (!/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
-        console.log('❌ Invalid contract address format, skipping diamond detection');
+        console.log(' Invalid contract address format, skipping diamond detection');
         return;
       }
       
-      console.log('✅ Contract address found, proceeding with diamond detection:', contractAddress);
+      console.log(' Contract address found, proceeding with diamond detection:', contractAddress);
 
       setIsDetectingDiamond(true);
       
@@ -167,7 +167,7 @@ export default function TransactionBuilder() {
         setDiamondInfo(result);
         
         if (result.isDiamond && result.facets.length > 0) {
-          console.log(`💎 Diamond detected with ${result.facets.length} facets`);
+          console.log(` Diamond detected with ${result.facets.length} facets`);
           
           // Phase 2: Enhanced facet processing
           setFacetLoadingProgress({ current: 0, total: result.facets.length });
@@ -213,14 +213,14 @@ export default function TransactionBuilder() {
               });
               
               setGroupedFunctions(functionGroups);
-              console.log(`🔧 Processed ${Object.keys(functionGroups).length} facet function groups`);
+              console.log(` Processed ${Object.keys(functionGroups).length} facet function groups`);
               
             } catch (abiError) {
               console.warn('Error processing diamond ABI for grouping:', abiError);
             }
             
             setFacetLoadingProgress({ current: result.facets.length, total: result.facets.length });
-            console.log(`✅ Enhanced diamond workflow completed: ${detailedFacets.length} facets processed`);
+            console.log(` Enhanced diamond workflow completed: ${detailedFacets.length} facets processed`);
             
           } catch (enhancedError) {
             console.error('Enhanced diamond processing failed, using basic info:', enhancedError);

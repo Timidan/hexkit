@@ -28,7 +28,7 @@ export const fetchTokenInfo = async (
   abi: any[],
   chain: Chain
 ): Promise<ContractInfoResult['tokenInfo']> => {
-  console.log(`🔍 [Token] Fetching token info for ${address}`);
+  console.log(` [Token] Fetching token info for ${address}`);
 
   try {
     const provider = new ethers.providers.JsonRpcProvider(buildRpcUrl(chain));
@@ -39,7 +39,7 @@ export const fetchTokenInfo = async (
       .map((item) => item.name);
 
     if (functions.includes('name') && functions.includes('symbol')) {
-      console.log('🔍 [Token] Using direct contract calls...');
+      console.log(' [Token] Using direct contract calls...');
 
       const calls = [] as Promise<unknown>[];
       if (functions.includes('name')) calls.push(contract.name());
@@ -68,14 +68,14 @@ export const fetchTokenInfo = async (
             : undefined,
       };
 
-      console.log('🔍 [Token] Direct call results:', tokenInfo);
+      console.log(' [Token] Direct call results:', tokenInfo);
 
       if (tokenInfo.name && tokenInfo.symbol) {
         return tokenInfo;
       }
     }
 
-    console.log('🔍 [Token] Trying static calls...');
+    console.log(' [Token] Trying static calls...');
     try {
       const name = await contract.callStatic.name().catch(() => undefined);
       const symbol = await contract.callStatic.symbol().catch(() => undefined);
@@ -84,16 +84,16 @@ export const fetchTokenInfo = async (
         .catch(() => undefined);
 
       if (name && symbol) {
-        console.log(`🔍 [Token] Static call successful: ${name} (${symbol})`);
+        console.log(` [Token] Static call successful: ${name} (${symbol})`);
         return { name, symbol, decimals: Number(decimals) || 18 };
       }
     } catch (staticError) {
-      console.log('🔍 [Token] Static call failed:', staticError);
+      console.log(' [Token] Static call failed:', staticError);
     }
   } catch (error) {
-    console.warn('🔍 [Token] Error fetching token info via direct calls:', error);
+    console.warn(' [Token] Error fetching token info via direct calls:', error);
   }
 
-  console.log(`🔍 [Token] Could not fetch token info for ${address}`);
+  console.log(` [Token] Could not fetch token info for ${address}`);
   return undefined;
 };

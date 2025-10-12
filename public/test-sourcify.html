@@ -29,13 +29,13 @@
                 
                 if (checkData.creationMatch || checkData.runtimeMatch) {
                     const matchType = checkData.creationMatch || checkData.runtimeMatch;
-                    resultsDiv.innerHTML += `<p>✅ Verified with match: ${matchType}</p>`;
+                    resultsDiv.innerHTML += `<p> Verified with match: ${matchType}</p>`;
                     
                     // Test 2: Get metadata
                     const metadataResponse = await fetch(`/api/repo/contracts/${matchType}/${contract.chainId}/${contract.address}/metadata.json`);
                     const metadata = await metadataResponse.json();
                     
-                    resultsDiv.innerHTML += `<p>✅ Metadata retrieved</p>`;
+                    resultsDiv.innerHTML += `<p> Metadata retrieved</p>`;
                     
                     // Extract contract name
                     let contractName = null;
@@ -49,10 +49,10 @@
                     resultsDiv.innerHTML += `<p>Contract name: ${contractName || 'Not found'}</p>`;
                     resultsDiv.innerHTML += `<p>ABI functions: ${metadata.output?.abi?.length || 0}</p>`;
                 } else {
-                    resultsDiv.innerHTML += `<p>❌ Not verified</p>`;
+                    resultsDiv.innerHTML += `<p> Not verified</p>`;
                 }
             } catch (error) {
-                resultsDiv.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+                resultsDiv.innerHTML += `<p> Error: ${error.message}</p>`;
             }
             
             resultsDiv.innerHTML += '<hr>';

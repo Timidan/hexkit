@@ -61,9 +61,9 @@ export class ContractResultFormatter {
       
       // Handle named tuple fields if we have function output info
       if (functionOutput && functionOutput.components && functionOutput.components.length > 0) {
-        console.log(`🎯 [FormatTuple] COMPACT NAMED TUPLE: ${functionOutput.components.length} components, forceExpanded: ${forceExpanded}`);
-        console.log(`🎯 [FormatTuple] Components:`, functionOutput.components);
-        console.log(`🎯 [FormatTuple] Value:`, value);
+        console.log(` [FormatTuple] COMPACT NAMED TUPLE: ${functionOutput.components.length} components, forceExpanded: ${forceExpanded}`);
+        console.log(` [FormatTuple] Components:`, functionOutput.components);
+        console.log(` [FormatTuple] Value:`, value);
         
         functionOutput.components.forEach((component: any, index: number) => {
           const fieldName = component.name || `field_${index}`;
@@ -74,12 +74,12 @@ export class ContractResultFormatter {
             fieldValue = value[fieldName];
           }
           
-          console.log(`🎯 [FormatTuple] Field ${fieldName}[${index}]:`, fieldValue);
-          console.log(`🎯 [FormatTuple] Component structure for ${fieldName}:`, component);
+          console.log(` [FormatTuple] Field ${fieldName}[${index}]:`, fieldValue);
+          console.log(` [FormatTuple] Component structure for ${fieldName}:`, component);
           
           // For arrays within tuples, use expanded formatting to show structure
           if (Array.isArray(fieldValue) && component.components) {
-            console.log(`🎯 [FormatTuple] ${fieldName} is array of tuples, using expanded format`);
+            console.log(` [FormatTuple] ${fieldName} is array of tuples, using expanded format`);
             const arrayStructure = {
               type: 'tuple[]',
               arrayChildren: {
@@ -131,9 +131,9 @@ export class ContractResultFormatter {
 
       // Handle named tuple fields if we have function output info
       if (functionOutput && functionOutput.components && functionOutput.components.length > 0) {
-        console.log(`🎯 [FormatTuple] EXPANDED NAMED TUPLE: ${functionOutput.components.length} components`);
-        console.log(`🎯 [FormatTuple] Components:`, functionOutput.components);
-        console.log(`🎯 [FormatTuple] Value:`, value);
+        console.log(` [FormatTuple] EXPANDED NAMED TUPLE: ${functionOutput.components.length} components`);
+        console.log(` [FormatTuple] Components:`, functionOutput.components);
+        console.log(` [FormatTuple] Value:`, value);
         
         functionOutput.components.forEach((component: any, index: number) => {
           const fieldName = component.name || `field_${index}`;
@@ -145,8 +145,8 @@ export class ContractResultFormatter {
           }
           const fieldType = component.type;
           
-          console.log(`🎯 [FormatTuple] EXPANDED Field ${fieldName}[${index}] (${fieldType}):`, fieldValue);
-          console.log(`🎯 [FormatTuple] Component structure for ${fieldName}:`, component);
+          console.log(` [FormatTuple] EXPANDED Field ${fieldName}[${index}] (${fieldType}):`, fieldValue);
+          console.log(` [FormatTuple] Component structure for ${fieldName}:`, component);
           
           const formatted = this.formatValue(fieldValue, component, depth + 1);
           
@@ -442,7 +442,7 @@ export class ContractResultFormatter {
       (functionOutput.type === 'tuple[]' || 
        (functionOutput.arrayChildren && functionOutput.arrayChildren.components));
     
-    console.log(`🎨 [FormatArray] isArrayOfTuples: ${isArrayOfTuples}, functionOutput:`, functionOutput);
+    console.log(` [FormatArray] isArrayOfTuples: ${isArrayOfTuples}, functionOutput:`, functionOutput);
     
     if (isArrayOfTuples) {
       // Format array of tuples/structs with proper JSON-like structure
@@ -562,7 +562,7 @@ export class ContractResultFormatter {
               components: functionOutput.components
             }
           };
-          console.log(`🎨 [FormatValue] Detected array of tuples, creating structure:`, arrayStructure);
+          console.log(` [FormatValue] Detected array of tuples, creating structure:`, arrayStructure);
           return this.formatArray(value, arrayStructure, depth);
         }
         return this.formatArray(value, functionOutput, depth);
@@ -584,16 +584,16 @@ export class ContractResultFormatter {
   ): FormattedResult {
     const outputs = functionObj?.outputs || [];
     
-    console.log(`🎨 [Formatter] Outputs length: ${outputs.length}, Result is array: ${Array.isArray(result)}`);
+    console.log(` [Formatter] Outputs length: ${outputs.length}, Result is array: ${Array.isArray(result)}`);
     
     // Single output
     if (outputs.length === 1) {
-      console.log(`🎯 [Formatter] Single output detected: ${outputs[0]?.type}`);
-      console.log(`🎯 [Formatter] Single output components:`, outputs[0]?.components);
+      console.log(` [Formatter] Single output detected: ${outputs[0]?.type}`);
+      console.log(` [Formatter] Single output components:`, outputs[0]?.components);
       
       // If the single output is a tuple with components, format it as a tuple
       if (outputs[0]?.type === 'tuple' && outputs[0]?.components) {
-        console.log(`🎯 [Formatter] Single output is a complex tuple, formatting as tuple`);
+        console.log(` [Formatter] Single output is a complex tuple, formatting as tuple`);
         const formatted = this.formatTuple(result, outputs[0]);
         return {
           displayValue: formatted.text,
@@ -605,7 +605,7 @@ export class ContractResultFormatter {
       
       // If the single output is an array of tuples, format it as an array
       if (outputs[0]?.type === 'tuple[]' && outputs[0]?.components) {
-        console.log(`🎯 [Formatter] Single output is array of tuples, formatting as structured array`);
+        console.log(` [Formatter] Single output is array of tuples, formatting as structured array`);
         // Create array structure with tuple components
         const arrayOutput = {
           type: 'tuple[]',
@@ -635,7 +635,7 @@ export class ContractResultFormatter {
 
     // Multiple outputs (tuple)
     if (outputs.length > 1 && Array.isArray(result)) {
-      console.log(`🎯 [Formatter] Creating tuple with ${outputs.length} components`);
+      console.log(` [Formatter] Creating tuple with ${outputs.length} components`);
       const tupleOutput = {
         components: outputs.map((output: any, index: number) => ({
           name: output.name || `output_${index}`,

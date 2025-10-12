@@ -171,7 +171,7 @@ const CalldataGenerator: React.FC = () => {
       <div style={gridStyle}>
         {/* LEFT COLUMN - Contract */}
         <div style={cardStyle}>
-          <h2 style={subHeaderStyle}>🔧 Contract Setup</h2>
+          <h2 style={subHeaderStyle}> Contract Setup</h2>
 
           {/* Contract Selection */}
           <div style={{ marginBottom: "24px" }}>
@@ -282,7 +282,7 @@ const CalldataGenerator: React.FC = () => {
                     alignItems: "center",
                     gap: "4px"
                   }}>
-                    ✅ Populated from selected contract
+                     Populated from selected contract
                   </div>
                 )}
               </div>
@@ -709,7 +709,7 @@ const CalldataGenerator: React.FC = () => {
 
           {/* RIGHT COLUMN - Additional Tools */}
           <div style={cardStyle}>
-            <h2 style={subHeaderStyle}>🛠️ Tools & Resources</h2>
+            <h2 style={subHeaderStyle}>Tools & Resources</h2>
 
             {/* Quick Actions */}
             <div style={{ marginBottom: "24px" }}>
@@ -741,7 +741,7 @@ const CalldataGenerator: React.FC = () => {
                     setShowTransferOptions(false);
                   }}
                 >
-                  🔄 Clear All Fields
+                   Clear All Fields
                 </button>
                 
                 <button
@@ -758,7 +758,7 @@ const CalldataGenerator: React.FC = () => {
                   }}
                   onClick={() => toolkit.navigateToDatabase()}
                 >
-                  📁 Browse Signature Database
+                   Browse Signature Database
                 </button>
               </div>
             </div>
@@ -810,7 +810,7 @@ const CalldataGenerator: React.FC = () => {
                 padding: "16px"
               }}>
                 <div style={{ fontSize: "13px", color: "#64b5f6", lineHeight: "1.5" }}>
-                  <p style={{ margin: "0 0 8px 0" }}>💡 <strong>Pro Tips:</strong></p>
+                  <p style={{ margin: "0 0 8px 0" }}> <strong>Pro Tips:</strong></p>
                   <ul style={{ margin: "0", paddingLeft: "16px" }}>
                     <li>Use the Signature Database to import contract ABIs automatically</li>
                     <li>Enhanced mode provides intelligent input validation for complex types</li>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PendingIcon, ActiveIcon, CompletedIcon, ErrorIcon } from './icons/IconLibrary';
 
 interface LoadingStep {
   label: string;
@@ -20,15 +21,15 @@ const LoadingSteps: React.FC<LoadingStepsProps> = ({
   const getStepIcon = (status: LoadingStep['status']) => {
     switch (status) {
       case 'pending':
-        return '⏳';
+        return <PendingIcon width={16} height={16} />;
       case 'active':
-        return '🔄';
+        return <ActiveIcon width={16} height={16} />;
       case 'completed':
-        return '✅';
+        return <CompletedIcon width={16} height={16} />;
       case 'error':
-        return '❌';
+        return <ErrorIcon width={16} height={16} />;
       default:
-        return '⏳';
+        return <PendingIcon width={16} height={16} />;
     }
   };
 
@@ -50,7 +51,9 @@ const LoadingSteps: React.FC<LoadingStepsProps> = ({
   return (
     <div className={`loading-steps ${className}`}>
       <div className="loading-title">
-        <span className="loading-icon">🔄</span>
+        <span className="loading-icon">
+          <ActiveIcon width={16} height={16} />
+        </span>
         {title}
       </div>
       

@@ -1,41 +1,41 @@
 #!/bin/bash
 
 # Server management script for Web3 Toolkit
-echo "🔧 Web3 Toolkit Server Management"
+echo "Web3 Toolkit Server Management"
 echo "================================"
 
 # Function to check if server is running
 check_server() {
     if ps aux | grep -v grep | grep -q "vite"; then
-        echo "✅ Server is running"
+        echo "Server is running"
         echo "   PID: $(ps aux | grep -v grep | grep vite | awk '{print $2}')"
         echo "   Port: 5173"
         echo "   URL: http://localhost:5173/"
         return 0
     else
-        echo "❌ Server is not running"
+        echo "Server is not running"
         return 1
     fi
 }
 
 # Function to stop server
 stop_server() {
-    echo "🛑 Stopping server..."
+    echo "Stopping server..."
     pkill -f "vite" 2>/dev/null || pkill -f "node.*dev" 2>/dev/null
     sleep 2
     if ps aux | grep -v grep | grep -q "vite"; then
-        echo "⚠️  Force killing server..."
+        echo "Force killing server..."
         pkill -9 -f "vite" 2>/dev/null
     fi
-    echo "✅ Server stopped"
+    echo "Server stopped"
 }
 
 # Function to start server
 start_server() {
-    echo "🚀 Starting server..."
+    echo "Starting server..."
     # Check if already running
     if ps aux | grep -v grep | grep -q "vite"; then
-        echo "⚠️  Server is already running!"
+        echo "Server is already running!"
         return 1
     fi
     
@@ -47,12 +47,12 @@ start_server() {
     
     # Check if started successfully
     if ps aux | grep -v grep | grep -q "vite"; then
-        echo "✅ Server started successfully"
+        echo "Server started successfully"
         echo "   PID: $(ps aux | grep -v grep | grep vite | awk '{print $2}')"
         echo "   URL: http://localhost:5173/"
         echo "   Logs: tail -f server.log"
     else
-        echo "❌ Failed to start server"
+        echo "Failed to start server"
         echo "   Check logs: cat server.log"
         return 1
     fi
@@ -60,7 +60,7 @@ start_server() {
 
 # Function to restart server
 restart_server() {
-    echo "🔄 Restarting server..."
+    echo "Restarting server..."
     stop_server
     sleep 1
     start_server
@@ -68,7 +68,7 @@ restart_server() {
 
 # Function to show server logs
 show_logs() {
-    echo "📋 Server Logs:"
+    echo "Server Logs:"
     echo "=================="
     if [ -f server.log ]; then
         tail -20 server.log

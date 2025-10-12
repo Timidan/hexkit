@@ -139,6 +139,14 @@
 
 .field-icon {
   font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.field-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .field-name {
@@ -283,21 +291,20 @@
 /* Array Controls */
 .array-controls {
   margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
 }
 
-.add-array-item {
-  padding: 8px 16px;
-  background: rgba(16, 185, 129, 0.2);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 6px;
+.add-array-item.inline-action-icon {
+  background: rgba(16, 185, 129, 0.16);
   color: #34d399;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.add-array-item:hover {
-  background: rgba(16, 185, 129, 0.3);
-  transform: translateY(-1px);
+.add-array-item.inline-action-icon:hover,
+.add-array-item.inline-action-icon:focus-visible,
+.add-array-item.inline-action-icon.is-active {
+  background: rgba(16, 185, 129, 0.26);
+  color: #bbf7d0;
 }
 
 .array-item {
@@ -324,19 +331,16 @@
   font-weight: 600;
 }
 
-.remove-array-item {
-  background: none;
-  border: none;
-  color: #ef4444;
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+.remove-array-item.inline-action-icon {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
 }
 
-.remove-array-item:hover {
-  background: rgba(239, 68, 68, 0.2);
+.remove-array-item.inline-action-icon:hover,
+.remove-array-item.inline-action-icon:focus-visible,
+.remove-array-item.inline-action-icon.is-active {
+  background: rgba(239, 68, 68, 0.24);
+  color: #fecaca;
 }
 
 .array-item-value {

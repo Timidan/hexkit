@@ -61,73 +61,7 @@ import {
 import { CopyIcon } from './IconLibrary';
 
 // Icon mapping from emojis to Lucide icons
-export const iconMap = {
-  // Main app icons
-  '🔧': Wrench,
-  '📝': FileText,
-  '🏗️': Building2,
-  '⚡': Zap,
-  '🎯': Target,
-  '🗑️': Trash2,
-  '📋': Clipboard,
-  '📈': TrendingUp,
-  '📊': BarChart3,
-  '🔍': Search,
-  
-  // Status icons
-  '✅': CheckCircle,
-  '❌': XCircle,
-  '⚠️': AlertTriangle,
-  'ℹ️': Info,
-  
-  // Action icons
-  '🌐': Globe,
-  '💡': Lightbulb,
-  '🚀': Rocket,
-  '⏳': Clock,
-  '🔄': RotateCw,
-  '✨': Sparkles,
-  
-  // Data type icons
-  '📍': MapPin,
-  '🔢': Hash,
-  '🔘': Circle,
-  '📄': FileCode,
-  '⚪': Dot,
-  '➕': Plus,
-  '❓': HelpCircle,
-  
-  // Category icons
-  '📚': BookOpen,
-  '🎨': Palette,
-  '🔒': Lock,
-  '📦': Package,
-  '💻': Monitor,
-  '📱': Smartphone,
-  '⭐': Star,
-  '🚧': Construction,
-  
-  // Interface icons
-  '👁️': Eye,
-  '⬇️': Download,
-  '⬆️': Upload,
-  '✏️': Edit,
-  '💾': Save,
-  '⤢': Maximize,
-  '⤡': Minimize,
-  '🔽': ChevronDown,
-  '▶️': ChevronRight,
-  '🔎': Filter,
-  '🔃': RefreshCw,
-  '➡️': ArrowRight,
-  '⬅️': ArrowLeft,
-  '🔗': ExternalLink,
-  '🏠': Home,
-  '👥': Users,
-  '🛡️': Shield,
-  '▶': Play,
-  '⏸': Pause
-};
+export const iconMap = {} as Record<string, React.ComponentType<any>>;
 
 // Icon component wrapper with consistent styling
 interface IconProps {

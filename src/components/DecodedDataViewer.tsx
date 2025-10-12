@@ -519,7 +519,7 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
     return (
       <div className={`decoded-data-viewer ${compact ? 'compact' : ''}`}>
         <div className="viewer-header">
-          <h3>⚠️ Raw Data (parsing failed)</h3>
+          <h3>Raw Data (parsing failed)</h3>
         </div>
         <div className="raw-data-content">
           {data.map((item, index) => (
@@ -539,8 +539,8 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
         <div className="header-info">
           <h3>{functionName} Parameters</h3>
           <div className="param-stats">
-            <span className="stat">📊 {data.length} parameters</span>
-            <span className="stat">🔍 {parsedGroups.length} groups</span>
+            <span className="stat">Parameters: {data.length}</span>
+            <span className="stat">Groups: {parsedGroups.length}</span>
           </div>
         </div>
         
@@ -557,19 +557,19 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
           
           <div className="control-buttons">
             <button onClick={expandAll} className="control-btn">
-              📂 Expand All
+              Expand All
             </button>
             <button onClick={collapseAll} className="control-btn">
-              📁 Collapse All
+              Collapse All
             </button>
             <button 
               onClick={() => setShowRawData(!showRawData)} 
               className={`control-btn ${showRawData ? 'active' : ''}`}
             >
-              🔢 Raw Data
+              Raw Data
             </button>
             <button onClick={exportAsJSON} className="control-btn export">
-              💾 Export JSON
+              Export JSON
             </button>
             <button
               onClick={() => copyToClipboard(JSON.stringify(sanitizedData, null, 2))}
@@ -585,7 +585,7 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
       {showRawData && (
       <div className="raw-data-section">
         <div className="raw-data-header">
-            <h4>🔧 Interactive Raw Data Editor</h4>
+            <h4>Interactive Raw Data Editor</h4>
             <div className="raw-data-controls">
               <button
                 onClick={() => copyToClipboard(JSON.stringify(editableRawData, null, 2))}
@@ -598,13 +598,13 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
                 onClick={resetRawData}
                 className="control-btn"
               >
-                🔄 Reset
+                Reset
               </button>
               <button 
                 onClick={exportEditedData}
                 className="control-btn export"
               >
-                💾 Export Edited
+                Export Edited
               </button>
             </div>
           </div>
@@ -623,8 +623,8 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
           </div>
           <div className="editor-help">
             <small>
-              💡 <strong>Tips:</strong> Double-click to edit values • Tab/Shift-Tab to navigate • 
-              Drag & drop to reorder • Right-click for context menu • Escape to cancel editing
+              <strong>Tips:</strong> Double-click to edit values • Tab/Shift-Tab to navigate • 
+              Drag & drop to reorder • Right-click for context menu • Press Esc to cancel editing
             </small>
           </div>
         </div>

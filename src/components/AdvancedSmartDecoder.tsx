@@ -133,7 +133,7 @@ const AdvancedSmartDecoder: React.FC = () => {
     if (toolkit.lastDecodedTransaction) {
       toolkit.transferToTransactionBuilder(toolkit.lastDecodedTransaction);
       setShowTransferOptions(false);
-      addDecodingStep('✓ Transaction data transferred to Transaction Builder!');
+      addDecodingStep(' Transaction data transferred to Transaction Builder!');
     }
   };
 
@@ -329,13 +329,13 @@ const AdvancedSmartDecoder: React.FC = () => {
         throw new Error('Invalid calldata format');
       }
 
-      addDecodingStep(`📍 Extracted function selector: ${selector}`);
+      addDecodingStep(` Extracted function selector: ${selector}`);
 
       // Step 1: Check custom/cached signatures
       addDecodingStep('Searching custom signatures...');
       const customSignature = searchCustomSignatures(selector);
       if (customSignature) {
-        addDecodingStep(`✓ Found in custom signatures: ${customSignature}`);
+        addDecodingStep(` Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(calldata.trim(), customSignature);
         
         // Enhanced parameter visualization
@@ -355,14 +355,14 @@ const AdvancedSmartDecoder: React.FC = () => {
       }
 
       // Step 2: Search OpenChain
-      addDecodingStep('🌐 Searching OpenChain database...');
+      addDecodingStep(' Searching OpenChain database...');
       try {
         const openChainResult: SignatureResponse = await lookupFunctionSignatures([selector]);
         const signatures = openChainResult.result?.function?.[selector];
         
         if (signatures && signatures.length > 0) {
           const signature = signatures[0].name;
-          addDecodingStep(`✓ Found on OpenChain: ${signature}`);
+          addDecodingStep(` Found on OpenChain: ${signature}`);
           const decoded = decodeWithSignature(calldata.trim(), signature);
           
           // Enhanced parameter visualization
@@ -381,12 +381,12 @@ const AdvancedSmartDecoder: React.FC = () => {
           return;
         }
       } catch (openChainError) {
-        addDecodingStep(`✗ OpenChain lookup failed: ${openChainError}`);
+        addDecodingStep(` OpenChain lookup failed: ${openChainError}`);
       }
 
       // Step 3: Use heuristic decoding if enabled
       if (enableHeuristics) {
-        addDecodingStep('🧠 Attempting heuristic decoding...');
+        addDecodingStep(' Attempting heuristic decoding...');
         try {
           const heuristicResults = decodeWithHeuristics(calldata.trim());
           setHeuristicResult(heuristicResults);
@@ -398,14 +398,14 @@ const AdvancedSmartDecoder: React.FC = () => {
           addDecodingStep(`Generated ${heuristicResults?.decodedAttempts?.length || 0} possible decodings`);
         } catch (heuristicError) {
           console.error('Heuristic decoding error:', heuristicError);
-          addDecodingStep(`✗ Heuristic decoding failed: ${String(heuristicError)}`);
+          addDecodingStep(` Heuristic decoding failed: ${String(heuristicError)}`);
           setHeuristicResult(null);
         }
       }
 
       // Step 4: Show message if no results
       if (!heuristicResult?.bestGuess) {
-        addDecodingStep('❓ Function signature not found in databases - try heuristic results above');
+        addDecodingStep(' Function signature not found in databases - try heuristic results above');
       }
       
     } catch (err: any) {
@@ -457,7 +457,7 @@ const AdvancedSmartDecoder: React.FC = () => {
 
     return (
       <div className="heuristic-results">
-        <h4>🧠 Heuristic Analysis</h4>
+        <h4> Heuristic Analysis</h4>
         
         {heuristicResult.bestGuess && (
           <div className="best-guess">
@@ -491,7 +491,7 @@ const AdvancedSmartDecoder: React.FC = () => {
         )}
 
         <div className="all-attempts">
-          <h5>🎲 Other Possibilities</h5>
+          <h5> Other Possibilities</h5>
           {(heuristicResult.decodedAttempts || []).slice(1).map((attempt, index) => (
             <details key={index} className="attempt-details">
               <summary>
@@ -719,7 +719,7 @@ const AdvancedSmartDecoder: React.FC = () => {
   if (componentError) {
     return (
       <div className="advanced-smart-decoder">
-        <h2>🧠 Advanced Smart Decoder</h2>
+        <h2> Advanced Smart Decoder</h2>
         <div className="error-message">
           <XCircleIcon width={16} height={16} className="inline mr-2 text-red-500" />Component error: {componentError}
           <br />
@@ -733,7 +733,7 @@ const AdvancedSmartDecoder: React.FC = () => {
 
   return (
     <div className="advanced-smart-decoder">
-      <h2>🧠 Advanced Smart Decoder</h2>
+      <h2> Advanced Smart Decoder</h2>
       <p>Enhanced decoder with heuristic analysis, struct visualization, and event log filtering.</p>
 
       <nav className="decoder-tabs">
@@ -816,7 +816,7 @@ const AdvancedSmartDecoder: React.FC = () => {
                 disabled={isDecoding}
                 className="decode-btn advanced-decode-btn"
               >
-                {isDecoding ? '🔄 Analyzing...' : '🧠 Advanced Decode'}
+                {isDecoding ? ' Analyzing...' : ' Advanced Decode'}
               </button>
             </div>
           </div>
@@ -1085,14 +1085,14 @@ const AdvancedSmartDecoder: React.FC = () => {
           {/* Transfer Options */}
           {showTransferOptions && (
             <div className="form-section">
-              <h3>🔗 Use This Data</h3>
+              <h3> Use This Data</h3>
               <p>Transfer decoded data to other tools:</p>
               <div className="horizontal-pane center">
                 <button 
                   onClick={handleTransferToBuilder}
                   className="sample-btn"
                 >
-                  🔨 Send to Transaction Builder
+                   Send to Transaction Builder
                 </button>
                 <small>Create a similar transaction with modified parameters</small>
               </div>

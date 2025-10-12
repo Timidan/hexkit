@@ -4,6 +4,8 @@ import { useWeb3Modal } from '@web3modal/wagmi/react'
 import { formatAddress } from '../utils/walletDetection'
 import { SUPPORTED_CHAINS } from '../utils/chains'
 import Web3ModalButton from './Web3ModalButton'
+import InlineActionButton from './ui/InlineActionButton'
+import { XCloseIcon } from './icons/IconLibrary'
 
 interface WalletConnectionNewProps {
   onWalletConnect?: (walletInfo: any) => void
@@ -26,7 +28,6 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
     if (isConnected && address && connector) {
       const walletInfo = {
         name: connector.name,
-        icon: getWalletIcon(connector.name),
         isInstalled: true,
         isConnected: true,
         accounts: [address],
@@ -38,17 +39,6 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
       onWalletDisconnect?.()
     }
   }, [isConnected, address, connector, chainId, onWalletConnect, onWalletDisconnect])
-
-  const getWalletIcon = (connectorName: string): string => {
-    const iconMap: { [key: string]: string } = {
-      'MetaMask': '🦊',
-      'Coinbase Wallet': '📱',
-      'WalletConnect': '🔗',
-      'Injected': '💳',
-      'Rabby': '🐰',
-    }
-    return iconMap[connectorName] || '💳'
-  }
 
   const getChainName = (id: number): string => {
     const chainNames: { [key: number]: string } = {
@@ -84,20 +74,19 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
       <div className="wallet-connection connected">
         <div className="wallet-info">
           <div className="wallet-header">
-            <span className="wallet-icon">{getWalletIcon(connector?.name || '')}</span>
             <div className="wallet-details">
               <div className="wallet-name">{connector?.name || 'Connected Wallet'}</div>
               <div className="wallet-address">
                 {formatAddress(address)}
               </div>
             </div>
-            <button
+            <InlineActionButton
+              ariaLabel="Disconnect wallet"
+              tooltip="Disconnect wallet"
+              icon={<XCloseIcon width={14} height={14} />}
               onClick={handleDisconnect}
-              className="disconnect-btn"
-              title="Disconnect wallet"
-            >
-              ✕
-            </button>
+              size={28}
+            />
           </div>
 
           <div className="chain-info">
@@ -109,7 +98,7 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
 
           {isWrongChain() && (
             <div className="wrong-chain-warning">
-              <p>⚠️ Unsupported network. Please switch to a supported chain:</p>
+              <p>Unsupported network. Please switch to a supported chain:</p>
               <div className="chain-switcher">
                 {SUPPORTED_CHAINS.map((chain) => (
                   <button
@@ -136,7 +125,7 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
 
   return (
     <div className="wallet-connection disconnected">
-      <h3>🔗 Connect Wallet</h3>
+      <h3>Connect Wallet</h3>
       <p>Connect your wallet to build and simulate transactions</p>
 
       <div className="wallet-list">

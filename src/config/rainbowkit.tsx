@@ -27,7 +27,7 @@ import {
 // Get API key from environment
 const API_KEY = import.meta.env.API_KEY || import.meta.env.VITE_API_KEY || '';
 
-console.log('🔑 [RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8)}...` : 'No API key found');
+console.log('[RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8)}...` : 'No API key found');
 
 // Wagmi v2 compatible configuration without WalletConnect dependency
 const liskSepolia = {

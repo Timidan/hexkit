@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { copyTextToClipboard } from '../utils/clipboard';
+import InlineActionButton from './ui/InlineActionButton';
+import { ClipboardIcon, ClockIcon, XCloseIcon } from './icons/IconLibrary';
 
 interface SmartInputProps {
   value: string;
@@ -263,45 +265,42 @@ const SmartInput: React.FC<SmartInputProps> = ({
         
         <div className="smart-input-actions">
           {value && (
-            <button
-              type="button"
+            <InlineActionButton
+              ariaLabel="Copy value"
+              tooltip="Copy value"
+              icon={<ClipboardIcon width={14} height={14} />}
               onClick={handleCopy}
-              className="input-action-btn copy-btn"
-              title="Copy to clipboard"
-            >
-              📋
-            </button>
+              size={30}
+            />
           )}
-          
-          <button
-            type="button"
+
+          <InlineActionButton
+            ariaLabel="Paste and detect"
+            tooltip="Paste and detect format"
+            icon={<ClipboardIcon width={14} height={14} />}
             onClick={handleSmartPaste}
-            className="input-action-btn paste-btn"
-            title="Paste and auto-detect format"
-          >
-            📥
-          </button>
-          
+            size={30}
+          />
+
           {recentValues.length > 0 && (
-            <button
-              type="button"
+            <InlineActionButton
+              ariaLabel="Show recent values"
+              tooltip="Show recent values"
+              icon={<ClockIcon width={14} height={14} />}
               onClick={() => setShowSuggestions(!showSuggestions)}
-              className="input-action-btn recent-btn"
-              title="Show recent values"
-            >
-              🕒
-            </button>
+              isActive={showSuggestions}
+              size={30}
+            />
           )}
-          
+
           {value && (
-            <button
-              type="button"
+            <InlineActionButton
+              ariaLabel="Clear value"
+              tooltip="Clear value"
+              icon={<XCloseIcon width={14} height={14} />}
               onClick={handleClear}
-              className="input-action-btn clear-btn"
-              title="Clear input"
-            >
-              ✕
-            </button>
+              size={30}
+            />
           )}
         </div>
       </div>
@@ -309,7 +308,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
       {/* Validation feedback */}
       {!validationState.isValid && (
         <div className="validation-feedback error">
-          <span className="validation-error">⚠️ {validationState.error}</span>
+          <span className="validation-error">Warning: {validationState.error}</span>
           {validationState.suggestion && (
             <button
               type="button"
@@ -325,7 +324,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
       {/* Success feedback for valid inputs */}
       {validationState.isValid && value && type !== 'any' && (
         <div className="validation-feedback success">
-          <span className="validation-success">✅ Valid {type} format</span>
+          <span className="validation-success">Valid {type} format</span>
         </div>
       )}
 
@@ -334,7 +333,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
         <div className="suggestions-dropdown">
           {suggestions.length > 0 && (
             <div className="suggestions-section">
-              <div className="suggestions-header">📥 Detected formats:</div>
+              <div className="suggestions-header">Detected formats:</div>
               {suggestions.map((suggestion, index) => (
                 <button
                   key={index}
@@ -352,7 +351,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
           
           {recentValues.length > 0 && (
             <div className="suggestions-section">
-              <div className="suggestions-header">🕒 Recent values:</div>
+              <div className="suggestions-header">Recent values:</div>
               {recentValues.slice(0, 5).map((recent, index) => (
                 <button
                   key={index}

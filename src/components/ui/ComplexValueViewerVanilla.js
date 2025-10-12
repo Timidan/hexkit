@@ -22,16 +22,18 @@ const LARGE_CHILDREN_THRESHOLD = 120;
 const CHILD_BATCH_SIZE = 200;
 
 const COLLAPSE_SVG = `
-  <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-    <path d="M6 8h12M6 14h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="m10 16 2-2 2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+  <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+    <path d="M6 8h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M6 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="m9 11 3-3 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 `;
 
 const EXPAND_SVG = `
-  <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
-    <path d="M6 10h12M6 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="m10 10 2 2 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+  <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+    <path d="M6 8h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M6 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="m9 13 3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 `;
 
@@ -94,14 +96,16 @@ export class ComplexValueViewer {
     buttonRow.className = 'cv-collapse-all';
 
     const collapseBtn = document.createElement('button');
-    collapseBtn.className = 'cv-action-btn';
+    collapseBtn.className = 'inline-copy-icon inline-action-icon';
+    collapseBtn.style.setProperty('--inline-copy-size', '32px');
     collapseBtn.innerHTML = COLLAPSE_SVG;
     collapseBtn.title = 'Collapse all nodes';
     collapseBtn.setAttribute('aria-label', 'Collapse all nodes');
     collapseBtn.addEventListener('click', () => this.collapseAll(true));
 
     const expandBtn = document.createElement('button');
-    expandBtn.className = 'cv-action-btn';
+    expandBtn.className = 'inline-copy-icon inline-action-icon';
+    expandBtn.style.setProperty('--inline-copy-size', '32px');
     expandBtn.innerHTML = EXPAND_SVG;
     expandBtn.title = 'Expand all nodes';
     expandBtn.setAttribute('aria-label', 'Expand all nodes');
@@ -195,7 +199,7 @@ export class ComplexValueViewer {
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'cv-copy';
-    copyBtn.textContent = '⧉';
+    copyBtn.textContent = 'Copy';
     if (!this.options.showCopy) {
       copyBtn.dataset.hidden = 'true';
     }
@@ -204,9 +208,9 @@ export class ComplexValueViewer {
       if (payload === undefined) return;
       const text = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
       navigator.clipboard?.writeText(text).catch(() => {});
-      copyBtn.textContent = '✓';
+      copyBtn.textContent = 'Copied!';
       setTimeout(() => {
-        copyBtn.textContent = '⧉';
+        copyBtn.textContent = 'Copy';
       }, 1200);
     });
 

@@ -1,10 +1,10 @@
 # Contract Data Fetching Enhancement Summary
 
-## 🎯 Problem Solved
+##  Problem Solved
 
 Previously, when querying some contracts, the system failed to display the correct token name. The comprehensive contract fetching system has been enhanced with a robust multi-source approach that ensures accurate contract and token information retrieval.
 
-## 🔄 Enhanced Flow Implementation
+##  Enhanced Flow Implementation
 
 ### 1. **Multi-Source Search Priority**
 ```
@@ -70,7 +70,7 @@ Contract Name Sources:
 4. Generic name (ERC20 Token / ERC721 Token / Unknown Contract)
 ```
 
-## 🔧 Technical Improvements
+##  Technical Improvements
 
 ### Enhanced Error Handling
 - Comprehensive try/catch blocks
@@ -87,7 +87,7 @@ Contract Name Sources:
 - Better null checking
 - Proper error type handling
 
-## 🎨 UI/UX Enhancements
+##  UI/UX Enhancements
 
 ### Search Progress Visualization
 - Animated pulsing indicators
@@ -101,15 +101,15 @@ Contract Name Sources:
 - Detailed metadata grid layout
 - Verified contract badge
 
-## 📊 Success Metrics
+##  Success Metrics
 
-✅ **Contract Name Accuracy**: Near 100% for verified contracts  
-✅ **Token Metadata**: Successfully fetches name/symbol for 95%+ of tokens  
-✅ **User Experience**: Real-time feedback reduces perceived wait time  
-✅ **Reliability**: Multiple fallbacks ensure data retrieval even if some sources fail  
-✅ **Performance**: Optimized parallel calls minimize load times  
+ **Contract Name Accuracy**: Near 100% for verified contracts  
+ **Token Metadata**: Successfully fetches name/symbol for 95%+ of tokens  
+ **User Experience**: Real-time feedback reduces perceived wait time  
+ **Reliability**: Multiple fallbacks ensure data retrieval even if some sources fail  
+ **Performance**: Optimized parallel calls minimize load times  
 
-## 🚀 Next Steps
+##  Next Steps
 
 The enhanced contract fetching system now provides:
 1. **Reliable contract name extraction** from all major sources

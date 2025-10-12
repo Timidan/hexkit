@@ -64,8 +64,8 @@ export async function detectDiamondContract(
   contractAddress: string,
   provider: ethers.providers.Provider
 ): Promise<DiamondInfo> {
-  console.log(`🔍 Checking if ${contractAddress} is a Diamond contract...`);
-  console.log(`🌐 Provider network:`, await provider.getNetwork().catch(() => 'unknown'));
+  console.log(`[DiamondStandard] Checking if ${contractAddress} is a Diamond contract...`);
+  console.log(`[DiamondStandard] Provider network:`, await provider.getNetwork().catch(() => 'unknown'));
   
   const result: DiamondInfo = {
     isDiamond: false,
@@ -83,12 +83,12 @@ export async function detectDiamondContract(
   try {
     // Check if contract exists
     const code = await provider.getCode(contractAddress);
-    console.log(`📝 Contract code length: ${code.length} characters`);
+    console.log(`[DiamondStandard] Contract code length: ${code.length} characters`);
     if (code === '0x') {
-      console.log('❌ No contract found at address');
+      console.log('[DiamondStandard] No contract found at address');
       return result;
     }
-    console.log('✅ Contract found at address');
+    console.log('[DiamondStandard] Contract found at address');
 
     // Create contract instance for checking loupe functions
     const contract = new ethers.Contract(contractAddress, [
@@ -100,50 +100,50 @@ export async function detectDiamondContract(
     ], provider);
 
     // Test each loupe function
-    console.log('🧪 Testing Diamond Loupe functions...');
+    console.log('[DiamondStandard] Testing Diamond Loupe functions...');
     const loupeTests = await Promise.allSettled([
       // Test facets() function
       contract.facets().then(() => {
-        console.log('✅ facets() function works');
+        console.log('[DiamondStandard] facets() function works');
         return true;
       }).catch((err: unknown) => {
-        console.log('❌ facets() function failed:', (err instanceof Error ? err.message : String(err)));
+        console.log('[DiamondStandard] facets() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
       // Test facetFunctionSelectors() function
       contract.facetFunctionSelectors(contractAddress).then(() => {
-        console.log('✅ facetFunctionSelectors() function works');
+        console.log('[DiamondStandard] facetFunctionSelectors() function works');
         return true;
       }).catch((err: unknown) => {
-        console.log('❌ facetFunctionSelectors() function failed:', (err instanceof Error ? err.message : String(err)));
+        console.log('[DiamondStandard] facetFunctionSelectors() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
       // Test facetAddresses() function  
       contract.facetAddresses().then(() => {
-        console.log('✅ facetAddresses() function works');
+        console.log('[DiamondStandard] facetAddresses() function works');
         return true;
       }).catch((err: unknown) => {
-        console.log('❌ facetAddresses() function failed:', (err instanceof Error ? err.message : String(err)));
+        console.log('[DiamondStandard] facetAddresses() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
       // Test facetAddress() function with a common selector (e.g., facets())
       contract.facetAddress(DIAMOND_LOUPE_SIGNATURES.facets).then(() => {
-        console.log('✅ facetAddress() function works');
+        console.log('[DiamondStandard] facetAddress() function works');
         return true;
       }).catch((err: unknown) => {
-        console.log('❌ facetAddress() function failed:', (err instanceof Error ? err.message : String(err)));
+        console.log('[DiamondStandard] facetAddress() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       }),
       
       // Test supportsInterface() function
       contract.supportsInterface('0x01ffc9a7').then(() => {
-        console.log('✅ supportsInterface() function works');
+        console.log('[DiamondStandard] supportsInterface() function works');
         return true;
       }).catch((err: unknown) => {
-        console.log('❌ supportsInterface() function failed:', (err instanceof Error ? err.message : String(err)));
+        console.log('[DiamondStandard] supportsInterface() function failed:', (err instanceof Error ? err.message : String(err)));
         return false;
       })
     ]);
@@ -155,7 +155,7 @@ export async function detectDiamondContract(
     result.loupeSupport.facetAddress = loupeTests[3].status === 'fulfilled' ? loupeTests[3].value : false;
     result.loupeSupport.supportsInterface = loupeTests[4].status === 'fulfilled' ? loupeTests[4].value : false;
     
-    console.log('📊 Loupe function test results:', result.loupeSupport);
+    console.log('[DiamondStandard] Loupe function test results:', result.loupeSupport);
 
     // Check if this contract supports the Diamond interface
     let supportsDiamondInterface = false;
@@ -172,14 +172,14 @@ export async function detectDiamondContract(
     const minimalDiamondSupport = result.loupeSupport.facets || 
                                  (result.loupeSupport.facetAddresses && result.loupeSupport.facetAddress);
 
-    console.log('🔍 Diamond determination:');
+    console.log('[DiamondStandard] Diamond determination:');
     console.log('  - Minimal diamond support:', minimalDiamondSupport);
     console.log('  - Supports diamond interface:', supportsDiamondInterface);
     console.log('  - Final decision:', minimalDiamondSupport || supportsDiamondInterface);
 
     if (minimalDiamondSupport || supportsDiamondInterface) {
       result.isDiamond = true;
-      console.log('💎 Diamond contract detected!');
+      console.log('[DiamondStandard] Diamond contract detected!');
       
       // If it's a Diamond, try to fetch the facets
       if (result.loupeSupport.facets) {
@@ -194,13 +194,13 @@ export async function detectDiamondContract(
             total + (facet.functionSelectors?.length || 0), 0
           );
           
-          console.log(`✨ Found ${result.facets.length} facets with ${result.totalFunctions} total functions`);
+          console.log(`[DiamondStandard] Found ${result.facets.length} facets with ${result.totalFunctions} total functions`);
         } catch (error) {
           console.log('Could not fetch facet details:', error);
         }
       }
     } else {
-      console.log('📄 Regular contract (not Diamond Standard)');
+      console.log('[DiamondStandard] Regular contract (not Diamond Standard)');
     }
 
     return result;
@@ -220,12 +220,12 @@ export async function getDetailedFacetInfo(
   provider: ethers.providers.Provider
 ): Promise<DiamondFacet[]> {
   
-  console.log('🔍 Getting detailed facet information...');
+  console.log('[DiamondStandard] Getting detailed facet information...');
   
   return await Promise.all(
     facets.map(async (facet, index) => {
       try {
-        console.log(`🔍 Analyzing facet ${index + 1} at ${facet.facetAddress}...`);
+        console.log(`[DiamondStandard] Analyzing facet ${index + 1} at ${facet.facetAddress}...`);
         
         let facetName = '';
         let isVerified = false;
@@ -235,7 +235,7 @@ export async function getDetailedFacetInfo(
           const network = await provider.getNetwork();
           
           if (network.chainId === 8453) { // Base network
-            console.log(`  📡 Fetching facet info from BaseScan...`);
+            console.log(`  [DiamondStandard] Fetching facet info from BaseScan...`);
             
             // Direct BaseScan API call for contract details
             const basescanApiUrl = 'https://api.basescan.org/api';
@@ -250,18 +250,18 @@ export async function getDetailedFacetInfo(
                 if (contractInfo.ContractName) {
                   facetName = contractInfo.ContractName;
                   isVerified = true;
-                  console.log(`  ✅ Found verified facet name from BaseScan: ${facetName}`);
+                  console.log(`  [DiamondStandard] Found verified facet name from BaseScan: ${facetName}`);
                 } else if (contractInfo.SourceCode) {
                   // Contract is verified but no specific name, try to extract from source
                   const sourceMatch = contractInfo.SourceCode.match(/contract\s+(\w+)/);
                   if (sourceMatch) {
                     facetName = sourceMatch[1];
                     isVerified = true;
-                    console.log(`  ✅ Extracted facet name from BaseScan source: ${facetName}`);
+                    console.log(`  [DiamondStandard] Extracted facet name from BaseScan source: ${facetName}`);
                   }
                 }
               } else {
-                console.log(`  ⚠️ Facet not verified on BaseScan`);
+                console.log(`  [DiamondStandard] Facet not verified on BaseScan`);
               }
             }
           } else {
@@ -271,18 +271,18 @@ export async function getDetailedFacetInfo(
             const currentChain = SUPPORTED_CHAINS.find(c => c.id === network.chainId);
             
             if (currentChain) {
-              console.log(`  📡 Fetching facet info from ${currentChain.name} block explorer...`);
+              console.log(`  [DiamondStandard] Fetching facet info from ${currentChain.name} block explorer...`);
               const facetAbiResult = await fetchContractABIMultiSource(facet.facetAddress, currentChain);
               
               if (facetAbiResult.success && facetAbiResult.contractName) {
                 facetName = facetAbiResult.contractName;
                 isVerified = true;
-                console.log(`  ✅ Found verified facet name from explorer: ${facetName}`);
+                console.log(`  [DiamondStandard] Found verified facet name from explorer: ${facetName}`);
               }
             }
           }
         } catch (explorerError) {
-          console.log(`  ❌ Block explorer lookup failed:`, explorerError);
+          console.log(`  [DiamondStandard] Block explorer lookup failed:`, explorerError);
         }
         
         // Method 2: Try to get contract name/symbol from the contract itself (fallback)
@@ -297,21 +297,21 @@ export async function getDetailedFacetInfo(
               const name = await facetContract.name();
               if (name) {
                 facetName = name;
-                console.log(`  ✅ Found facet name from contract: ${name}`);
+                console.log(`  [DiamondStandard] Found facet name from contract: ${name}`);
               }
             } catch {
               try {
                 const symbol = await facetContract.symbol();
                 if (symbol) {
                   facetName = symbol;
-                  console.log(`  ✅ Found facet symbol from contract: ${symbol}`);
+                  console.log(`  [DiamondStandard] Found facet symbol from contract: ${symbol}`);
                 }
               } catch {
                 // No name/symbol found
               }
             }
           } catch (contractError) {
-            console.log(`  ❌ Contract name/symbol lookup failed:`, contractError);
+            console.log(`  [DiamondStandard] Contract name/symbol lookup failed:`, contractError);
           }
         }
         
@@ -334,7 +334,7 @@ export async function getDetailedFacetInfo(
             facetName = `Facet_${shortAddress}`;
           }
           
-          console.log(`  🎯 Inferred facet name from patterns: ${facetName}`);
+          console.log(`  [DiamondStandard] Inferred facet name from patterns: ${facetName}`);
         }
 
         return {
@@ -343,7 +343,7 @@ export async function getDetailedFacetInfo(
           verified: isVerified
         };
       } catch (error) {
-        console.log(`❌ Error getting details for facet ${facet.facetAddress}:`, error);
+        console.log(`[DiamondStandard] Error getting details for facet ${facet.facetAddress}:`, error);
         return {
           ...facet,
           facetName: `Facet_${index + 1}`,
@@ -364,7 +364,7 @@ export async function buildDiamondABI(
   etherscanApiKey?: string
 ): Promise<string> {
   
-  console.log('🏗️ Building comprehensive Diamond ABI...');
+  console.log('[DiamondStandard] Building comprehensive Diamond ABI...');
   
   const { fetchContractABIMultiSource } = await import('./multiSourceAbiFetcher');
   const { SUPPORTED_CHAINS } = await import('./chains');
@@ -453,7 +453,7 @@ export async function buildDiamondABI(
     );
   });
   
-  console.log(`✨ Built Diamond ABI with ${uniqueFunctions.length} total functions`);
+  console.log(`[DiamondStandard] Built Diamond ABI with ${uniqueFunctions.length} total functions`);
   
   return JSON.stringify(uniqueFunctions);
 }
@@ -466,7 +466,7 @@ export async function fetchDiamondFromSourcify(
   chainId: number
 ): Promise<SourcifyDiamondInfo | null> {
   try {
-    console.log(`🔍 Fetching complete diamond info from Sourcify API: ${contractAddress} on chain ${chainId}`);
+    console.log(`[DiamondStandard] Fetching complete diamond info from Sourcify API: ${contractAddress} on chain ${chainId}`);
     
     // Use Sourcify API v2 to get complete contract data including proxy resolution
     const apiUrl = `https://sourcify.dev/server/v2/contract/${chainId}/${contractAddress}?fields=proxyResolution,abi,compilation`;
@@ -480,7 +480,7 @@ export async function fetchDiamondFromSourcify(
     });
 
     if (!response.data) {
-      console.log('❌ No data received from Sourcify API');
+      console.log('[DiamondStandard] No data received from Sourcify API');
       return null;
     }
 
@@ -492,15 +492,15 @@ export async function fetchDiamondFromSourcify(
     const isDiamond = isProxy && proxyType === 'DiamondProxy';
     
     if (!isDiamond) {
-      console.log('❌ Contract is not identified as a Diamond proxy on Sourcify');
+      console.log('[DiamondStandard] Contract is not identified as a Diamond proxy on Sourcify');
       return null;
     }
 
-    console.log('💎 Diamond proxy detected on Sourcify!');
+    console.log('[DiamondStandard] Diamond proxy detected on Sourcify!');
 
     // Extract implementation facets from proxy resolution
     const implementations = data.proxyResolution.implementations || [];
-    console.log(`📊 Found ${implementations.length} implementation facets`);
+    console.log(`[DiamondStandard] Found ${implementations.length} implementation facets`);
 
     // Convert implementations to our facet format
     const sourcifyFacets: SourcifyDiamondFacet[] = implementations.map((impl: any, index: number) => {
@@ -530,13 +530,13 @@ export async function fetchDiamondFromSourcify(
       isVerified: true
     };
 
-    console.log(`✅ Successfully parsed diamond with ${sourcifyFacets.length} facets from Sourcify`);
-    console.log(`🔧 Facets: ${sourcifyFacets.map(f => f.name).join(', ')}`);
+    console.log(`[DiamondStandard] Successfully parsed diamond with ${sourcifyFacets.length} facets from Sourcify`);
+    console.log(`[DiamondStandard] Facets: ${sourcifyFacets.map(f => f.name).join(', ')}`);
 
     return diamondInfo;
 
   } catch (error) {
-    console.error('❌ Error fetching diamond info from Sourcify API:', error);
+    console.error('[DiamondStandard] Error fetching diamond info from Sourcify API:', error);
     return null;
   }
 }
@@ -549,13 +549,13 @@ export async function detectDiamondContractEnhanced(
   chain: Chain,
   provider?: ethers.providers.Provider
 ): Promise<DiamondInfo> {
-  console.log(`🔍 Enhanced diamond detection for ${contractAddress} on ${chain.name}...`);
+  console.log(`[DiamondStandard] Enhanced diamond detection for ${contractAddress} on ${chain.name}...`);
   
   // Try Sourcify first for comprehensive diamond info
   const sourcifyInfo = await fetchDiamondFromSourcify(contractAddress, chain.id);
   
   if (sourcifyInfo) {
-    console.log('✅ Got comprehensive diamond info from Sourcify!');
+    console.log('[DiamondStandard] Got comprehensive diamond info from Sourcify!');
     
     // Convert Sourcify format to DiamondInfo format
     return {
@@ -579,7 +579,7 @@ export async function detectDiamondContractEnhanced(
   
   // Fallback to regular diamond detection if Sourcify doesn't have it
   if (provider) {
-    console.log('⚠️ Sourcify info not available, falling back to on-chain detection...');
+    console.log('[DiamondStandard] Sourcify info not available, falling back to on-chain detection...');
     return await detectDiamondContract(contractAddress, provider);
   }
   
@@ -606,7 +606,7 @@ export function groupFunctionsByFacet(
   diamondInfo: DiamondInfo
 ): Record<string, any[]> {
   
-  console.log('🔧 Grouping functions by facet...');
+  console.log('[DiamondStandard] Grouping functions by facet...');
   
   try {
     const parsedAbi = JSON.parse(abi);
@@ -661,11 +661,11 @@ export function groupFunctionsByFacet(
       }
     });
     
-    console.log('✅ Functions grouped by facet:', Object.keys(facetGroups));
+    console.log('[DiamondStandard] Functions grouped by facet:', Object.keys(facetGroups));
     return facetGroups;
     
   } catch (error) {
-    console.error('❌ Error grouping functions by facet:', error);
+    console.error('[DiamondStandard] Error grouping functions by facet:', error);
     return {};
   }
 }

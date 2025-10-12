@@ -25,7 +25,7 @@ export async function fetchFromWhatsABI(
   provider?: ethers.providers.Provider
 ): Promise<WhatsABIResult> {
   try {
-    console.log(`🔍 WhatsABI: Analyzing contract ${contractAddress} on ${chain.name}...`);
+    console.log(` WhatsABI: Analyzing contract ${contractAddress} on ${chain.name}...`);
     
     // Create provider if not provided
     let whatsabiProvider = provider;
@@ -39,10 +39,10 @@ export async function fetchFromWhatsABI(
       provider: whatsabiProvider,
       followProxies: true, // Important for diamond detection
       onProgress: (phase: string) => {
-        console.log(`  📊 WhatsABI phase: ${phase}`);
+        console.log(`   WhatsABI phase: ${phase}`);
       },
       onError: (phase: string, context: any) => {
-        console.warn(`  ⚠️ WhatsABI error in ${phase}:`, context);
+        console.warn(`  WhatsABI error in ${phase}:`, context);
       }
     });
 
@@ -56,13 +56,13 @@ export async function fetchFromWhatsABI(
       };
     }
 
-    console.log(`✅ WhatsABI analysis complete for ${contractAddress}`);
-    console.log(`  📊 Found ${result.abi?.length || 0} ABI items`);
+    console.log(` WhatsABI analysis complete for ${contractAddress}`);
+    console.log(`   Found ${result.abi?.length || 0} ABI items`);
     
     // CRITICAL: Verify contract actually exists before proceeding
     const bytecode = await whatsabiProvider.getCode(contractAddress);
     if (!bytecode || bytecode === '0x') {
-      console.log(`❌ No contract found at ${contractAddress} on ${chain.name}`);
+      console.log(` No contract found at ${contractAddress} on ${chain.name}`);
       return {
         success: false,
         error: `No contract deployed at address on ${chain.name}`,
@@ -77,15 +77,15 @@ export async function fetchFromWhatsABI(
     let implementations: string[] = [];
     
     if (result.proxies && result.proxies.length > 0) {
-      console.log(`  🔗 Proxy detected: ${result.proxies.length} implementations`);
+      console.log(`   Proxy detected: ${result.proxies.length} implementations`);
       
       // Extract proxy information
       const firstProxy = result.proxies[0];
       if (firstProxy) {
         proxyType = (firstProxy as any).type;
         implementations = result.proxies.map(p => (p as any).address).filter(Boolean);
-        console.log(`  💎 Proxy type: ${proxyType}`);
-        console.log(`  🎯 Implementations: ${implementations.join(', ')}`);
+        console.log(`   Proxy type: ${proxyType}`);
+        console.log(`   Implementations: ${implementations.join(', ')}`);
       }
     }
 
@@ -94,10 +94,10 @@ export async function fetchFromWhatsABI(
     try {
       if (bytecode && bytecode !== '0x') {
         selectors = whatsabi.selectorsFromBytecode(bytecode);
-        console.log(`  🔧 Extracted ${selectors.length} function selectors`);
+        console.log(`   Extracted ${selectors.length} function selectors`);
       }
     } catch (error) {
-      console.warn(`  ⚠️ Failed to extract selectors:`, error);
+      console.warn(`  Failed to extract selectors:`, error);
     }
 
     // Determine confidence level
@@ -129,11 +129,11 @@ export async function fetchFromWhatsABI(
     };
 
   } catch (error: any) {
-    console.error('❌ WhatsABI analysis failed:', error);
+    console.error(' WhatsABI analysis failed:', error);
 
     // Fallback: try basic bytecode analysis
     try {
-      console.log('🔄 Attempting fallback bytecode analysis...');
+      console.log(' Attempting fallback bytecode analysis...');
       
       const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
         name: chain.name,
@@ -145,7 +145,7 @@ export async function fetchFromWhatsABI(
         const selectors = whatsabi.selectorsFromBytecode(bytecode);
         const basicAbi = whatsabi.abiFromBytecode(bytecode);
         
-        console.log(`✅ Fallback extracted ${selectors.length} selectors, ${basicAbi.length} ABI items`);
+        console.log(` Fallback extracted ${selectors.length} selectors, ${basicAbi.length} ABI items`);
         
         return {
           success: true,
@@ -158,7 +158,7 @@ export async function fetchFromWhatsABI(
         };
       }
     } catch (fallbackError) {
-      console.error('❌ Fallback analysis also failed:', fallbackError);
+      console.error(' Fallback analysis also failed:', fallbackError);
     }
 
     return {
@@ -186,7 +186,7 @@ export async function analyzeContractWithWhatsABI(
   abi?: any[];
 }> {
   try {
-    console.log(`🔍 WhatsABI: Deep analysis of ${contractAddress}...`);
+    console.log(` WhatsABI: Deep analysis of ${contractAddress}...`);
     
     const whatsabiProvider = provider || new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
       name: chain.name,
@@ -204,7 +204,7 @@ export async function analyzeContractWithWhatsABI(
 
     // Extract selectors
     const selectors = whatsabi.selectorsFromBytecode(bytecode);
-    console.log(`  🔧 Found ${selectors.length} function selectors`);
+    console.log(`   Found ${selectors.length} function selectors`);
 
     // Try full WhatsABI analysis
     const result = await whatsabi.autoload(contractAddress, {
@@ -223,7 +223,7 @@ export async function analyzeContractWithWhatsABI(
       implementations = result.proxies.map(p => (p as any).address).filter(Boolean);
       
       isDiamond = proxyType === 'DiamondProxy';
-      console.log(`  💎 Proxy analysis: ${proxyType} (Diamond: ${isDiamond})`);
+      console.log(`   Proxy analysis: ${proxyType} (Diamond: ${isDiamond})`);
     }
 
     return {
@@ -235,7 +235,7 @@ export async function analyzeContractWithWhatsABI(
     };
 
   } catch (error) {
-    console.error('❌ WhatsABI deep analysis failed:', error);
+    console.error(' WhatsABI deep analysis failed:', error);
     
     // Fallback to basic selector extraction
     try {
@@ -351,7 +351,7 @@ export async function createFunctionStubsFromSelectors(
 ): Promise<SelectorFunctionStub[]> {
   const stubs: SelectorFunctionStub[] = [];
 
-  console.log(`🔧 Creating function stubs for ${facetName} with ${selectors.length} selectors`);
+  console.log(` Creating function stubs for ${facetName} with ${selectors.length} selectors`);
 
   // Try to resolve signatures using WhatsABI's signature lookup
   try {
@@ -396,10 +396,10 @@ export async function createFunctionStubsFromSelectors(
               confidence: 'inferred',
             });
 
-            console.log(`  ✅ Resolved ${selector} → ${signature}`);
+            console.log(`   Resolved ${selector} → ${signature}`);
             continue;
           } catch (parseError) {
-            console.warn(`  ⚠️ Failed to parse signature ${signature}:`, parseError);
+            console.warn(`  Failed to parse signature ${signature}:`, parseError);
           }
         }
 
@@ -425,7 +425,7 @@ export async function createFunctionStubsFromSelectors(
           confidence: 'extracted',
         });
       } catch (error) {
-        console.warn(`  ⚠️ Selector lookup failed for ${selector}:`, error);
+        console.warn(`  Selector lookup failed for ${selector}:`, error);
 
         const fallbackName = `function_${selector.slice(2, 10)}`;
         const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
@@ -450,7 +450,7 @@ export async function createFunctionStubsFromSelectors(
       }
     }
   } catch (error) {
-    console.warn('⚠️ Signature lookup failed, using basic stubs:', error);
+    console.warn('Signature lookup failed, using basic stubs:', error);
 
     for (const selector of selectors) {
       const fallbackName = `function_${selector.slice(2, 10)}`;
@@ -476,6 +476,6 @@ export async function createFunctionStubsFromSelectors(
     }
   }
 
-  console.log(`✅ Created ${stubs.length} function stubs for ${facetName}`);
+  console.log(` Created ${stubs.length} function stubs for ${facetName}`);
   return stubs;
 }

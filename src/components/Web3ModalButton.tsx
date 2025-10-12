@@ -17,7 +17,7 @@ const Web3ModalButton: React.FC<Web3ModalButtonProps> = ({ className, style }) =
       size="lg"
       className={className}
       style={style}
-      icon={<span style={{ fontSize: '20px' }}>🚀</span>}
+      icon={<span style={{ fontSize: '20px' }}></span>}
     >
       Connect with Web3Modal
     </GlassButton>

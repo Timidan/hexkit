@@ -40,7 +40,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('timeout')) {
       return {
         category: 'Network Error',
-        icon: '🌐',
+        icon: '',
         color: '#ff9800',
         defaultSuggestions: [
           { action: 'Check your internet connection', description: 'Ensure you have a stable internet connection' },
@@ -53,7 +53,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     if (errorLower.includes('invalid') || errorLower.includes('format') || errorLower.includes('malformed')) {
       return {
         category: 'Input Error',
-        icon: '📝',
+        icon: '',
         color: '#f44336',
         defaultSuggestions: [
           { action: 'Check your input format', description: 'Make sure addresses start with 0x and calldata is valid hex' },
@@ -66,7 +66,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     if (errorLower.includes('not found') || errorLower.includes('404') || errorLower.includes('does not exist')) {
       return {
         category: 'Not Found',
-        icon: '🔍',
+        icon: '',
         color: '#2196f3',
         defaultSuggestions: [
           { action: 'Double-check the address', description: 'Ensure the contract address is correct' },
@@ -79,7 +79,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     if (errorLower.includes('api') || errorLower.includes('key') || errorLower.includes('rate limit')) {
       return {
         category: 'API Error',
-        icon: '🔑',
+        icon: '',
         color: '#9c27b0',
         defaultSuggestions: [
           { action: 'Check your API key', description: 'Ensure your API keys are configured correctly' },
@@ -92,7 +92,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     if (errorLower.includes('gas') || errorLower.includes('insufficient funds')) {
       return {
         category: 'Transaction Error',
-        icon: '⛽',
+        icon: '',
         color: '#ff5722',
         defaultSuggestions: [
           { action: 'Check your balance', description: 'Ensure you have enough ETH for gas fees' },
@@ -104,7 +104,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
     
     return {
       category: 'Unknown Error',
-      icon: '⚠️',
+      icon: '!',
       color: '#ff6b6b',
       defaultSuggestions: [
         { action: 'Try refreshing the page', description: 'A simple refresh can often resolve temporary issues' },
@@ -129,7 +129,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
         </div>
         {canRetry && onRetry && (
           <button onClick={onRetry} className="retry-button">
-            🔄 Retry
+             Retry
           </button>
         )}
       </div>
@@ -140,7 +140,7 @@ const EnhancedError: React.FC<EnhancedErrorProps> = ({
       
       {allSuggestions.length > 0 && (
         <div className="error-suggestions">
-          <h4 className="suggestions-title">💡 Try these solutions:</h4>
+          <h4 className="suggestions-title"> Try these solutions:</h4>
           <div className="suggestions-list">
             {allSuggestions.slice(0, 3).map((suggestion, index) => (
               <div key={index} className="suggestion-card">

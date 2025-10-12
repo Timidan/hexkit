@@ -137,7 +137,7 @@ const ComprehensiveContractSearch: React.FC<
 
   useEffect(() => {
     if (searchResult) {
-      console.log("🔍 [UI] searchResult updated:", {
+      console.log(" [UI] searchResult updated:", {
         success: searchResult.success,
         contractName: searchResult.contractName,
         tokenName: searchResult.tokenInfo?.name,
@@ -623,7 +623,7 @@ const ComprehensiveContractSearch: React.FC<
                       fontWeight: "500",
                     }}
                   >
-                    ✓ Verified
+                     Verified
                   </div>
                 </div>
               </div>

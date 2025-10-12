@@ -10,6 +10,7 @@ import React, {
 
 import '../../styles/ComplexValueViewer.css';
 import InlineCopyButton from './InlineCopyButton';
+import InlineActionButton from './InlineActionButton';
 import {
   buildSummary,
   collapsedPreview,
@@ -24,7 +25,7 @@ import {
   type NormalizedViewerOptions,
   type ViewerOptions,
 } from '../../utils/complexValueBuilder';
-import { CollapseAllIcon, ExpandAllIcon } from '../icons/IconLibrary';
+import { CollapseAllIcon, ExpandAllIcon, ChevronRightIcon, ChevronDownIcon } from '../icons/IconLibrary';
 
 interface ComplexValueViewerProps {
   value?: any;
@@ -93,28 +94,24 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
     <div className={classes.join(' ')}>
       {showControls && node.children && node.children.length > 0 && (
         <div className="cv-collapse-all" role="group" aria-label="Tree controls">
-          <button
-            type="button"
-            className="cv-action-btn"
+          <InlineActionButton
+            ariaLabel="Collapse all nodes"
+            tooltip="Collapse all nodes"
+            icon={<CollapseAllIcon width={18} height={18} />}
+            size={32}
             onClick={() =>
               setGlobalAction({ type: 'collapse', timestamp: Date.now() })
             }
-            title="Collapse all nodes"
-            aria-label="Collapse all nodes"
-          >
-            <CollapseAllIcon width={16} height={16} />
-          </button>
-          <button
-            type="button"
-            className="cv-action-btn"
+          />
+          <InlineActionButton
+            ariaLabel="Expand all nodes"
+            tooltip="Expand all nodes"
+            icon={<ExpandAllIcon width={18} height={18} />}
+            size={32}
             onClick={() =>
               setGlobalAction({ type: 'expand', timestamp: Date.now() })
             }
-            title="Expand all nodes"
-            aria-label="Expand all nodes"
-          >
-            <ExpandAllIcon width={16} height={16} />
-          </button>
+          />
         </div>
       )}
 
@@ -236,8 +233,8 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
               value={simpleCopyValue}
               getValue={simpleCopyValue ? undefined : getSerializedCopyValue}
               ariaLabel={`Copy ${node.label}`}
-              iconSize={14}
-              size={28}
+              iconSize={16}
+              size={32}
             />
           </div>
         )}
@@ -444,20 +441,24 @@ const ToggleButton: React.FC<ToggleButtonProps> = ({
   collapsed,
   onToggle,
 }) => {
+  if (hidden) {
+    return <span className="cv-toggle-spacer" aria-hidden="true" />;
+  }
+
   return (
-    <button
-      type="button"
-      className="cv-toggle"
-      data-hidden={hidden ? 'true' : undefined}
+    <InlineActionButton
+      className="cv-toggle-button"
+      ariaLabel={collapsed ? 'Expand section' : 'Collapse section'}
+      tooltip={collapsed ? 'Expand' : 'Collapse'}
+      icon={collapsed ? <ChevronRightIcon width={16} height={16} /> : <ChevronDownIcon width={16} height={16} />}
       onClick={(event) => {
         event.preventDefault();
-        event.stopPropagation();
-        if (hidden) return;
         onToggle();
       }}
-    >
-      {collapsed ? '▸' : '▾'}
-    </button>
+      stopPropagation
+      isActive={!collapsed}
+      size={30}
+    />
   );
 };
 

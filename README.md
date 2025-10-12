@@ -68,7 +68,7 @@ export default tseslint.config([
 ])
 ```
 
-## 🔥 Hot Reloading Development
+## Hot Reloading Development
 
 The development server is configured with Hot Module Replacement (HMR) for instant updates:
 
@@ -94,4 +94,3 @@ npm run dev:hot
 - HMR is configured in `vite.config.ts` with optimized settings
 - File watching uses polling (1000ms interval) for better cross-platform compatibility
 - React Fast Refresh is enabled for optimal development experience
-

@@ -261,6 +261,15 @@
   color: #fca5a5;
 }
 
+.inline-action-icon {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.inline-action-icon.is-active {
+  background: rgba(59, 130, 246, 0.28);
+  color: #f8fafc;
+}
+
 .copy-feedback-text {
   font-size: var(--text-xs);
   color: var(--text-muted);

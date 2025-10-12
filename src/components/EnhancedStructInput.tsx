@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { ethers } from 'ethers';
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, XCloseIcon } from './icons/IconLibrary';
+import InlineActionButton from './ui/InlineActionButton';
+import { UIIcons } from './icons/IconMap';
 
 interface StructField {
   name: string;
@@ -94,7 +96,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
             <span className="expand-icon">
               {isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
             </span>
-            <span className="field-icon">🏗️</span>
+            <span className="field-icon">{UIIcons.struct}</span>
             <span className="field-name">{input.name}</span>
             <span className="field-type">({input.type})</span>
             {input.components && (
@@ -129,7 +131,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
             <span className="expand-icon">
               {isExpanded ? <ChevronDownIcon width={12} height={12} /> : <ChevronRightIcon width={12} height={12} />}
             </span>
-            <span className="field-icon">📋</span>
+            <span className="field-icon">{UIIcons.array}</span>
             <span className="field-name">{input.name}</span>
             <span className="field-type">({input.type})</span>
             <span className="array-length">
@@ -140,45 +142,28 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
           {isExpanded && (
             <div className="array-content">
               <div className="array-controls">
-                <button
+                <InlineActionButton
                   className="add-array-item"
+                  ariaLabel="Add array item"
+                  tooltip="Add array item"
+                  icon={<PlusIcon width={16} height={16} />}
                   onClick={() => addArrayItem(fieldPath, baseType)}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #333',
-                    padding: '6px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    color: '#28a745',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <PlusIcon width={16} height={16} />
-                </button>
+                  stopPropagation
+                />
               </div>
               
               {Array.isArray(arrayValue) && arrayValue.map((item: any, idx: number) => (
                 <div key={idx} className="array-item">
                   <div className="array-item-header">
                     <span className="array-index">[{idx}]</span>
-                    <button
+                    <InlineActionButton
                       className="remove-array-item"
+                      ariaLabel={`Remove item ${idx}`}
+                      tooltip="Remove item"
+                      icon={<XCloseIcon width={16} height={16} />}
                       onClick={() => removeArrayItem(fieldPath, idx)}
-                      style={{
-                        background: 'none',
-                        border: '1px solid #333',
-                        padding: '6px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        color: '#dc3545',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <XCloseIcon width={16} height={16} />
-                    </button>
+                      stopPropagation
+                    />
                   </div>
                   <div className="array-item-value">
                     {renderSimpleInput(`${fieldPath}.${idx}`, baseType, item)}
@@ -248,7 +233,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
               onClick={() => validateAddress(path, value)}
               title="Validate address"
             >
-              ✓
+              
             </button>
           </div>
         );
@@ -295,14 +280,14 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
     return path.split('.').reduce((current, key) => current?.[key], obj);
   };
 
-  const getTypeIcon = (type: string): string => {
-    if (type === 'address') return '📍';
-    if (type === 'bool') return '🔘';
-    if (type.includes('uint') || type.includes('int')) return '🔢';
-    if (type.includes('bytes')) return '📄';
-    if (type.includes('[]')) return '📋';
-    if (type === 'tuple') return '🏗️';
-    return '⚪';
+  const getTypeIcon = (type: string): React.ReactNode => {
+    if (type === 'address') return UIIcons.address;
+    if (type === 'bool') return UIIcons.boolean;
+    if (type.includes('uint') || type.includes('int')) return UIIcons.number;
+    if (type.includes('bytes')) return UIIcons.bytes;
+    if (type.includes('[]')) return UIIcons.array;
+    if (type === 'tuple') return UIIcons.struct;
+    return UIIcons.info;
   };
 
   const addArrayItem = (path: string, baseType: string) => {
@@ -376,13 +361,13 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
   return (
     <div className="enhanced-struct-input">
       <div className="struct-input-header">
-        <h3>📝 Function Parameters</h3>
+        <h3>Function Parameters</h3>
         <div className="input-actions">
           <button onClick={loadSampleData} className="sample-btn">
-            🎯 Load Sample
+            Load Sample
           </button>
           <button onClick={clearAllFields} className="clear-btn">
-            🗑️ Clear All
+            Clear All
           </button>
         </div>
       </div>
@@ -395,7 +380,7 @@ const EnhancedStructInput: React.FC<EnhancedStructInputProps> = ({
 
       <div className="input-summary">
         <div className="summary-header">
-          <h4>📊 Parameter Summary</h4>
+          <h4>Parameter Summary</h4>
         </div>
         <div className="summary-content">
           <p>{functionInputs.length} parameters configured</p>

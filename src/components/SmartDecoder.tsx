@@ -165,37 +165,37 @@ const SmartDecoder: React.FC = () => {
       sourcify: { 
         text: 'Sourcify', 
         color: 'rgba(34, 197, 94, 0.8)', 
-        icon: '✓', 
+        icon: '', 
         description: 'Verified on Sourcify' 
       },
       blockscout: { 
         text: 'Blockscout', 
         color: 'rgba(59, 130, 246, 0.8)', 
-        icon: '🔍', 
+        icon: '', 
         description: 'Verified on Blockscout' 
       },
       etherscan: { 
         text: 'Etherscan', 
         color: 'rgba(99, 102, 241, 0.8)', 
-        icon: '📋', 
+        icon: '', 
         description: 'Verified on Etherscan' 
       },
       manual: { 
         text: 'Manual ABI', 
         color: 'rgba(245, 158, 11, 0.8)', 
-        icon: '📝', 
+        icon: '', 
         description: 'User-provided ABI' 
       },
       signatures: { 
         text: 'Signature DB', 
         color: 'rgba(168, 85, 247, 0.8)', 
-        icon: '🔐', 
+        icon: '', 
         description: 'Function signature database' 
       },
       heuristic: { 
         text: 'Heuristic', 
         color: 'rgba(239, 68, 68, 0.8)', 
-        icon: '🧠', 
+        icon: '', 
         description: 'Pattern-based analysis' 
       }
     };
@@ -265,13 +265,13 @@ const SmartDecoder: React.FC = () => {
     const selector = cleanValue.slice(0, 10);
     
     try {
-      console.log(`🔍 Detected potential calldata: ${cleanValue.slice(0, 20)}...`);
-      console.log(`🎯 Attempting to decode selector: ${selector}`);
+      console.log(` Detected potential calldata: ${cleanValue.slice(0, 20)}...`);
+      console.log(` Attempting to decode selector: ${selector}`);
       
       // Try custom signatures first
       const customSignature = searchCustomSignatures(selector);
       if (customSignature) {
-        console.log(`✅ Found in custom signatures: ${customSignature}`);
+        console.log(` Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(cleanValue, customSignature);
         const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         return {
@@ -290,7 +290,7 @@ const SmartDecoder: React.FC = () => {
       
       if (signatures && signatures.length > 0) {
         const signature = signatures[0].name;
-        console.log(`✅ Found on OpenChain: ${signature}`);
+        console.log(` Found on OpenChain: ${signature}`);
         const decoded = decodeWithSignature(cleanValue, signature);
         const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         return {
@@ -303,11 +303,11 @@ const SmartDecoder: React.FC = () => {
         };
       }
       
-      console.log(`❌ Could not decode calldata with selector ${selector}`);
+      console.log(` Could not decode calldata with selector ${selector}`);
       return null;
       
     } catch (error) {
-      console.log(`⚠️ Error decoding potential calldata:`, error);
+      console.log(`Error decoding potential calldata:`, error);
       return null;
     }
   };
@@ -851,7 +851,7 @@ const SmartDecoder: React.FC = () => {
       // Transfer data and auto-navigate
       toolkit.transferToTransactionBuilder(toolkit.lastDecodedTransaction);
       setShowTransferOptions(false);
-      addDecodingStep('✓ Transaction data transferred to Transaction Builder!');
+      addDecodingStep(' Transaction data transferred to Transaction Builder!');
     }
   };
 
@@ -1203,7 +1203,7 @@ const SmartDecoder: React.FC = () => {
 
     for (const instance of etherscanInstances) {
       try {
-        addDecodingStep(`🔍 Searching ${instance.name} (Etherscan)...`);
+        addDecodingStep(` Searching ${instance.name} (Etherscan)...`);
         
         // Get API key from localStorage or use a default
         let apiKey = 'YourApiKeyToken'; // Default/demo key
@@ -1230,7 +1230,7 @@ const SmartDecoder: React.FC = () => {
             try {
               const abi = JSON.parse(data.result);
               if (Array.isArray(abi)) {
-                addDecodingStep(`✓ Found verified contract on ${instance.name} (Etherscan)!`);
+                addDecodingStep(` Found verified contract on ${instance.name} (Etherscan)!`);
                 return abi;
               }
             } catch (parseError) {
@@ -1267,7 +1267,7 @@ const SmartDecoder: React.FC = () => {
 
     for (const instance of blockscoutInstances) {
       try {
-        addDecodingStep(`🌐 Searching ${instance.name}...`);
+        addDecodingStep(` Searching ${instance.name}...`);
         const response = await fetch(
           `${instance.url}/api/v2/smart-contracts/${address}`,
           {
@@ -1281,7 +1281,7 @@ const SmartDecoder: React.FC = () => {
           const data = await response.json();
           
           if (data.is_verified && data.abi && Array.isArray(data.abi)) {
-            addDecodingStep(`✓ Found verified contract on ${instance.name}!`);
+            addDecodingStep(` Found verified contract on ${instance.name}!`);
             return data.abi;
           } else {
             errors.push(`${instance.name}: contract not verified`);
@@ -1302,7 +1302,7 @@ const SmartDecoder: React.FC = () => {
 
   const fetchABIFromContract = async (address: string): Promise<any> => {
     try {
-      addDecodingStep(`🌐 Searching across multiple block explorers...`);
+      addDecodingStep(` Searching across multiple block explorers...`);
       
       // Try both Etherscan and Blockscout in parallel
       const promises = [
@@ -1360,14 +1360,14 @@ const SmartDecoder: React.FC = () => {
         
         try {
           if (currentSourceIndex === 0) {
-            setCurrentSearchProgress(['🌐 Starting multi-chain search...']);
+            setCurrentSearchProgress([' Starting multi-chain search...']);
           }
-          setCurrentSearchProgress(prev => [...prev, `🔍 Searching ${source.name}...`]);
+          setCurrentSearchProgress(prev => [...prev, ` Searching ${source.name}...`]);
           
           const abi = await source.fetch();
           
           if (Array.isArray(abi)) {
-            setCurrentSearchProgress(prev => [...prev, `✓ Found verified contract on ${source.name}!`]);
+            setCurrentSearchProgress(prev => [...prev, ` Found verified contract on ${source.name}!`]);
             
             // Show confirmation dialog
             setContractConfirmation({
@@ -1413,7 +1413,7 @@ const SmartDecoder: React.FC = () => {
           }
         } catch (error: any) {
           errors.push(`${source.name}: ${error.message}`);
-          setCurrentSearchProgress(prev => [...prev, `❌ ${source.name}: ${error.message}`]);
+          setCurrentSearchProgress(prev => [...prev, ` ${source.name}: ${error.message}`]);
         }
         
         // Move to next source
@@ -1442,8 +1442,8 @@ const SmartDecoder: React.FC = () => {
   };
 
   const findMatchingFunctionInABI = (abi: any[], selector: string): any => {
-    console.log('🔍 Searching ABI for selector:', selector);
-    console.log('📋 ABI contains', abi.length, 'items');
+    console.log(' Searching ABI for selector:', selector);
+    console.log(' ABI contains', abi.length, 'items');
     
     for (const item of abi) {
       if (item.type === 'function' && item.name) {
@@ -1459,21 +1459,21 @@ const SmartDecoder: React.FC = () => {
           const hash = ethers.utils.id(signature);
           const computedSelector = hash.slice(0, 10);
           
-          console.log(`🧮 Function: ${signature} → Selector: ${computedSelector}`);
+          console.log(` Function: ${signature} → Selector: ${computedSelector}`);
           
           if (computedSelector.toLowerCase() === selector.toLowerCase()) {
-            console.log('✅ MATCH FOUND!', signature);
+            console.log(' MATCH FOUND!', signature);
             return { ...item, signature };
           }
         } catch (error) {
-          console.warn('⚠️ Error processing ABI item:', item, error);
+          console.warn('Error processing ABI item:', item, error);
           continue;
         }
       }
     }
     
-    console.log('❌ No matching function found in ABI');
-    console.log('🔍 Functions found in ABI:');
+    console.log(' No matching function found in ABI');
+    console.log(' Functions found in ABI:');
     abi.filter(item => item.type === 'function' && item.name).forEach(item => {
       try {
         const inputs = item.inputs?.map((input: any) => expandTupleType(input)).join(',') || '';
@@ -1504,24 +1504,24 @@ const SmartDecoder: React.FC = () => {
         throw new Error('Invalid calldata format');
       }
 
-      addDecodingStep(`📍 Extracted function selector: ${selector}`);
+      addDecodingStep(` Extracted function selector: ${selector}`);
 
       // Step 1: If we have a contract address, try ABI-based decoding first (highest quality)
       if (contractAddress.trim()) {
-        addDecodingStep(`🎯 Contract address provided: ${contractAddress.trim()}`);
+        addDecodingStep(` Contract address provided: ${contractAddress.trim()}`);
         try {
           await handleContractABIDecode();
           return; // If successful, we're done with high-quality ABI decoding
         } catch (error: any) {
-          addDecodingStep(`⚠️ Contract ABI lookup failed, continuing with signature search...`);
+          addDecodingStep(`Contract ABI lookup failed, continuing with signature search...`);
         }
       }
 
       // Step 2: Check custom/cached signatures
-      addDecodingStep('🔍 Searching custom signatures...');
+      addDecodingStep(' Searching custom signatures...');
       const customSignature = searchCustomSignatures(selector);
       if (customSignature) {
-        addDecodingStep(`✓ Found in custom signatures: ${customSignature}`);
+        addDecodingStep(` Found in custom signatures: ${customSignature}`);
         const decoded = decodeWithSignature(calldata.trim(), customSignature);
         const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
@@ -1549,15 +1549,15 @@ const SmartDecoder: React.FC = () => {
 
       // Step 3: Search OpenChain (but we know this gives only types, not parameter names)
       if (enableSignatureLookup) {
-        addDecodingStep('🌐 Searching OpenChain database...');
+        addDecodingStep(' Searching OpenChain database...');
         try {
           const openChainResult: SignatureResponse = await lookupFunctionSignatures([selector]);
           const signatures = openChainResult.result?.function?.[selector];
           
           if (signatures && signatures.length > 0) {
             const signature = signatures[0].name;
-            addDecodingStep(`✓ Found on OpenChain: ${signature}`);
-            addDecodingStep(`⚠️ Note: OpenChain only provides parameter types, not names`);
+            addDecodingStep(` Found on OpenChain: ${signature}`);
+            addDecodingStep(`Note: OpenChain only provides parameter types, not names`);
 
             const decoded = decodeWithSignature(calldata.trim(), signature);
             const sanitizedArgs = sanitizeDecodedValue(decoded.args);
@@ -1586,21 +1586,21 @@ const SmartDecoder: React.FC = () => {
             return;
           }
         } catch (openChainError) {
-          addDecodingStep(`✗ OpenChain lookup failed: ${openChainError}`);
+          addDecodingStep(` OpenChain lookup failed: ${openChainError}`);
         }
       } else {
-        addDecodingStep('🌐 Signature database lookup disabled - enable in advanced options');
+        addDecodingStep(' Signature database lookup disabled - enable in advanced options');
       }
 
       // Step 4: Try heuristic decoding if enabled
       if (enableHeuristics) {
-        addDecodingStep('🧠 Attempting heuristic decoding...');
+        addDecodingStep(' Attempting heuristic decoding...');
         try {
           const heuristicResults = decodeWithHeuristics(calldata.trim());
           setHeuristicResult(heuristicResults);
           
           if (heuristicResults && heuristicResults.bestGuess) {
-            addDecodingStep(`✓ Heuristic analysis complete (confidence: ${(heuristicResults.bestGuess.confidence * 100).toFixed(1)}%)`);
+            addDecodingStep(` Heuristic analysis complete (confidence: ${(heuristicResults.bestGuess.confidence * 100).toFixed(1)}%)`);
             addDecodingStep(`Best guess: ${heuristicResults.bestGuess.description}`);
             
             // Set the best guess as the decoded result
@@ -1627,7 +1627,7 @@ const SmartDecoder: React.FC = () => {
             
             if (heuristicResults.decodedAttempts && heuristicResults.decodedAttempts.length > 1) {
               setShowAlternativeResults(true);
-              addDecodingStep(`📊 Found ${heuristicResults.decodedAttempts.length} alternative interpretations`);
+              addDecodingStep(` Found ${heuristicResults.decodedAttempts.length} alternative interpretations`);
             }
             
             setShowFallbackOptions(true);
@@ -1635,17 +1635,17 @@ const SmartDecoder: React.FC = () => {
             return;
           }
           
-          addDecodingStep('⚠️ Heuristic analysis found no confident matches');
+          addDecodingStep('Heuristic analysis found no confident matches');
         } catch (heuristicError) {
           console.error('Heuristic decoding error:', heuristicError);
-          addDecodingStep(`✗ Heuristic decoding failed: ${String(heuristicError)}`);
+          addDecodingStep(` Heuristic decoding failed: ${String(heuristicError)}`);
         }
       } else {
-        addDecodingStep('🧠 Heuristic decoding disabled - enable in advanced options');
+        addDecodingStep(' Heuristic decoding disabled - enable in advanced options');
       }
 
       // Step 5: No automatic match found, show fallback options
-      addDecodingStep('❓ No confident matches found - try manual ABI or adjust settings');
+      addDecodingStep(' No confident matches found - try manual ABI or adjust settings');
       setShowFallbackOptions(true);
       
     } catch (err: any) {
@@ -1670,14 +1670,14 @@ const SmartDecoder: React.FC = () => {
         throw new Error('Invalid calldata format');
       }
 
-      addDecodingStep(`🔄 Fetching ABI for contract: ${contractAddress}`);
+      addDecodingStep(` Fetching ABI for contract: ${contractAddress}`);
       const abi = await fetchABIWithConfirmation(contractAddress.trim());
       
       addDecodingStep('ABI fetched, searching for matching function...');
       const matchingFunction = findMatchingFunctionInABI(abi, selector);
       
       if (matchingFunction) {
-        addDecodingStep(`✓ Found matching function: ${matchingFunction.signature}`);
+        addDecodingStep(` Found matching function: ${matchingFunction.signature}`);
         const decoded = decodeWithSignature(calldata, matchingFunction.signature);
         const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
@@ -1729,7 +1729,7 @@ const SmartDecoder: React.FC = () => {
       
     } catch (err: any) {
       setError(err.message);
-      addDecodingStep(`✗ Contract ABI decode failed: ${err.message}`);
+      addDecodingStep(` Contract ABI decode failed: ${err.message}`);
     } finally {
       setIsFetchingABI(false);
     }
@@ -1762,7 +1762,7 @@ const SmartDecoder: React.FC = () => {
       
       const matchingFunction = findMatchingFunctionInABI(abi, selector);
       if (matchingFunction) {
-        addDecodingStep(`✓ Found matching function: ${matchingFunction.signature}`);
+        addDecodingStep(` Found matching function: ${matchingFunction.signature}`);
         const decoded = decodeWithSignature(calldata, matchingFunction.signature);
         const sanitizedArgs = sanitizeDecodedValue(decoded.args);
         const sanitizedDecoded = { ...decoded, args: sanitizedArgs };
@@ -1809,7 +1809,7 @@ const SmartDecoder: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message);
-      addDecodingStep(`✗ Manual ABI decode failed: ${err.message}`);
+      addDecodingStep(` Manual ABI decode failed: ${err.message}`);
     }
   };
 
@@ -2152,7 +2152,7 @@ const SmartDecoder: React.FC = () => {
         <div className="panel">
           {decodedResult ? (
             <>
-              <h3>🔧 Improve Parameter Names</h3>
+              <h3> Improve Parameter Names</h3>
               <div style={{
                 background: 'rgba(251, 146, 60, 0.1)',
                 border: '1px solid rgba(251, 146, 60, 0.3)',
@@ -2162,7 +2162,7 @@ const SmartDecoder: React.FC = () => {
                 fontSize: '13px',
                 color: '#fb923c'
               }}>
-                <strong>ℹ️ Function decoded successfully!</strong> However, we only have parameter types (not names) from the signature database. 
+                <strong>Info:</strong> Function decoded successfully! However, we only have parameter types (not names) from the signature database. 
                 To get real parameter names like "to", "amount", "spender" etc., provide the contract ABI below.
               </div>
             </>
@@ -2175,7 +2175,7 @@ const SmartDecoder: React.FC = () => {
           
           <div className="clean-card">
             <h4 style={{ fontSize: '14px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              {decodedResult ? '🎯 Get Real Parameter Names' : 'Option 1: Contract Address Search'}
+              {decodedResult ? ' Get Real Parameter Names' : 'Option 1: Contract Address Search'}
             </h4>
             <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
               {decodedResult ? 
@@ -2205,7 +2205,7 @@ const SmartDecoder: React.FC = () => {
 
           <div className="clean-card">
             <h4 style={{ fontSize: '14px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              {decodedResult ? '📋 Or Provide ABI Manually' : 'Option 2: Manual ABI'}
+              {decodedResult ? ' Or Provide ABI Manually' : 'Option 2: Manual ABI'}
             </h4>
             <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
               {decodedResult ?
@@ -2239,7 +2239,7 @@ const SmartDecoder: React.FC = () => {
       {/* Results */}
       {decodedResult && (
         <div className="panel">
-          <h3 style={{ color: '#059669', marginBottom: '16px' }}>✓ Successfully Decoded</h3>
+          <h3 style={{ color: '#059669', marginBottom: '16px' }}> Successfully Decoded</h3>
           
           {/* Enhanced Contract Information Display */}
           {contractABI && contractAddress && (
@@ -2371,7 +2371,7 @@ const SmartDecoder: React.FC = () => {
                             fontSize: '12px',
                             color: '#fb923c'
                           }}>
-                            <strong>ℹ️ Note:</strong> Parameter names are generic because this was decoded using function signatures only. 
+                            <strong>Info:</strong> Parameter names are generic because this was decoded using function signatures only. 
                             For real parameter names, use "Contract Address Search" or "Manual ABI" options above.
                           </div>
                         )}
@@ -2386,7 +2386,7 @@ const SmartDecoder: React.FC = () => {
                             fontSize: '12px',
                             color: '#22c55e'
                           }}>
-                            <strong>✅ Great!</strong> Real parameter names detected from contract ABI.
+                            <strong> Great!</strong> Real parameter names detected from contract ABI.
                           </div>
                         )}
 
@@ -2690,7 +2690,7 @@ const SmartDecoder: React.FC = () => {
                   opacity: 0.8,
                   lineHeight: '1.4'
                 }}>
-                  <strong>💡 Export Options:</strong><br />
+                  <strong> Export Options:</strong><br />
                   • <strong>Transaction Builder:</strong> Create similar transactions with modified parameters<br />
                   • <strong>JSON:</strong> Complete decoded data for external tools and APIs<br />
                   • <strong>Parameters:</strong> Just the function arguments for quick reference<br />
@@ -2732,7 +2732,7 @@ const SmartDecoder: React.FC = () => {
               fontSize: '18px',
               fontWeight: '600'
             }}>
-              ✓ Verified Contract Found!
+               Verified Contract Found!
             </h3>
             
             <div style={{
@@ -2830,14 +2830,14 @@ const SmartDecoder: React.FC = () => {
             fontSize: '14px',
             fontWeight: '600'
           }}>
-            🔍 Searching Block Explorers...
+             Searching Block Explorers...
           </h4>
           {currentSearchProgress.map((step, index) => (
             <div 
               key={index}
               style={{
                 fontSize: '13px',
-                color: step.startsWith('✓') ? '#059669' : step.startsWith('❌') ? '#dc2626' : '#6b7280',
+                color: step.startsWith('') ? '#059669' : step.startsWith('') ? '#dc2626' : '#6b7280',
                 marginBottom: '4px',
                 fontFamily: 'monospace'
               }}

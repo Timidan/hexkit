@@ -50,7 +50,7 @@ const APIKeyModal: React.FC<APIKeyModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>🔐 API Key Required</h3>
+          <h3> API Key Required</h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         
@@ -94,7 +94,7 @@ const APIKeyModal: React.FC<APIKeyModalProps> = ({
           </div>
 
           <div className="security-note">
-            <p>🔒 <strong>Security:</strong> Your API key is stored locally in your browser and never sent to our servers.</p>
+            <p> <strong>Security:</strong> Your API key is stored locally in your browser and never sent to our servers.</p>
           </div>
         </div>
 

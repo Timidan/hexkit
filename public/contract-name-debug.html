@@ -49,7 +49,7 @@
     </style>
 </head>
 <body>
-    <h1>🔧 Contract Name Debug Test</h1>
+    <h1> Contract Name Debug Test</h1>
     
     <div class="debug-section">
         <h2>Test Diamond Contract Name Issue</h2>
@@ -94,19 +94,19 @@
         <h2>Expected Console Log Pattern</h2>
         <div style="background: #1a1a1a; padding: 10px; border-radius: 4px;">
             <code>
-                🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan<br>
-                🎯 [SimpleGridUI] Setting contract name from fetch result: Diamond<br>
-                🔍 [SimpleGridUI] Current contractName state BEFORE set: undefined<br>
+                Starting ABI fetch with order: Sourcify → Blockscout → Etherscan<br>
+                [SimpleGridUI] Setting contract name from fetch result: Diamond<br>
+                [SimpleGridUI] Current contractName state BEFORE set: undefined<br>
                 === detectAndFetchTokenInfo called ===<br>
-                🔍 [SimpleGridUI] Preserve contract name flag: true<br>
-                🔍 [SimpleGridUI] PRESERVING Sourcify name: Diamond (ignoring contract.name())<br>
-                🔍 [SimpleGridUI] PRESERVING existing name: Diamond (not setting generic: Smart Contract)
+                [SimpleGridUI] Preserve contract name flag: true<br>
+                [SimpleGridUI] PRESERVING Sourcify name: Diamond (ignoring contract.name())<br>
+                [SimpleGridUI] PRESERVING existing name: Diamond (not setting generic: Smart Contract)
             </code>
         </div>
     </div>
 
     <div class="debug-section">
-        <h2>🔍 Console Log Monitor</h2>
+        <h2>Console Log Monitor</h2>
         <div id="debug-log"></div>
         <button class="test-button" onclick="clearLog()">Clear Log</button>
     </div>
@@ -167,17 +167,17 @@
         }
         
         // Add initial message
-        addLogEntry('🔧 Contract Name Debug Monitor Started', 'success');
-        addLogEntry('🎯 Expected behavior: Contract name should remain "Diamond" from Sourcify', 'success');
-        addLogEntry('🚨 Issue: Name is being overridden with "Smart Contract"', 'warning');
+        addLogEntry('Contract Name Debug Monitor Started', 'success');
+        addLogEntry('Expected behavior: Contract name should remain "Diamond" from Sourcify', 'success');
+        addLogEntry('Issue: Name is being overridden with "Smart Contract"', 'warning');
         
         // Add specific patterns to watch for
         setTimeout(() => {
-            addLogEntry('🔍 Watch for these patterns in the console:', 'warning');
-            addLogEntry('   - "🎯 [SimpleGridUI] Setting contract name from fetch result: Diamond"', 'warning');
-            addLogEntry('   - "🔍 [SimpleGridUI] PRESERVING Sourcify name: Diamond"', 'warning');
-            addLogEntry('   - "🔍 [SimpleGridUI] SETTING GENERIC NAME: Smart Contract" (THIS IS THE BUG)', 'error');
-            addLogEntry('   - "🔍 [SimpleGridUI] Contract name state AFTER set"', 'warning');
+            addLogEntry('Watch for these patterns in the console:', 'warning');
+            addLogEntry('   - "[SimpleGridUI] Setting contract name from fetch result: Diamond"', 'warning');
+            addLogEntry('   - "[SimpleGridUI] PRESERVING Sourcify name: Diamond"', 'warning');
+            addLogEntry('   - "[SimpleGridUI] SETTING GENERIC NAME: Smart Contract" (THIS IS THE BUG)', 'error');
+            addLogEntry('   - "[SimpleGridUI] Contract name state AFTER set"', 'warning');
         }, 1000);
     </script>
 </body>

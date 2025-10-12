@@ -6,6 +6,7 @@ import React, {
 } from "react";
 import { ethers } from "ethers";
 import { SettingsIcon, SearchIcon, ZapIcon } from "./icons/IconLibrary";
+import { UIIcons } from "./icons/IconMap";
 import { Card, Button, LoadingSpinner, ErrorDisplay, Badge } from "./shared";
 import {
   ContractConnector,
@@ -475,7 +476,7 @@ const NewSimpleGridUI: React.FC = () => {
       <div style={gridStyle}>
         {/* LEFT COLUMN - Contract */}
         <div style={cardStyle}>
-          <h2 style={subHeaderStyle}>🔧 Contract</h2>
+          <h2 style={subHeaderStyle}>Contract</h2>
 
           {/* Contract Source Selection */}
           <div style={{ marginBottom: "24px" }}>
@@ -594,7 +595,7 @@ const NewSimpleGridUI: React.FC = () => {
           {/* Diamond Facets */}
           {isDiamond && diamondFacets.length > 0 && (
             <div style={{ marginBottom: "24px" }}>
-              <Card title="💎 Diamond Facets" variant="accent" padding="sm">
+              <Card title="Diamond Facets" variant="accent" padding="sm">
                 <div
                   style={{
                     marginBottom: "12px",
@@ -655,7 +656,7 @@ const NewSimpleGridUI: React.FC = () => {
                                 color: "#4ade80",
                               }}
                             >
-                              ✔ {abbreviateFacet(detail.address)}
+                               {abbreviateFacet(detail.address)}
                             </span>
                           ))}
                           {currentFacetDetail && (
@@ -672,7 +673,8 @@ const NewSimpleGridUI: React.FC = () => {
                                 color: "#60a5fa",
                               }}
                             >
-                              ⏳ {abbreviateFacet(currentFacetDetail.address)}
+                              <span aria-hidden="true">{UIIcons.loading}</span>
+                              {abbreviateFacet(currentFacetDetail.address)}
                             </span>
                           )}
                           {upcomingFacetDetails.map((detail) => (
@@ -1100,7 +1102,7 @@ const NewSimpleGridUI: React.FC = () => {
           {/* Transaction Parameters Section */}
           <div style={{ marginBottom: "24px" }}>
             <Card
-              title="Transa⚡ ction Parameters"
+              title="Transa ction Parameters"
               variant="glass"
               padding="sm"
             >

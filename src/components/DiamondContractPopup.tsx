@@ -416,7 +416,7 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                     color: facet.isVerified ? '#10b981' : '#f59e0b',
                     marginTop: '4px'
                   }}>
-                    {facet.isVerified ? '✓ Verified' : '⚠ Unverified'}
+                    {facet.isVerified ? ' Verified' : ' Unverified'}
                   </div>
                 </div>
               ))}

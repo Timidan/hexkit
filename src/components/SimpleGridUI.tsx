@@ -28,7 +28,9 @@ import {
   CheckCircleIcon,
   AlertTriangleIcon,
   ZapIcon,
+  ClipboardIcon,
 } from "./icons/IconLibrary";
+import { UIIcons } from "./icons/IconMap";
 import { ethers } from "ethers";
 import { ContractResultFormatter } from "../utils/resultFormatter";
 import CopyableResult from "./ui/CopyableResult";
@@ -273,8 +275,8 @@ const SimpleGridUI: React.FC = () => {
       ) || [],
     selectedFunction: selectedFunctionObj,
     onValuesChange: (values, allValid) => {
-      console.log("🔧 [Unified Input System] Values changed:", values);
-      console.log("🔧 [Unified Input System] All valid:", allValid);
+      console.log(" [Unified Input System] Values changed:", values);
+      console.log(" [Unified Input System] All valid:", allValid);
 
       // Update functionInputs for compatibility with calldata generation
       const newInputs: { [key: string]: string } = {};
@@ -296,7 +298,7 @@ const SimpleGridUI: React.FC = () => {
       }
     },
     onCalldataGenerated: (calldata) => {
-      console.log("✅ [Unified] Auto-generated calldata:", calldata);
+      console.log(" [Unified] Auto-generated calldata:", calldata);
       setGeneratedCallData(calldata);
     },
   });
@@ -340,7 +342,7 @@ const SimpleGridUI: React.FC = () => {
 
       if (!func.name) {
         console.warn(
-          "⚠️ [ABI Sanitize] Skipping function without name/stateMutability:",
+          "[ABI Sanitize] Skipping function without name/stateMutability:",
           item
         );
         return;
@@ -694,7 +696,7 @@ const SimpleGridUI: React.FC = () => {
       rpcUrl.includes("infura")
     ) {
       console.warn(
-        `🌐 [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`
+        ` [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`
       );
       rpcUrl = fallbackRPCs[selectedNetwork.id];
       if (!rpcUrl) {
@@ -702,7 +704,7 @@ const SimpleGridUI: React.FC = () => {
           `No valid RPC URL available for network ${selectedNetwork.name} (ID: ${selectedNetwork.id})`
         );
       }
-      console.log(`🌐 [Provider] Using fallback RPC URL:`, rpcUrl);
+      console.log(` [Provider] Using fallback RPC URL:`, rpcUrl);
     }
 
     // Create network configuration for ethers
@@ -716,21 +718,21 @@ const SimpleGridUI: React.FC = () => {
     };
 
     console.log(
-      `🌐 [Provider] Creating ethers provider for network:`,
+      ` [Provider] Creating ethers provider for network:`,
       networkConfig
     );
-    console.log(`🌐 [Provider] Using RPC URL:`, rpcUrl);
-    console.log(`🌐 [Provider] Selected Network Object:`, selectedNetwork);
+    console.log(` [Provider] Using RPC URL:`, rpcUrl);
+    console.log(` [Provider] Selected Network Object:`, selectedNetwork);
     console.log(
-      `🌐 [Provider] Original selectedNetwork.rpcUrl:`,
+      ` [Provider] Original selectedNetwork.rpcUrl:`,
       selectedNetwork.rpcUrl
     );
     console.log(
-      `🌐 [Provider] Current Network Config RPC:`,
+      ` [Provider] Current Network Config RPC:`,
       currentNetworkConfig?.rpcUrl
     );
     console.log(
-      `🌐 [Provider] Found Infura URL:`,
+      ` [Provider] Found Infura URL:`,
       selectedNetwork.rpcUrl?.includes("infura")
     );
 
@@ -752,7 +754,7 @@ const SimpleGridUI: React.FC = () => {
           return await originalDetectNetwork();
         } catch (error: any) {
           console.warn(
-            `🌐 [Provider] Network detection failed, using configured network:`,
+            ` [Provider] Network detection failed, using configured network:`,
             error.message
           );
           return networkConfig as any;
@@ -761,7 +763,7 @@ const SimpleGridUI: React.FC = () => {
 
       return provider;
     } catch (error) {
-      console.error(`🚨 [Provider] Failed to create provider:`, error);
+      console.error(` [Provider] Failed to create provider:`, error);
       throw new Error(
         `Failed to create provider for ${selectedNetwork.name}: ${error}`
       );
@@ -794,7 +796,7 @@ const SimpleGridUI: React.FC = () => {
           if (targetKeys.length > 0) {
             contractName = compilationTarget[targetKeys[0]];
             console.log(
-              `🔍 [SimpleGridUI] Extracted contract name: ${contractName}`
+              ` [SimpleGridUI] Extracted contract name: ${contractName}`
             );
           }
         }
@@ -843,7 +845,7 @@ const SimpleGridUI: React.FC = () => {
           if (data.name) {
             contractName = data.name;
             console.log(
-              `🔍 [SimpleGridUI] Blockscout extracted contract name: ${contractName}`
+              ` [SimpleGridUI] Blockscout extracted contract name: ${contractName}`
             );
           }
 
@@ -901,7 +903,7 @@ const SimpleGridUI: React.FC = () => {
               ) {
                 contractName = nameData.result[0].ContractName;
                 console.log(
-                  `🔍 [SimpleGridUI] Etherscan extracted contract name: ${contractName}`
+                  ` [SimpleGridUI] Etherscan extracted contract name: ${contractName}`
                 );
               }
             }
@@ -953,7 +955,7 @@ const SimpleGridUI: React.FC = () => {
     let source: string;
 
     console.log(
-      "🔄 Starting ABI fetch with order: Sourcify → Blockscout → Etherscan"
+      " Starting ABI fetch with order: Sourcify → Blockscout → Etherscan"
     );
 
     // Always try Sourcify first for best contract name extraction
@@ -999,10 +1001,10 @@ const SimpleGridUI: React.FC = () => {
         const extendedResult = result as ExtendedABIFetchResult;
         if (extendedResult.contractName) {
           console.log(
-            `🎯 [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`
+            ` [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`
           );
           console.log(
-            `🔍 [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`
+            ` [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`
           );
 
           // Set the contract name and log immediately after
@@ -1011,7 +1013,7 @@ const SimpleGridUI: React.FC = () => {
           // Use setTimeout to log the state after the state update
           setTimeout(() => {
             console.log(
-              `🔍 [SimpleGridUI] Contract name state AFTER set (async): ${contractName}`
+              ` [SimpleGridUI] Contract name state AFTER set (async): ${contractName}`
             );
           }, 100);
 
@@ -1148,15 +1150,15 @@ const SimpleGridUI: React.FC = () => {
     console.log("Selected network:", selectedNetwork?.name);
     console.log("ABI length:", abi.length);
     console.log(
-      "🔍 [SimpleGridUI] Preserve contract name flag:",
+      " [SimpleGridUI] Preserve contract name flag:",
       preserveContractName
     );
-    console.log("🔍 [SimpleGridUI] Current contractName state:", contractName);
+    console.log(" [SimpleGridUI] Current contractName state:", contractName);
 
     if (!contractAddress || !selectedNetwork) {
       console.log("Missing contract address or network, setting default name");
       console.log(
-        "🔍 [SimpleGridUI] Setting fallback name: Unknown Contract (missing address/network)"
+        " [SimpleGridUI] Setting fallback name: Unknown Contract (missing address/network)"
       );
       setContractName("Unknown Contract");
       setTokenInfo(null);
@@ -1173,7 +1175,7 @@ const SimpleGridUI: React.FC = () => {
       console.log("Total events in ABI:", eventsParam.length);
 
       // Debug: Show full function signatures for analysis
-      console.log("🔍 Full function signatures from ABI:");
+      console.log(" Full function signatures from ABI:");
       abi
         .filter((item: any) => item.type === "function")
         .forEach((func: any, index: number) => {
@@ -1182,7 +1184,7 @@ const SimpleGridUI: React.FC = () => {
           console.log(`   ${index + 1}. ${func.name}(${inputs})`);
         });
 
-      console.log("🔍 Full event signatures from ABI:");
+      console.log(" Full event signatures from ABI:");
       abi
         .filter((item: any) => item.type === "event")
         .forEach((event: any, index: number) => {
@@ -1231,7 +1233,7 @@ const SimpleGridUI: React.FC = () => {
           provider
         );
 
-        console.log("🔍 Testing ERC165 interface support...");
+        console.log(" Testing ERC165 interface support...");
 
         try {
           // First check if contract supports ERC165 itself
@@ -1240,7 +1242,7 @@ const SimpleGridUI: React.FC = () => {
           );
           if (supportsERC165) {
             supportedInterfaces.push("ERC165");
-            console.log("✅ Contract supports ERC165");
+            console.log(" Contract supports ERC165");
 
             // Check other interfaces in priority order, return first match
             const interfaceCheckOrder = [
@@ -1256,7 +1258,7 @@ const SimpleGridUI: React.FC = () => {
             ];
 
             console.log(
-              `🔍 [ERC165] Checking interfaces for ${contractAddress} in priority order:`
+              ` [ERC165] Checking interfaces for ${contractAddress} in priority order:`
             );
 
             for (const interfaceName of interfaceCheckOrder) {
@@ -1264,34 +1266,34 @@ const SimpleGridUI: React.FC = () => {
                 const interfaceId =
                   interfaceIds[interfaceName as keyof typeof interfaceIds];
                 console.log(
-                  `🔍 [ERC165] Testing ${interfaceName} (${interfaceId})...`
+                  ` [ERC165] Testing ${interfaceName} (${interfaceId})...`
                 );
                 let isSupported = false;
                 try {
                   isSupported =
                     await erc165Contract.supportsInterface(interfaceId);
                   console.log(
-                    `🔍 [ERC165] ${interfaceName} support: ${isSupported}`
+                    ` [ERC165] ${interfaceName} support: ${isSupported}`
                   );
                 } catch (error) {
                   console.log(
-                    `🔍 [ERC165] ${interfaceName} supportsInterface call failed:`,
+                    ` [ERC165] ${interfaceName} supportsInterface call failed:`,
                     error
                   );
                   // For debugging, let's check if the contract exists and is responsive
                   try {
                     const code = await provider.getCode(contractAddress);
                     console.log(
-                      `🔍 [ERC165] Contract code length: ${code.length} bytes`
+                      ` [ERC165] Contract code length: ${code.length} bytes`
                     );
                     if (code.length <= 2) {
                       console.log(
-                        `🔍 [ERC165] Contract appears to be non-existent or empty!`
+                        ` [ERC165] Contract appears to be non-existent or empty!`
                       );
                     }
                   } catch (codeError) {
                     console.log(
-                      `🔍 [ERC165] Failed to get contract code:`,
+                      ` [ERC165] Failed to get contract code:`,
                       codeError
                     );
                   }
@@ -1300,25 +1302,25 @@ const SimpleGridUI: React.FC = () => {
                 if (isSupported) {
                   supportedInterfaces.push(interfaceName);
                   console.log(
-                    `✅ Contract supports ${interfaceName} - this will be the detected type`
+                    ` Contract supports ${interfaceName} - this will be the detected type`
                   );
                   // Return immediately with the first token interface found
                   return supportedInterfaces;
                 }
               } catch (error) {
                 console.log(
-                  `❌ Interface check failed for ${interfaceName}:`,
+                  ` Interface check failed for ${interfaceName}:`,
                   error
                 );
                 // Continue to next interface if one fails
               }
             }
           } else {
-            console.log("❌ Contract does not support ERC165");
+            console.log(" Contract does not support ERC165");
           }
         } catch (error) {
           console.log(
-            "❌ ERC165 detection failed - contract does not implement supportsInterface onchain"
+            " ERC165 detection failed - contract does not implement supportsInterface onchain"
           );
           // Return empty array to fall back to function-based detection
         }
@@ -1443,7 +1445,7 @@ const SimpleGridUI: React.FC = () => {
         error?: string;
       }> => {
         console.log(
-          `🔍 [UNIVERSAL] Starting universal token detection for ${contractAddress}...`
+          ` [UNIVERSAL] Starting universal token detection for ${contractAddress}...`
         );
 
         // Create contract instance with universal ABI
@@ -1462,7 +1464,7 @@ const SimpleGridUI: React.FC = () => {
 
         try {
           // Step 1: Check if contract supports ERC165 (required for all token standards)
-          console.log(`🔍 [UNIVERSAL] Testing ERC165 support...`);
+          console.log(` [UNIVERSAL] Testing ERC165 support...`);
           let supportsERC165 = false;
           try {
             supportsERC165 = await universalContract.supportsInterface(
@@ -1470,14 +1472,14 @@ const SimpleGridUI: React.FC = () => {
             );
           } catch (erc165Error) {
             console.log(
-              `❌ [UNIVERSAL] ERC165 call failed, trying fallback detection...`,
+              ` [UNIVERSAL] ERC165 call failed, trying fallback detection...`,
               (erc165Error as Error)?.message
             );
           }
 
           if (!supportsERC165) {
             console.log(
-              `❌ [UNIVERSAL] Contract does not support ERC165 - trying fallback detection...`
+              ` [UNIVERSAL] Contract does not support ERC165 - trying fallback detection...`
             );
 
             // For contracts that don't support ERC165, try to detect ERC20 tokens
@@ -1491,7 +1493,7 @@ const SimpleGridUI: React.FC = () => {
 
               if (name && symbol && decimals !== undefined) {
                 console.log(
-                  `✅ [UNIVERSAL] Detected ERC20 token via fallback (no ERC165): ${name} (${symbol})`
+                  ` [UNIVERSAL] Detected ERC20 token via fallback (no ERC165): ${name} (${symbol})`
                 );
                 return {
                   type: "ERC20",
@@ -1503,7 +1505,7 @@ const SimpleGridUI: React.FC = () => {
               }
             } catch (fallbackError) {
               console.log(
-                `❌ [UNIVERSAL] Fallback detection failed:`,
+                ` [UNIVERSAL] Fallback detection failed:`,
                 (fallbackError as Error)?.message
               );
             }
@@ -1518,12 +1520,12 @@ const SimpleGridUI: React.FC = () => {
             };
           }
 
-          console.log(`✅ [UNIVERSAL] Contract supports ERC165`);
+          console.log(` [UNIVERSAL] Contract supports ERC165`);
           confidence = 0.5;
           detectionMethod = "erc165-supported";
 
           // Step 2: Test all token interfaces in priority order
-          console.log(`🔍 [UNIVERSAL] Testing token interfaces...`);
+          console.log(` [UNIVERSAL] Testing token interfaces...`);
           const interfaceTests = [
             { name: "ERC1155", id: interfaceIds.ERC1155, type: "ERC1155" },
             { name: "ERC721", id: interfaceIds.ERC721, type: "ERC721" },
@@ -1539,7 +1541,7 @@ const SimpleGridUI: React.FC = () => {
                 interfaceTest.id
               );
               console.log(
-                `🔍 [UNIVERSAL] ${interfaceTest.name} support: ${isSupported}`
+                ` [UNIVERSAL] ${interfaceTest.name} support: ${isSupported}`
               );
 
               if (isSupported) {
@@ -1547,13 +1549,13 @@ const SimpleGridUI: React.FC = () => {
                 confidence = 0.95;
                 detectionMethod = `erc165-${interfaceTest.name.toLowerCase()}`;
                 console.log(
-                  `✅ [UNIVERSAL] Detected ${interfaceTest.type} token`
+                  ` [UNIVERSAL] Detected ${interfaceTest.type} token`
                 );
                 break;
               }
             } catch (interfaceError) {
               console.log(
-                `❌ [UNIVERSAL] ${interfaceTest.name} test failed:`,
+                ` [UNIVERSAL] ${interfaceTest.name} test failed:`,
                 interfaceError
               );
             }
@@ -1562,7 +1564,7 @@ const SimpleGridUI: React.FC = () => {
           // Step 3: Fetch token metadata if token type detected
           if (detectedType !== "unknown") {
             console.log(
-              `🔍 [UNIVERSAL] Fetching token metadata for ${detectedType}...`
+              ` [UNIVERSAL] Fetching token metadata for ${detectedType}...`
             );
 
             try {
@@ -1575,7 +1577,7 @@ const SimpleGridUI: React.FC = () => {
               if (symbol) tokenInfo.symbol = symbol;
 
               console.log(
-                `✅ [UNIVERSAL] Token metadata: ${name || "Unknown"} (${symbol || "Unknown"})`
+                ` [UNIVERSAL] Token metadata: ${name || "Unknown"} (${symbol || "Unknown"})`
               );
 
               // Fetch decimals for ERC20/ERC777 tokens
@@ -1583,10 +1585,10 @@ const SimpleGridUI: React.FC = () => {
                 try {
                   const decimals = await universalContract.decimals();
                   tokenInfo.decimals = Number(decimals);
-                  console.log(`✅ [UNIVERSAL] Decimals: ${tokenInfo.decimals}`);
+                  console.log(` [UNIVERSAL] Decimals: ${tokenInfo.decimals}`);
                 } catch (decimalsError) {
                   console.log(
-                    `❌ [UNIVERSAL] Failed to fetch decimals:`,
+                    ` [UNIVERSAL] Failed to fetch decimals:`,
                     decimalsError
                   );
                   tokenInfo.decimals = 18; // Default for ERC20
@@ -1596,14 +1598,14 @@ const SimpleGridUI: React.FC = () => {
               }
             } catch (metadataError) {
               console.log(
-                `❌ [UNIVERSAL] Failed to fetch token metadata:`,
+                ` [UNIVERSAL] Failed to fetch token metadata:`,
                 metadataError
               );
             }
           }
 
           // Step 4: Check for Diamond standard (regardless of token type)
-          console.log(`🔍 [UNIVERSAL] Testing Diamond standard...`);
+          console.log(` [UNIVERSAL] Testing Diamond standard...`);
           try {
             // Try multiple Diamond detection methods
             const functionSelectors =
@@ -1616,7 +1618,7 @@ const SimpleGridUI: React.FC = () => {
             ) {
               isDiamond = true;
               console.log(
-                `✅ [UNIVERSAL] Diamond proxy detected via facetFunctionSelectors (${functionSelectors.length} selectors)`
+                ` [UNIVERSAL] Diamond proxy detected via facetFunctionSelectors (${functionSelectors.length} selectors)`
               );
             } else {
               // Try facets function
@@ -1625,7 +1627,7 @@ const SimpleGridUI: React.FC = () => {
                 if (Array.isArray(facets) && facets.length > 0) {
                   isDiamond = true;
                   console.log(
-                    `✅ [UNIVERSAL] Diamond proxy detected via facets function (${facets.length} facets)`
+                    ` [UNIVERSAL] Diamond proxy detected via facets function (${facets.length} facets)`
                   );
                 }
               } catch (facetsError) {
@@ -1639,19 +1641,19 @@ const SimpleGridUI: React.FC = () => {
                   ) {
                     isDiamond = true;
                     console.log(
-                      `✅ [UNIVERSAL] Diamond proxy detected via facetAddresses (${facetAddresses.length} addresses)`
+                      ` [UNIVERSAL] Diamond proxy detected via facetAddresses (${facetAddresses.length} addresses)`
                     );
                   }
                 } catch (addressesError) {
                   console.log(
-                    `🔍 [UNIVERSAL] Not a Diamond proxy - all Diamond functions failed`
+                    ` [UNIVERSAL] Not a Diamond proxy - all Diamond functions failed`
                   );
                 }
               }
             }
           } catch (diamondError) {
             console.log(
-              `🔍 [UNIVERSAL] Not a Diamond proxy:`,
+              ` [UNIVERSAL] Not a Diamond proxy:`,
               (diamondError as Error)?.message
             );
           }
@@ -1698,20 +1700,20 @@ const SimpleGridUI: React.FC = () => {
                 detectedType = "ERC721";
                 confidence = Math.max(confidence, 0.9);
                 detectionMethod = "diamond-selectors-erc721";
-                console.log("💎 Inferred ERC721 via diamond facet selectors");
+                console.log(" Inferred ERC721 via diamond facet selectors");
               } else if (ERC1155Core) {
                 detectedType = "ERC1155";
                 confidence = Math.max(confidence, 0.9);
                 detectionMethod = "diamond-selectors-erc1155";
-                console.log("💎 Inferred ERC1155 via diamond facet selectors");
+                console.log(" Inferred ERC1155 via diamond facet selectors");
               } else if (ERC20) {
                 detectedType = "ERC20";
                 confidence = Math.max(confidence, 0.8);
                 detectionMethod = "diamond-selectors-erc20";
-                console.log("💎 Inferred ERC20 via diamond facet selectors");
+                console.log(" Inferred ERC20 via diamond facet selectors");
               }
             } catch (diamondScanError) {
-              console.log("💎 Diamond selector scan failed:", diamondScanError);
+              console.log(" Diamond selector scan failed:", diamondScanError);
             }
           }
 
@@ -1729,7 +1731,7 @@ const SimpleGridUI: React.FC = () => {
                 const addr = "0x" + raw.slice(26); // last 20 bytes
                 if (ethers.utils.isAddress(addr)) {
                   console.log(
-                    `🔍 [UNIVERSAL] EIP-1967 implementation: ${addr}`
+                    ` [UNIVERSAL] EIP-1967 implementation: ${addr}`
                   );
                   const impl = new ethers.Contract(
                     addr,
@@ -1809,7 +1811,7 @@ const SimpleGridUI: React.FC = () => {
               }
             } catch (e) {
               console.log(
-                "❔ [UNIVERSAL] EIP-1967 probe skipped:",
+                " [UNIVERSAL] EIP-1967 probe skipped:",
                 (e as Error)?.message
               );
             }
@@ -1827,7 +1829,7 @@ const SimpleGridUI: React.FC = () => {
           };
         } catch (universalError) {
           console.error(
-            `❌ [UNIVERSAL] Universal detection failed:`,
+            ` [UNIVERSAL] Universal detection failed:`,
             universalError
           );
           error = (universalError as Error)?.message;
@@ -1877,7 +1879,7 @@ const SimpleGridUI: React.FC = () => {
         detectionMethod: string;
         isDiamond?: boolean;
       }> => {
-        console.log("🔍 [DETECT] Starting enhanced token detection...");
+        console.log(" [DETECT] Starting enhanced token detection...");
 
         // Step 1: Check for Diamond standard first (using minimal ABI approach)
         const isDiamond = await verifyDiamondStandard(
@@ -1885,7 +1887,7 @@ const SimpleGridUI: React.FC = () => {
           provider
         );
         if (isDiamond) {
-          console.log("💎 Diamond standard verified!");
+          console.log(" Diamond standard verified!");
         }
 
         // Step 2: Check ERC165 interfaces using minimal ABI approach
@@ -1893,7 +1895,7 @@ const SimpleGridUI: React.FC = () => {
           contractAddress,
           provider
         );
-        console.log("🔍 [DETECT] Supported interfaces:", supportedInterfaces);
+        console.log(" [DETECT] Supported interfaces:", supportedInterfaces);
 
         // Step 3: Determine token type based on supported interfaces
         let detectedType = "unknown";
@@ -1906,55 +1908,55 @@ const SimpleGridUI: React.FC = () => {
           confidence = 0.95;
           detectionMethod = "erc165-interface";
           console.log(
-            "🎭 ERC1155 interface detected (prioritized over ERC721 for multi-interface contracts)"
+            " ERC1155 interface detected (prioritized over ERC721 for multi-interface contracts)"
           );
           if (isDiamond) {
             console.log(
-              "💎 Multi-standard contract: ERC1155 + Diamond proxy detected"
+              " Multi-standard contract: ERC1155 + Diamond proxy detected"
             );
           }
         } else if (supportedInterfaces.includes("ERC721")) {
           detectedType = "ERC721";
           confidence = 0.95;
           detectionMethod = "erc165-interface";
-          console.log("🎨 ERC721 interface detected");
+          console.log(" ERC721 interface detected");
           if (isDiamond) {
             console.log(
-              "💎 Multi-standard contract: ERC721 + Diamond proxy detected"
+              " Multi-standard contract: ERC721 + Diamond proxy detected"
             );
           }
         } else if (supportedInterfaces.includes("ERC20")) {
           detectedType = "ERC20";
           confidence = 0.95;
           detectionMethod = "erc165-interface";
-          console.log("💰 ERC20 interface detected");
+          console.log(" ERC20 interface detected");
           if (isDiamond) {
             console.log(
-              "💎 Multi-standard contract: ERC20 + Diamond proxy detected"
+              " Multi-standard contract: ERC20 + Diamond proxy detected"
             );
           }
         } else if (supportedInterfaces.includes("ERC777")) {
           detectedType = "ERC777";
           confidence = 0.95;
           detectionMethod = "erc165-interface";
-          console.log("⚡ ERC777 interface detected");
+          console.log(" ERC777 interface detected");
         } else if (supportedInterfaces.includes("ERC4626")) {
           detectedType = "ERC4626";
           confidence = 0.95;
           detectionMethod = "erc165-interface";
-          console.log("🏦 ERC4626 interface detected");
+          console.log(" ERC4626 interface detected");
         } else if (supportedInterfaces.includes("ERC2981")) {
           detectedType = "ERC2981";
           confidence = 0.8;
           detectionMethod = "erc165-interface";
-          console.log("👑 ERC2981 interface detected");
+          console.log(" ERC2981 interface detected");
         } else {
           // Fallback to function-based detection if no interfaces found
           console.log(
-            "🔍 [DETECT] No ERC165 interfaces found, falling back to function detection..."
+            " [DETECT] No ERC165 interfaces found, falling back to function detection..."
           );
           console.log(
-            `🔍 [DETECT] Available functions for analysis:`,
+            ` [DETECT] Available functions for analysis:`,
             functionsParam.slice(0, 10)
           );
 
@@ -1982,7 +1984,7 @@ const SimpleGridUI: React.FC = () => {
           const hasERC721CoreFunctions =
             hasOwnerOf && hasTokenURI && (hasBalanceOf || hasTransferFrom);
 
-          console.log(`🔍 [DETECT] ERC721 function analysis:`);
+          console.log(` [DETECT] ERC721 function analysis:`);
           console.log(`  - ownerOf: ${hasOwnerOf}`);
           console.log(`  - tokenURI: ${hasTokenURI}`);
           console.log(`  - balanceOf: ${hasBalanceOf}`);
@@ -2022,21 +2024,21 @@ const SimpleGridUI: React.FC = () => {
             confidence = hasERC721CoreFunctions ? 0.8 : 0.7;
             detectionMethod = "function-detection";
             console.log(
-              `🎨 ERC721 detected via function presence (confidence: ${confidence})`
+              ` ERC721 detected via function presence (confidence: ${confidence})`
             );
           } else if (hasERC20CoreFunctions) {
             detectedType = "ERC20";
             confidence = 0.8;
             detectionMethod = "function-detection";
             console.log(
-              "💰 ERC20 detected via core function presence (non-ERC165 contract)"
+              " ERC20 detected via core function presence (non-ERC165 contract)"
             );
           } else if (hasERC1155CoreFunctions) {
             detectedType = "ERC1155";
             confidence = 0.8;
             detectionMethod = "function-detection";
             console.log(
-              "🎭 ERC1155 detected via core function presence (non-ERC165 contract)"
+              " ERC1155 detected via core function presence (non-ERC165 contract)"
             );
           } else {
             // Check for Diamond/EIP-2535 proxy pattern
@@ -2080,28 +2082,28 @@ const SimpleGridUI: React.FC = () => {
                 confidence = 0.9;
                 detectionMethod = "diamond-erc1155";
                 console.log(
-                  "💎 Diamond proxy with ERC1155 functionality detected"
+                  " Diamond proxy with ERC1155 functionality detected"
                 );
               } else if (hasERC721Functions) {
                 detectedType = "ERC721";
                 confidence = 0.9;
                 detectionMethod = "diamond-erc721";
                 console.log(
-                  "💎 Diamond proxy with ERC721 functionality detected"
+                  " Diamond proxy with ERC721 functionality detected"
                 );
               } else if (hasERC20Functions) {
                 detectedType = "ERC20";
                 confidence = 0.9;
                 detectionMethod = "diamond-erc20";
                 console.log(
-                  "💎 Diamond proxy with ERC20 functionality detected"
+                  " Diamond proxy with ERC20 functionality detected"
                 );
               } else {
                 detectedType = "Diamond";
                 confidence = 0.8;
                 detectionMethod = "diamond-pattern";
                 console.log(
-                  "💎 Diamond/EIP-2535 proxy pattern detected (generic)"
+                  " Diamond/EIP-2535 proxy pattern detected (generic)"
                 );
               }
             } else {
@@ -2338,7 +2340,7 @@ const SimpleGridUI: React.FC = () => {
 
         if (isDiamondProxy) {
           console.log(
-            "🔍 [DETECT] Diamond/EIP-2535 proxy pattern detected - continuing with token type scoring"
+            " [DETECT] Diamond/EIP-2535 proxy pattern detected - continuing with token type scoring"
           );
           detectedInterfaces.push("Diamond");
           // Add a score for Diamond but don't return early - let scoring determine final type
@@ -2346,12 +2348,12 @@ const SimpleGridUI: React.FC = () => {
         }
 
         // Score functions
-        console.log("🔍 [DETECT] Scoring functions...");
+        console.log(" [DETECT] Scoring functions...");
         functionsParam.forEach((func: string) => {
           const funcInfo = FUNCTIONS[func as keyof typeof FUNCTIONS];
           if (funcInfo) {
             console.log(
-              `🔍 [DETECT] Matched function: ${func} -> ${funcInfo.type} (${funcInfo.weight})`
+              ` [DETECT] Matched function: ${func} -> ${funcInfo.type} (${funcInfo.weight})`
             );
             if (funcInfo.type === "SHARED") {
               // Add weight to all shared types
@@ -2359,14 +2361,14 @@ const SimpleGridUI: React.FC = () => {
                 scores[sharedType] =
                   (scores[sharedType] || 0) + funcInfo.weight;
                 console.log(
-                  `🔍 [DETECT] Added to shared type: ${sharedType} = ${scores[sharedType]}`
+                  ` [DETECT] Added to shared type: ${sharedType} = ${scores[sharedType]}`
                 );
               });
             } else {
               scores[funcInfo.type] =
                 (scores[funcInfo.type] || 0) + funcInfo.weight;
               console.log(
-                `🔍 [DETECT] Added to type: ${funcInfo.type} = ${scores[funcInfo.type]}`
+                ` [DETECT] Added to type: ${funcInfo.type} = ${scores[funcInfo.type]}`
               );
             }
           } else {
@@ -2377,7 +2379,7 @@ const SimpleGridUI: React.FC = () => {
               func.includes("owner") ||
               func.includes("token")
             ) {
-              console.log(`🔍 [DETECT] Unmatched token-like function: ${func}`);
+              console.log(` [DETECT] Unmatched token-like function: ${func}`);
             }
           }
         });
@@ -2406,8 +2408,8 @@ const SimpleGridUI: React.FC = () => {
           ERC2981: 1.0, // Only royaltyInfo
         };
 
-        console.log("🔍 Token Detection Scores:", scores);
-        console.log("🔍 Detected Interfaces:", detectedInterfaces);
+        console.log(" Token Detection Scores:", scores);
+        console.log(" Detected Interfaces:", detectedInterfaces);
 
         // Determine type with confidence thresholds
         const minConfidence = 0.4; // 40% minimum confidence
@@ -2500,20 +2502,20 @@ const SimpleGridUI: React.FC = () => {
           }
 
           // Perform universal token detection with our universal ABI
-          console.log("🔍 Using universal token detection approach...");
+          console.log(" Using universal token detection approach...");
           const tokenDetection = await detectTokenTypeUniversal(
             contractAddress,
             provider
           );
 
           // Enhanced detection specifically for Diamond contracts
-          console.log("🔍 Performing enhanced Diamond contract detection...");
+          console.log(" Performing enhanced Diamond contract detection...");
           let enhancedDetection = { ...tokenDetection };
 
           // If Diamond detected but no token type, try additional detection methods
           if (tokenDetection.isDiamond && tokenDetection.type === "unknown") {
             console.log(
-              "🔍 Diamond detected but no token type - trying enhanced detection..."
+              " Diamond detected but no token type - trying enhanced detection..."
             );
 
             // Try direct function calls for ERC721 detection
@@ -2536,14 +2538,14 @@ const SimpleGridUI: React.FC = () => {
 
               if (name && symbol) {
                 console.log(
-                  `✅ Enhanced detection found token: ${name} (${symbol})`
+                  ` Enhanced detection found token: ${name} (${symbol})`
                 );
 
                 // Try ERC721 specific functions
                 try {
                   await testContract.ownerOf(1);
                   console.log(
-                    "✅ ERC721 ownerOf() succeeded - contract is ERC721"
+                    " ERC721 ownerOf() succeeded - contract is ERC721"
                   );
                   enhancedDetection.type = "ERC721";
                   enhancedDetection.confidence = 0.9;
@@ -2551,11 +2553,11 @@ const SimpleGridUI: React.FC = () => {
                     "enhanced-erc721-detection";
                   enhancedDetection.tokenInfo = { name, symbol, decimals: 0 };
                 } catch (ownerOfError) {
-                  console.log("❌ ownerOf() failed - not ERC721");
+                  console.log(" ownerOf() failed - not ERC721");
                 }
               }
             } catch (enhancedError) {
-              console.log("❌ Enhanced detection failed:", enhancedError);
+              console.log(" Enhanced detection failed:", enhancedError);
             }
           }
 
@@ -2582,7 +2584,7 @@ const SimpleGridUI: React.FC = () => {
           // Always reflect diamond styling if detected
           setIsDiamond(diamond);
 
-          console.log("🎯 ENHANCED token snapshot (non-authoritative):", {
+          console.log(" ENHANCED token snapshot (non-authoritative):", {
             erc20,
             erc721,
             erc1155,
@@ -2597,7 +2599,7 @@ const SimpleGridUI: React.FC = () => {
             tokenInfo: enhancedDetection.tokenInfo,
           });
 
-          console.log(`🔍 Enhanced Token Detection:`);
+          console.log(` Enhanced Token Detection:`);
           console.log(`   Type: ${enhancedDetection.type}`);
           console.log(
             `   Confidence: ${Math.round(enhancedDetection.confidence * 100)}%`
@@ -2614,7 +2616,7 @@ const SimpleGridUI: React.FC = () => {
 
           // Additional debugging for Diamond contracts
           if (enhancedDetection.isDiamond) {
-            console.log(`🔍 Diamond Contract Debug:`);
+            console.log(` Diamond Contract Debug:`);
             console.log(`   Address: ${contractAddress}`);
             console.log(
               `   Network: ${selectedNetwork?.name} (ID: ${selectedNetwork?.id})`
@@ -2628,7 +2630,7 @@ const SimpleGridUI: React.FC = () => {
           // Universal token detection results processing
           if (tokenDetection.type !== "unknown" && tokenDetection.tokenInfo) {
             console.log(
-              `🎯 [UNIVERSAL] Processing detected ${tokenDetection.type} token...`
+              ` [UNIVERSAL] Processing detected ${tokenDetection.type} token...`
             );
 
             const { name, symbol, decimals } = tokenDetection.tokenInfo || {
@@ -2636,7 +2638,7 @@ const SimpleGridUI: React.FC = () => {
               symbol: undefined,
               decimals: undefined,
             };
-            console.log(`🎯 [UNIVERSAL] Token info:`, {
+            console.log(` [UNIVERSAL] Token info:`, {
               name,
               symbol,
               decimals,
@@ -2648,7 +2650,7 @@ const SimpleGridUI: React.FC = () => {
             if (!preserveContractName && symbol) {
               formattedName = `${tokenDetection.type}.${symbol}`;
               console.log(
-                `🎯 [UNIVERSAL] Setting formatted name: ${formattedName}`
+                ` [UNIVERSAL] Setting formatted name: ${formattedName}`
               );
               setContractName(formattedName);
             }
@@ -2666,7 +2668,7 @@ const SimpleGridUI: React.FC = () => {
             });
 
             console.log(
-              `✅ [UNIVERSAL] Token detection and processing complete!`
+              ` [UNIVERSAL] Token detection and processing complete!`
             );
             return {
               type: "unknown",
@@ -2714,21 +2716,21 @@ const SimpleGridUI: React.FC = () => {
 
             if (shouldPreserve) {
               console.log(
-                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`
+                ` [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC20 name: ${name})`
               );
             } else {
               // Format as ERC20.SYMBOL.DECIMALS
               const formattedName = `ERC20.${symbol}.${decimals}`;
               console.log(
-                `🔍 [SimpleGridUI] Overriding with ERC20 name: ${formattedName} (current: ${contractName})`
+                ` [SimpleGridUI] Overriding with ERC20 name: ${formattedName} (current: ${contractName})`
               );
               setContractName(formattedName);
             }
             setTokenInfo({ name, symbol, decimals });
           } else if (tokenDetection.type === "ERC721") {
-            console.log("🎨 Detected ERC721 NFT, fetching info...");
+            console.log(" Detected ERC721 NFT, fetching info...");
             console.log(
-              "🎨 Available contract functions:",
+              " Available contract functions:",
               Object.keys(contract.functions || {})
             );
 
@@ -2740,8 +2742,8 @@ const SimpleGridUI: React.FC = () => {
               (item: any) => item.type === "function" && item.name === "symbol"
             );
 
-            console.log("🎨 ABI has name function:", hasNameFunction);
-            console.log("🎨 ABI has symbol function:", hasSymbolFunction);
+            console.log(" ABI has name function:", hasNameFunction);
+            console.log(" ABI has symbol function:", hasSymbolFunction);
 
             let name = "Unknown NFT";
             let symbol = "NFT";
@@ -2751,27 +2753,27 @@ const SimpleGridUI: React.FC = () => {
               try {
                 const [fetchedName, fetchedSymbol] = await Promise.all([
                   contract.name().catch((err: unknown) => {
-                    console.error("❌ NFT name call failed:", err);
+                    console.error(" NFT name call failed:", err);
                     return null;
                   }),
                   contract.symbol().catch((err: unknown) => {
-                    console.error("❌ NFT symbol call failed:", err);
+                    console.error(" NFT symbol call failed:", err);
                     return null;
                   }),
                 ]);
 
                 name = fetchedName || name;
                 symbol = fetchedSymbol || symbol;
-                console.log("✅ NFT info successfully fetched:", {
+                console.log(" NFT info successfully fetched:", {
                   name,
                   symbol,
                 });
               } catch (error) {
-                console.error("❌ Failed to fetch NFT info:", error);
+                console.error(" Failed to fetch NFT info:", error);
               }
             } else {
               console.log(
-                "🎨 Missing name/symbol functions in ABI, using defaults"
+                " Missing name/symbol functions in ABI, using defaults"
               );
             }
 
@@ -2788,25 +2790,25 @@ const SimpleGridUI: React.FC = () => {
 
             if (shouldPreserve) {
               console.log(
-                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (ERC721 detected: ${name})`
+                ` [SimpleGridUI] Preserving existing name: ${contractName} (ERC721 detected: ${name})`
               );
             } else {
               // Format as ERC721.SYMBOL
               const formattedName = `ERC721.${symbol}`;
               console.log(
-                `🔍 [SimpleGridUI] Setting ERC721 name: ${formattedName} (was: ${contractName})`
+                ` [SimpleGridUI] Setting ERC721 name: ${formattedName} (was: ${contractName})`
               );
               setContractName(formattedName);
             }
             setTokenInfo({ name, symbol, decimals: 0 });
           } else if (tokenDetection.type === "ERC1155") {
-            console.log("🎭 Detected ERC1155 Multi-Token, fetching info...");
+            console.log(" Detected ERC1155 Multi-Token, fetching info...");
             console.log(
-              "🎭 Contract instance functions available:",
+              " Contract instance functions available:",
               Object.keys(contract.functions || {})
             );
-            console.log("🎭 Current contractName state:", contractName);
-            console.log("🎭 Current tokenInfo state:", tokenInfo);
+            console.log(" Current contractName state:", contractName);
+            console.log(" Current tokenInfo state:", tokenInfo);
 
             // For ERC1155, we need to ensure we have the token functions
             // Some ABIs might not include all token functions, so create a fallback contract
@@ -2817,7 +2819,7 @@ const SimpleGridUI: React.FC = () => {
               contract.functions?.name && contract.functions?.symbol;
             if (!hasTokenFunctions) {
               console.log(
-                "🎭 Token functions not available in current ABI, creating fallback contract..."
+                " Token functions not available in current ABI, creating fallback contract..."
               );
 
               const erc1155ABI = [
@@ -2834,7 +2836,7 @@ const SimpleGridUI: React.FC = () => {
 
               console.log(await erc1155Contract.name());
               console.log(
-                "🎭 Created fallback ERC1155 contract with token functions"
+                " Created fallback ERC1155 contract with token functions"
               );
             }
 
@@ -2848,7 +2850,7 @@ const SimpleGridUI: React.FC = () => {
               if (tokenName) name = tokenName;
               if (tokenSymbol) symbol = tokenSymbol;
             } catch (err) {
-              console.error("🎭 ERC1155 name call failed:", err);
+              console.error(" ERC1155 name call failed:", err);
             }
 
             try {
@@ -2859,18 +2861,18 @@ const SimpleGridUI: React.FC = () => {
                 const tokenSymbol = await erc1155Contract.symbol();
                 if (tokenSymbol) symbol = tokenSymbol;
                 console.log(
-                  "🎭 ERC1155 symbol fetched successfully:",
+                  " ERC1155 symbol fetched successfully:",
                   tokenSymbol
                 );
               } else {
-                console.log("🎭 symbol() function not available in contract");
+                console.log(" symbol() function not available in contract");
               }
             } catch (err) {
-              console.error("🎭 ERC1155 symbol call failed:", err);
+              console.error(" ERC1155 symbol call failed:", err);
             }
 
-            console.log("🎭 ERC1155 info result:", { name, symbol });
-            console.log("🎭 About to setTokenInfo and contractName...");
+            console.log(" ERC1155 info result:", { name, symbol });
+            console.log(" About to setTokenInfo and contractName...");
 
             // Preserve contract name from ABI fetch if it was already set
             const shouldPreserve =
@@ -2884,21 +2886,21 @@ const SimpleGridUI: React.FC = () => {
 
             if (shouldPreserve) {
               console.log(
-                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC1155 name: ${name})`
+                ` [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC1155 name: ${name})`
               );
             } else {
               // Format as ERC1155.SYMBOL
               const formattedName = `ERC1155.${symbol}`;
               console.log(
-                `🔍 [SimpleGridUI] Overriding with ERC1155 name: ${formattedName} (current: ${contractName})`
+                ` [SimpleGridUI] Overriding with ERC1155 name: ${formattedName} (current: ${contractName})`
               );
               setContractName(formattedName);
             }
 
             const finalTokenInfo = { name, symbol, decimals: 0 };
-            console.log("🎭 Setting tokenInfo to:", finalTokenInfo);
+            console.log(" Setting tokenInfo to:", finalTokenInfo);
             setTokenInfo(finalTokenInfo);
-            console.log("🎭 tokenInfo set completed");
+            console.log(" tokenInfo set completed");
           } else if (tokenDetection.type === "ERC777") {
             console.log("Detected ERC777 Token, fetching info...");
             const [name, symbol, decimals] = await Promise.all([
@@ -2933,13 +2935,13 @@ const SimpleGridUI: React.FC = () => {
 
             if (shouldPreserve) {
               console.log(
-                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC777 name: ${name})`
+                ` [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC777 name: ${name})`
               );
             } else {
               // Format as ERC777.SYMBOL.DECIMALS
               const formattedName = `ERC777.${symbol}.${decimals}`;
               console.log(
-                `🔍 [SimpleGridUI] Overriding with ERC777 name: ${formattedName} (current: ${contractName})`
+                ` [SimpleGridUI] Overriding with ERC777 name: ${formattedName} (current: ${contractName})`
               );
               setContractName(formattedName);
             }
@@ -2984,13 +2986,13 @@ const SimpleGridUI: React.FC = () => {
 
             if (shouldPreserve) {
               console.log(
-                `🔍 [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC4626 name: ${name})`
+                ` [SimpleGridUI] Preserving existing name: ${contractName} (not overriding with ERC4626 name: ${name})`
               );
             } else {
               // Format as ERC4626.SYMBOL.DECIMALS
               const formattedName = `ERC4626.${symbol}.${decimals}`;
               console.log(
-                `🔍 [SimpleGridUI] Overriding with ERC4626 name: ${formattedName} (current: ${contractName})`
+                ` [SimpleGridUI] Overriding with ERC4626 name: ${formattedName} (current: ${contractName})`
               );
               setContractName(formattedName);
             }
@@ -2999,7 +3001,7 @@ const SimpleGridUI: React.FC = () => {
             tokenDetection.isDiamond ||
             tokenDetection.type === "Diamond"
           ) {
-            console.log("💎 Detected Diamond/EIP-2535 proxy contract");
+            console.log(" Detected Diamond/EIP-2535 proxy contract");
 
             // For Diamond contracts, fetch token info from the facets if it's also a token
             let finalName = contractName;
@@ -3010,12 +3012,12 @@ const SimpleGridUI: React.FC = () => {
               // Try to get token info - this will call through to the facets
               if (functionsParam.includes("symbol")) {
                 tokenSymbol = await contract.symbol();
-                console.log(`🔍 [Diamond] Fetched symbol: ${tokenSymbol}`);
+                console.log(` [Diamond] Fetched symbol: ${tokenSymbol}`);
               }
 
               if (functionsParam.includes("decimals")) {
                 tokenDecimals = await contract.decimals();
-                console.log(`🔍 [Diamond] Fetched decimals: ${tokenDecimals}`);
+                console.log(` [Diamond] Fetched decimals: ${tokenDecimals}`);
               }
 
               // Format name as TOKEN_TYPE.SYMBOL if we have the info
@@ -3033,7 +3035,7 @@ const SimpleGridUI: React.FC = () => {
               }
             } catch (error) {
               console.log(
-                "🔍 [Diamond] Could not fetch token info from facets:",
+                " [Diamond] Could not fetch token info from facets:",
                 error
               );
               // Fall back to original name or default
@@ -3101,12 +3103,12 @@ const SimpleGridUI: React.FC = () => {
 
                 if (shouldOverride) {
                   console.log(
-                    `🔍 [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`
+                    ` [SimpleGridUI] Overriding with contract.name(): ${name} (current: ${contractName})`
                   );
                   setContractName(name || "Smart Contract");
                 } else {
                   console.log(
-                    `🔍 [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`
+                    ` [SimpleGridUI] PRESERVING Sourcify name: ${contractName} (ignoring contract.name(): ${name})`
                   );
                 }
                 setTokenInfo(null);
@@ -3124,7 +3126,7 @@ const SimpleGridUI: React.FC = () => {
             // Removed contract type determination logic to prevent overriding actual contract names
             // Contract names from Sourcify/Blockscout/Etherscan should be preserved
             console.log(
-              `🔍 [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`
+              ` [SimpleGridUI] Contract name resolution complete - final name: ${contractName}`
             );
             setTokenInfo(null);
           }
@@ -3280,10 +3282,10 @@ const SimpleGridUI: React.FC = () => {
 
     try {
       console.log(
-        "🔧 UpdateCallData: Generating calldata for:",
+        " UpdateCallData: Generating calldata for:",
         selectedFunctionObj.name
       );
-      console.log("📊 UpdateCallData: Current functionInputs:", functionInputs);
+      console.log(" UpdateCallData: Current functionInputs:", functionInputs);
 
       // Convert functionInputs back to array format expected by ethers
       const inputsArray = selectedFunctionObj.inputs.map(
@@ -3320,7 +3322,7 @@ const SimpleGridUI: React.FC = () => {
         }
       );
 
-      console.log("📋 UpdateCallData: Converted inputs array:", inputsArray);
+      console.log(" UpdateCallData: Converted inputs array:", inputsArray);
 
       const iface = new ethers.utils.Interface([selectedFunctionObj]);
       const calldata = iface.encodeFunctionData(
@@ -3328,12 +3330,12 @@ const SimpleGridUI: React.FC = () => {
         inputsArray
       );
 
-      console.log("✅ UpdateCallData: Generated calldata:", calldata);
+      console.log(" UpdateCallData: Generated calldata:", calldata);
       setGeneratedCallData(calldata);
     } catch (error) {
-      console.error("❌ UpdateCallData: Calldata generation failed:", error);
-      console.error("📊 UpdateCallData: Function inputs:", functionInputs);
-      console.error("📋 UpdateCallData: Function ABI:", selectedFunctionObj);
+      console.error(" UpdateCallData: Calldata generation failed:", error);
+      console.error(" UpdateCallData: Function inputs:", functionInputs);
+      console.error(" UpdateCallData: Function ABI:", selectedFunctionObj);
       setGeneratedCallData("0x");
     }
   }, [selectedFunctionObj, functionInputs]);
@@ -3354,8 +3356,8 @@ const SimpleGridUI: React.FC = () => {
         [inputKey]: value,
       };
       // Log the change for debugging
-      console.log(`🔄 Input changed: ${inputKey} = ${value}`);
-      console.log(`🔄 All inputs:`, newInputs);
+      console.log(` Input changed: ${inputKey} = ${value}`);
+      console.log(` All inputs:`, newInputs);
       return newInputs;
     });
 
@@ -3406,7 +3408,7 @@ const SimpleGridUI: React.FC = () => {
     const isStale = () => fetchRequestRef.current !== requestId;
 
     try {
-      console.log("🔍 Starting comprehensive contract fetch...");
+      console.log(" Starting comprehensive contract fetch...");
 
       // Use the comprehensive contract fetcher with progress tracking
       const chainConfig =
@@ -3428,7 +3430,7 @@ const SimpleGridUI: React.FC = () => {
       }
 
       if (result.success && result.abi) {
-        console.log("✅ Contract found via comprehensive search");
+        console.log(" Contract found via comprehensive search");
 
         try {
           const parsedABI = sanitizeAbiEntries(JSON.parse(result.abi));
@@ -3483,7 +3485,7 @@ const SimpleGridUI: React.FC = () => {
           // Set contract name from search result
           if (result.contractName) {
             console.log(
-              "🔍 [SimpleGridUI] Setting contract name from search result:",
+              " [SimpleGridUI] Setting contract name from search result:",
               result.contractName
             );
             setContractName(result.contractName);
@@ -3492,7 +3494,7 @@ const SimpleGridUI: React.FC = () => {
           // Set token info if available
           if (result.tokenInfo) {
             console.log(
-              "🔍 [SimpleGridUI] Setting token info from search result:",
+              " [SimpleGridUI] Setting token info from search result:",
               result.tokenInfo
             );
             setTokenInfo(result.tokenInfo);
@@ -3501,20 +3503,20 @@ const SimpleGridUI: React.FC = () => {
           // Set ABI source
           if (result.source) {
             console.log(
-              "🔍 [SimpleGridUI] Setting ABI source from search result:",
+              " [SimpleGridUI] Setting ABI source from search result:",
               result.source
             );
             setAbiSource(result.source);
           }
 
           console.log(
-            "✅ Contract loaded successfully from comprehensive search"
+            " Contract loaded successfully from comprehensive search"
           );
 
           // Add a timeout to check if contract name changes
           setTimeout(() => {
             console.log(
-              "🔍 [SimpleGridUI] Contract name check after 1s - should still be:",
+              " [SimpleGridUI] Contract name check after 1s - should still be:",
               result.contractName
             );
           }, 1000);
@@ -3911,7 +3913,7 @@ const SimpleGridUI: React.FC = () => {
       <div style={gridStyle}>
         {/* LEFT COLUMN - Contract */}
         <div style={cardStyle}>
-          <h2 style={subHeaderStyle}>🔧 Contract</h2>
+          <h2 style={subHeaderStyle}> Contract</h2>
 
           {/* Contract Source Selection */}
           <div style={{ marginBottom: "24px" }}>
@@ -4267,7 +4269,7 @@ const SimpleGridUI: React.FC = () => {
                               gap: "8px",
                             }}
                           >
-                            {searchProgress.status === "searching" && "🔍"}
+                            {searchProgress.status === "searching" && ""}
                             {searchProgress.status === "found" && (
                               <CheckCircleIcon width={12} height={12} />
                             )}
@@ -4874,7 +4876,7 @@ const SimpleGridUI: React.FC = () => {
                           >
                             {(() => {
                               console.log(
-                                "🎯 UI RENDER - Token detection state:",
+                                " UI RENDER - Token detection state:",
                                 {
                                   tokenInfo: !!tokenInfo,
                                   isERC20,
@@ -4909,15 +4911,15 @@ const SimpleGridUI: React.FC = () => {
                                 switch (tokenDetection.type) {
                                   case "ERC1155":
                                     typeLabel = "ERC1155 Multi-Token";
-                                    typeIcon = "🎭";
+                                    typeIcon = "";
                                     break;
                                   case "ERC721":
                                     typeLabel = "ERC721 NFT";
-                                    typeIcon = "🎨";
+                                    typeIcon = "";
                                     break;
                                   case "ERC20":
                                     typeLabel = "ERC20 Token";
-                                    typeIcon = "💰";
+                                    typeIcon = "";
                                     break;
                                   case "ERC777":
                                     typeLabel = "ERC777 Token";
@@ -4925,15 +4927,15 @@ const SimpleGridUI: React.FC = () => {
                                     break;
                                   case "ERC4626":
                                     typeLabel = "ERC4626 Vault";
-                                    typeIcon = "🏦";
+                                    typeIcon = "";
                                     break;
                                   case "ERC2981":
                                     typeLabel = "Royalty Contract";
-                                    typeIcon = "👑";
+                                    typeIcon = "";
                                     break;
                                   default:
                                     typeLabel = "Unknown Token";
-                                    typeIcon = "❓";
+                                    typeIcon = "";
                                 }
 
                                 if (tokenDetection.isDiamond) {
@@ -5019,13 +5021,13 @@ const SimpleGridUI: React.FC = () => {
                                 isERC1155 ||
                                 typeName.includes("ERC1155")
                               ) {
-                                return "🎭 ERC1155 Multi-Token";
+                                return " ERC1155 Multi-Token";
                               } else if (
                                 isERC721 ||
                                 typeName.includes("ERC721") ||
                                 (tokenInfo?.decimals || 0) === 0
                               ) {
-                                return "🎨 ERC721 NFT";
+                                return " ERC721 NFT";
                               } else if (
                                 isERC777 ||
                                 typeName.includes("ERC777")
@@ -5035,19 +5037,19 @@ const SimpleGridUI: React.FC = () => {
                                 isERC4626 ||
                                 typeName.includes("ERC4626")
                               ) {
-                                return "🏦 ERC4626 Vault";
+                                return " ERC4626 Vault";
                               } else if (
                                 isERC2981 ||
                                 typeName.includes("Royalty")
                               ) {
-                                return "👑 Royalty Contract";
+                                return " Royalty Contract";
                               } else if (
                                 isERC20 ||
                                 typeName.includes("ERC20")
                               ) {
-                                return "💰 ERC20 Token";
+                                return " ERC20 Token";
                               } else {
-                                return "💰 ERC20 Token";
+                                return " ERC20 Token";
                               }
                             })()}
                           </div>
@@ -5157,7 +5159,8 @@ const SimpleGridUI: React.FC = () => {
                               gap: "4px",
                             }}
                           >
-                            ✍️ {totalFacetWrites.toString()} write functions
+                            <EditIcon width={16} height={16} />
+                            {totalFacetWrites.toString()} write functions
                           </span>
                         </>
                       )}
@@ -5279,7 +5282,7 @@ const SimpleGridUI: React.FC = () => {
                                 gap: "4px",
                               }}
                             >
-                              🔧 Selected Facet
+                               Selected Facet
                             </a>
                           )}
 
@@ -5398,7 +5401,7 @@ const SimpleGridUI: React.FC = () => {
                                     marginTop: "4px",
                                   }}
                                 >
-                                  💡 Paste valid ABI JSON to enable function
+                                   Paste valid ABI JSON to enable function
                                   calls
                                 </div>
                               </div>
@@ -5592,7 +5595,16 @@ const SimpleGridUI: React.FC = () => {
                                       : "#ccc",
                                 }}
                               >
-                                ✍️ Write ({filteredWriteFunctions.length})
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  <EditIcon width={16} height={16} />
+                                  <span>Write ({filteredWriteFunctions.length})</span>
+                                </span>
                               </div>
                             </div>
                           )}
@@ -5809,7 +5821,7 @@ const SimpleGridUI: React.FC = () => {
                                             >
                                               {func.functionType === "read"
                                                 ? "READ"
-                                                : "✍️ WRITE"}
+                                                : "WRITE"}
                                             </div>
                                           </div>
                                           <div
@@ -6634,32 +6646,32 @@ const SimpleGridUI: React.FC = () => {
                                 try {
                                   // Parse the function inputs using unified system
                                   console.log(
-                                    "🔧 [Unified Input System] Getting formatted arguments..."
+                                    " [Unified Input System] Getting formatted arguments..."
                                   );
                                   const args =
                                     contractInputsHook.getFormattedArgs();
                                   console.log(
-                                    "🔧 [Unified Input System] Formatted args:",
+                                    " [Unified Input System] Formatted args:",
                                     args
                                   );
                                   console.log(
-                                    "🔧 [Unified Input System] CRITICAL: Args types:",
+                                    " [Unified Input System] CRITICAL: Args types:",
                                     args.map((arg) => typeof arg)
                                   );
                                   console.log(
-                                    "🔧 [Unified Input System] CRITICAL: Args isArray:",
+                                    " [Unified Input System] CRITICAL: Args isArray:",
                                     args.map((arg) => Array.isArray(arg))
                                   );
                                   console.log(
-                                    "🔧 [Unified Input System] CRITICAL: Args JSON:",
+                                    " [Unified Input System] CRITICAL: Args JSON:",
                                     JSON.stringify(args)
                                   );
                                   console.log(
-                                    "🔧 [Unified Input System] All inputs valid:",
+                                    " [Unified Input System] All inputs valid:",
                                     contractInputsHook.isAllValid
                                   );
                                   console.log(
-                                    "🔧 [Unified Input System] Current values:",
+                                    " [Unified Input System] Current values:",
                                     contractInputsHook.getCurrentValues()
                                   );
 
@@ -6669,21 +6681,21 @@ const SimpleGridUI: React.FC = () => {
                                       // Combine all facet ABIs for diamond contracts
                                       const combinedABI: any[] = [];
                                       console.log(
-                                        `💎 [Diamond] COMBINING ABIs - Processing ${diamondFacets.length} facets`
+                                        ` [Diamond] COMBINING ABIs - Processing ${diamondFacets.length} facets`
                                       );
 
                                       diamondFacets.forEach((facet, index) => {
                                         console.log(
-                                          `💎 [Diamond] Facet ${index + 1}: ${facet.address}`
+                                          ` [Diamond] Facet ${index + 1}: ${facet.address}`
                                         );
                                         console.log(
-                                          `💎 [Diamond] Facet ${index + 1} verified: ${facet.isVerified}`
+                                          ` [Diamond] Facet ${index + 1} verified: ${facet.isVerified}`
                                         );
                                         console.log(
-                                          `💎 [Diamond] Facet ${index + 1} ABI type: ${typeof facet.abi}`
+                                          ` [Diamond] Facet ${index + 1} ABI type: ${typeof facet.abi}`
                                         );
                                         console.log(
-                                          `💎 [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : "N/A"}`
+                                          ` [Diamond] Facet ${index + 1} ABI length: ${Array.isArray(facet.abi) ? facet.abi.length : "N/A"}`
                                         );
 
                                         if (facet.abi) {
@@ -6694,7 +6706,7 @@ const SimpleGridUI: React.FC = () => {
                                               : JSON.parse(facet.abi as string);
                                           } catch (parseError) {
                                             console.log(
-                                              `💎 [Diamond] Facet ${index + 1} ABI parsing failed`,
+                                              ` [Diamond] Facet ${index + 1} ABI parsing failed`,
                                               parseError
                                             );
                                             facetABI = [];
@@ -6711,11 +6723,11 @@ const SimpleGridUI: React.FC = () => {
                                               facetABI.length -
                                               sanitizedFacetAbi.length;
                                             console.log(
-                                              `💎 [Diamond] Facet ${index + 1} adding ${functionCount} functions (source=${facet.inferenceSource || facet.source}, confidence=${facet.confidence || (facet.isVerified ? "verified" : "inferred")})`
+                                              ` [Diamond] Facet ${index + 1} adding ${functionCount} functions (source=${facet.inferenceSource || facet.source}, confidence=${facet.confidence || (facet.isVerified ? "verified" : "inferred")})`
                                             );
                                             if (skippedEntries > 0) {
                                               console.warn(
-                                                `⚠️ [ABI Sanitize] Skipped ${skippedEntries} incomplete fragment(s) from facet ${facet.address}`
+                                                `[ABI Sanitize] Skipped ${skippedEntries} incomplete fragment(s) from facet ${facet.address}`
                                               );
                                             }
                                             combinedABI.push(
@@ -6723,12 +6735,12 @@ const SimpleGridUI: React.FC = () => {
                                             );
                                           } else {
                                             console.log(
-                                              `💎 [Diamond] Facet ${index + 1} has no functions after parsing`
+                                              ` [Diamond] Facet ${index + 1} has no functions after parsing`
                                             );
                                           }
                                         } else {
                                           console.log(
-                                            `💎 [Diamond] Facet ${index + 1} SKIPPED - no ABI data`
+                                            ` [Diamond] Facet ${index + 1} SKIPPED - no ABI data`
                                           );
                                         }
                                       });
@@ -6737,7 +6749,7 @@ const SimpleGridUI: React.FC = () => {
                                         (item) => item.type === "function"
                                       ).length;
                                       console.log(
-                                        `💎 [Diamond] FINAL combined ABI has ${totalFunctions} functions from ${diamondFacets.length} facets`
+                                        ` [Diamond] FINAL combined ABI has ${totalFunctions} functions from ${diamondFacets.length} facets`
                                       );
 
                                       // Debug: Check if the specific function exists in combined ABI
@@ -6747,17 +6759,17 @@ const SimpleGridUI: React.FC = () => {
                                           item.name === selectedFunctionObj.name
                                       );
                                       console.log(
-                                        `💎 [Diamond] Function '${selectedFunctionObj.name}' found in combined ABI:`,
+                                        ` [Diamond] Function '${selectedFunctionObj.name}' found in combined ABI:`,
                                         !!targetFunction
                                       );
                                       if (targetFunction) {
                                         console.log(
-                                          `💎 [Diamond] Function signature:`,
+                                          ` [Diamond] Function signature:`,
                                           targetFunction
                                         );
                                       } else {
                                         console.log(
-                                          `💎 [Diamond] Available functions:`,
+                                          ` [Diamond] Available functions:`,
                                           combinedABI
                                             .filter(
                                               (item) => item.type === "function"
@@ -6771,10 +6783,10 @@ const SimpleGridUI: React.FC = () => {
                                     } else if (isDiamond) {
                                       // Diamond detected but facets not loaded yet - try creating minimal ABI for this function
                                       console.log(
-                                        "💎 [Diamond] Facets not loaded yet, using single function ABI"
+                                        " [Diamond] Facets not loaded yet, using single function ABI"
                                       );
                                       console.log(
-                                        "💎 [Diamond] isDiamond:",
+                                        " [Diamond] isDiamond:",
                                         isDiamond,
                                         "facetCount:",
                                         diamondFacets.length
@@ -6783,7 +6795,7 @@ const SimpleGridUI: React.FC = () => {
                                     } else {
                                       // Use regular contract ABI
                                       console.log(
-                                        "📄 [Regular] Using regular contract ABI"
+                                        " [Regular] Using regular contract ABI"
                                       );
                                       return sanitizeAbiEntries(
                                         JSON.parse(contractInfo?.abi || "[]")
@@ -6793,27 +6805,27 @@ const SimpleGridUI: React.FC = () => {
 
                                   const contractABI = getContractABI();
                                   console.log(
-                                    `💎 [Function Call] Calling '${selectedFunctionObj.name}' with args:`,
+                                    ` [Function Call] Calling '${selectedFunctionObj.name}' with args:`,
                                     args
                                   );
                                   console.log(
-                                    `💎 [Function Call] Selected function object:`,
+                                    ` [Function Call] Selected function object:`,
                                     selectedFunctionObj
                                   );
                                   console.log(
-                                    `💎 [Function Call] Contract ABI length:`,
+                                    ` [Function Call] Contract ABI length:`,
                                     contractABI.length
                                   );
                                   console.log(
-                                    `💎 [Function Call] Is Diamond:`,
+                                    ` [Function Call] Is Diamond:`,
                                     isDiamond
                                   );
                                   console.log(
-                                    `💎 [Function Call] Diamond facets loaded:`,
+                                    ` [Function Call] Diamond facets loaded:`,
                                     diamondFacets.length
                                   );
                                   console.log(
-                                    `💎 [Function Call] Contract address:`,
+                                    ` [Function Call] Contract address:`,
                                     contractAddress
                                   );
 
@@ -6828,14 +6840,14 @@ const SimpleGridUI: React.FC = () => {
                                       // For diamond contracts, force ethers.js fallback since viem has issues
                                       if (isDiamond || !publicClient) {
                                         console.log(
-                                          `💎 [Function Call] Using ethers.js fallback for diamond contract...`
+                                          ` [Function Call] Using ethers.js fallback for diamond contract...`
                                         );
                                         console.log(
-                                          `💎 [Function Call] Selected network:`,
+                                          ` [Function Call] Selected network:`,
                                           selectedNetwork
                                         );
                                         console.log(
-                                          `💎 [Function Call] Contract address:`,
+                                          ` [Function Call] Contract address:`,
                                           contractAddress
                                         );
 
@@ -6846,7 +6858,7 @@ const SimpleGridUI: React.FC = () => {
                                         }
 
                                         console.log(
-                                          `💎 [Function Call] Using RPC URL:`,
+                                          ` [Function Call] Using RPC URL:`,
                                           selectedNetwork.rpcUrl
                                         );
                                         const provider =
@@ -6857,21 +6869,21 @@ const SimpleGridUI: React.FC = () => {
                                           provider
                                         );
                                         console.log(
-                                          `💎 [Function Call] Calling ${selectedFunctionObj.name} with ethers...`
+                                          ` [Function Call] Calling ${selectedFunctionObj.name} with ethers...`
                                         );
                                         console.log(
-                                          `💎 [Function Call] Contract Address:`,
+                                          ` [Function Call] Contract Address:`,
                                           contractAddress
                                         );
                                         console.log(
-                                          `💎 [Function Call] ABI Functions Count:`,
+                                          ` [Function Call] ABI Functions Count:`,
                                           contractABI.filter(
                                             (item: any) =>
                                               item.type === "function"
                                           ).length
                                         );
                                         console.log(
-                                          `💎 [Function Call] Function exists in ABI:`,
+                                          ` [Function Call] Function exists in ABI:`,
                                           contractABI.some(
                                             (item: any) =>
                                               item.type === "function" &&
@@ -6883,7 +6895,7 @@ const SimpleGridUI: React.FC = () => {
                                           selectedFunctionObj.name
                                         ](...args);
                                         console.log(
-                                          `💎 [Function Call] Ethers result:`,
+                                          ` [Function Call] Ethers result:`,
                                           result
                                         );
 
@@ -6897,27 +6909,27 @@ const SimpleGridUI: React.FC = () => {
                                         );
 
                                         console.log(
-                                          `💎 [Function Call] Raw function ABI:`,
+                                          ` [Function Call] Raw function ABI:`,
                                           rawFunctionABI
                                         );
                                         console.log(
-                                          `💎 [Function Call] Function outputs:`,
+                                          ` [Function Call] Function outputs:`,
                                           rawFunctionABI?.outputs
                                         );
                                         console.log(
-                                          `💎 [Function Call] Result data type:`,
+                                          ` [Function Call] Result data type:`,
                                           typeof result
                                         );
                                         console.log(
-                                          `💎 [Function Call] Result is array:`,
+                                          ` [Function Call] Result is array:`,
                                           Array.isArray(result)
                                         );
                                         console.log(
-                                          `💎 [Function Call] Result structure:`,
+                                          ` [Function Call] Result structure:`,
                                           result
                                         );
                                         console.log(
-                                          `💎 [Function Call] Result keys:`,
+                                          ` [Function Call] Result keys:`,
                                           Object.keys(result || {})
                                         );
 
@@ -6927,7 +6939,7 @@ const SimpleGridUI: React.FC = () => {
                                           rawFunctionABI?.outputs
                                         ) {
                                           console.log(
-                                            `💎 [Function Call] Testing named access:`
+                                            ` [Function Call] Testing named access:`
                                           );
                                           rawFunctionABI.outputs.forEach(
                                             (output: any, idx: number) => {
@@ -6968,15 +6980,15 @@ const SimpleGridUI: React.FC = () => {
                                               ),
                                           };
                                           console.log(
-                                            `🎯 CONSTRUCTED functionObjToUse:`,
+                                            ` CONSTRUCTED functionObjToUse:`,
                                             functionObjToUse
                                           );
                                           console.log(
-                                            `🎯 FIRST OUTPUT:`,
+                                            ` FIRST OUTPUT:`,
                                             functionObjToUse.outputs[0]
                                           );
                                           console.log(
-                                            `🎯 FIRST OUTPUT COMPONENTS:`,
+                                            ` FIRST OUTPUT COMPONENTS:`,
                                             functionObjToUse.outputs[0]
                                               ?.components
                                           );
@@ -7004,7 +7016,7 @@ const SimpleGridUI: React.FC = () => {
                                         });
                                       } else {
                                         console.log(
-                                          `💎 [Function Call] Using ethers provider for selected network...`
+                                          ` [Function Call] Using ethers provider for selected network...`
                                         );
 
                                         // Use the selected network's RPC instead of wagmi's publicClient
@@ -7020,7 +7032,7 @@ const SimpleGridUI: React.FC = () => {
                                           selectedFunctionObj.name
                                         ](...args);
                                         console.log(
-                                          `💎 [Function Call] Wagmi result:`,
+                                          ` [Function Call] Wagmi result:`,
                                           result
                                         );
 
@@ -7060,7 +7072,7 @@ const SimpleGridUI: React.FC = () => {
                                               ),
                                           };
                                           console.log(
-                                            `🎯 CONSTRUCTED functionObjToUse2:`,
+                                            ` CONSTRUCTED functionObjToUse2:`,
                                             functionObjToUse2
                                           );
                                         } else if (!functionObjToUse2) {
@@ -7088,11 +7100,11 @@ const SimpleGridUI: React.FC = () => {
                                       }
                                     } catch (error: any) {
                                       console.error(
-                                        `💎 [Function Call] Error calling '${selectedFunctionObj.name}':`,
+                                        ` [Function Call] Error calling '${selectedFunctionObj.name}':`,
                                         error
                                       );
                                       console.error(
-                                        `💎 [Function Call] Error details:`,
+                                        ` [Function Call] Error details:`,
                                         {
                                           message: error.message,
                                           stack: error.stack,
@@ -7137,7 +7149,7 @@ const SimpleGridUI: React.FC = () => {
                                         if (switchChain && appSelectedChain) {
                                           try {
                                             console.log(
-                                              `🔄 [Network Switch] Switching to chain ${appSelectedChain}`
+                                              ` [Network Switch] Switching to chain ${appSelectedChain}`
                                             );
                                             await switchChain({
                                               chainId: appSelectedChain as any,
@@ -7175,7 +7187,7 @@ const SimpleGridUI: React.FC = () => {
                                             );
                                           } catch (switchError: any) {
                                             console.error(
-                                              `❌ [Network Switch Failed]`,
+                                              ` [Network Switch Failed]`,
                                               switchError
                                             );
                                             showError(
@@ -7205,7 +7217,7 @@ const SimpleGridUI: React.FC = () => {
 
                                       // Write function transaction - requires wallet
                                       console.log(
-                                        `📝 [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
+                                        ` [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
                                       );
                                      const activeWalletClient = walletClient;
                                      if (!activeWalletClient) {
@@ -7352,7 +7364,7 @@ const SimpleGridUI: React.FC = () => {
                                       args =
                                         contractInputsHook.getFormattedArgs();
                                       console.log(
-                                        "🔧 [Gas Estimation] Formatted args:",
+                                        " [Gas Estimation] Formatted args:",
                                         args
                                       );
                                     } catch (error) {
@@ -7473,7 +7485,7 @@ const SimpleGridUI: React.FC = () => {
                                 gap: "8px",
                               }}
                             >
-                              💡 Connect your wallet using the button above to
+                               Connect your wallet using the button above to
                               execute transactions
                             </div>
                           )}
@@ -7522,7 +7534,7 @@ const SimpleGridUI: React.FC = () => {
                                   </div>
                                 ) : functionResult.error ? (
                                   <CopyableResult
-                                    title="❌ Error"
+                                    title=" Error"
                                     tone="error"
                                     plainText={String(functionResult.error)}
                                     copyText={String(functionResult.error)}
@@ -7573,7 +7585,7 @@ const SimpleGridUI: React.FC = () => {
 
                                     return (
                                       <CopyableResult
-                                        title={`✅ Result (${resultType})`}
+                                        title={` Result (${resultType})`}
                                         tone="success"
                                         copyText={copyText}
                                         htmlContent={
@@ -7771,7 +7783,7 @@ const SimpleGridUI: React.FC = () => {
                             }
                           }}
                         >
-                          📖 Execute Call (Read)
+                           Execute Call (Read)
                         </button>
 
                         <button
@@ -7899,7 +7911,16 @@ const SimpleGridUI: React.FC = () => {
                             }
                           }}
                         >
-                          ✍️ Send Transaction (Write)
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            <PlayIcon width={16} height={16} />
+                            <span>Send Transaction (Write)</span>
+                          </span>
                         </button>
                       </div>
 
@@ -7925,7 +7946,7 @@ const SimpleGridUI: React.FC = () => {
 
                             return (
                               <CopyableResult
-                                title="📦 Raw Output"
+                                title=" Raw Output"
                                 tone={functionResult.error ? "error" : "info"}
                                 plainText={rawString}
                                 copyText={rawString}
@@ -7946,14 +7967,14 @@ const SimpleGridUI: React.FC = () => {
                   diamondAddress={contractAddress}
                   onFacetsLoaded={(facets) => {
                     console.log(
-                      "🔍 [Diamond] FACETS LOADED CALLBACK TRIGGERED"
+                      " [Diamond] FACETS LOADED CALLBACK TRIGGERED"
                     );
                     console.log(
-                      "🔍 [Diamond] Received facets count:",
+                      " [Diamond] Received facets count:",
                       facets.length
                     );
                     console.log(
-                      "🔍 [Diamond] Received facets summary:",
+                      " [Diamond] Received facets summary:",
                       facets.map((f, i) => ({
                         index: i + 1,
                         address: f.address,
@@ -7973,7 +7994,7 @@ const SimpleGridUI: React.FC = () => {
 
                     // Update function lists with all facet functions
                     console.log(
-                      "🔍 [Diamond] Updating function lists with facet functions..."
+                      " [Diamond] Updating function lists with facet functions..."
                     );
                     const readMap = new Map<
                       string,
@@ -8054,7 +8075,7 @@ const SimpleGridUI: React.FC = () => {
                     });
 
                     console.log(
-                      `🔍 [Diamond] Aggregated ${readMap.size} read functions and ${writeMap.size} write functions from facets`
+                      ` [Diamond] Aggregated ${readMap.size} read functions and ${writeMap.size} write functions from facets`
                     );
                     setReadFunctions(Array.from(readMap.values()));
                     setWriteFunctions(Array.from(writeMap.values()));
@@ -8175,7 +8196,7 @@ const SimpleGridUI: React.FC = () => {
                               color: "#4ade80",
                             }}
                           >
-                            ✔ {abbreviateFacet(detail.address)}
+                             {abbreviateFacet(detail.address)}
                           </span>
                         ))}
                         {currentFacetDetail && (
@@ -8192,7 +8213,8 @@ const SimpleGridUI: React.FC = () => {
                               color: "#60a5fa",
                             }}
                           >
-                            ⏳ {abbreviateFacet(currentFacetDetail.address)}
+                            <span aria-hidden="true">{UIIcons.loading}</span>
+                            {abbreviateFacet(currentFacetDetail.address)}
                           </span>
                         )}
                         {upcomingFacetDetails.map((detail) => (
@@ -8681,7 +8703,7 @@ const SimpleGridUI: React.FC = () => {
                       gap: "6px",
                     }}
                   >
-                    <span style={{ fontSize: "12px" }}>🛡️</span>
+                    <ClipboardIcon width={12} height={12} />
                     <span
                       style={{
                         fontSize: "12px",

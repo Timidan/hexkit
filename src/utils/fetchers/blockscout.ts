@@ -69,9 +69,9 @@ const fetchWithFallback = async (url: string) => {
     });
   } catch (error) {
     if ((error as any).response?.status === 404) {
-      console.log(`🔍 [Blockscout] Endpoint ${url} returned 404 (expected for unverified contracts)`);
+      console.log(` [Blockscout] Endpoint ${url} returned 404 (expected for unverified contracts)`);
     } else {
-      console.warn(`🔍 [Blockscout] Endpoint ${url} failed:`, (error as any).message);
+      console.warn(` [Blockscout] Endpoint ${url} failed:`, (error as any).message);
     }
     return null;
   }
@@ -139,7 +139,7 @@ export const fetchFromBlockscout = async (
 
     for (const endpoint of abiEndpoints) {
       try {
-        console.log(`🔍 [Blockscout] Trying ABI endpoint: ${endpoint}`);
+        console.log(` [Blockscout] Trying ABI endpoint: ${endpoint}`);
         const response = await withRetry(() =>
           axios.get(endpoint, {
             timeout: 15000,
@@ -160,7 +160,7 @@ export const fetchFromBlockscout = async (
               };
               break;
             } catch {
-              console.warn('🔍 [Blockscout] Invalid ABI payload from v1 endpoint');
+              console.warn(' [Blockscout] Invalid ABI payload from v1 endpoint');
             }
           }
         }
@@ -187,7 +187,7 @@ export const fetchFromBlockscout = async (
             };
             break;
           } catch {
-            console.warn('🔍 [Blockscout] Invalid ABI payload from v2 endpoint');
+            console.warn(' [Blockscout] Invalid ABI payload from v2 endpoint');
             continue;
           }
         }
@@ -203,7 +203,7 @@ export const fetchFromBlockscout = async (
 
     if (!abiResult.contractName) {
       try {
-        console.log('🔍 [Blockscout] Fetching contract name separately...');
+        console.log(' [Blockscout] Fetching contract name separately...');
         const nameEndpoints = [
           buildStandardEndpoint(blockscoutExplorer.url, normalizedAddress, apiKey),
           buildV2Endpoint(blockscoutExplorer.url, normalizedAddress, apiKey),
@@ -221,7 +221,7 @@ export const fetchFromBlockscout = async (
             if (candidateName) {
               abiResult.contractName = candidateName;
               console.log(
-                `🔍 [Blockscout] Contract name resolved: ${abiResult.contractName}`
+                ` [Blockscout] Contract name resolved: ${abiResult.contractName}`
               );
               break;
             }

@@ -115,7 +115,7 @@ const WalletConnection: React.FC<WalletConnectionProps> = ({
               className="disconnect-btn"
               title="Disconnect wallet"
             >
-              ✕
+              
             </button>
           </div>
 
@@ -128,7 +128,7 @@ const WalletConnection: React.FC<WalletConnectionProps> = ({
 
           {isWrongChain() && (
             <div className="wrong-chain-warning">
-              <p>⚠️ Unsupported network. Please switch to a supported chain:</p>
+              <p>Unsupported network. Please switch to a supported chain:</p>
               <div className="chain-switcher">
                 {SUPPORTED_CHAINS.map((chain) => (
                   <button
@@ -155,7 +155,7 @@ const WalletConnection: React.FC<WalletConnectionProps> = ({
 
   return (
     <div className="wallet-connection disconnected">
-      <h3>🔗 Connect Wallet</h3>
+      <h3> Connect Wallet</h3>
       <p>Connect your wallet to build and simulate transactions</p>
 
       <div className="wallet-list">
