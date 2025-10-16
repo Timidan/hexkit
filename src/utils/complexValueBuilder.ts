@@ -64,10 +64,10 @@ export function createNodeFromValue(
   const type = normalizedMeta.type ?? inferTypeFromValue(value);
 
   if (Array.isArray(value)) {
+    const metaType = normalizedMeta.type ?? '';
     const isTupleArray =
-      typeof normalizedMeta.type === 'string' &&
-      normalizedMeta.type.startsWith('tuple') &&
-      normalizedMeta.type.endsWith('[]') &&
+      metaType.startsWith('tuple') &&
+      metaType.endsWith('[]') &&
       Array.isArray(normalizedMeta.components) &&
       normalizedMeta.components.length > 0;
 
@@ -75,7 +75,7 @@ export function createNodeFromValue(
       if (isTupleArray) {
         return createNodeFromValue(entry, {
           label: `[${index}]`,
-          type: normalizedMeta.type.replace(/\[\]$/, ''),
+          type: metaType.replace(/\[\]$/, ''),
           components: normalizedMeta.components,
         });
       }

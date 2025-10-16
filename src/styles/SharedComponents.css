@@ -210,8 +210,6 @@
   font-weight: var(--font-weight-medium);
 }
 
-
-
 .inline-copy-icon {
   all: unset;
   width: var(--inline-copy-size, 36px);
@@ -225,7 +223,10 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
   position: relative;
   padding: 0;
 }
@@ -251,12 +252,12 @@
   cursor: not-allowed;
 }
 
-.inline-copy-icon[data-state='copied'] {
+.inline-copy-icon[data-state="copied"] {
   background: rgba(34, 197, 94, 0.18);
   color: #4ade80;
 }
 
-.inline-copy-icon[data-state='error'] {
+.inline-copy-icon[data-state="error"] {
   background: rgba(248, 113, 113, 0.18);
   color: #fca5a5;
 }
@@ -520,6 +521,178 @@
   height: 1.5rem;
 }
 
+@keyframes walletHaloPulse {
+  0% {
+    opacity: 0.2;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.25;
+    transform: scale(1.08);
+  }
+}
+
+/* Wallet Inline Icon */
+.wallet-inline-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.78) 0%,
+    rgba(10, 15, 25, 0.88) 100%
+  );
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 12px 28px rgba(8, 13, 23, 0.35);
+  padding: 6px 10px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border-radius: 999px;
+}
+
+.wallet-icon-inline {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px !important;
+  height: 24px !important;
+  color: rgba(226, 232, 240, 0.9);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  line-height: 1 !important;
+}
+
+.wallet-icon-inline svg {
+  width: 18px;
+  height: 18px;
+}
+
+.wallet-icon-inline::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.wallet-icon-inline:hover,
+.wallet-icon-inline:focus-visible {
+  color: #38bdf8;
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.wallet-icon-inline:hover::after,
+.wallet-icon-inline:focus-visible::after {
+  opacity: 0.45;
+}
+
+.wallet-icon-inline--connected {
+  color: #34d399;
+}
+
+.wallet-icon-inline--connected::after {
+  border: 1px solid rgba(45, 212, 191, 0.65);
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.5);
+  opacity: 0.6;
+  animation: walletHaloPulse 1.8s ease-in-out infinite;
+}
+
+.wallet-icon-inline--unsupported {
+  color: #fbbf24;
+}
+
+.wallet-icon-inline--unsupported::after {
+  border: 1px solid rgba(248, 113, 113, 0.65);
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.45);
+  opacity: 0.55;
+  animation: walletHaloPulse 1.4s ease-in-out infinite;
+}
+
+.wallet-icon-inline--disconnected {
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.wallet-icon-inline--disconnected::after {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  opacity: 0.28;
+}
+
+.wallet-inline-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.35;
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.wallet-inline-info .wallet-inline-address {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
+}
+
+.wallet-inline-info .wallet-inline-network {
+  color: rgba(148, 163, 184, 0.75);
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  .wallet-icon-inline {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
+
+/* RainbowKit dialog close icon */
+[data-rk] button[aria-label="Close"] {
+  background: transparent !important;
+  border: none !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  margin: 6px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  color: rgba(226, 232, 240, 0.75) !important;
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+[data-rk] button[aria-label="Close"]::before {
+  content: "×";
+  font-size: 20px;
+  line-height: 1;
+}
+
+[data-rk] button[aria-label="Close"]:hover,
+[data-rk] button[aria-label="Close"]:focus-visible {
+  color: #38bdf8 !important;
+  transform: translateY(-1px);
+  outline: none !important;
+}
+
 .shared-loading-spinner-lg {
   width: 2rem;
   height: 2rem;
@@ -620,6 +793,10 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -43,6 +43,7 @@ debug-formatter.html
 # Documentation and test files
 *.md
 !README.md
+!wcodex_work.md
 *test*
 *Test*
 *TEST*

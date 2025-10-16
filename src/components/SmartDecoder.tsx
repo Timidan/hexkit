@@ -36,6 +36,8 @@ import ContractInfoDisplay from './ContractInfoDisplay';
 import GlassButton from './ui/GlassButton';
 import { CopyIcon } from './icons/IconLibrary';
 import { copyTextToClipboard } from '../utils/clipboard';
+import StackedOverview, { type ParameterDisplayEntry as OverviewParameterEntry } from './StackedOverview';
+import { parseFunctionSignatureParameters } from '../utils/solidityTypes';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
@@ -54,7 +56,7 @@ const SmartDecoder: React.FC = () => {
   const [isFetchingABI, setIsFetchingABI] = useState(false);
   const [manualABI, setManualABI] = useState('');
   const [showTransferOptions, setShowTransferOptions] = useState(false);
-  const [viewMode, setViewMode] = useState<'advanced' | 'legacy' | 'simple'>('advanced');
+  const [viewMode, setViewMode] = useState<'overview' | 'advanced' | 'legacy'>('overview');
   const [expandedParams, setExpandedParams] = useState<Set<number>>(new Set());
   const [contractConfirmation, setContractConfirmation] = useState<{
     show: boolean;
@@ -107,7 +109,9 @@ const SmartDecoder: React.FC = () => {
   };
 
   // Enhanced function to get real parameter names from ABI
-  const getParameterInfoFromABI = (functionName: string): { name: string; type: string }[] => {
+  const getParameterInfoFromABI = (
+    functionName: string
+  ): Array<{ name: string; type: string; components?: any[] }> => {
     try {
       // Try to get from stored contract ABI first
       if (contractABI && functionName) {
@@ -117,7 +121,8 @@ const SmartDecoder: React.FC = () => {
         if (matchingFunction?.inputs) {
           return matchingFunction.inputs.map((input: any) => ({
             name: input.name || 'param',
-            type: input.type || 'unknown'
+            type: input.type || 'unknown',
+            components: input.components
           }));
         }
       }
@@ -132,7 +137,8 @@ const SmartDecoder: React.FC = () => {
         if (matchingFunction?.inputs) {
           return matchingFunction.inputs.map((input: any) => ({
             name: input.name || 'param',
-            type: input.type || 'unknown'
+            type: input.type || 'unknown',
+            components: input.components
           }));
         }
       }
@@ -146,7 +152,8 @@ const SmartDecoder: React.FC = () => {
         if (matchingFunction?.inputs) {
           return matchingFunction.inputs.map((input: any) => ({
             name: input.name || 'param',
-            type: input.type || 'unknown'
+            type: input.type || 'unknown',
+            components: input.components
           }));
         }
       }
@@ -895,48 +902,21 @@ const SmartDecoder: React.FC = () => {
     
     // Check if it's an array
     if (Array.isArray(value)) {
+      const hasStructuredChildren = value.some(
+        (item) =>
+          Array.isArray(item) ||
+          (item &&
+            typeof item === 'object' &&
+            !ethers.BigNumber.isBigNumber(item) &&
+            !(item instanceof Uint8Array))
+      );
+      if (hasStructuredChildren) {
+        return 'tuple[]';
+      }
       return 'array';
     }
     
     return 'string';
-  };
-
-  // Helper function to parse parameter names and types from function signatures
-  const parseSignatureParameters = (signature: string): Array<{name: string, type: string}> => {
-    try {
-      // Extract parameters from signature like "transfer(address to, uint256 amount)"
-      const match = signature.match(/\((.*)\)/);
-      if (!match || !match[1].trim()) return [];
-      
-      const paramString = match[1];
-      const params = paramString.split(',').map(p => p.trim());
-      
-      return params.map((param, index) => {
-        const parts = param.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          // Has both type and name: "address to"
-          return {
-            type: parts[0],
-            name: parts[1]
-          };
-        } else if (parts.length === 1) {
-          // Only has type: "address"
-          return {
-            type: parts[0],
-            name: `param_${index}`
-          };
-        } else {
-          // Fallback
-          return {
-            type: 'unknown',
-            name: `param_${index}`
-          };
-        }
-      });
-    } catch (error) {
-      console.warn('Error parsing signature parameters:', error);
-      return [];
-    }
   };
 
   const sanitizeDecodedValue = (value: any): any => {
@@ -958,16 +938,33 @@ const SmartDecoder: React.FC = () => {
   };
 
   // Helper function to format parameter values nicely
-  const formatParameterValue = (value: any, paramType?: string): string => {
+  const formatParameterValue = (
+    value: any,
+    paramType?: string,
+    options?: { full?: boolean }
+  ): string => {
+    const full = options?.full ?? false;
     if (value === null || value === undefined) return 'null';
     
     // Handle arrays (including tuple arrays)
     if (Array.isArray(value)) {
-      // If it's a tuple array, show expanded structure with preview
-      if (paramType?.includes('tuple') || value.some(item => Array.isArray(item))) {
+      if (full) {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return `[${value.map(v => formatParameterValue(v, undefined, { full: true })).join(', ')}]`;
+        }
+      }
+
+      const hasComplexChildren = value.some(
+        (item) =>
+          Array.isArray(item) ||
+          (item && typeof item === 'object' && !item._isBigNumber && !(item instanceof Uint8Array))
+      );
+
+      if (!full && (paramType?.includes('tuple') || hasComplexChildren)) {
         let preview = '';
         if (value.length > 0 && Array.isArray(value[0])) {
-          // Show preview of first struct
           const firstStruct = value[0];
           if (firstStruct.length >= 3) {
             preview = ` (e.g., {${firstStruct[0]}, ${firstStruct[1]}, [${firstStruct[2]?.length || 0} items]})`;
@@ -977,12 +974,22 @@ const SmartDecoder: React.FC = () => {
         }
         return `Struct Array[${value.length} items]${preview} - Switch to JSON View for full details`;
       }
-      
+
       // Regular arrays
       if (value.length <= 3) {
         return `[${value.map(v => formatParameterValue(v)).join(', ')}]`;
       } else {
         return `[${value.slice(0, 2).map(v => formatParameterValue(v)).join(', ')}, ... +${value.length - 2} more]`;
+      }
+    }
+
+    if (value && typeof value === 'object') {
+      if (full) {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
       }
     }
     
@@ -1010,11 +1017,105 @@ const SmartDecoder: React.FC = () => {
     
     // Format bytes data - but don't truncate if it's not actually bytes
     if (str.startsWith('0x') && str.length > 42 && str.match(/^0x[a-fA-F0-9]+$/)) {
+      if (full) {
+        return str;
+      }
       return `${str.slice(0, 10)}...${str.slice(-8)} (${(str.length - 2) / 2} bytes)`;
     }
     
     return str;
   };
+
+  const inferValueType = (value: any): string => {
+    if (value === null || value === undefined) return 'null';
+    if (Array.isArray(value)) return `tuple(${value.length})`;
+    if (value && typeof value === 'object') {
+      if (value._isBigNumber) return 'uint';
+      return 'object';
+    }
+    if (typeof value === 'boolean') return 'bool';
+    if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'float';
+    if (typeof value === 'string') {
+      if (/^0x[a-fA-F0-9]+$/.test(value)) {
+        const byteLength = value.length > 2 ? (value.length - 2) / 2 : 0;
+        return byteLength ? `bytes${byteLength}` : 'bytes';
+      }
+      return 'string';
+    }
+    return typeof value;
+  };
+
+  const getAbiSourceLabel = (): string => {
+    if (!abiSource) {
+      return decodedResult ? 'Signature lookup / heuristic' : '—';
+    }
+
+    const labels: Record<NonNullable<typeof abiSource>, string> = {
+      sourcify: 'Sourcify (verified ABI)',
+      blockscout: 'Blockscout (verified ABI)',
+      etherscan: 'Etherscan (verified ABI)',
+      manual: 'Manual ABI',
+      signatures: 'Signature database',
+      heuristic: 'Heuristic analysis'
+    };
+
+    return labels[abiSource] ?? abiSource;
+  };
+
+  const getParameterDisplayData = (): {
+    parameterData: OverviewParameterEntry[];
+    hasGenericNames: boolean;
+    hasRealNames: boolean;
+  } => {
+    if (!decodedResult?.args) {
+      return { parameterData: [], hasGenericNames: false, hasRealNames: false };
+    }
+
+    const abiParameterInfo = decodedResult.name ? getParameterInfoFromABI(decodedResult.name) : [];
+    const signatureParameterInfo = decodedResult.signature
+      ? parseFunctionSignatureParameters(decodedResult.signature)
+      : [];
+    let parameterData: OverviewParameterEntry[] = [];
+    const toolkitParams = toolkit.lastDecodedTransaction?.parameters;
+
+    if (toolkitParams && toolkitParams.length > 0) {
+      parameterData = toolkitParams.map((param, index) => ({
+        name: param.name,
+        type:
+          abiParameterInfo[index]?.type ||
+          signatureParameterInfo[index]?.type ||
+          param.type,
+        value: param.value,
+        components:
+          abiParameterInfo[index]?.components ??
+          signatureParameterInfo[index]?.components ??
+          null
+      }));
+    } else {
+      parameterData = decodedResult.args.map((arg: any, index: number) => ({
+        name:
+          abiParameterInfo[index]?.name ||
+          signatureParameterInfo[index]?.name ||
+          `param_${index}`,
+        type:
+          abiParameterInfo[index]?.type ||
+          signatureParameterInfo[index]?.type ||
+          getParameterType(arg),
+        value: arg,
+        components:
+          abiParameterInfo[index]?.components ??
+          signatureParameterInfo[index]?.components ??
+          null
+      }));
+    }
+
+    const hasGenericNames = parameterData.some((param) => param.name?.startsWith('param_'));
+    const hasRealNames = parameterData.some((param) => param.name && !param.name.startsWith('param_'));
+
+    return { parameterData, hasGenericNames, hasRealNames };
+  };
+
+  // Legacy parameter overview table replaced by StackedOverview component.
 
   const extractFunctionSelector = (calldataHex: string): string | null => {
     try {
@@ -1529,7 +1630,7 @@ const SmartDecoder: React.FC = () => {
         setAbiSource('signatures');
 
         // Extract parameter names from signature if available
-        const parameterInfo = parseSignatureParameters(customSignature);
+        const parameterInfo = parseFunctionSignatureParameters(customSignature);
 
         // Share decoded data with toolkit context
         toolkit.setDecodedTransaction({
@@ -1566,7 +1667,7 @@ const SmartDecoder: React.FC = () => {
             setAbiSource('signatures');
 
             // Extract parameter names from signature if available (will be generic for OpenChain)
-            const parameterInfo = parseSignatureParameters(signature);
+            const parameterInfo = parseFunctionSignatureParameters(signature);
 
             // Share decoded data with toolkit context
             toolkit.setDecodedTransaction({
@@ -2136,7 +2237,7 @@ const SmartDecoder: React.FC = () => {
       </div>
 
       {/* Decoding Steps */}
-      {decodingSteps.length > 0 && (
+      {viewMode !== 'overview' && decodingSteps.length > 0 && (
         <div className="result-section">
           <h4>Decoding Process:</h4>
           <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#6b7280' }}>
@@ -2234,7 +2335,7 @@ const SmartDecoder: React.FC = () => {
       )}
 
       {/* Heuristic Results Display */}
-      {heuristicResult && renderHeuristicResults()}
+      {viewMode !== 'overview' && heuristicResult && renderHeuristicResults()}
 
       {/* Results */}
       {decodedResult && (
@@ -2306,11 +2407,11 @@ const SmartDecoder: React.FC = () => {
                 flexWrap: 'wrap'
               }}>
                 <GlassButton
-                  variant={viewMode === 'simple' ? 'primary' : 'secondary'}
+                  variant={viewMode === 'overview' ? 'primary' : 'secondary'}
                   size="sm"
-                  onClick={() => setViewMode('simple')}
+                  onClick={() => setViewMode('overview')}
                 >
-                  Simple View
+                  Overview
                 </GlassButton>
                 <GlassButton
                   variant={viewMode === 'advanced' ? 'primary' : 'secondary'}
@@ -2328,248 +2429,16 @@ const SmartDecoder: React.FC = () => {
                 </GlassButton>
               </div>
 
-              {viewMode === 'simple' && (
-                <div className="etherscan-args-display">
-                  {(() => {
-                    
-                    // Priority logic for parameter data:
-                    // 1. ALWAYS use toolkit context data first (contains real ABI parameter names)
-                    // 2. Only fallback to generic if toolkit data is missing or incomplete
-                    
-                    let parameterData: any[] = [];
-                    
-                    // Check if we have toolkit context data with real parameter names
-                    const toolkitParams = toolkit.lastDecodedTransaction?.parameters;
-                    if (toolkitParams && toolkitParams.length > 0) {
-                      // Use toolkit data - it should have real parameter names from ABI
-                      parameterData = toolkitParams;
-                    }
-                    // Fallback with enhanced parameter name extraction from ABI
-                    else if (decodedResult?.args) {
-                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
-                      parameterData = decodedResult.args.map((arg: any, index: number) => ({
-                        name: abiParameterInfo[index]?.name || `param_${index}`,
-                        type: abiParameterInfo[index]?.type || getParameterType(arg),
-                        value: arg
-                      }));
-                    }
-                    
-                    // Check if we have generic parameter names vs real names
-                    const hasGenericNames = parameterData.some((param: any) => param.name.startsWith('param_'));
-                    const hasRealNames = parameterData.some((param: any) => !param.name.startsWith('param_'));
-                    
-                    return (
-                      <>
-                        {/* Info header about parameter names */}
-                        {hasGenericNames && !hasRealNames && (
-                          <div style={{
-                            background: 'rgba(251, 146, 60, 0.1)',
-                            border: '1px solid rgba(251, 146, 60, 0.3)',
-                            borderRadius: '6px',
-                            padding: '8px 12px',
-                            marginBottom: '12px',
-                            fontSize: '12px',
-                            color: '#fb923c'
-                          }}>
-                            <strong>Info:</strong> Parameter names are generic because this was decoded using function signatures only. 
-                            For real parameter names, use "Contract Address Search" or "Manual ABI" options above.
-                          </div>
-                        )}
-                        
-                        {hasRealNames && (
-                          <div style={{
-                            background: 'rgba(34, 197, 94, 0.1)',
-                            border: '1px solid rgba(34, 197, 94, 0.3)',
-                            borderRadius: '6px',
-                            padding: '8px 12px',
-                            marginBottom: '12px',
-                            fontSize: '12px',
-                            color: '#22c55e'
-                          }}>
-                            <strong> Great!</strong> Real parameter names detected from contract ABI.
-                          </div>
-                        )}
-
-                        <div className="args-header" style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: '120px 80px 1fr', 
-                          gap: '12px',
-                          padding: '8px 0',
-                          borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
-                          marginBottom: '12px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          color: '#9ca3af'
-                        }}>
-                          <span>Parameter Name</span>
-                          <span>Type</span>
-                          <span>Value</span>
-                        </div>
-                        
-                        {parameterData.map((param: any, index: number) => {
-                          const isExpandable = Array.isArray(param.value) && 
-                            (param.type?.includes('tuple') || param.value.some((item: any) => Array.isArray(item)));
-                          const isExpanded = expandedParams.has(index);
-                          
-                          return (
-                            <div key={index}>
-                              <div className="arg-row" style={{ 
-                                display: 'grid', 
-                                gridTemplateColumns: isExpandable ? '20px 100px 80px 1fr' : '120px 80px 1fr', 
-                                gap: '12px',
-                                padding: '8px 0',
-                                borderBottom: '1px solid rgba(59, 130, 246, 0.1)',
-                                alignItems: 'center',
-                                fontSize: '13px'
-                              }}>
-                                {isExpandable && (
-                                  <button
-                                    onClick={() => toggleParamExpansion(index)}
-                                    style={{
-                                      background: 'none',
-                                      border: 'none',
-                                      cursor: 'pointer',
-                                      color: '#3b82f6',
-                                      padding: '2px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center'
-                                    }}
-                                  >
-                                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                  </button>
-                                )}
-                                <span style={{ 
-                                  color: param.name.startsWith('param_') ? '#fb923c' : '#3b82f6', 
-                                  fontWeight: '500',
-                                  fontStyle: param.name.startsWith('param_') ? 'italic' : 'normal'
-                                }}>
-                                  {param.name}
-                                  {param.name.startsWith('param_') && (
-                                    <span style={{ fontSize: '10px', marginLeft: '4px', color: '#9ca3af' }}>
-                                      (generic)
-                                    </span>
-                                  )}
-                                </span>
-                                <span style={{ 
-                                  color: '#9ca3af',
-                                  fontSize: '12px',
-                                  background: 'rgba(59, 130, 246, 0.1)',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  fontFamily: 'monospace'
-                                }}>
-                                  {param.type}
-                                </span>
-                                <div style={{ 
-                                  background: 'rgba(59, 130, 246, 0.05)', 
-                                  padding: '4px 8px', 
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                  fontFamily: 'Monaco, Menlo, monospace',
-                                  wordBreak: 'break-all',
-                                  color: '#f9fafb'
-                                }}>
-                                  {Array.isArray(param.value) && param.value.length > 0 ? 
-                                    renderExpandableArray(param.value, `param-${index}-value`, param.type) :
-                                    formatParameterValue(param.value, param.type)
-                                  }
-                                  {isExpandable && (
-                                    <span style={{ 
-                                      fontSize: '10px', 
-                                      color: '#9ca3af', 
-                                      marginLeft: '8px',
-                                      fontStyle: 'italic'
-                                    }}>
-                                      {isExpanded ? '(expanded below)' : '(click arrow to expand)'}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Expanded details */}
-                              {isExpandable && isExpanded && (
-                                <div style={{
-                                  marginLeft: '20px',
-                                  marginTop: '8px',
-                                  marginBottom: '12px',
-                                  padding: '12px',
-                                  background: 'rgba(59, 130, 246, 0.02)',
-                                  border: '1px solid rgba(59, 130, 246, 0.1)',
-                                  borderRadius: '6px'
-                                }}>
-                                  <div style={{ 
-                                    fontSize: '11px', 
-                                    color: '#6b7280', 
-                                    marginBottom: '8px',
-                                    fontWeight: '600'
-                                  }}>
-                                    Detailed Structure:
-                                  </div>
-                                  {(() => {
-                                    // Extract ABI components for struct field information
-                                    let abiComponents: any[] | undefined = undefined;
-                                    
-                                    try {
-                                      // Try to get matching function from available ABI sources
-                                      let matchingFunction: any = null;
-                                      
-                                      // Check toolkit context first
-                                      if (toolkit.lastDecodedTransaction?.abi) {
-                                        const abi = toolkit.lastDecodedTransaction.abi;
-                                        matchingFunction = abi.find((item: any) => 
-                                          item.type === 'function' && item.name === decodedResult.name
-                                        );
-                                      }
-                                      // Fallback to manual ABI if available
-                                      else if (manualABI) {
-                                        const abi = JSON.parse(manualABI);
-                                        matchingFunction = abi.find((item: any) => 
-                                          item.type === 'function' && item.name === decodedResult.name
-                                        );
-                                      }
-                                      
-                                      if (matchingFunction && matchingFunction.inputs && matchingFunction.inputs[index]) {
-                                        const paramInput = matchingFunction.inputs[index];
-                                        if (paramInput?.components) {
-                                          abiComponents = paramInput.components;
-                                        }
-                                      }
-                                    } catch (error) {
-                                      console.log('Could not extract ABI components:', error);
-                                    }
-                                    
-                                    return renderTupleDetails(param.value, param.type, 0, abiComponents);
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
+              {viewMode === 'overview' &&
+                (() => {
+                  const { parameterData } = getParameterDisplayData();
+                  return <StackedOverview parameterData={parameterData} />;
+                })()}
 
               {viewMode === 'advanced' && (
                 <div className="result-section">
                   {(() => {
-                    // Get the same parameter data as simple view for consistency
-                    let parameterData: any[] = [];
-                    const toolkitParams = toolkit.lastDecodedTransaction?.parameters;
-                    if (toolkitParams && toolkitParams.length > 0) {
-                      // Use toolkit data - it should have real parameter names from ABI
-                      parameterData = toolkitParams;
-                    } else if (decodedResult?.args) {
-                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
-                      parameterData = decodedResult.args.map((arg: any, index: number) => ({
-                        name: abiParameterInfo[index]?.name || `param_${index}`,
-                        type: abiParameterInfo[index]?.type || getParameterType(arg),
-                        value: arg
-                      }));
-                    }
-                    
+                    const { parameterData } = getParameterDisplayData();
                     return renderSimplifiedJsonView(decodedResult.args || [], parameterData);
                   })()}
                 </div>
@@ -2578,30 +2447,18 @@ const SmartDecoder: React.FC = () => {
               {viewMode === 'legacy' && shouldUseComplexViewer(decodedResult.args) && (
                 <div className="result-section">
                   {(() => {
-                    // Get parameter data with proper names and types for structured view
-                    let parameterData: any[] = [];
-                    let paramNames: string[] = [];
-                    let paramTypes: string[] = [];
-                    
-                    // Check if we have toolkit context data with real parameter names
-                    const toolkitParams = toolkit.lastDecodedTransaction?.parameters;
-                    if (toolkitParams && toolkitParams.length > 0) {
-                      // Use toolkit data - it should have real parameter names from ABI
-                      parameterData = toolkitParams.map(p => p.value);
-                      paramNames = toolkitParams.map(p => p.name);
-                      paramTypes = toolkitParams.map(p => p.type);
-                    }
-                    // Fallback with enhanced parameter name extraction from ABI
-                    else if (decodedResult?.args) {
-                      const abiParameterInfo = getParameterInfoFromABI(decodedResult.name);
-                      parameterData = decodedResult.args;
-                      paramNames = decodedResult.args.map((_: any, index: number) => abiParameterInfo[index]?.name || `param_${index}`);
-                      paramTypes = decodedResult.args.map((arg: any, index: number) => abiParameterInfo[index]?.type || getParameterType(arg));
-                    }
-                    
+                    const { parameterData } = getParameterDisplayData();
+                    const paramNames = parameterData.map((param, index) =>
+                      param.name ?? `param_${index}`
+                    );
+                    const paramTypes = parameterData.map((param) =>
+                      param.type || getParameterType(param.value)
+                    );
+                    const paramValues = parameterData.map((param) => param.value);
+
                     return (
                       <DecodedDataViewer
-                        data={parameterData}
+                        data={paramValues}
                         paramNames={paramNames}
                         types={paramTypes}
                         functionName={decodedResult.name}

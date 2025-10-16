@@ -1,0 +1,179 @@
+.abi-inline-card {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  background: rgba(6, 12, 24, 0.92);
+  box-shadow: 0 20px 40px rgba(8, 11, 23, 0.25);
+}
+
+.abi-inline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.abi-inline-title {
+  display: grid;
+  gap: 6px;
+}
+
+.abi-inline-title span:first-child {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.abi-inline-title span:last-child {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+
+.abi-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 0;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(10, 15, 25, 0.85);
+}
+
+.abi-inline-toggle-btn {
+  all: unset;
+  padding: 6px 14px !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  color: #93c5fd !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, color 0.15s ease;
+  min-height: auto !important;
+  background: transparent !important;
+}
+
+.abi-inline-toggle-btn[data-state="active"] {
+  color: #0f172a !important;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(168, 85, 247, 0.85)) !important;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35), 0 12px 24px rgba(59, 130, 246, 0.32) !important;
+}
+
+.abi-inline-toggle-btn:not([data-state="active"]):hover {
+  color: #e0f2fe !important;
+}
+
+.abi-inline-sheet {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.abi-inline-sheet label {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.abi-inline-sheet input,
+.abi-inline-sheet textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: radial-gradient(circle at top, rgba(36, 45, 73, 0.75), rgba(10, 15, 28, 0.9));
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  padding: 12px 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.abi-inline-sheet input:focus,
+.abi-inline-sheet textarea:focus {
+  border-color: rgba(96, 165, 250, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(96, 165, 250, 0.35),
+    0 0 0 6px rgba(59, 130, 246, 0.18);
+  outline: none;
+}
+
+.abi-inline-sheet textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.abi-inline-button {
+  all: unset;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 10px 16px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.92), rgba(168, 85, 247, 0.9)) !important;
+  color: #0f172a !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  cursor: pointer !important;
+  min-height: auto !important;
+  box-shadow: 0 18px 30px rgba(59, 130, 246, 0.3) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  align-self: flex-start !important;
+  width: fit-content !important;
+}
+
+.abi-inline-button::before,
+.abi-inline-button::after {
+  display: none !important;
+}
+
+.abi-inline-button svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.abi-inline-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.35) !important;
+}
+
+.abi-inline-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+.abi-inline-helper {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.abi-inline-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.abi-inline-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 0;
+  border: 1px dashed rgba(56, 189, 248, 0.45);
+  background: rgba(15, 23, 42, 0.65);
+  color: #38bdf8;
+  font-size: 12px;
+  cursor: pointer;
+}

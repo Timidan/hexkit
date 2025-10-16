@@ -227,9 +227,12 @@ const ComprehensiveContractSearch: React.FC<
         backgroundColor: "#0a0a0a",
         border: "1px solid #2a2a2a",
         borderRadius: "12px",
-        padding: "24px",
-        maxWidth: "600px",
+        padding: "clamp(16px, 3vw, 32px)",
+        width: "100%",
+        maxWidth: "min(1200px, 95vw)",
+        minWidth: "min(100%, 360px)",
         margin: "0 auto",
+        overflowX: "auto",
       }}
     >
       <h3

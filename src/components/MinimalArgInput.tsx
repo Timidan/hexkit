@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ethers } from 'ethers';
 import '../styles/CompactArrayStyles.css';
-import { PlusIcon, MinusIcon, TrashIcon, ShuffleIcon, Icon, AlertTriangleIcon } from './icons/IconLibrary';
+import { PlusIcon, MinusIcon, TrashIcon, ShuffleIcon, Icon, AlertTriangleIcon, XCloseIcon } from './icons/IconLibrary';
 import InlineActionButton from './ui/InlineActionButton';
 
 interface ArgInputProps {

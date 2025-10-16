@@ -76,6 +76,17 @@
   animation: liquidShine 0.6s ease-out;
 }
 
+.glass-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-button-text {
+  position: relative;
+  z-index: 1;
+}
+
 @keyframes liquidShine {
   0% {
     left: -100%;

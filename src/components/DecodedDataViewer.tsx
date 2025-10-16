@@ -7,6 +7,145 @@ import { copyTextToClipboard } from '../utils/clipboard';
 
 const COPY_ICON_MARKUP = '<svg viewBox="0 0 24 24" fill="none" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" stroke="currentColor" stroke-width="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>';
 
+interface ActionIconProps {
+  size?: number;
+  className?: string;
+}
+
+const ExpandAllSvg: React.FC<ActionIconProps> = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6 8h12" />
+    <path d="M6 16h12" />
+    <path d="m9 11 3 3 3-3" />
+  </svg>
+);
+
+const CollapseAllSvg: React.FC<ActionIconProps> = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6 8h12" />
+    <path d="M6 16h12" />
+    <path d="m9 13 3-3 3 3" />
+  </svg>
+);
+
+const RawDataSvg: React.FC<ActionIconProps> = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m7 8-4 4 4 4" />
+    <path d="m17 8 4 4-4 4" />
+    <path d="m14 6-4 12" />
+  </svg>
+);
+
+const ExportJsonSvg: React.FC<ActionIconProps> = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 3v10" />
+    <path d="m8 7 4-4 4 4" />
+    <rect x="5" y="14" width="14" height="7" rx="2" />
+    <path d="M16 14H8" />
+  </svg>
+);
+
+const CopyJsonSvg: React.FC<ActionIconProps> = ({ size = 16, className = '' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="9" y="9" width="10" height="10" rx="2" />
+    <path d="M5 15c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </svg>
+);
+
+interface InlineActionIconProps {
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  active?: boolean;
+}
+
+const InlineActionIcon: React.FC<InlineActionIconProps> = ({
+  label,
+  icon,
+  onClick,
+  className = '',
+  active = false
+}) => {
+  const classes = ['inline-action-icon'];
+  if (className) {
+    classes.push(className);
+  }
+  if (active) {
+    classes.push('active');
+  }
+
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      className={classes.join(' ')}
+      aria-pressed={active}
+      aria-label={label}
+      title={label}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
+    >
+      {icon}
+    </span>
+  );
+};
+
 interface DecodedDataViewerProps {
   data: any[];
   types?: string[];
@@ -556,28 +695,33 @@ const DecodedDataViewer: React.FC<DecodedDataViewerProps> = ({
           </div>
           
           <div className="control-buttons">
-            <button onClick={expandAll} className="control-btn">
-              Expand All
-            </button>
-            <button onClick={collapseAll} className="control-btn">
-              Collapse All
-            </button>
-            <button 
-              onClick={() => setShowRawData(!showRawData)} 
-              className={`control-btn ${showRawData ? 'active' : ''}`}
-            >
-              Raw Data
-            </button>
-            <button onClick={exportAsJSON} className="control-btn export">
-              Export JSON
-            </button>
-            <button
+            <InlineActionIcon
+              label="Expand All"
+              icon={<ExpandAllSvg />}
+              onClick={expandAll}
+            />
+            <InlineActionIcon
+              label="Collapse All"
+              icon={<CollapseAllSvg />}
+              onClick={collapseAll}
+            />
+            <InlineActionIcon
+              label="Raw Data"
+              icon={<RawDataSvg />}
+              onClick={() => setShowRawData(!showRawData)}
+              active={showRawData}
+            />
+            <InlineActionIcon
+              label="Export JSON"
+              icon={<ExportJsonSvg />}
+              onClick={exportAsJSON}
+              className="export"
+            />
+            <InlineActionIcon
+              label="Copy JSON"
+              icon={<CopyJsonSvg />}
               onClick={() => copyToClipboard(JSON.stringify(sanitizedData, null, 2))}
-              className="control-btn"
-            >
-              <CopyIcon width={16} height={16} style={{ marginRight: '6px' }} />
-              Copy JSON
-            </button>
+            />
           </div>
         </div>
       </div>

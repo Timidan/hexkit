@@ -4,7 +4,7 @@ import '../../styles/LiquidGlass.css';
 export interface GlassButtonProps {
   onClick?: () => void;
   disabled?: boolean;
-  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
+  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'decoder';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
   className?: string;
@@ -105,8 +105,63 @@ const GlassButton: React.FC<GlassButtonProps> = ({
             inset 0 -1px 0 rgba(59, 130, 246, 0.1)
           `,
         };
+      case 'decoder':
+        return {
+          ...baseStyles,
+          background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.92) 0%, rgba(59, 130, 246, 0.9) 100%)',
+          border: '1px solid rgba(165, 180, 252, 0.55)',
+          color: '#f8fafc',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          boxShadow: `
+            0 16px 36px rgba(99, 102, 241, 0.32),
+            inset 0 1px 0 rgba(255, 255, 255, 0.28),
+            inset 0 -1px 0 rgba(59, 130, 246, 0.18)
+          `,
+        };
       default:
         return baseStyles;
+    }
+  };
+
+  const getHoverStyles = () => {
+    switch (variant) {
+      case 'primary':
+        return {
+          background: 'rgba(0, 255, 255, 0.15)',
+          borderColor: 'rgba(0, 255, 255, 0.4)',
+          boxShadow: `
+            0 12px 40px rgba(0, 255, 255, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3),
+            inset 0 -1px 0 rgba(0, 255, 255, 0.15)
+          `,
+        };
+      case 'decoder':
+        return {
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.98) 0%, rgba(37, 99, 235, 0.96) 100%)',
+          borderColor: 'rgba(167, 139, 250, 0.75)',
+          boxShadow: `
+            0 20px 44px rgba(99, 102, 241, 0.45),
+            inset 0 1px 0 rgba(255, 255, 255, 0.32),
+            inset 0 -1px 0 rgba(37, 99, 235, 0.2)
+          `,
+        };
+      case 'secondary':
+      case 'success':
+      case 'warning':
+      case 'danger':
+      case 'info':
+        return {
+          background: 'rgba(255, 255, 255, 0.12)',
+          borderColor: 'rgba(255, 255, 255, 0.28)',
+          boxShadow: `
+            0 12px 36px rgba(0, 0, 0, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.25),
+            inset 0 -1px 0 rgba(255, 255, 255, 0.12)
+          `,
+        };
+      default:
+        return {};
     }
   };
 
@@ -176,8 +231,13 @@ const GlassButton: React.FC<GlassButtonProps> = ({
     
     // Enhanced liquid glass effect on hover
     button.style.transform = 'translateY(-2px) scale(1.02)';
-    button.style.backdropFilter = 'blur(25px) saturate(200%)';
-    (button.style as any).WebkitBackdropFilter = 'blur(25px) saturate(200%)';
+    if (variant !== 'decoder') {
+      button.style.backdropFilter = 'blur(25px) saturate(200%)';
+      (button.style as any).WebkitBackdropFilter = 'blur(25px) saturate(200%)';
+    } else {
+      button.style.backdropFilter = 'none';
+      (button.style as any).WebkitBackdropFilter = 'none';
+    }
     
     // Trigger shine animation
     if (shine) {
@@ -185,13 +245,10 @@ const GlassButton: React.FC<GlassButtonProps> = ({
     }
     
     // Enhance glass transparency on hover
-    button.style.background = 'rgba(0, 255, 255, 0.15)';
-    button.style.borderColor = 'rgba(0, 255, 255, 0.4)';
-    button.style.boxShadow = `
-      0 12px 40px rgba(0, 255, 255, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.3),
-      inset 0 -1px 0 rgba(0, 255, 255, 0.15)
-    `;
+    const hoverStyles = getHoverStyles();
+    if (hoverStyles.background) button.style.background = hoverStyles.background;
+    if (hoverStyles.borderColor) button.style.borderColor = hoverStyles.borderColor;
+    if (hoverStyles.boxShadow) button.style.boxShadow = hoverStyles.boxShadow;
   };
 
   const handleMouseLeave = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -203,11 +260,21 @@ const GlassButton: React.FC<GlassButtonProps> = ({
     
     // Reset to original state with smooth transition
     button.style.transform = 'translateY(0) scale(1)';
-    button.style.backdropFilter = 'blur(20px) saturate(180%)';
-    (button.style as any).WebkitBackdropFilter = 'blur(20px) saturate(180%)';
-    button.style.background = variantStyles.background || '';
-    button.style.borderColor = variantStyles.border?.split(' ')[2] || '';
-    button.style.boxShadow = ('boxShadow' in variantStyles ? variantStyles.boxShadow : '') || '';
+    if (variant !== 'decoder') {
+      button.style.backdropFilter = 'blur(20px) saturate(180%)';
+      (button.style as any).WebkitBackdropFilter = 'blur(20px) saturate(180%)';
+    } else {
+      button.style.backdropFilter = 'none';
+      (button.style as any).WebkitBackdropFilter = 'none';
+    }
+    if (variantStyles.background) button.style.background = variantStyles.background as string;
+    if (variantStyles.border) {
+      const [, , color] = (variantStyles.border as string).split(' ');
+      button.style.borderColor = color || '';
+    }
+    if ('boxShadow' in variantStyles && variantStyles.boxShadow) {
+      button.style.boxShadow = variantStyles.boxShadow as string;
+    }
     
     // Reset shine animation
     if (shine) {

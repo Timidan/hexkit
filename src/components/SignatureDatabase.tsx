@@ -10,7 +10,8 @@ import {
   XCircleIcon,
   ToolIcon,
   PenToolIcon,
-  FileTextIcon
+  FileTextIcon,
+  CopyIcon
 } from './icons/IconLibrary';
 import {
   Download,

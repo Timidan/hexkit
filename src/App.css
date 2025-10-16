@@ -71,12 +71,14 @@ header {
   text-align: center;
   position: relative;
   overflow: hidden;
-  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   box-shadow: 
     var(--shadow-lg),
     var(--glow-cyan);
   
-  /* Add subtle hover animation */
   transition: all var(--transition-slow);
 }
 
@@ -115,9 +117,9 @@ header p {
 /* Header Layout - Centered */
 .header-content {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  width: 100%;
+  gap: var(--space-4);
   position: relative;
   z-index: 2;
 }
@@ -127,20 +129,36 @@ header p {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  min-width: 300px;
 }
 
 .header-wallet {
-  display: none; /* Hidden since wallet is optional */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  min-width: 260px;
+  position: absolute;
+  top: calc(var(--space-4));
+  right: calc(var(--space-4));
 }
 
-/* Responsive header layout - already centered */
+.header-wallet > * {
+  margin-left: auto;
+}
+
 @media (max-width: 768px) {
   .header-content {
-    /* Already centered, no changes needed */
+    gap: var(--space-4);
   }
   
-  .header-title {
-    /* Already centered, no changes needed */
+  .header-wallet {
+    position: static;
+    width: 100%;
+    justify-content: center;
+    margin-top: var(--space-3);
   }
 }
 

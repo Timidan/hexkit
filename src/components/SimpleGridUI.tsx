@@ -3801,6 +3801,19 @@ const SimpleGridUI: React.FC = () => {
     marginBottom: "20px",
   };
 
+  const contractCardStyle = {
+    ...cardStyle,
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    overflowX: "auto" as const,
+  };
+
+  const gridContainerStyle = {
+    width: "100%",
+    overflowX: "auto" as const,
+  };
+
   const headerStyle = {
     fontSize: "24px",
     fontWeight: "bold",
@@ -3817,11 +3830,13 @@ const SimpleGridUI: React.FC = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "minmax(1080px, 2.4fr) minmax(320px, 0.6fr)",
-    gap: "36px",
-    maxWidth: "2080px",
+    gridTemplateColumns: "minmax(480px, 1.75fr) minmax(320px, 0.85fr)",
+    gap: "32px",
+    width: "100%",
+    maxWidth: "1600px",
+    minWidth: "min(100%, 960px)",
     margin: "0 auto",
-    padding: "24px 36px",
+    padding: "24px clamp(16px, 4vw, 40px)",
   };
 
   const inputStyle = {
@@ -3910,9 +3925,10 @@ const SimpleGridUI: React.FC = () => {
       </div>
 
       {/* Main Grid */}
-      <div style={gridStyle}>
+      <div style={gridContainerStyle}>
+        <div style={gridStyle}>
         {/* LEFT COLUMN - Contract */}
-        <div style={cardStyle}>
+        <div style={contractCardStyle}>
           <h2 style={subHeaderStyle}> Contract</h2>
 
           {/* Contract Source Selection */}
@@ -4006,8 +4022,10 @@ const SimpleGridUI: React.FC = () => {
                   <div
                     style={{
                       display: "flex",
+                      flexWrap: "wrap",
                       gap: "12px",
                       marginBottom: "16px",
+                      alignItems: "center",
                     }}
                   >
                     <select
@@ -4034,7 +4052,7 @@ const SimpleGridUI: React.FC = () => {
                       ))}
                     </select>
                     <button
-                      style={buttonStyle}
+                      style={{ ...buttonStyle, flexShrink: 0 }}
                       onClick={() => setShowSavedContracts(!showSavedContracts)}
                     >
                       {showSavedContracts ? "Hide" : "Show"} All
@@ -4121,7 +4139,14 @@ const SimpleGridUI: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                  alignItems: "center",
+                }}
+              >
                 <select style={{ ...inputStyle, flex: 1 }} disabled>
                   <option>Use saved contracts above</option>
                 </select>
@@ -8190,7 +8215,7 @@ const SimpleGridUI: React.FC = () => {
                               alignItems: "center",
                               gap: "6px",
                               padding: "4px 8px",
-                              borderRadius: "999px",
+                              borderRadius: "0px",
                               fontSize: "11px",
                               background: "rgba(34,197,94,0.15)",
                               color: "#4ade80",
@@ -8207,7 +8232,7 @@ const SimpleGridUI: React.FC = () => {
                               alignItems: "center",
                               gap: "6px",
                               padding: "4px 8px",
-                              borderRadius: "999px",
+                              borderRadius: "0px",
                               fontSize: "11px",
                               background: "rgba(96,165,250,0.18)",
                               color: "#60a5fa",
@@ -8225,7 +8250,7 @@ const SimpleGridUI: React.FC = () => {
                               alignItems: "center",
                               gap: "6px",
                               padding: "4px 8px",
-                              borderRadius: "999px",
+                              borderRadius: "0px",
                               fontSize: "11px",
                               background: "rgba(148,163,184,0.12)",
                               color: "#cbd5f5",
@@ -8735,6 +8760,7 @@ const SimpleGridUI: React.FC = () => {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Action Button */}
       <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: "16px" }}>
@@ -8768,18 +8794,13 @@ const SimpleGridUI: React.FC = () => {
               "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)";
             e.currentTarget.style.background = "rgba(0, 123, 255, 0.15)";
           }}
-        >
-          <PlayIcon width={20} height={20} />
-          Simulate Transaction
-        </button>
+      >
+        <PlayIcon width={20} height={20} />
+        Simulate Transaction
+      </button>
+    </div>
 
-        <InlineWalletConnect
-          chainId={selectedNetwork?.id}
-          chainName={selectedNetwork?.name}
-        />
-      </div>
-
-      {/* Diamond Contract Popup */}
+    {/* Diamond Contract Popup */}
       <DiamondContractPopup
         isOpen={isDiamondPopupOpen}
         onClose={() => setIsDiamondPopupOpen(false)}

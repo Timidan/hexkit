@@ -155,15 +155,15 @@ function App() {
       <NotificationProvider>
         <div className="app">
         <header>
+          <div className="header-wallet">
+            <RainbowKitWallet />
+          </div>
           <div className="header-content">
             <div className="header-title">
               <h1>
                 <ToolIcon width={24} height={24} className="inline mr-2" /> Web3 Toolkit
               </h1>
               <p>Ethereum Development Tools</p>
-            </div>
-            <div className="header-wallet">
-              <RainbowKitWallet />
             </div>
           </div>
         </header>

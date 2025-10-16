@@ -1,7 +1,6 @@
 import React from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { Wallet, Zap } from 'lucide-react';
-import GlassButton from './ui/GlassButton';
+import { WalletMinimal } from 'lucide-react';
 
 interface RainbowKitWalletProps {
   className?: string;
@@ -27,174 +26,98 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
           (!authenticationStatus ||
             authenticationStatus === 'authenticated');
 
-        return (
-          <div
-            className={className}
-            {...(!ready && {
+        const hiddenState = ready
+          ? {}
+          : {
               'aria-hidden': true,
-              'style': {
+              style: {
                 opacity: 0,
                 pointerEvents: 'none',
                 userSelect: 'none',
-              },
-            })}
-          >
-            {(() => {
-              if (!connected) {
-                return (
-                  <GlassButton
-                    onClick={openConnectModal}
-                    variant="primary"
-                    size="md"
-                    icon={<Wallet size={18} />}
-                    style={{ minWidth: '160px' }}
-                  >
-                    Connect Wallet
-                  </GlassButton>
-                );
-              }
+              } as React.CSSProperties,
+            };
 
-              if (chain.unsupported) {
-                return (
-                  <GlassButton
-                    onClick={openChainModal}
-                    variant="danger"
-                    size="md"
-                    icon={<Zap size={18} />}
-                    style={{ minWidth: '160px' }}
-                  >
-                    Wrong network
-                  </GlassButton>
-                );
-              }
+        const content = (() => {
+          if (!connected) {
+            return (
+              <span
+                role="button"
+                tabIndex={0}
+                className="wallet-icon-inline wallet-icon-inline--disconnected"
+                onClick={openConnectModal}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openConnectModal();
+                  }
+                }}
+                aria-label="Connect wallet"
+                title="Connect wallet"
+              >
+                <WalletMinimal size={18} />
+              </span>
+            );
+          }
 
-              return (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {/* Network Indicator */}
-                  <button
-                    onClick={openChainModal}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 12px',
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      borderRadius: '8px',
-                      color: 'white',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      backdropFilter: 'blur(10px)',
-                    }}
-                    type="button"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                  >
-                    {chain.hasIcon && (
-                      <div
-                        style={{
-                          background: chain.iconBackground,
-                          width: 18,
-                          height: 18,
-                          borderRadius: '50%',
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {chain.iconUrl && (
-                          <img
-                            alt={chain.name ?? 'Chain icon'}
-                            src={chain.iconUrl}
-                            style={{ width: 18, height: 18 }}
-                          />
-                        )}
-                      </div>
-                    )}
-                    {chain.name}
-                  </button>
+          const displayLabel = account.displayName;
+          const truncatedAddress = account.address
+            ? `${account.address.slice(0, 6)}...${account.address.slice(-4)}`
+            : displayLabel;
+          const currentChainName = chain?.name ?? 'Unknown network';
+          const balanceLabel = account.displayBalance
+            ? ` · ${account.displayBalance}`
+            : '';
 
-                  {/* Wallet Address - Prominent like Uniswap */}
-                  <button 
-                    onClick={openAccountModal} 
-                    type="button"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 16px',
-                      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)',
-                      border: '1px solid rgba(102, 126, 234, 0.3)',
-                      borderRadius: '12px',
-                      color: 'white',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      backdropFilter: 'blur(10px)',
-                      minWidth: '160px',
-                      justifyContent: 'space-between',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {/* Connection Status Indicator */}
-                      <div
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: '#22c55e',
-                          boxShadow: '0 0 8px rgba(34, 197, 94, 0.6)',
-                        }}
-                      />
-                      
-                      {/* Wallet Icon */}
-                      <Wallet size={16} />
-                      
-                      {/* Address */}
-                      <span style={{ 
-                        fontFamily: 'monospace',
-                        letterSpacing: '0.5px',
-                        color: '#e2e8f0'
-                      }}>
-                        {account.displayName}
-                      </span>
-                    </div>
-                    
-                    {/* Balance */}
-                    {account.displayBalance && (
-                      <span style={{
-                        fontSize: '12px',
-                        color: '#94a3b8',
-                        fontWeight: '500',
-                        fontFamily: 'monospace',
-                      }}>
-                        {account.displayBalance}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              );
-            })()}
+          if (chain.unsupported) {
+            return (
+              <span
+                role="button"
+                tabIndex={0}
+                className="wallet-icon-inline wallet-icon-inline--unsupported"
+                onClick={openChainModal}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openChainModal();
+                  }
+                }}
+                aria-label="Switch network"
+                title={`Unsupported network · ${currentChainName}. Click to switch.`}
+              >
+                <WalletMinimal size={18} />
+              </span>
+            );
+          }
+
+          return (
+            <>
+              <div className="wallet-inline-info">
+                <span className="wallet-inline-address">{truncatedAddress}</span>
+                <span className="wallet-inline-network">{currentChainName}</span>
+              </div>
+              <span
+                role="button"
+                tabIndex={0}
+                className="wallet-icon-inline wallet-icon-inline--connected"
+                onClick={openAccountModal}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openAccountModal();
+                  }
+                }}
+                aria-label={`Wallet connected · ${displayLabel}`}
+                title={`Wallet connected · ${displayLabel}${balanceLabel}`}
+              >
+                <WalletMinimal size={18} />
+              </span>
+            </>
+          );
+        })();
+
+        return (
+          <div className={`${className} wallet-inline-wrapper`.trim()} {...hiddenState}>
+            {content}
           </div>
         );
       }}

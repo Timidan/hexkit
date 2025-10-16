@@ -69,6 +69,48 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
     open()
   }
 
+  const getWalletIcon = (walletName: string) => {
+    const palette = [
+      '#6366f1',
+      '#22d3ee',
+      '#f59e0b',
+      '#10b981',
+      '#ec4899',
+      '#a855f7',
+    ]
+    const name = walletName || 'Wallet'
+    const initials = name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase()
+
+    const color =
+      palette[Math.abs(name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % palette.length]
+
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: `${color}33`,
+          color,
+          fontSize: '12px',
+          fontWeight: 600,
+          letterSpacing: '0.03em',
+        }}
+      >
+        {initials || 'W'}
+      </span>
+    )
+  }
+
   if (isConnected && address) {
     return (
       <div className="wallet-connection connected">

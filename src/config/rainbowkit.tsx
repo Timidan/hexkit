@@ -92,8 +92,8 @@ const queryClient = new QueryClient();
 
 // Custom theme matching the Web3 Toolkit design system
 const customTheme = darkTheme({
-  accentColor: '#667eea', // Purple accent matching your buttons
-  accentColorForeground: 'white',
+  accentColor: '#14b8a6',
+  accentColorForeground: '#04131c',
   borderRadius: 'medium',
   fontStack: 'system',
   overlayBlur: 'small',
@@ -104,23 +104,50 @@ const web3ToolkitTheme: Theme = {
   ...customTheme,
   colors: {
     ...customTheme.colors,
-    modalBackground: '#1a1a1a', // Dark background matching your cards
-    modalBorder: '#333', // Border matching your design
-    generalBorder: '#333',
-    modalBackdrop: 'rgba(0, 0, 0, 0.8)', // Dark backdrop
-    profileAction: '#2a2a2a', // Button background
-    profileActionHover: '#3a3a3a', // Button hover
-    profileForeground: '#1a1a1a',
-    selectedOptionBorder: '#667eea', // Accent color for selected items
-    standby: '#666', // Secondary text color
+    accentColor: '#14b8a6',
+    accentColorForeground: '#04131c',
+    actionButtonBorder: 'rgba(45, 212, 191, 0.55)',
+    actionButtonSecondaryBackground: 'rgba(9, 15, 24, 0.92)',
+    connectButtonBackground: 'rgba(8, 14, 24, 0.92)',
+    connectButtonInnerBackground: 'rgba(28, 45, 64, 0.78)',
+    connectButtonText: '#e2f5ff',
+    connectButtonTextError: '#fecaca',
+    connectButtonBackgroundError: 'rgba(248, 113, 113, 0.25)',
+    modalBackdrop: 'rgba(2, 6, 14, 0.82)',
+    modalBackground: 'linear-gradient(160deg, rgba(5, 11, 20, 0.96) 0%, rgba(8, 16, 28, 0.92) 100%)',
+    modalBorder: 'rgba(94, 234, 212, 0.25)',
+    modalText: '#f8fafc',
+    modalTextDim: '#93c5fd',
+    modalTextSecondary: '#67e8f9',
+    generalBorder: 'rgba(59, 130, 246, 0.25)',
+    generalBorderDim: 'rgba(15, 23, 42, 0.6)',
+    profileAction: 'rgba(13, 148, 136, 0.15)',
+    profileActionHover: 'rgba(34, 211, 238, 0.25)',
+    profileForeground: 'rgba(5, 10, 20, 0.96)',
+    menuItemBackground: 'rgba(10, 18, 30, 0.78)',
+    selectedOptionBorder: 'rgba(94, 234, 212, 0.65)',
+    downloadTopCardBackground: 'rgba(9, 15, 24, 0.92)',
+    downloadBottomCardBackground: 'rgba(7, 12, 20, 0.88)',
+    connectionIndicator: '#22c55e',
+    standby: '#f59e0b',
+    error: '#f87171',
+  },
+  shadows: {
+    ...customTheme.shadows,
+    connectButton: '0 14px 32px rgba(34, 211, 238, 0.24)',
+    dialog: '0 32px 80px rgba(13, 148, 136, 0.25)',
+    profileDetailsAction: '0 18px 36px rgba(34, 211, 238, 0.2)',
+    selectedOption: '0 16px 40px rgba(125, 211, 252, 0.25)',
+    selectedWallet: '0 18px 44px rgba(56, 189, 248, 0.28)',
+    walletLogo: '0 10px 30px rgba(45, 212, 191, 0.32)',
   },
   radii: {
     ...customTheme.radii,
-    actionButton: '8px', // Matching your border radius
-    connectButton: '8px',
-    menuButton: '8px',
-    modal: '12px',
-    modalMobile: '12px',
+    actionButton: '10px',
+    connectButton: '12px',
+    menuButton: '10px',
+    modal: '16px',
+    modalMobile: '18px',
   },
 };
 
