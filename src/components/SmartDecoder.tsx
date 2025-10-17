@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { JSX } from 'react';
 import { ethers } from 'ethers';
 import {
@@ -27,20 +27,107 @@ import {
   type DecodedParameter 
 } from '../utils/advancedDecoder';
 import { useToolkit } from '../contexts/ToolkitContext';
-import type { Chain } from '../types';
 import DecodedDataViewer from './DecodedDataViewer';
 import AdvancedJsonEditor from './AdvancedJsonEditor';
 import AnimatedInput from './ui/AnimatedInput';
 import AnimatedButton from './ui/AnimatedButton';
-import ContractInfoDisplay from './ContractInfoDisplay';
 import GlassButton from './ui/GlassButton';
 import { CopyIcon } from './icons/IconLibrary';
+import InlineActionButton from './ui/InlineActionButton';
 import { copyTextToClipboard } from '../utils/clipboard';
 import StackedOverview, { type ParameterDisplayEntry as OverviewParameterEntry } from './StackedOverview';
 import { parseFunctionSignatureParameters } from '../utils/solidityTypes';
+import SegmentedControl from './shared/SegmentedControl';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
+
+const ETHERSCAN_INSTANCES = [
+  { name: 'Ethereum Mainnet', url: 'https://api.etherscan.io', chainId: '1', apiKeyParam: 'etherscan' },
+  { name: 'Polygon', url: 'https://api.polygonscan.com', chainId: '137', apiKeyParam: 'polygonscan' },
+  { name: 'BSC', url: 'https://api.bscscan.com', chainId: '56', apiKeyParam: 'bscscan' },
+  { name: 'Arbitrum One', url: 'https://api.arbiscan.io', chainId: '42161', apiKeyParam: 'arbiscan' },
+  { name: 'Optimism', url: 'https://api-optimistic.etherscan.io', chainId: '10', apiKeyParam: 'optimism' },
+  { name: 'Base Mainnet', url: 'https://api.basescan.org', chainId: '8453', apiKeyParam: 'basescan' },
+  { name: 'Avalanche', url: 'https://api.snowtrace.io', chainId: '43114', apiKeyParam: 'snowtrace' },
+  { name: 'Fantom', url: 'https://api.ftmscan.com', chainId: '250', apiKeyParam: 'ftmscan' },
+];
+
+const BLOCKSCOUT_INSTANCES = [
+  { name: 'Ethereum Mainnet', url: 'https://eth.blockscout.com', chainId: '1' },
+  { name: 'Base Mainnet', url: 'https://base.blockscout.com', chainId: '8453' },
+  { name: 'Arbitrum One', url: 'https://arbitrum.blockscout.com', chainId: '42161' },
+  { name: 'Optimism', url: 'https://optimism.blockscout.com', chainId: '10' },
+  { name: 'Polygon', url: 'https://polygon.blockscout.com', chainId: '137' },
+  { name: 'Gnosis Chain', url: 'https://gnosis.blockscout.com', chainId: '100' },
+  { name: 'BSC', url: 'https://bsc.blockscout.com', chainId: '56' },
+  { name: 'Ethereum Classic', url: 'https://etc.blockscout.com', chainId: '61' },
+];
+
+const shortenAddress = (address?: string | null) => {
+  if (!address) return '—';
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+};
+
+type AbiAcquisitionMode = 'address' | 'paste';
+type DecoderViewMode = 'overview' | 'advanced' | 'legacy';
+
+interface AbiSourceOption {
+  value: AbiAcquisitionMode;
+  label: React.ReactNode;
+  description: string;
+}
+
+interface DecoderViewOption {
+  value: DecoderViewMode;
+  title: string;
+  helper: string;
+  tooltip: string;
+}
+
+const ABI_SOURCE_OPTIONS: AbiSourceOption[] = [
+  {
+    value: 'address',
+    label: (
+      <span className="abi-segment-label">
+        <strong>Fetch by Address</strong>
+        <small>Explorer lookup</small>
+      </span>
+    ),
+    description: 'Query verified explorers automatically',
+  },
+  {
+    value: 'paste',
+    label: (
+      <span className="abi-segment-label">
+        <strong>Paste JSON</strong>
+        <small>Manual override</small>
+      </span>
+    ),
+    description: 'Paste JSON or drop a file',
+  },
+];
+
+const DECODER_VIEW_OPTIONS: DecoderViewOption[] = [
+  {
+    value: 'overview',
+    title: 'Overview',
+    helper: 'Summary mode',
+    tooltip: 'High-level cards with decoded arguments.',
+  },
+  {
+    value: 'advanced',
+    title: 'JSON View',
+    helper: 'Raw objects',
+    tooltip: 'Inspect structured JSON for each parameter.',
+  },
+  {
+    value: 'legacy',
+    title: 'Structured View',
+    helper: 'Original layout',
+    tooltip: 'Fallback inspector from the legacy decoder.',
+  },
+];
 
 const SmartDecoder: React.FC = () => {
   const toolkit = useToolkit();
@@ -55,8 +142,10 @@ const SmartDecoder: React.FC = () => {
   const [contractAddress, setContractAddress] = useState('');
   const [isFetchingABI, setIsFetchingABI] = useState(false);
   const [manualABI, setManualABI] = useState('');
+  const [abiAcquisitionMode, setAbiAcquisitionMode] = useState<AbiAcquisitionMode>('address');
+  const [uploadedABIFileName, setUploadedABIFileName] = useState<string | null>(null);
   const [showTransferOptions, setShowTransferOptions] = useState(false);
-  const [viewMode, setViewMode] = useState<'overview' | 'advanced' | 'legacy'>('overview');
+  const [viewMode, setViewMode] = useState<DecoderViewMode>('overview');
   const [expandedParams, setExpandedParams] = useState<Set<number>>(new Set());
   const [contractConfirmation, setContractConfirmation] = useState<{
     show: boolean;
@@ -79,6 +168,70 @@ const SmartDecoder: React.FC = () => {
   const [contractABI, setContractABI] = useState<any[] | null>(null);
   const [contractMetadata, setContractMetadata] = useState<any>(null);
   const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | 'signatures' | 'heuristic' | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const resolvedContractName = useMemo(() => {
+    const candidate = [
+      contractMetadata?.name,
+      contractMetadata?.contractName,
+      contractMetadata?.metadata?.name,
+    ]
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .find((value) => value);
+
+    if (candidate) {
+      return candidate;
+    }
+
+    if (contractAddress) {
+      return `Contract ${shortenAddress(contractAddress)}`;
+    }
+
+    return 'Contract';
+  }, [contractMetadata, contractAddress]);
+
+  const functionCount = useMemo(() => {
+    if (typeof contractMetadata?.functions === 'number') {
+      return contractMetadata.functions;
+    }
+    if (Array.isArray(contractABI)) {
+      return contractABI.filter((item: any) => item?.type === 'function').length;
+    }
+    return 0;
+  }, [contractMetadata, contractABI]);
+
+  const eventCount = useMemo(() => {
+    if (typeof contractMetadata?.events === 'number') {
+      return contractMetadata.events;
+    }
+    if (Array.isArray(contractABI)) {
+      return contractABI.filter((item: any) => item?.type === 'event').length;
+    }
+    return 0;
+  }, [contractMetadata, contractABI]);
+
+  const resolvedAbiSourceLabel = useMemo(() => {
+    if (contractMetadata?.source) {
+      return `${contractMetadata.source} verified`;
+    }
+
+    switch (abiSource) {
+      case 'sourcify':
+        return 'Sourcify verified';
+      case 'blockscout':
+        return 'Blockscout verified';
+      case 'etherscan':
+        return 'Etherscan verified';
+      case 'manual':
+        return 'Manual import';
+      case 'signatures':
+        return 'Signature DB';
+      case 'heuristic':
+        return 'Heuristic match';
+      default:
+        return 'Source unknown';
+    }
+  }, [contractMetadata, abiSource]);
 
   const addDecodingStep = (step: string) => {
     setDecodingSteps(prev => [...prev, step]);
@@ -1289,20 +1442,9 @@ const SmartDecoder: React.FC = () => {
 
   // Fetch ABI from Etherscan-style APIs
   const fetchABIFromEtherscanInstances = async (address: string): Promise<any> => {
-    const etherscanInstances = [
-      { name: 'Ethereum Mainnet', url: 'https://api.etherscan.io', chainId: '1', apiKeyParam: 'etherscan' },
-      { name: 'Polygon', url: 'https://api.polygonscan.com', chainId: '137', apiKeyParam: 'polygonscan' },
-      { name: 'BSC', url: 'https://api.bscscan.com', chainId: '56', apiKeyParam: 'bscscan' },
-      { name: 'Arbitrum One', url: 'https://api.arbiscan.io', chainId: '42161', apiKeyParam: 'arbiscan' },
-      { name: 'Optimism', url: 'https://api-optimistic.etherscan.io', chainId: '10', apiKeyParam: 'optimism' },
-      { name: 'Base Mainnet', url: 'https://api.basescan.org', chainId: '8453', apiKeyParam: 'basescan' },
-      { name: 'Avalanche', url: 'https://api.snowtrace.io', chainId: '43114', apiKeyParam: 'snowtrace' },
-      { name: 'Fantom', url: 'https://api.ftmscan.com', chainId: '250', apiKeyParam: 'ftmscan' },
-    ];
-
     const errors: string[] = [];
 
-    for (const instance of etherscanInstances) {
+    for (const instance of ETHERSCAN_INSTANCES) {
       try {
         addDecodingStep(` Searching ${instance.name} (Etherscan)...`);
         
@@ -1353,20 +1495,9 @@ const SmartDecoder: React.FC = () => {
   };
 
   const fetchABIFromBlockscoutInstances = async (address: string): Promise<any> => {
-    const blockscoutInstances = [
-      { name: 'Ethereum Mainnet', url: 'https://eth.blockscout.com', chainId: '1' },
-      { name: 'Base Mainnet', url: 'https://base.blockscout.com', chainId: '8453' },
-      { name: 'Arbitrum One', url: 'https://arbitrum.blockscout.com', chainId: '42161' },
-      { name: 'Optimism', url: 'https://optimism.blockscout.com', chainId: '10' },
-      { name: 'Polygon', url: 'https://polygon.blockscout.com', chainId: '137' },
-      { name: 'Gnosis Chain', url: 'https://gnosis.blockscout.com', chainId: '100' },
-      { name: 'BSC', url: 'https://bsc.blockscout.com', chainId: '56' },
-      { name: 'Ethereum Classic', url: 'https://etc.blockscout.com', chainId: '61' },
-    ];
-
     const errors: string[] = [];
 
-    for (const instance of blockscoutInstances) {
+    for (const instance of BLOCKSCOUT_INSTANCES) {
       try {
         addDecodingStep(` Searching ${instance.name}...`);
         const response = await fetch(
@@ -1399,6 +1530,75 @@ const SmartDecoder: React.FC = () => {
     }
 
     throw new Error(`Contract not verified on any Blockscout instance: ${errors.join(', ')}`);
+  };
+
+  const fetchContractNameFromEtherscanInstances = async (address: string): Promise<string | null> => {
+    for (const instance of ETHERSCAN_INSTANCES) {
+      try {
+        let apiKey = 'YourApiKeyToken';
+        try {
+          const stored = localStorage.getItem(`apiKey_${instance.apiKeyParam}`);
+          if (stored) apiKey = stored;
+        } catch {
+          // ignore storage errors
+        }
+
+        const response = await fetch(
+          `${instance.url}/api?module=contract&action=getsourcecode&address=${address}&apikey=${apiKey}`,
+          {
+            headers: {
+              Accept: 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = await response.json();
+        if (data.status === '1' && Array.isArray(data.result) && data.result.length > 0) {
+          const record = data.result[0];
+          const contractName = record.ContractName || record.contractName;
+          if (contractName && contractName !== '0') {
+            return contractName;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  };
+
+  const fetchContractNameFromBlockscoutInstances = async (address: string): Promise<string | null> => {
+    for (const instance of BLOCKSCOUT_INSTANCES) {
+      try {
+        const response = await fetch(
+          `${instance.url}/api/v2/smart-contracts/${address}`,
+          {
+            headers: {
+              Accept: 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          continue;
+        }
+
+        const data = await response.json();
+        const candidate = data?.name || data?.contract_name;
+        if (data?.is_verified && typeof candidate === 'string' && candidate.trim()) {
+          return candidate.trim();
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
   };
 
   const fetchABIFromContract = async (address: string): Promise<any> => {
@@ -1486,7 +1686,7 @@ const SmartDecoder: React.FC = () => {
                 // Store ABI and contract metadata for enhanced display
                 setContractABI(abi);
                 setContractMetadata({
-                  name: '', // Will be populated from contract analysis
+                  name: `Contract ${shortenAddress(address)}`,
                   source: source.name,
                   functions: abi.filter((item: any) => item.type === 'function').length,
                   events: abi.filter((item: any) => item.type === 'event').length
@@ -1501,6 +1701,32 @@ const SmartDecoder: React.FC = () => {
                 } else {
                   setAbiSource('etherscan'); // Default fallback
                 }
+
+                (async () => {
+                  try {
+                    let fetchedName: string | null = null;
+                    if (source.name.toLowerCase().includes('blockscout')) {
+                      fetchedName = await fetchContractNameFromBlockscoutInstances(address);
+                      if (!fetchedName) {
+                        fetchedName = await fetchContractNameFromEtherscanInstances(address);
+                      }
+                    } else {
+                      fetchedName = await fetchContractNameFromEtherscanInstances(address);
+                      if (!fetchedName) {
+                        fetchedName = await fetchContractNameFromBlockscoutInstances(address);
+                      }
+                    }
+
+                    if (fetchedName) {
+                      setContractMetadata((prev) => ({
+                        ...(prev ?? {}),
+                        name: fetchedName,
+                      }));
+                    }
+                  } catch (metadataError) {
+                    console.warn('Unable to enrich contract metadata', metadataError);
+                  }
+                })();
                 resolve(abi);
               },
               onContinueSearch: () => {
@@ -1854,7 +2080,7 @@ const SmartDecoder: React.FC = () => {
       // Store manual ABI and metadata for enhanced display
       setContractABI(abi);
       setContractMetadata({
-        name: '', // Will be populated from contract analysis
+        name: 'Manual ABI',
         source: 'Manual ABI',
         functions: abi.filter((item: any) => item.type === 'function').length,
         events: abi.filter((item: any) => item.type === 'event').length
@@ -1911,6 +2137,26 @@ const SmartDecoder: React.FC = () => {
     } catch (err: any) {
       setError(err.message);
       addDecodingStep(` Manual ABI decode failed: ${err.message}`);
+    }
+  };
+
+  const handleAbiFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setUploadedABIFileName(null);
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      setManualABI(text);
+      setAbiAcquisitionMode('paste');
+      setUploadedABIFileName(file.name);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to read ABI file', err);
+      setError('Could not read the selected ABI file. Please try another file.');
+      setUploadedABIFileName(null);
     }
   };
 
@@ -2236,25 +2482,13 @@ const SmartDecoder: React.FC = () => {
         </div>
       </div>
 
-      {/* Decoding Steps */}
-      {viewMode !== 'overview' && decodingSteps.length > 0 && (
-        <div className="result-section">
-          <h4>Decoding Process:</h4>
-          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#6b7280' }}>
-            {decodingSteps.map((step, index) => (
-              <li key={index} style={{ marginBottom: '4px' }}>{step}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* Fallback Options */}
       {showFallbackOptions && (
         <div className="panel">
+          <h3>{decodedResult ? 'Improve Parameter Names' : 'Additional Decoding Options'}</h3>
           {decodedResult ? (
-            <>
-              <h3> Improve Parameter Names</h3>
-              <div style={{
+            <div
+              style={{
                 background: 'rgba(251, 146, 60, 0.1)',
                 border: '1px solid rgba(251, 146, 60, 0.3)',
                 borderRadius: '6px',
@@ -2262,74 +2496,181 @@ const SmartDecoder: React.FC = () => {
                 marginBottom: '16px',
                 fontSize: '13px',
                 color: '#fb923c'
-              }}>
-                <strong>Info:</strong> Function decoded successfully! However, we only have parameter types (not names) from the signature database. 
-                To get real parameter names like "to", "amount", "spender" etc., provide the contract ABI below.
-              </div>
-            </>
+              }}
+            >
+              <strong>Info:</strong> Function decoded successfully! We currently only have parameter types from the signature database.
+              Supply a verified ABI to replace generic labels like `param_0` with descriptive names.
+            </div>
           ) : (
-            <>
-              <h3>Additional Decoding Options</h3>
-              <p>Function signature not found automatically. Try these options:</p>
-            </>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>
+              Function signature not found automatically. Choose how you want to provide an ABI and retry decoding.
+            </p>
           )}
-          
-          <div className="clean-card">
-            <h4 style={{ fontSize: '14px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              {decodedResult ? ' Get Real Parameter Names' : 'Option 1: Contract Address Search'}
-            </h4>
-            <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
-              {decodedResult ? 
-                'Enter the contract address to fetch verified ABI with real parameter names:' :
-                'Search verified contracts across multiple blockchains:'
-              }
-            </p>
-            <div className="form-group">
-              <input
-                type="text"
-                value={contractAddress}
-                onChange={(e) => setContractAddress(e.target.value)}
-                placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
-              />
-            </div>
-            <GlassButton
-              onClick={handleContractABIDecode}
-              disabled={isFetchingABI}
-              variant={decodedResult ? 'success' : 'primary'}
-              size="md"
-            >
-              <Search size={16} style={{ marginRight: '8px' }} />
-              {isFetchingABI ? 'Searching...' : decodedResult ? 'Fetch ABI & Re-decode' : 'Search Contract ABI'}
-            </GlassButton>
-            <small>Searches both Etherscan & Blockscout APIs across Ethereum, Base, Arbitrum, Optimism, Polygon, BSC, Avalanche, Fantom</small>
-          </div>
 
-          <div className="clean-card">
-            <h4 style={{ fontSize: '14px', margin: '0 0 8px 0', fontWeight: '600' }}>
-              {decodedResult ? ' Or Provide ABI Manually' : 'Option 2: Manual ABI'}
-            </h4>
-            <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px 0' }}>
-              {decodedResult ?
-                'Paste the contract ABI to get real parameter names:' :
-                'Paste the contract ABI JSON:'
-              }
+          <div className="abi-inline-shell">
+            <p className="abi-inline-shell__copy">
+              Select how you’d like to provide an ABI source. Swap modes any time while we keep your progress cached.
             </p>
-            <div className="form-group">
-              <textarea
-                value={manualABI}
-                onChange={(e) => setManualABI(e.target.value)}
-                placeholder='[{"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","type":"function"}]'
-                rows={4}
+            <div className="abi-inline-shell__selector">
+              <SegmentedControl
+                className="abi-source-segmented"
+                ariaLabel="ABI source selector"
+                value={abiAcquisitionMode}
+                onChange={(newValue) => setAbiAcquisitionMode(newValue as AbiAcquisitionMode)}
+                options={ABI_SOURCE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label
+                }))}
               />
             </div>
-            <GlassButton
-              onClick={handleManualABIDecode}
-              variant={decodedResult ? 'success' : 'primary'}
-              size="md"
-            >
-              <FileText size={16} style={{ marginRight: '8px' }} />
-              {decodedResult ? 'Re-decode with ABI' : 'Decode with Manual ABI'}
-            </GlassButton>
+            <div className="abi-inline-shell__description">
+              {ABI_SOURCE_OPTIONS.find((opt) => opt.value === abiAcquisitionMode)?.description}
+            </div>
+
+            <div className="abi-inline-shell__body">
+              {abiAcquisitionMode === 'address' && (
+                <div className="abi-inline-sheet__form">
+                  <label className="abi-inline-sheet__label" htmlFor="abi-contract-address">
+                    Contract Address
+                  </label>
+                  <input
+                    id="abi-contract-address"
+                    className="abi-inline-sheet__input"
+                    type="text"
+                    value={contractAddress}
+                    onChange={(e) => setContractAddress(e.target.value)}
+                    placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
+                  />
+                  <GlassButton
+                    onClick={handleContractABIDecode}
+                    disabled={isFetchingABI || !contractAddress.trim()}
+                    variant={decodedResult ? 'success' : 'decoder'}
+                    size="lg"
+                    icon={<Search size={18} strokeWidth={1.6} />}
+                    style={{ width: '100%' }}
+                    className="abi-inline-sheet__button"
+                  >
+                    {isFetchingABI ? 'Searching...' : decodedResult ? 'Fetch ABI & Re-decode' : 'Search Contract ABI'}
+                  </GlassButton>
+                  <small className="abi-inline-sheet__hint">
+                    Searches verified ABIs across Ethereum, Base, Arbitrum, Optimism, Polygon, BSC, Avalanche, and Fantom (Etherscan & Blockscout).
+                  </small>
+                </div>
+              )}
+
+              {abiAcquisitionMode === 'paste' && (
+                <div className="abi-inline-sheet__form">
+                  <label className="abi-inline-sheet__label" htmlFor="abi-manual-json">
+                    Paste ABI JSON
+                  </label>
+                  <div className="abi-local-block is-active">
+                    <div className="abi-local-header">
+                      <span style={{ fontSize: '12px', letterSpacing: '0.05em', textTransform: 'uppercase', color: '#94a3b8' }}>
+                        Manual JSON
+                      </span>
+                      <div className="abi-local-actions">
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {manualABI.trim() ? `${manualABI.trim().length.toLocaleString()} chars` : 'No JSON provided'}
+                        </span>
+                        <InlineActionButton
+                          ariaLabel="Upload ABI JSON file"
+                          title="Upload ABI JSON file"
+                          className="abi-inline-upload"
+                          size={34}
+                          onClick={() => fileInputRef.current?.click()}
+                          icon={
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="18"
+                              height="18"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                              focusable="false"
+                            >
+                              <path d="M12 5v10" />
+                              <path d="m7 10 5-5 5 5" />
+                              <path d="M5 19h14" />
+                            </svg>
+                          }
+                        />
+                      </div>
+                    </div>
+                    <textarea
+                      id="abi-manual-json"
+                      value={manualABI}
+                      onChange={(e) => {
+                        setAbiAcquisitionMode('paste');
+                        setManualABI(e.target.value);
+                      }}
+                      placeholder='[{"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","type":"function"}]'
+                      rows={5}
+                      style={{
+                        fontFamily: 'monospace',
+                        background: 'rgba(15, 23, 42, 0.4)',
+                        borderColor: 'rgba(148, 163, 184, 0.25)',
+                        resize: 'vertical'
+                      }}
+                    />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json,application/json"
+                      style={{ display: 'none' }}
+                      onChange={(event) => {
+                        setAbiAcquisitionMode('paste');
+                        handleAbiFileSelection(event);
+                        if (event.target) {
+                          event.target.value = '';
+                        }
+                      }}
+                    />
+                    {uploadedABIFileName && (
+                      <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>
+                        Selected file: <strong style={{ color: '#e2e8f0' }}>{uploadedABIFileName}</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  {manualABI.trim() && (
+                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+                      Preview:
+                      <pre
+                        style={{
+                          marginTop: '8px',
+                          background: 'rgba(15, 23, 42, 0.35)',
+                          border: '1px solid rgba(148, 163, 184, 0.2)',
+                          borderRadius: '4px',
+                          padding: '12px',
+                          maxHeight: '200px',
+                          overflow: 'auto',
+                          fontFamily: 'monospace',
+                          fontSize: '12px',
+                          color: '#e2e8f0'
+                        }}
+                      >
+                        {manualABI}
+                      </pre>
+                    </div>
+                  )}
+
+                  <GlassButton
+                    onClick={handleManualABIDecode}
+                    variant={decodedResult ? 'success' : 'decoder'}
+                    size="lg"
+                    disabled={!manualABI.trim()}
+                    icon={<FileText size={18} strokeWidth={1.6} />}
+                    style={{ width: '100%' }}
+                    className="abi-inline-sheet__button"
+                  >
+                    {decodedResult ? 'Re-decode with ABI' : 'Decode with Manual ABI'}
+                  </GlassButton>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2342,24 +2683,28 @@ const SmartDecoder: React.FC = () => {
         <div className="panel">
           <h3 style={{ color: '#059669', marginBottom: '16px' }}> Successfully Decoded</h3>
           
-          {/* Enhanced Contract Information Display */}
-          {contractABI && contractAddress && (
-            <div style={{ marginBottom: '24px' }}>
-              <ContractInfoDisplay
-                abi={JSON.stringify(contractABI)}
-                contractAddress={contractAddress}
-                chain={{
-                  id: 1, // Default to Ethereum, will be enhanced later
-                  name: 'Ethereum',
-                  rpcUrl: 'https://eth.llamarpc.com',
-                  explorerUrl: 'https://etherscan.io',
-                  blockExplorer: 'etherscan.io',
-                  apiUrl: 'https://api.etherscan.io',
-                  explorers: [{ name: 'Etherscan', url: 'https://api.etherscan.io', type: 'etherscan' }],
-                  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }
-                } as Chain}
-                contractMetadata={contractMetadata}
-              />
+          {(contractAddress || contractMetadata || abiSource) && (
+            <div className="decoder-contract-meta">
+              <span
+                className="decoder-contract-name"
+                title={contractAddress ? `Contract ${contractAddress}` : 'Contract details unavailable'}
+              >
+                {resolvedContractName}
+              </span>
+              {contractAddress && (
+                <span className="decoder-contract-badge" title={contractAddress}>
+                  {shortenAddress(contractAddress)}
+                </span>
+              )}
+              <span className="decoder-contract-badge" title={`ABI source: ${resolvedAbiSourceLabel}`}>
+                {resolvedAbiSourceLabel}
+              </span>
+              <span className="decoder-contract-badge" title={`Function entries discovered in ABI`}>
+                {functionCount} funcs
+              </span>
+              <span className="decoder-contract-badge" title={`Event entries discovered in ABI`}>
+                {eventCount} events
+              </span>
             </div>
           )}
           
@@ -2397,77 +2742,66 @@ const SmartDecoder: React.FC = () => {
           </div>
 
           {decodedResult.args && decodedResult.args.length > 0 && (
-            <div className="form-group">
-              <label>Function Arguments:</label>
-              
-              <div style={{ 
-                display: 'flex', 
-                gap: '8px', 
-                marginBottom: '16px',
-                flexWrap: 'wrap'
-              }}>
-                <GlassButton
-                  variant={viewMode === 'overview' ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewMode('overview')}
-                >
-                  Overview
-                </GlassButton>
-                <GlassButton
-                  variant={viewMode === 'advanced' ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewMode('advanced')}
-                >
-                  JSON View
-                </GlassButton>
-                <GlassButton
-                  variant={viewMode === 'legacy' ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => setViewMode('legacy')}
-                >
-                  Structured View
-                </GlassButton>
+            <div className="form-group decoder-view-wrapper">
+              <div className="abi-inline-shell decoder-view-shell">
+                <SegmentedControl
+                  className="abi-source-segmented decoder-view-segmented"
+                  ariaLabel="Decoded view selector"
+                  value={viewMode}
+                  onChange={(next) => setViewMode(next as DecoderViewMode)}
+                  options={DECODER_VIEW_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: (
+                      <span className="abi-segment-label" title={option.tooltip}>
+                        <strong>{option.title}</strong>
+                        <small>{option.helper}</small>
+                      </span>
+                    ),
+                  }))}
+                />
               </div>
 
-              {viewMode === 'overview' &&
-                (() => {
-                  const { parameterData } = getParameterDisplayData();
-                  return <StackedOverview parameterData={parameterData} />;
-                })()}
-
-              {viewMode === 'advanced' && (
-                <div className="result-section">
-                  {(() => {
+              <div className="decoder-view-output">
+                {viewMode === 'overview' &&
+                  (() => {
                     const { parameterData } = getParameterDisplayData();
-                    return renderSimplifiedJsonView(decodedResult.args || [], parameterData);
+                    return <StackedOverview parameterData={parameterData} />;
                   })()}
-                </div>
-              )}
 
-              {viewMode === 'legacy' && shouldUseComplexViewer(decodedResult.args) && (
-                <div className="result-section">
-                  {(() => {
-                    const { parameterData } = getParameterDisplayData();
-                    const paramNames = parameterData.map((param, index) =>
-                      param.name ?? `param_${index}`
-                    );
-                    const paramTypes = parameterData.map((param) =>
-                      param.type || getParameterType(param.value)
-                    );
-                    const paramValues = parameterData.map((param) => param.value);
+                {viewMode === 'advanced' && (
+                  <div className="result-section">
+                    {(() => {
+                      const { parameterData } = getParameterDisplayData();
+                      return renderSimplifiedJsonView(decodedResult.args || [], parameterData);
+                    })()}
+                  </div>
+                )}
 
-                    return (
-                      <DecodedDataViewer
-                        data={paramValues}
-                        paramNames={paramNames}
-                        types={paramTypes}
-                        functionName={decodedResult.name}
-                        compact={true}
-                      />
-                    );
-                  })()}
-                </div>
-              )}
+                {viewMode === 'legacy' && shouldUseComplexViewer(decodedResult.args) && (
+                  <div className="result-section">
+                    {(() => {
+                      const { parameterData } = getParameterDisplayData();
+                      const paramNames = parameterData.map((param, index) =>
+                        param.name ?? `param_${index}`
+                      );
+                      const paramTypes = parameterData.map((param) =>
+                        param.type || getParameterType(param.value)
+                      );
+                      const paramValues = parameterData.map((param) => param.value);
+
+                      return (
+                        <DecodedDataViewer
+                          data={paramValues}
+                          paramNames={paramNames}
+                          types={paramTypes}
+                          functionName={decodedResult.name}
+                          compact={true}
+                        />
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           
