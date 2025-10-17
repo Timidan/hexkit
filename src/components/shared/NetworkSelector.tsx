@@ -220,7 +220,7 @@ export interface NetworkSelectorProps {
   showTestnets?: boolean;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'default' | 'compact';
+  variant?: 'default' | 'compact' | 'inline' | 'input';
 }
 
 const NetworkSelector: React.FC<NetworkSelectorProps> = ({
@@ -285,18 +285,13 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           icon: 20,
           dropdown: { fontSize: '13px' }
         };
-      case 'md':
-        return {
-          button: { padding: '12px 16px', fontSize: '16px' },
-          icon: 24,
-          dropdown: { fontSize: '14px' }
-        };
       case 'lg':
         return {
           button: { padding: '16px 20px', fontSize: '18px' },
           icon: 28,
           dropdown: { fontSize: '16px' }
         };
+      case 'md':
       default:
         return {
           button: { padding: '12px 16px', fontSize: '16px' },
@@ -332,14 +327,41 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   };
 
   const dropdownIconSize = Math.max(20, sizeStyles.icon);
+  const isInlineVariant = variant === 'inline';
+  const isInputVariant = variant === 'input';
+  const iconContainerSize =
+    isInlineVariant || isInputVariant ? 32 : sizeStyles.icon + 8;
+  const iconRenderSize = isInlineVariant
+    ? 16
+    : isInputVariant
+    ? 18
+    : sizeStyles.icon;
+  const iconBackground = isInlineVariant
+    ? 'rgba(148, 163, 184, 0.18)'
+    : isInputVariant
+    ? 'rgba(30, 41, 59, 0.9)'
+    : selectedNetwork?.color
+    ? `${selectedNetwork.color}20`
+    : 'rgba(255, 255, 255, 0.1)';
+  const iconBorder = isInlineVariant
+    ? '1px solid rgba(148, 163, 184, 0.28)'
+    : isInputVariant
+    ? '1px solid rgba(148, 163, 184, 0.35)'
+    : selectedNetwork?.color
+    ? `1px solid ${selectedNetwork.color}40`
+    : '1px solid rgba(255, 255, 255, 0.2)';
+  const iconBorderRadius = isInlineVariant || isInputVariant ? '10px' : '8px';
+  const combinedClassName = ['network-selector', `network-selector--${variant}`, className]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
 
   return (
     <div
       ref={containerRef}
-      className={`network-selector ${className}`}
+      className={combinedClassName}
       style={{ position: 'relative' }}
     >
-      {variant === 'default' && (
+      {(variant === 'default' || variant === 'compact') && (
         <label style={{
           fontSize: '14px',
           fontWeight: '600',
@@ -356,61 +378,105 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
 
       {/* Main selector button */}
       <div
+        className="network-selector__button"
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         style={{
           ...sizeStyles.button,
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: variant === 'compact' ? '8px' : '12px',
+          ...(isInputVariant ? { padding: '6px 6px' } : {}),
+          background: isInlineVariant
+            ? 'transparent'
+            : isInputVariant
+            ? 'transparent'
+            : 'rgba(255, 255, 255, 0.08)',
+          border: isInlineVariant
+            ? 'none'
+            : isInputVariant
+            ? 'none'
+            : '1px solid rgba(255, 255, 255, 0.2)',
+          borderRadius: isInlineVariant || isInputVariant ? '10px' : variant === 'compact' ? '8px' : '12px',
           cursor: 'pointer',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          backdropFilter: isInlineVariant || isInputVariant ? 'none' : 'blur(12px)',
+          WebkitBackdropFilter: isInlineVariant || isInputVariant ? 'none' : 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          minWidth: variant === 'compact' ? '140px' : '200px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          justifyContent: isInlineVariant ? 'center' : 'space-between',
+          minWidth: isInlineVariant ? 'auto' : isInputVariant ? '0' : variant === 'compact' ? '140px' : '200px',
+          width: isInlineVariant ? '42px' : isInputVariant ? 'auto' : 'auto',
+          height: isInlineVariant ? '42px' : isInputVariant ? '100%' : 'auto',
+          boxShadow: isInlineVariant || isInputVariant ? 'none' : '0 4px 12px rgba(0, 0, 0, 0.15)'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-          e.currentTarget.style.transform = 'translateY(-1px)';
+          if (isInputVariant) {
+            e.currentTarget.style.background = 'rgba(148, 163, 184, 0.12)';
+          } else if (!isInlineVariant) {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+          }
+          if (!isInputVariant) {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-          e.currentTarget.style.transform = 'translateY(0)';
+          if (isInputVariant) {
+            e.currentTarget.style.background = 'transparent';
+          } else if (!isInlineVariant) {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+          }
+          if (!isInputVariant) {
+            e.currentTarget.style.transform = 'translateY(0)';
+          }
+        }}
+        onFocus={(e) => {
+          if (isInputVariant) {
+            e.currentTarget.style.background = 'rgba(148, 163, 184, 0.12)';
+          }
+        }}
+        onBlur={(e) => {
+          if (isInputVariant) {
+            e.currentTarget.style.background = 'transparent';
+          }
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            fontSize: sizeStyles.icon,
-            width: `${sizeStyles.icon + 8}px`,
-            height: `${sizeStyles.icon + 8}px`,
+        <div
+          style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            background: selectedNetwork?.color ? `${selectedNetwork.color}20` : 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            border: selectedNetwork?.color ? `1px solid ${selectedNetwork.color}40` : '1px solid rgba(255, 255, 255, 0.2)'
-          }}>
-            {renderNetworkIcon(selectedNetwork)}
+            gap: isInlineVariant ? 0 : isInputVariant ? 6 : 12,
+            width: isInputVariant ? 'auto' : '100%',
+            justifyContent: isInlineVariant || isInputVariant ? 'center' : 'flex-start',
+            flex: isInputVariant ? '0 0 auto' : '1 1 auto'
+          }}
+        >
+          <div
+            style={{
+              width: iconContainerSize,
+              height: iconContainerSize,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: iconBackground,
+              borderRadius: iconBorderRadius,
+              border: iconBorder
+            }}
+          >
+            {renderNetworkIcon(selectedNetwork, iconRenderSize)}
           </div>
-          
+
           {variant === 'default' && (
             <div>
-              <div style={{ 
-                fontSize: sizeStyles.button.fontSize, 
-                fontWeight: '600', 
+              <div style={{
+                fontSize: sizeStyles.button.fontSize,
+                fontWeight: '600',
                 color: '#fff',
                 lineHeight: '1.2'
               }}>
                 {selectedNetwork?.name || 'Select Network'}
               </div>
               {selectedNetwork && (
-                <div style={{ 
-                  fontSize: '12px', 
+                <div style={{
+                  fontSize: '12px',
                   color: selectedNetwork.isTestnet ? '#fbbf24' : '#22c55e',
                   marginTop: '2px',
                   display: 'flex',
@@ -425,14 +491,27 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           )}
         </div>
         
-        <ChevronDown
-          size={size === 'sm' ? 16 : size === 'lg' ? 20 : 18}
-          style={{
-            color: 'rgba(255, 255, 255, 0.6)',
-            transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.3s ease'
-          }}
-        />
+        {!isInlineVariant && (
+          <ChevronDown
+            size={
+              isInputVariant
+                ? 16
+                : size === 'sm'
+                ? 16
+                : size === 'lg'
+                ? 20
+                : 18
+            }
+            style={{
+              color: isInputVariant
+                ? 'rgba(148, 163, 184, 0.9)'
+                : 'rgba(255, 255, 255, 0.6)',
+              transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.3s ease',
+              marginLeft: isInputVariant ? '6px' : '0'
+            }}
+          />
+        )}
       </div>
 
       {/* Dropdown menu */}
@@ -440,8 +519,10 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
         <div style={{
           position: 'absolute',
           top: '100%',
-          left: 0,
+          left: isInputVariant ? 'auto' : 0,
           right: 0,
+          width: isInputVariant ? '260px' : 'auto',
+          minWidth: isInputVariant ? '260px' : 'auto',
           background: 'rgba(20, 20, 20, 0.95)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
           borderRadius: '12px',

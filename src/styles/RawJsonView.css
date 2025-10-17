@@ -1,0 +1,65 @@
+.raw-json-panel {
+  position: relative;
+  margin: 0;
+  padding: var(--space-5);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-md);
+}
+
+.raw-json-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.raw-json-copy-button {
+  --inline-copy-size: 36px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: rgba(226, 232, 240, 0.9);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.raw-json-copy-button:hover:not(:disabled),
+.raw-json-copy-button:focus-visible {
+  background: rgba(59, 130, 246, 0.18);
+  color: #f8fafc;
+}
+
+.raw-json-pre {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: var(--bg-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.68;
+  color: rgba(229, 231, 235, 0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.raw-json-pre code {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .raw-json-panel {
+    padding: var(--space-4);
+  }
+
+  .raw-json-pre {
+    padding: var(--space-3);
+  }
+
+  .raw-json-copy-button {
+    --inline-copy-size: 32px;
+  }
+}

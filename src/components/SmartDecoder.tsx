@@ -6,7 +6,6 @@ import {
   XCircle,
   Search,
   FileText,
-  Settings,
   Sparkles,
   Building2,
   Code2,
@@ -27,7 +26,6 @@ import {
   type DecodedParameter 
 } from '../utils/advancedDecoder';
 import { useToolkit } from '../contexts/ToolkitContext';
-import DecodedDataViewer from './DecodedDataViewer';
 import AdvancedJsonEditor from './AdvancedJsonEditor';
 import AnimatedInput from './ui/AnimatedInput';
 import AnimatedButton from './ui/AnimatedButton';
@@ -38,6 +36,8 @@ import { copyTextToClipboard } from '../utils/clipboard';
 import StackedOverview, { type ParameterDisplayEntry as OverviewParameterEntry } from './StackedOverview';
 import { parseFunctionSignatureParameters } from '../utils/solidityTypes';
 import SegmentedControl from './shared/SegmentedControl';
+import RawJsonView from './RawJsonView';
+import NetworkSelector, { EXTENDED_NETWORKS, type ExtendedChain } from './shared/NetworkSelector';
 import '../styles/AdvancedJsonEditor.css';
 import '../styles/AnimatedInput.css';
 import '../styles/AnimatedButton.css';
@@ -70,7 +70,7 @@ const shortenAddress = (address?: string | null) => {
 };
 
 type AbiAcquisitionMode = 'address' | 'paste';
-type DecoderViewMode = 'overview' | 'advanced' | 'legacy';
+type DecoderViewMode = 'overview' | 'raw';
 
 interface AbiSourceOption {
   value: AbiAcquisitionMode;
@@ -116,16 +116,32 @@ const DECODER_VIEW_OPTIONS: DecoderViewOption[] = [
     tooltip: 'High-level cards with decoded arguments.',
   },
   {
-    value: 'advanced',
-    title: 'JSON View',
-    helper: 'Raw objects',
-    tooltip: 'Inspect structured JSON for each parameter.',
+    value: 'raw',
+    title: 'Raw JSON',
+    helper: 'Exact payload',
+    tooltip: 'Direct JSON output of the decoded arguments.',
+  },
+];
+
+type LookupMode = 'multi' | 'single';
+
+const LOOKUP_MODE_OPTIONS: Array<{
+  value: LookupMode;
+  title: string;
+  helper: string;
+  tooltip: string;
+}> = [
+  {
+    value: 'multi',
+    title: 'Multi Network',
+    helper: 'All explorers',
+    tooltip: 'Search all supported mainnet explorers for a verified ABI.',
   },
   {
-    value: 'legacy',
-    title: 'Structured View',
-    helper: 'Original layout',
-    tooltip: 'Fallback inspector from the legacy decoder.',
+    value: 'single',
+    title: 'Targeted',
+    helper: 'Choose network',
+    tooltip: 'Specify a single network explorer to speed up lookup (supports testnets).',
   },
 ];
 
@@ -140,13 +156,14 @@ const SmartDecoder: React.FC = () => {
   // Fallback options state
   const [showFallbackOptions, setShowFallbackOptions] = useState(false);
   const [contractAddress, setContractAddress] = useState('');
+  const [lookupMode, setLookupMode] = useState<LookupMode>('multi');
+  const [selectedLookupNetwork, setSelectedLookupNetwork] = useState<ExtendedChain | null>(null);
   const [isFetchingABI, setIsFetchingABI] = useState(false);
   const [manualABI, setManualABI] = useState('');
   const [abiAcquisitionMode, setAbiAcquisitionMode] = useState<AbiAcquisitionMode>('address');
   const [uploadedABIFileName, setUploadedABIFileName] = useState<string | null>(null);
   const [showTransferOptions, setShowTransferOptions] = useState(false);
   const [viewMode, setViewMode] = useState<DecoderViewMode>('overview');
-  const [expandedParams, setExpandedParams] = useState<Set<number>>(new Set());
   const [contractConfirmation, setContractConfirmation] = useState<{
     show: boolean;
     contractInfo: any;
@@ -169,6 +186,13 @@ const SmartDecoder: React.FC = () => {
   const [contractMetadata, setContractMetadata] = useState<any>(null);
   const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | 'signatures' | 'heuristic' | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (lookupMode === 'single' && !selectedLookupNetwork) {
+      const defaultNetwork = EXTENDED_NETWORKS.find((network) => !network.isTestnet) ?? null;
+      setSelectedLookupNetwork(defaultNetwork);
+    }
+  }, [lookupMode, selectedLookupNetwork]);
 
   const resolvedContractName = useMemo(() => {
     const candidate = [
@@ -210,43 +234,8 @@ const SmartDecoder: React.FC = () => {
     return 0;
   }, [contractMetadata, contractABI]);
 
-  const resolvedAbiSourceLabel = useMemo(() => {
-    if (contractMetadata?.source) {
-      return `${contractMetadata.source} verified`;
-    }
-
-    switch (abiSource) {
-      case 'sourcify':
-        return 'Sourcify verified';
-      case 'blockscout':
-        return 'Blockscout verified';
-      case 'etherscan':
-        return 'Etherscan verified';
-      case 'manual':
-        return 'Manual import';
-      case 'signatures':
-        return 'Signature DB';
-      case 'heuristic':
-        return 'Heuristic match';
-      default:
-        return 'Source unknown';
-    }
-  }, [contractMetadata, abiSource]);
-
   const addDecodingStep = (step: string) => {
     setDecodingSteps(prev => [...prev, step]);
-  };
-
-  const toggleParamExpansion = (paramIndex: number) => {
-    setExpandedParams(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(paramIndex)) {
-        newSet.delete(paramIndex);
-      } else {
-        newSet.add(paramIndex);
-      }
-      return newSet;
-    });
   };
 
   const toggleValueExpansion = (valueId: string) => {
@@ -406,7 +395,6 @@ const SmartDecoder: React.FC = () => {
     setShowTransferOptions(false);
     setContractAddress('');
     setManualABI('');
-    setExpandedParams(new Set());
     setContractABI(null);
     setContractMetadata(null);
     setAbiSource(null);
@@ -783,227 +771,6 @@ const SmartDecoder: React.FC = () => {
         })}
       </div>
     );
-  };
-
-  // JSON-style view with expandable sections like simple view
-  const renderSimplifiedJsonView = (data: any[], parameterData: any[]) => {
-    const renderValue = (value: any, depth: number = 0): JSX.Element => {
-      const indent = depth * 20;
-      
-      if (Array.isArray(value)) {
-        return (
-          <div style={{ marginLeft: `${indent}px` }}>
-            <div style={{ color: '#6b7280', fontSize: '12px', marginBottom: '4px' }}>
-              [{value.length} items]
-            </div>
-            {value.map((item, index) => (
-              <div key={index} style={{ marginBottom: '6px', paddingLeft: '12px' }}>
-                <span style={{ color: '#6b7280', fontSize: '11px', minWidth: '30px', display: 'inline-block' }}>
-                  [{index}]:
-                </span>
-                <div style={{ marginLeft: '8px' }}>
-                  {renderValue(item, depth + 1)}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      }
-      
-      if (value && typeof value === 'object') {
-        return (
-          <div style={{ marginLeft: `${indent}px` }}>
-            {Object.entries(value).map(([key, val]) => (
-              <div key={key} style={{ marginBottom: '4px' }}>
-                <span style={{ color: '#3b82f6', fontSize: '11px', fontWeight: '500' }}>
-                  {key}:
-                </span>
-                <div style={{ marginLeft: '12px' }}>
-                  {renderValue(val, depth + 1)}
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      }
-      
-      return (
-        <code style={{
-          background: 'rgba(59, 130, 246, 0.1)',
-          padding: '2px 6px',
-          borderRadius: '3px',
-          fontSize: '11px',
-          fontFamily: 'Monaco, Menlo, monospace',
-          color: '#374151',
-          marginLeft: '8px'
-        }}>
-          {formatParameterValue(value)}
-          {typeof value === 'string' && value.length > 20 && value.match(/^0x[a-fA-F0-9]{8,}$/) && (
-            <span style={{ fontSize: '9px', color: '#22c55e', marginLeft: '4px' }}>
-              (potential calldata)
-            </span>
-          )}
-        </code>
-      );
-    };
-
-    return (
-      <div style={{ 
-        background: 'rgba(59, 130, 246, 0.02)', 
-        border: '1px solid rgba(59, 130, 246, 0.2)', 
-        borderRadius: '6px', 
-        padding: '16px',
-        fontSize: '12px'
-      }}>
-        <div style={{ marginBottom: '12px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>
-          Decoded Parameters (JSON-style view):
-        </div>
-        
-        {parameterData.map((param: any, index: number) => {
-          const isExpandable = Array.isArray(param.value) && 
-            (param.type?.includes('tuple') || param.value.some((item: any) => Array.isArray(item)));
-          const isExpanded = expandedParams.has(index);
-          
-          return (
-            <div key={index} style={{ marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid rgba(59, 130, 246, 0.1)' }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                marginBottom: '4px',
-                cursor: isExpandable ? 'pointer' : 'default'
-              }} onClick={isExpandable ? () => toggleParamExpansion(index) : undefined}>
-                {isExpandable && (
-                  <div style={{ marginRight: '8px', color: '#3b82f6' }}>
-                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </div>
-                )}
-                <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
-                  "{param.name}"
-                </span>
-                <span style={{ 
-                  color: '#6b7280', 
-                  fontSize: '11px', 
-                  marginLeft: '8px',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  padding: '1px 4px',
-                  borderRadius: '3px'
-                }}>
-                  {param.type}
-                </span>
-              </div>
-              
-              {/* Show summary or full value */}
-              {!isExpandable || !isExpanded ? (
-                <div style={{ marginLeft: isExpandable ? '22px' : '0' }}>
-                  <code style={{
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontFamily: 'Monaco, Menlo, monospace',
-                    color: '#374151',
-                    display: 'block',
-                    wordBreak: 'break-all'
-                  }}>
-                    {Array.isArray(param.value) && param.value.length > 0 ? 
-                      renderExpandableArray(param.value, `json-param-${index}-value`, param.type) :
-                      formatParameterValue(param.value, param.type)
-                    }
-                    {isExpandable && (
-                      <span style={{ 
-                        fontSize: '10px', 
-                        color: '#6b7280', 
-                        marginLeft: '8px',
-                        fontStyle: 'italic'
-                      }}>
-                        (click arrow to expand)
-                      </span>
-                    )}
-                  </code>
-                </div>
-              ) : null}
-              
-              {/* Expanded details */}
-              {isExpandable && isExpanded && (
-                <div style={{
-                  marginLeft: '22px',
-                  marginTop: '8px',
-                  padding: '12px',
-                  background: 'rgba(59, 130, 246, 0.02)',
-                  border: '1px solid rgba(59, 130, 246, 0.1)',
-                  borderRadius: '6px'
-                }}>
-                  <div style={{ 
-                    fontSize: '11px', 
-                    color: '#6b7280', 
-                    marginBottom: '8px',
-                    fontWeight: '600'
-                  }}>
-                    Detailed Structure:
-                  </div>
-                  {(() => {
-                    // Try to get ABI components for this parameter
-                    let abiComponents = null;
-                    
-                    // Check if we have toolkit context with ABI info
-                    const toolkitTransaction = toolkit.lastDecodedTransaction;
-                    if (toolkitTransaction?.abi) {
-                      try {
-                        const abi = toolkitTransaction.abi;
-                        // Find the function in the ABI
-                        const matchingFunction = abi.find((item: any) => 
-                          item.type === 'function' && item.name === toolkitTransaction.functionName
-                        );
-                        if (matchingFunction?.inputs) {
-                          const paramInput = matchingFunction.inputs[index];
-                          if (paramInput?.components) {
-                            abiComponents = paramInput.components;
-                          }
-                        }
-                      } catch (error) {
-                        console.log('Could not extract ABI components:', error);
-                      }
-                    }
-                    
-                    return renderTupleDetails(param.value, param.type, 0, abiComponents);
-                  })()}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const shouldUseComplexViewer = (args: any[]): boolean => {
-    // Use complex viewer if:
-    // 1. More than 4 parameters
-    // 2. Any parameter is an array
-    // 3. Any parameter looks like encoded data (long hex strings)
-    // 4. Combined string length of all parameters > 200 characters
-    
-    if (args.length > 4) return true;
-    
-    const totalStringLength = args.reduce((acc, arg) => {
-      return acc + String(arg).length;
-    }, 0);
-    
-    if (totalStringLength > 200) return true;
-    
-    return args.some(arg => {
-      // Check if it's an array
-      if (Array.isArray(arg)) return true;
-      
-      // Check for long hex strings (likely encoded data)
-      const str = String(arg);
-      if (str.startsWith('0x') && str.length > 50) return true;
-      
-      // Check if it looks like a long comma-separated list
-      if (str.includes(',') && str.split(',').length > 8) return true;
-      
-      return false;
-    });
   };
 
   const handleTransferToBuilder = () => {
@@ -1441,10 +1208,18 @@ const SmartDecoder: React.FC = () => {
   };
 
   // Fetch ABI from Etherscan-style APIs
-  const fetchABIFromEtherscanInstances = async (address: string): Promise<any> => {
+  const fetchABIFromEtherscanInstances = async (address: string, chainId?: string): Promise<any> => {
     const errors: string[] = [];
 
-    for (const instance of ETHERSCAN_INSTANCES) {
+    const instances = chainId
+      ? ETHERSCAN_INSTANCES.filter((instance) => instance.chainId === String(chainId))
+      : ETHERSCAN_INSTANCES;
+
+    if (!instances.length) {
+      throw new Error('No Etherscan-style explorer configured for the selected network');
+    }
+
+    for (const instance of instances) {
       try {
         addDecodingStep(` Searching ${instance.name} (Etherscan)...`);
         
@@ -1494,10 +1269,18 @@ const SmartDecoder: React.FC = () => {
     throw new Error(`Contract not verified on any Etherscan instance: ${errors.join(', ')}`);
   };
 
-  const fetchABIFromBlockscoutInstances = async (address: string): Promise<any> => {
+  const fetchABIFromBlockscoutInstances = async (address: string, chainId?: string): Promise<any> => {
     const errors: string[] = [];
 
-    for (const instance of BLOCKSCOUT_INSTANCES) {
+    const instances = chainId
+      ? BLOCKSCOUT_INSTANCES.filter((instance) => instance.chainId === String(chainId))
+      : BLOCKSCOUT_INSTANCES;
+
+    if (!instances.length) {
+      throw new Error('No Blockscout explorer configured for the selected network');
+    }
+
+    for (const instance of instances) {
       try {
         addDecodingStep(` Searching ${instance.name}...`);
         const response = await fetch(
@@ -1532,8 +1315,12 @@ const SmartDecoder: React.FC = () => {
     throw new Error(`Contract not verified on any Blockscout instance: ${errors.join(', ')}`);
   };
 
-  const fetchContractNameFromEtherscanInstances = async (address: string): Promise<string | null> => {
-    for (const instance of ETHERSCAN_INSTANCES) {
+  const fetchContractNameFromEtherscanInstances = async (address: string, chainId?: string): Promise<string | null> => {
+    const instances = chainId
+      ? ETHERSCAN_INSTANCES.filter((instance) => instance.chainId === String(chainId))
+      : ETHERSCAN_INSTANCES;
+
+    for (const instance of instances) {
       try {
         let apiKey = 'YourApiKeyToken';
         try {
@@ -1572,8 +1359,12 @@ const SmartDecoder: React.FC = () => {
     return null;
   };
 
-  const fetchContractNameFromBlockscoutInstances = async (address: string): Promise<string | null> => {
-    for (const instance of BLOCKSCOUT_INSTANCES) {
+  const fetchContractNameFromBlockscoutInstances = async (address: string, chainId?: string): Promise<string | null> => {
+    const instances = chainId
+      ? BLOCKSCOUT_INSTANCES.filter((instance) => instance.chainId === String(chainId))
+      : BLOCKSCOUT_INSTANCES;
+
+    for (const instance of instances) {
       try {
         const response = await fetch(
           `${instance.url}/api/v2/smart-contracts/${address}`,
@@ -1641,12 +1432,66 @@ const SmartDecoder: React.FC = () => {
   const fetchABIWithConfirmation = async (address: string): Promise<any> => {
     return new Promise((resolve, reject) => {
       let currentSourceIndex = 0;
+      const chainIdForLookup =
+        lookupMode === 'single' && selectedLookupNetwork
+          ? String(selectedLookupNetwork.id)
+          : undefined;
+      const networkLabel = chainIdForLookup ? selectedLookupNetwork?.name : undefined;
       
-      // Define search sources in priority order
-      const searchSources = [
-        { name: 'Etherscan', fetch: () => fetchABIFromEtherscanInstances(address) },
-        { name: 'Blockscout', fetch: () => fetchABIFromBlockscoutInstances(address) }
-      ];
+      // Define search sources based on lookup mode
+      const searchSources: Array<{
+        name: string;
+        fetch: () => Promise<any>;
+        kind: 'etherscan' | 'blockscout';
+      }> = [];
+
+      if (chainIdForLookup) {
+        const etherscanMatches = ETHERSCAN_INSTANCES.filter(
+          (instance) => instance.chainId === chainIdForLookup
+        );
+        const blockscoutMatches = BLOCKSCOUT_INSTANCES.filter(
+          (instance) => instance.chainId === chainIdForLookup
+        );
+
+        if (etherscanMatches.length > 0) {
+          searchSources.push({
+            name: `Etherscan • ${etherscanMatches[0].name}`,
+            fetch: () => fetchABIFromEtherscanInstances(address, chainIdForLookup),
+            kind: 'etherscan'
+          });
+        }
+
+        if (blockscoutMatches.length > 0) {
+          searchSources.push({
+            name: `Blockscout • ${blockscoutMatches[0].name}`,
+            fetch: () => fetchABIFromBlockscoutInstances(address, chainIdForLookup),
+            kind: 'blockscout'
+          });
+        }
+      } else {
+        searchSources.push(
+          {
+            name: 'Etherscan (multi)',
+            fetch: () => fetchABIFromEtherscanInstances(address),
+            kind: 'etherscan'
+          },
+          {
+            name: 'Blockscout (multi)',
+            fetch: () => fetchABIFromBlockscoutInstances(address),
+            kind: 'blockscout'
+          }
+        );
+      }
+
+      if (searchSources.length === 0) {
+        setCurrentSearchProgress([]);
+        reject(
+          new Error(
+            'The selected network does not have an explorer integration yet. Try multi-network lookup or paste an ABI manually.'
+          )
+        );
+        return;
+      }
       
       const errors: string[] = [];
 
@@ -1661,14 +1506,18 @@ const SmartDecoder: React.FC = () => {
         
         try {
           if (currentSourceIndex === 0) {
-            setCurrentSearchProgress([' Starting multi-chain search...']);
+            setCurrentSearchProgress([
+              chainIdForLookup
+                ? `Targeting ${networkLabel || 'selected'} network explorers...`
+                : 'Starting multi-network search...'
+            ]);
           }
-          setCurrentSearchProgress(prev => [...prev, ` Searching ${source.name}...`]);
+          setCurrentSearchProgress(prev => [...prev, `Searching ${source.name}...`]);
           
           const abi = await source.fetch();
           
           if (Array.isArray(abi)) {
-            setCurrentSearchProgress(prev => [...prev, ` Found verified contract on ${source.name}!`]);
+            setCurrentSearchProgress(prev => [...prev, `Found verified contract on ${source.name}!`]);
             
             // Show confirmation dialog
             setContractConfirmation({
@@ -1692,11 +1541,9 @@ const SmartDecoder: React.FC = () => {
                   events: abi.filter((item: any) => item.type === 'event').length
                 });
                 // Set ABI source based on the source name
-                if (source.name.toLowerCase().includes('sourcify')) {
-                  setAbiSource('sourcify');
-                } else if (source.name.toLowerCase().includes('blockscout')) {
+                if (source.kind === 'blockscout') {
                   setAbiSource('blockscout');
-                } else if (source.name.toLowerCase().includes('etherscan')) {
+                } else if (source.kind === 'etherscan') {
                   setAbiSource('etherscan');
                 } else {
                   setAbiSource('etherscan'); // Default fallback
@@ -1705,15 +1552,15 @@ const SmartDecoder: React.FC = () => {
                 (async () => {
                   try {
                     let fetchedName: string | null = null;
-                    if (source.name.toLowerCase().includes('blockscout')) {
-                      fetchedName = await fetchContractNameFromBlockscoutInstances(address);
+                    if (source.kind === 'blockscout') {
+                      fetchedName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
                       if (!fetchedName) {
-                        fetchedName = await fetchContractNameFromEtherscanInstances(address);
+                        fetchedName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
                       }
                     } else {
-                      fetchedName = await fetchContractNameFromEtherscanInstances(address);
+                      fetchedName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
                       if (!fetchedName) {
-                        fetchedName = await fetchContractNameFromBlockscoutInstances(address);
+                        fetchedName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
                       }
                     }
 
@@ -1740,7 +1587,7 @@ const SmartDecoder: React.FC = () => {
           }
         } catch (error: any) {
           errors.push(`${source.name}: ${error.message}`);
-          setCurrentSearchProgress(prev => [...prev, ` ${source.name}: ${error.message}`]);
+          setCurrentSearchProgress(prev => [...prev, `${source.name}: ${error.message}`]);
         }
         
         // Move to next source
@@ -1988,6 +1835,25 @@ const SmartDecoder: React.FC = () => {
       return;
     }
 
+    if (lookupMode === 'single' && !selectedLookupNetwork) {
+      addDecodingStep(' Select a network before starting a targeted lookup.');
+      setError('Select a network to target before decoding.');
+      return;
+    }
+
+    if (lookupMode === 'single' && selectedLookupNetwork) {
+      const chainId = String(selectedLookupNetwork.id);
+      const hasExplorerSupport =
+        ETHERSCAN_INSTANCES.some((instance) => instance.chainId === chainId) ||
+        BLOCKSCOUT_INSTANCES.some((instance) => instance.chainId === chainId);
+
+      if (!hasExplorerSupport) {
+        addDecodingStep(` Selected network ${selectedLookupNetwork.name} is not supported by our explorer integrations yet.`);
+        setError('Selected network is not supported for automatic lookup yet. Try multi-network search or provide an ABI manually.');
+        return;
+      }
+    }
+
     setIsFetchingABI(true);
     setError(null);
     
@@ -1995,6 +1861,14 @@ const SmartDecoder: React.FC = () => {
       const selector = extractFunctionSelector(calldata);
       if (!selector) {
         throw new Error('Invalid calldata format');
+      }
+
+      if (lookupMode === 'single' && selectedLookupNetwork) {
+        addDecodingStep(
+          ` Targeted lookup on ${selectedLookupNetwork.name} (${selectedLookupNetwork.isTestnet ? 'testnet' : 'mainnet'})`
+        );
+      } else {
+        addDecodingStep(' Multi-network lookup enabled (Etherscan + Blockscout)');
       }
 
       addDecodingStep(` Fetching ABI for contract: ${contractAddress}`);
@@ -2348,8 +2222,23 @@ const SmartDecoder: React.FC = () => {
   return (
     <div className="smart-decoder">
       <div className="panel">
-        <h2>Smart Transaction Decoder</h2>
-        <p>Automatically finds function signatures and decodes calldata with multi-chain ABI lookup.</p>
+        <div className="decoder-header">
+          <div className="decoder-headline">
+            <h2>Smart Transaction Decoder</h2>
+            <p>Automatically finds function signatures and decodes calldata with multi-chain ABI lookup.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvancedOptions(true)}
+            className="decoder-settings-trigger"
+            aria-label="Open decoder settings"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.05.05a2 2 0 1 1-2.83 2.83l-.05-.05A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1.12V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.05.05a2 2 0 1 1-2.83-2.83l.05-.05A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.12-.33H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.05-.05a2 2 0 1 1 2.83-2.83l.05.05A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1.12V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.05-.05a2 2 0 1 1 2.83 2.83l-.05.05A1.65 1.65 0 0 0 19.4 9c.26.4.4.87.33 1.34a1.65 1.65 0 0 0 .6 1 1.65 1.65 0 0 0 1.12.33H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.12.33 1.65 1.65 0 0 0-.39 1.3Z" />
+            </svg>
+          </button>
+        </div>
 
         <div className="form-group">
           <label>Transaction Calldata</label>
@@ -2365,108 +2254,30 @@ const SmartDecoder: React.FC = () => {
 
         <div className="form-group">
           <label>Contract Address (optional, for better parameter names)</label>
-          <input
-            type="text"
-            value={contractAddress}
-            onChange={(e) => setContractAddress(e.target.value)}
-            placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
-            className="input-textarea"
-          />
-          <small>If provided, we'll fetch the verified ABI first for real parameter names</small>
-        </div>
-
-        {/* Advanced Options Panel */}
-        <div className="form-group">
-          <div className="action-bar" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 0',
-            borderBottom: showAdvancedOptions ? '1px solid rgba(59, 130, 246, 0.2)' : 'none',
-            marginBottom: showAdvancedOptions ? '12px' : '0'
-          }}>
-            <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>Advanced Options</span>
-            <button 
-              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-              style={{
-                background: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                borderRadius: '6px',
-                padding: '6px 12px',
-                fontSize: '12px',
-                cursor: 'pointer',
-                color: '#3b82f6',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <Settings size={14} />
-              Settings {showAdvancedOptions ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            </button>
-          </div>
-
-          {showAdvancedOptions && (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '12px',
-              padding: '12px',
-              background: 'rgba(59, 130, 246, 0.02)',
-              border: '1px solid rgba(59, 130, 246, 0.1)',
-              borderRadius: '6px',
-              marginBottom: '16px'
-            }}>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={enableHeuristics}
-                  onChange={(e) => setEnableHeuristics(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
+          <div className={`decoder-address-wrapper${lookupMode === 'single' ? ' has-selector' : ''}`}>
+            <div className="decoder-address-field">
+              <input
+                type="text"
+                value={contractAddress}
+                onChange={(e) => setContractAddress(e.target.value)}
+                placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
+                className="decoder-address-field__input"
+              />
+              {lookupMode === 'single' ? (
+                <NetworkSelector
+                  selectedNetwork={selectedLookupNetwork}
+                  onNetworkChange={(network) => setSelectedLookupNetwork(network)}
+                  size="sm"
+                  variant="input"
+                  showTestnets={true}
+                  className="decoder-address-field__selector"
                 />
-                <Sparkles size={14} style={{ color: '#8b5cf6' }} />
-                Enable heuristic decoding without ABI
-              </label>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={enableSignatureLookup}
-                  onChange={(e) => setEnableSignatureLookup(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <Search size={14} style={{ color: '#059669' }} />
-                Enhanced signature database lookup
-              </label>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showAlternativeResults}
-                  onChange={(e) => setShowAlternativeResults(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <Building2 size={14} style={{ color: '#dc2626' }} />
-                Show alternative decoding results
-              </label>
+              ) : (
+                <span className="decoder-address-field__badge">All explorers</span>
+              )}
             </div>
-          )}
+          </div>
+          <small>If provided, we'll fetch the verified ABI first for real parameter names</small>
         </div>
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
@@ -2481,6 +2292,118 @@ const SmartDecoder: React.FC = () => {
           </GlassButton>
         </div>
       </div>
+
+      {showAdvancedOptions && (
+        <div
+          className="decoder-settings-overlay active"
+          onClick={() => setShowAdvancedOptions(false)}
+        >
+          <div
+            className="decoder-settings-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="decoder-settings-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="decoder-settings-modal-header">
+              <div>
+                <p id="decoder-settings-title">Advanced Decoder Settings</p>
+                <span>Adjust optional heuristics and lookup behaviour.</span>
+              </div>
+              <button
+                type="button"
+                className="decoder-settings-close"
+                aria-label="Close settings"
+                onClick={() => setShowAdvancedOptions(false)}
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="decoder-advanced-panel">
+              <label className="decoder-advanced-toggle">
+                <span className="decoder-advanced-icon">
+                  <span className="decoder-segmented-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="6" rx="2" />
+                      <rect x="3" y="14" width="18" height="6" rx="2" />
+                      <circle cx="9" cy="7" r="2" />
+                      <circle cx="15" cy="17" r="2" />
+                    </svg>
+                  </span>
+                </span>
+                <span className="decoder-advanced-text">
+                  <strong>Default explorer mode</strong>
+                  <small>Decide whether we search all explorers or target one network.</small>
+                </span>
+                <SegmentedControl
+                  className="abi-source-segmented decoder-lookup-segmented"
+                  ariaLabel="ABI lookup mode selector"
+                  value={lookupMode}
+                  onChange={(next) => setLookupMode(next as LookupMode)}
+                  options={LOOKUP_MODE_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: (
+                      <span className="abi-segment-label" title={option.tooltip}>
+                        <strong>{option.title}</strong>
+                        <small>{option.helper}</small>
+                      </span>
+                    )
+                  }))}
+                />
+              </label>
+
+              <label className="decoder-advanced-toggle">
+                <input
+                  type="checkbox"
+                  checked={enableHeuristics}
+                  onChange={(e) => setEnableHeuristics(e.target.checked)}
+                />
+                <span className="decoder-advanced-icon">
+                  <Sparkles size={14} />
+                </span>
+                <span className="decoder-advanced-text">
+                  <strong>Heuristic decoding</strong>
+                  <small>Try pattern-based decoding when ABI is missing.</small>
+                </span>
+              </label>
+
+              <label className="decoder-advanced-toggle">
+                <input
+                  type="checkbox"
+                  checked={enableSignatureLookup}
+                  onChange={(e) => setEnableSignatureLookup(e.target.checked)}
+                />
+                <span className="decoder-advanced-icon">
+                  <Search size={14} />
+                </span>
+                <span className="decoder-advanced-text">
+                  <strong>Signature databases</strong>
+                  <small>Query public signature registries when ABI is unavailable.</small>
+                </span>
+              </label>
+
+              <label className="decoder-advanced-toggle">
+                <input
+                  type="checkbox"
+                  checked={showAlternativeResults}
+                  onChange={(e) => setShowAlternativeResults(e.target.checked)}
+                />
+                <span className="decoder-advanced-icon">
+                  <Building2 size={14} />
+                </span>
+                <span className="decoder-advanced-text">
+                  <strong>Alternative attempts</strong>
+                  <small>Display lower-confidence matches for manual inspection.</small>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fallback Options */}
       {showFallbackOptions && (
@@ -2533,14 +2456,39 @@ const SmartDecoder: React.FC = () => {
                   <label className="abi-inline-sheet__label" htmlFor="abi-contract-address">
                     Contract Address
                   </label>
-                  <input
-                    id="abi-contract-address"
-                    className="abi-inline-sheet__input"
-                    type="text"
-                    value={contractAddress}
-                    onChange={(e) => setContractAddress(e.target.value)}
-                    placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
-                  />
+                  <div className="decoder-network-mode">
+                    <div className={`decoder-address-wrapper${lookupMode === 'single' ? ' has-selector' : ''}`}>
+                      <div className="decoder-address-field decoder-address-field--abi">
+                        <input
+                          id="abi-contract-address"
+                          className="decoder-address-field__input decoder-address-field__input--abi"
+                          type="text"
+                          value={contractAddress}
+                          onChange={(e) => setContractAddress(e.target.value)}
+                          placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
+                        />
+                        {lookupMode === 'single' ? (
+                          <NetworkSelector
+                            selectedNetwork={selectedLookupNetwork}
+                            onNetworkChange={(network) => setSelectedLookupNetwork(network)}
+                            size="sm"
+                            variant="input"
+                            showTestnets={true}
+                            className="decoder-address-field__selector"
+                          />
+                        ) : (
+                          <span className="decoder-address-field__badge decoder-address-field__badge--abi">
+                            All explorers
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <small className="decoder-network-help">
+                      {lookupMode === 'multi'
+                        ? 'Searches all supported mainnet explorers (Etherscan + Blockscout). Testnets are not included in this mode.'
+                        : 'Target a specific explorer for faster lookups. Testnets are available in the picker.'}
+                    </small>
+                  </div>
                   <GlassButton
                     onClick={handleContractABIDecode}
                     disabled={isFetchingABI || !contractAddress.trim()}
@@ -2691,14 +2639,16 @@ const SmartDecoder: React.FC = () => {
               >
                 {resolvedContractName}
               </span>
+              {contractMetadata?.source && (
+                <span className="decoder-contract-badge decoder-contract-badge--source">
+                  {contractMetadata.source}
+                </span>
+              )}
               {contractAddress && (
                 <span className="decoder-contract-badge" title={contractAddress}>
                   {shortenAddress(contractAddress)}
                 </span>
               )}
-              <span className="decoder-contract-badge" title={`ABI source: ${resolvedAbiSourceLabel}`}>
-                {resolvedAbiSourceLabel}
-              </span>
               <span className="decoder-contract-badge" title={`Function entries discovered in ABI`}>
                 {functionCount} funcs
               </span>
@@ -2768,36 +2718,11 @@ const SmartDecoder: React.FC = () => {
                     return <StackedOverview parameterData={parameterData} />;
                   })()}
 
-                {viewMode === 'advanced' && (
+                {viewMode === 'raw' && (
                   <div className="result-section">
                     {(() => {
                       const { parameterData } = getParameterDisplayData();
-                      return renderSimplifiedJsonView(decodedResult.args || [], parameterData);
-                    })()}
-                  </div>
-                )}
-
-                {viewMode === 'legacy' && shouldUseComplexViewer(decodedResult.args) && (
-                  <div className="result-section">
-                    {(() => {
-                      const { parameterData } = getParameterDisplayData();
-                      const paramNames = parameterData.map((param, index) =>
-                        param.name ?? `param_${index}`
-                      );
-                      const paramTypes = parameterData.map((param) =>
-                        param.type || getParameterType(param.value)
-                      );
-                      const paramValues = parameterData.map((param) => param.value);
-
-                      return (
-                        <DecodedDataViewer
-                          data={paramValues}
-                          paramNames={paramNames}
-                          types={paramTypes}
-                          functionName={decodedResult.name}
-                          compact={true}
-                        />
-                      );
+                      return <RawJsonView parameters={parameterData} />;
                     })()}
                   </div>
                 )}
@@ -2908,46 +2833,61 @@ const SmartDecoder: React.FC = () => {
           zIndex: 1000
         }}>
           <div style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '12px',
-            padding: '24px',
-            maxWidth: '500px',
+            background: 'rgba(13, 23, 44, 0.92)',
+            backdropFilter: 'blur(18px)',
+            borderRadius: '18px',
+            padding: '28px',
+            maxWidth: '520px',
             width: '90%',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
-            border: '1px solid rgba(59, 130, 246, 0.2)'
+            boxShadow: '0 28px 60px rgba(5, 12, 28, 0.6)',
+            border: '1px solid rgba(59, 130, 246, 0.28)',
+            color: '#e2e8f0'
           }}>
             <h3 style={{ 
-              color: '#059669', 
-              marginBottom: '16px', 
-              fontSize: '18px',
+              color: '#34d399', 
+              marginBottom: '18px', 
+              fontSize: '20px',
               fontWeight: '600'
             }}>
                Verified Contract Found!
             </h3>
             
             <div style={{
-              background: 'rgba(59, 130, 246, 0.05)',
-              border: '1px solid rgba(59, 130, 246, 0.1)',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '20px'
+              background: 'rgba(59, 130, 246, 0.12)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: '14px',
+              padding: '18px',
+              marginBottom: '24px',
+              boxShadow: 'inset 0 0 25px rgba(15, 23, 42, 0.45)'
             }}>
               <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                 <strong>Contract Address:</strong>
                 <code style={{ 
                   marginLeft: '8px',
-                  background: 'rgba(0, 0, 0, 0.1)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
                   fontFamily: 'monospace',
-                  fontSize: '12px'
+                  fontSize: '12px',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  color: '#bae6fd'
                 }}>
                   {contractConfirmation.contractInfo.address}
                 </code>
               </div>
-              <div style={{ fontSize: '14px', marginBottom: '8px' }}>
-                <strong>Found on:</strong> {contractConfirmation.contractInfo.source}
+              <div style={{ fontSize: '14px', marginBottom: '8px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <strong>Found on:</strong> 
+                <span style={{
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  background: 'rgba(30, 64, 175, 0.35)',
+                  border: '1px solid rgba(59, 130, 246, 0.45)',
+                  fontSize: '12px',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase'
+                }}>
+                  {contractConfirmation.contractInfo.source}
+                </span>
               </div>
               <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                 <strong>Functions:</strong> {contractConfirmation.contractInfo.functions}
@@ -2959,7 +2899,7 @@ const SmartDecoder: React.FC = () => {
             
             <p style={{ 
               fontSize: '14px', 
-              color: '#6b7280', 
+              color: 'rgba(203, 213, 225, 0.85)', 
               marginBottom: '20px',
               lineHeight: '1.5'
             }}>
@@ -2975,13 +2915,14 @@ const SmartDecoder: React.FC = () => {
               <button
                 onClick={contractConfirmation.onContinueSearch}
                 style={{
-                  background: 'rgba(107, 114, 128, 0.1)',
-                  border: '1px solid rgba(107, 114, 128, 0.3)',
-                  borderRadius: '6px',
-                  padding: '10px 16px',
+                  background: 'rgba(15, 23, 42, 0.7)',
+                  border: '1px solid rgba(148, 163, 184, 0.35)',
+                  borderRadius: '10px',
+                  padding: '10px 18px',
                   fontSize: '14px',
                   cursor: 'pointer',
-                  color: '#6b7280'
+                  color: 'rgba(226, 232, 240, 0.86)',
+                  letterSpacing: '0.04em'
                 }}
               >
                 Continue Searching
@@ -2989,14 +2930,15 @@ const SmartDecoder: React.FC = () => {
               <button
                 onClick={contractConfirmation.onConfirm}
                 style={{
-                  background: '#059669',
-                  border: '1px solid #059669',
-                  borderRadius: '6px',
-                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #22d3ee, #6366f1)',
+                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                  borderRadius: '10px',
+                  padding: '10px 22px',
                   fontSize: '14px',
                   cursor: 'pointer',
-                  color: 'white',
-                  fontWeight: '500'
+                  color: '#0b1120',
+                  fontWeight: '600',
+                  boxShadow: '0 12px 28px rgba(56, 189, 248, 0.35)'
                 }}
               >
                 Use This Contract
