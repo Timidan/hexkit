@@ -339,14 +339,14 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   const iconBackground = isInlineVariant
     ? 'rgba(148, 163, 184, 0.18)'
     : isInputVariant
-    ? 'rgba(30, 41, 59, 0.9)'
+    ? 'var(--bg-secondary)'
     : selectedNetwork?.color
     ? `${selectedNetwork.color}20`
     : 'rgba(255, 255, 255, 0.1)';
   const iconBorder = isInlineVariant
     ? '1px solid rgba(148, 163, 184, 0.28)'
     : isInputVariant
-    ? '1px solid rgba(148, 163, 184, 0.35)'
+    ? '1px solid var(--border-primary)'
     : selectedNetwork?.color
     ? `1px solid ${selectedNetwork.color}40`
     : '1px solid rgba(255, 255, 255, 0.2)';
@@ -536,119 +536,49 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           overflowY: 'auto'
         }}>
           {/* Category selector */}
-          <div style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            background: 'rgba(255, 255, 255, 0.02)'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              flexWrap: 'wrap'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#9ca3af'
-              }}>
-                <span>{mainnetCount} Live • {testnetCount} Testnets</span>
-              </div>
+          <div className="network-dropdown__header">
+            <div className="network-dropdown__metrics">
+              <span>{mainnetCount} Live • {testnetCount} Testnets</span>
+            </div>
+            <div className="network-category-group">
+              <span className="network-category-group__label">Network Type</span>
+              <div
+                className="network-category-toggle"
+                role="tablist"
+                aria-label="Network Type"
+              >
+                {(['live', 'testnet'] as const).map((category) => {
+                  const isActive = networkCategory === category;
+                  const label = category === 'live' ? 'Live' : 'Testnet';
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'rgba(148, 163, 184, 0.8)'
-                  }}
-                >
-                  Network Type
-                </span>
-                <div
-                  data-style-version="glass-v2"
-                  role="tablist"
-                  aria-label="Network Type"
-                  style={{
-                    display: 'inline-flex',
-                    position: 'relative',
-                    padding: '2px',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(148, 163, 184, 0.16)',
-                    background: 'rgba(15, 23, 42, 0.55)',
-                    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.45)',
-                    backdropFilter: 'blur(14px)',
-                    WebkitBackdropFilter: 'blur(14px)'
-                  }}
-                >
-                  {(['live', 'testnet'] as const).map((category) => {
-                    const isActive = networkCategory === category;
-                    const handleSelect = (event: React.SyntheticEvent) => {
-                      event.stopPropagation();
-                      setNetworkCategory(category);
-                    };
+                  const handleSelect = (event: React.SyntheticEvent) => {
+                    event.stopPropagation();
+                    setNetworkCategory(category);
+                  };
 
-                    return (
-                      <div
-                        key={category}
-                        role="tab"
-                        aria-selected={isActive}
-                        tabIndex={0}
-                        onClick={handleSelect}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            handleSelect(event);
-                          }
-                        }}
-                        style={{
-                          cursor: 'pointer',
-                          padding: '8px 18px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: isActive ? '#f9fafb' : '#cbd5f5',
-                          background: isActive
-                            ? 'rgba(99, 102, 241, 0.32)'
-                            : 'transparent',
-                          border: 'none',
-                          outline: 'none',
-                          transition: 'all 0.2s ease',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          borderRadius: '10px',
-                          boxShadow: isActive
-                            ? '0 12px 24px rgba(99, 102, 241, 0.35)'
-                            : 'none'
-                        }}
+                  return (
+                    <div
+                      key={category}
+                      role="tab"
+                      aria-selected={isActive}
+                      tabIndex={isActive ? 0 : -1}
+                      className={`network-category-toggle__option${isActive ? ' is-active' : ''}`}
+                      onClick={handleSelect}
+                      onKeyDown={(event) => {
+                        if ((event.key === 'Enter' || event.key === ' ') && !isActive) {
+                          event.preventDefault();
+                          handleSelect(event);
+                        }
+                      }}
                       >
-                        <span>{category === 'live' ? 'Live' : 'Testnet'}</span>
-                        {isActive ? (
-                          <span
-                            style={{
-                              width: '6px',
-                              height: '6px',
-                              borderRadius: '50%',
-                              background:
-                                category === 'live'
-                                  ? 'linear-gradient(135deg, #34d399, #22c55e)'
-                                  : 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-                              boxShadow:
-                                category === 'live'
-                                  ? '0 0 10px rgba(34, 197, 94, 0.65)'
-                                  : '0 0 10px rgba(245, 158, 11, 0.65)'
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
+                        <span className="network-category-toggle__label">{label}</span>
+                        <span
+                          className={`network-category-toggle__status network-category-toggle__status--${category}`}
+                          aria-hidden="true"
+                        />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
