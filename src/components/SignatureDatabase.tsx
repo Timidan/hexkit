@@ -11,7 +11,8 @@ import {
   ToolIcon,
   PenToolIcon,
   FileTextIcon,
-  CopyIcon
+  HashIcon,
+  ZapIcon
 } from './icons/IconLibrary';
 import {
   Download,
@@ -19,6 +20,10 @@ import {
   Building2
 } from 'lucide-react';
 import InlineCopyButton from './ui/InlineCopyButton';
+import InlineActionButton from './ui/InlineActionButton';
+import SegmentedControl from './shared/SegmentedControl';
+import AnimatedInput from './ui/AnimatedInput';
+import AnimatedButton from './ui/AnimatedButton';
 import {
   lookupFunctionSignatures,
   lookupEventSignatures,
@@ -33,9 +38,23 @@ import {
   type CustomSignature
 } from '../utils/signatureDatabase';
 
-type TabType = 'lookup' | 'search' | 'custom' | 'cache';
+export type TabType = 'lookup' | 'search' | 'tools' | 'custom' | 'cache';
 
-const SignatureDatabase: React.FC = () => {
+const SIGNATURE_TAB_OPTIONS: Array<{ value: TabType; title: string; helper: string; icon?: React.ReactNode }> = [
+  { value: 'lookup', title: 'Lookup', helper: 'By Hash' },
+  { value: 'search', title: 'Search', helper: 'By Name' },
+  { value: 'tools', title: 'Tools', helper: 'Selector Calc' },
+  { value: 'custom', title: 'Custom', helper: 'Add Signatures' },
+  { value: 'cache', title: 'Cache', helper: 'Saved Results' },
+];
+
+interface SignatureDatabaseProps {
+  initialTab?: TabType;
+}
+
+const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
+  initialTab = 'lookup',
+}) => {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -56,7 +75,11 @@ const SignatureDatabase: React.FC = () => {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<TabType>('lookup');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  const [calculatorSignature, setCalculatorSignature] = useState('');
+  const [calculatorSelector, setCalculatorSelector] = useState('');
+  const [calculatorFullHash, setCalculatorFullHash] = useState('');
+  const [calculatorError, setCalculatorError] = useState<string | null>(null);
   
   // Lookup tab state
   const [lookupInput, setLookupInput] = useState('');
@@ -95,10 +118,45 @@ const SignatureDatabase: React.FC = () => {
     loadCachedData();
   }, []);
 
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    setError(null);
+    setCalculatorError(null);
+  }, [activeTab]);
+
   const loadCachedData = () => {
     setCachedFunctions(getCachedSignatures('function'));
     setCachedEvents(getCachedSignatures('event'));
     setCustomSignatures(getCustomSignatures());
+  };
+
+  const handleCalculateSelector = () => {
+    if (!calculatorSignature.trim()) {
+      setCalculatorError('Please enter a function signature');
+      setCalculatorSelector('');
+      setCalculatorFullHash('');
+      return;
+    }
+
+    try {
+      const normalizedSignature = calculatorSignature.trim();
+      const hash = ethers.utils.id(normalizedSignature);
+      setCalculatorSelector(hash.slice(0, 10));
+      setCalculatorFullHash(hash);
+      setCalculatorError(null);
+      setError(null);
+    } catch (calcError: unknown) {
+      const message =
+        calcError instanceof Error
+          ? calcError.message
+          : 'Failed to calculate selector';
+      setCalculatorSelector('');
+      setCalculatorFullHash('');
+      setCalculatorError(message);
+    }
   };
 
   const handleLookup = async () => {
@@ -475,32 +533,23 @@ const SignatureDatabase: React.FC = () => {
         Look up, search, and manage function & event signatures
       </p>
 
-      <nav className="tabs">
-        <button
-          className={activeTab === 'lookup' ? 'active' : ''}
-          onClick={() => setActiveTab('lookup')}
-        >
-          Lookup by Hash
-        </button>
-        <button
-          className={activeTab === 'search' ? 'active' : ''}
-          onClick={() => setActiveTab('search')}
-        >
-          Search by Name
-        </button>
-        <button
-          className={activeTab === 'custom' ? 'active' : ''}
-          onClick={() => setActiveTab('custom')}
-        >
-          Custom Signatures
-        </button>
-        <button
-          className={activeTab === 'cache' ? 'active' : ''}
-          onClick={() => setActiveTab('cache')}
-        >
-          Cached Results
-        </button>
-      </nav>
+      <div className="signature-tabs">
+        <SegmentedControl
+          className="signature-tabs__control"
+          ariaLabel="Signature database mode"
+          value={activeTab}
+          onChange={(value) => setActiveTab(value as TabType)}
+          options={SIGNATURE_TAB_OPTIONS.map((option) => ({
+            value: option.value,
+            label: (
+              <span className="signature-tabs__label">
+                <strong>{option.title}</strong>
+                <small>{option.helper}</small>
+              </span>
+            )
+          }))}
+        />
+      </div>
 
       <main className="content">
         {/* Lookup Tab */}
@@ -650,20 +699,20 @@ const SignatureDatabase: React.FC = () => {
                               <span className="hash">{hash}</span>
                             </div>
                             <div className="signature-actions">
-                              <button
-                                onClick={() => copyToClipboard(sig.name)}
-                                className="copy-btn"
-                                title="Copy signature"
-                              >
-                                <CopyIcon width={14} height={14} />
-                              </button>
-                              <button
-                                onClick={() => copyToClipboard(hash)}
-                                className="copy-btn"
-                                title="Copy function hash"
-                              >
-                                <HashtagIcon width={14} height={14} />
-                              </button>
+                              <InlineCopyButton
+                                value={sig.name}
+                                ariaLabel="Copy signature"
+                                iconSize={14}
+                                size={30}
+                                className="signature-copy-button"
+                              />
+                              <InlineCopyButton
+                                value={hash}
+                                ariaLabel="Copy function hash"
+                                iconSize={14}
+                                size={30}
+                                className="signature-copy-button"
+                              />
                             </div>
                             {sig.filtered && <span className="filtered-badge">Filtered</span>}
                           </div>
@@ -686,20 +735,20 @@ const SignatureDatabase: React.FC = () => {
                               <span className="hash">{hash.slice(0, 10)}...{hash.slice(-8)}</span>
                             </div>
                             <div className="signature-actions">
-                              <button
-                                onClick={() => copyToClipboard(sig.name)}
-                                className="copy-btn"
-                                title="Copy signature"
-                              >
-                                <CopyIcon width={14} height={14} />
-                              </button>
-                              <button
-                                onClick={() => copyToClipboard(hash)}
-                                className="copy-btn"
-                                title="Copy event hash"
-                              >
-                                <HashtagIcon width={14} height={14} />
-                              </button>
+                              <InlineCopyButton
+                                value={sig.name}
+                                ariaLabel="Copy signature"
+                                iconSize={14}
+                                size={30}
+                                className="signature-copy-button"
+                              />
+                              <InlineCopyButton
+                                value={hash}
+                                ariaLabel="Copy event hash"
+                                iconSize={14}
+                                size={30}
+                                className="signature-copy-button"
+                              />
                             </div>
                             {sig.filtered && <span className="filtered-badge">Filtered</span>}
                           </div>
@@ -713,6 +762,86 @@ const SignatureDatabase: React.FC = () => {
                 {(!searchResults.result?.function || Object.keys(searchResults.result.function).length === 0) &&
                  (!searchResults.result?.event || Object.keys(searchResults.result.event).length === 0) && (
                   <div className="no-results">No results found for "{searchQuery}"</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tools Tab */}
+        {activeTab === 'tools' && (
+          <div className="panel">
+            <h3
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '16px',
+              }}
+            >
+              <ToolIcon width={18} height={18} />
+              Signature Utilities
+            </h3>
+            <p style={{ marginBottom: '20px', color: '#4b5563' }}>
+              Generate a function selector by hashing a human-readable signature.
+            </p>
+
+            <AnimatedInput
+              label="Function Signature"
+              value={calculatorSignature}
+              onChange={setCalculatorSignature}
+              type="text"
+              placeholder="transfer(address,uint256)"
+              icon={<HashIcon width={20} height={20} />}
+              className="signature-input"
+            />
+
+            <AnimatedButton
+              onClick={handleCalculateSelector}
+              variant="primary"
+              icon={<ZapIcon width={18} height={18} />}
+              className="calculate-selector-btn"
+            >
+              Calculate Selector
+            </AnimatedButton>
+
+            {calculatorError && (
+              <div className="error-message" style={{ marginTop: '12px' }}>
+                {calculatorError}
+              </div>
+            )}
+
+            {calculatorSelector && (
+              <div className="result" style={{ marginTop: '24px' }}>
+                <h4 style={{ marginBottom: '12px' }}>Results</h4>
+                <div className="signature-result">
+                  <div className="hash-header">
+                    <strong>Function Selector</strong>
+                    <InlineCopyButton
+                      value={calculatorSelector}
+                      ariaLabel="Copy function selector"
+                      iconSize={12}
+                      size={28}
+                    />
+                  </div>
+                  <code>{calculatorSelector}</code>
+                </div>
+                {calculatorFullHash && (
+                  <div className="signature-result">
+                    <div className="hash-header">
+                      <strong>Keccak256 Hash</strong>
+                      <InlineCopyButton
+                        value={calculatorFullHash}
+                        ariaLabel="Copy full hash"
+                        iconSize={12}
+                        size={28}
+                      />
+                    </div>
+                    <code>{calculatorFullHash}</code>
+                  </div>
                 )}
               </div>
             )}
@@ -923,27 +1052,17 @@ const SignatureDatabase: React.FC = () => {
                     <PlusIcon width={16} height={16} />
                     Custom Signatures ({customSignatures.length})
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clearCache('custom');
-                      }}
-                      className="clear-btn-small"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-tertiary)',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        padding: '4px 8px'
-                      }}
-                      title="Clear all custom signatures"
-                    >
-                      <TrashIcon width={12} height={12} />
-                    </button>
-                  </div>
+                  <InlineActionButton
+                    icon={<TrashIcon width={14} height={14} />}
+                    ariaLabel="Clear all custom signatures"
+                    className="signature-inline-action"
+                    size={30}
+                    stopPropagation
+                    onClick={(event) => {
+                      event.preventDefault();
+                      clearCache('custom');
+                    }}
+                  />
                 </summary>
                 
                 <div className="signatures-list" style={{ marginLeft: '8px' }}>
@@ -978,21 +1097,13 @@ const SignatureDatabase: React.FC = () => {
                           {sig.project || new Date(sig.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <button
-                        onClick={() => copyToClipboard(sig.signature)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          padding: '4px',
-                          color: 'var(--text-tertiary)',
-                          flexShrink: '0'
-                        }}
-                        title="Copy signature"
-                      >
-                        
-                      </button>
+                      <InlineCopyButton
+                        value={sig.signature}
+                        ariaLabel="Copy signature"
+                        iconSize={14}
+                        size={30}
+                        className="signature-copy-button"
+                      />
                     </div>
                   ))}
                 </div>
@@ -1038,27 +1149,17 @@ const SignatureDatabase: React.FC = () => {
                     <HashtagIcon width={16} height={16} />
                     Functions ({Object.keys(cachedFunctions).length})
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clearCache('function');
-                      }}
-                      className="clear-btn-small"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-tertiary)',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        padding: '4px 8px'
-                      }}
-                      title="Clear all function signatures"
-                    >
-                      <TrashIcon width={12} height={12} />
-                    </button>
-                  </div>
+                  <InlineActionButton
+                    icon={<TrashIcon width={14} height={14} />}
+                    ariaLabel="Clear all function signatures"
+                    className="signature-inline-action"
+                    size={30}
+                    stopPropagation
+                    onClick={(event) => {
+                      event.preventDefault();
+                      clearCache('function');
+                    }}
+                  />
                 </summary>
                 
                 <div className="signatures-list" style={{ marginLeft: '8px' }}>
@@ -1093,21 +1194,13 @@ const SignatureDatabase: React.FC = () => {
                           {new Date(sig.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <button
-                        onClick={() => copyToClipboard(sig.name)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          padding: '4px',
-                          color: 'var(--text-tertiary)',
-                          flexShrink: '0'
-                        }}
-                        title="Copy signature"
-                      >
-                        
-                      </button>
+                      <InlineCopyButton
+                        value={sig.name}
+                        ariaLabel="Copy signature"
+                        iconSize={14}
+                        size={30}
+                        className="signature-copy-button"
+                      />
                     </div>
                   ))}
                 </div>
@@ -1135,27 +1228,17 @@ const SignatureDatabase: React.FC = () => {
                     <FileTextIcon width={16} height={16} />
                     Events ({Object.keys(cachedEvents).length})
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        clearCache('event');
-                      }}
-                      className="clear-btn-small"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-tertiary)',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        padding: '4px 8px'
-                      }}
-                      title="Clear all event signatures"
-                    >
-                      <TrashIcon width={12} height={12} />
-                    </button>
-                  </div>
+                  <InlineActionButton
+                    icon={<TrashIcon width={14} height={14} />}
+                    ariaLabel="Clear all event signatures"
+                    className="signature-inline-action"
+                    size={30}
+                    stopPropagation
+                    onClick={(event) => {
+                      event.preventDefault();
+                      clearCache('event');
+                    }}
+                  />
                 </summary>
                 
                 <div className="signatures-list" style={{ marginLeft: '8px' }}>
@@ -1190,21 +1273,13 @@ const SignatureDatabase: React.FC = () => {
                           {new Date(sig.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <button
-                        onClick={() => copyToClipboard(sig.name)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          padding: '4px',
-                          color: 'var(--text-tertiary)',
-                          flexShrink: '0'
-                        }}
-                        title="Copy signature"
-                      >
-                        
-                      </button>
+                      <InlineCopyButton
+                        value={sig.name}
+                        ariaLabel="Copy signature"
+                        iconSize={14}
+                        size={30}
+                        className="signature-copy-button"
+                      />
                     </div>
                   ))}
                 </div>

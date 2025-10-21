@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "vitest",
     "probe:testnets": "node scripts/testnet-probe.js",
+    "simulator:server": "node scripts/simulator-bridge.mjs",
     "preview": "vite preview",
     "check:inline-copy": "node scripts/check-inline-copy.mjs"
   },

@@ -24,13 +24,17 @@ interface ABIFetcherProps {
   initialContractAddress?: string;
   onContractAddressChange?: (address: string) => void;
   etherscanApiKey?: string;
+  availableChains?: Chain[];
+  allowMultiSelect?: boolean;
 }
 
 const ABIFetcher: React.FC<ABIFetcherProps> = ({ 
   onABIFetched, 
   initialContractAddress = '',
   onContractAddressChange,
-  etherscanApiKey: propEtherscanApiKey
+  etherscanApiKey: propEtherscanApiKey,
+  availableChains,
+  allowMultiSelect,
 }) => {
   const [showAPIKeyModal, setShowAPIKeyModal] = useState(false);
 
@@ -79,6 +83,8 @@ const ABIFetcher: React.FC<ABIFetcherProps> = ({
         onContractSelected={handleContractSelected}
         etherscanApiKey={activeEtherscanApiKey}
         initialAddress={initialContractAddress}
+        availableChains={availableChains}
+        allowMultiSelect={allowMultiSelect}
       />
 
       {/* API Key Management */}

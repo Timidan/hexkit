@@ -14,8 +14,14 @@ export const simulateTransaction = async (
     // Basic validation
     if (!transaction.to || !transaction.data) {
       return {
+        mode: 'rpc',
         success: false,
         error: 'Transaction requires "to" address and "data"',
+        warnings: [],
+        revertReason: null,
+        gasUsed: null,
+        gasLimitSuggested: null,
+        rawTrace: null,
       };
     }
 
@@ -32,8 +38,14 @@ export const simulateTransaction = async (
   } catch (error: any) {
     console.error('Simulation error:', error);
     return {
+      mode: 'rpc',
       success: false,
       error: error.message || 'Simulation failed',
+      warnings: [],
+      revertReason: null,
+      gasUsed: null,
+      gasLimitSuggested: null,
+      rawTrace: null,
     };
   }
 };
@@ -61,10 +73,14 @@ const performRealisticSimulation = async (
       // If gas estimation fails, the transaction will likely fail
       const revertReason = extractRevertReason(gasEstimateError);
       return {
+        mode: 'rpc',
         success: false,
         error: revertReason || 'Gas estimation failed - transaction will likely revert',
+        warnings: [],
+        revertReason: revertReason ?? null,
         gasUsed: '0',
-        gasLimit: transaction.gasLimit || '0',
+        gasLimitSuggested: transaction.gasLimit ?? null,
+        rawTrace: null,
       };
     }
 
@@ -81,29 +97,44 @@ const performRealisticSimulation = async (
       const gasLimit = gasEstimate.mul(120).div(100); // Add 20% buffer
       
       return {
+        mode: 'rpc',
         success: true,
+        error: null,
+        warnings: [],
+        revertReason: null,
         gasUsed: gasEstimate.toString(),
-        gasLimit: gasLimit.toString(),
-        gasPrice: '20000000000', // 20 gwei default
-        changes: await estimateAssetChanges(transaction, fromAddress),
-        returnData: callResult && callResult !== '0x' ? callResult : undefined,
+        gasLimitSuggested: gasLimit.toString(),
+        rawTrace: {
+          assetChanges: await estimateAssetChanges(transaction, fromAddress),
+          returnData: callResult && callResult !== '0x' ? callResult : null,
+        },
       };
       
     } catch (callError: any) {
       const callRevertReason = extractRevertReason(callError.message || callError.toString());
       return {
+        mode: 'rpc',
         success: false,
         error: callRevertReason || 'Transaction call failed',
+        warnings: [],
+        revertReason: callRevertReason ?? null,
         gasUsed: '0',
-        gasLimit: transaction.gasLimit || '0',
+        gasLimitSuggested: transaction.gasLimit ?? null,
+        rawTrace: null,
       };
     }
 
   } catch (error: any) {
     console.error('Realistic simulation failed:', error);
     return {
+      mode: 'rpc',
       success: false,
       error: 'Simulation failed: ' + (error.message || 'Unknown error'),
+      warnings: [],
+      revertReason: null,
+      gasUsed: null,
+      gasLimitSuggested: null,
+      rawTrace: null,
     };
   }
 };
@@ -226,13 +257,16 @@ const performMockSimulation = async (
   }
 
   return {
+    mode: 'rpc',
     success: true,
+    error: null,
+    warnings: ['Mock simulation generated without provider access'],
+    revertReason: null,
     gasUsed: estimatedGas.toString(),
-    gasLimit: Math.floor(estimatedGas * 1.2).toString(), // 20% buffer
-    gasPrice: '20000000000', // 20 gwei
-    changes: mockChanges,
-    events: [], // Mock events would go here
-    trace: [], // Mock trace would go here
+    gasLimitSuggested: Math.floor(estimatedGas * 1.2).toString(),
+    rawTrace: {
+      assetChanges: mockChanges,
+    },
   };
 };
 
@@ -275,21 +309,31 @@ export const simulateWithTenderly = async (
     const simulation = response.data.simulation;
     
     return {
+      mode: 'rpc',
       success: simulation.status,
-      gasUsed: simulation.gas_used?.toString(),
-      gasLimit: transaction.gasLimit,
-      gasPrice: transaction.gasPrice,
-      // Parse asset changes from Tenderly response
-      changes: parseAssetChanges(simulation.asset_changes || []),
-      events: parseEvents(simulation.logs || []),
-      trace: parseTrace(simulation.call_trace),
+      error: null,
+      warnings: [],
+      revertReason: null,
+      gasUsed: simulation.gas_used?.toString() ?? null,
+      gasLimitSuggested: transaction.gasLimit ?? null,
+      rawTrace: {
+        assetChanges: parseAssetChanges(simulation.asset_changes || []),
+        events: parseEvents(simulation.logs || []),
+        trace: parseTrace(simulation.call_trace),
+      },
     };
 
   } catch (error: any) {
     console.error('Tenderly simulation error:', error);
     return {
+      mode: 'rpc',
       success: false,
       error: error.response?.data?.error?.message || error.message || 'Tenderly simulation failed',
+      warnings: [],
+      revertReason: null,
+      gasUsed: null,
+      gasLimitSuggested: null,
+      rawTrace: null,
     };
   }
 };

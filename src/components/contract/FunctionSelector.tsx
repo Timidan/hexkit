@@ -68,7 +68,7 @@ const FunctionSelector: React.FC<FunctionSelectorProps> = ({
           variant={selectedFunctionType === 'read' ? 'primary' : 'ghost'}
           onClick={() => handleFunctionTypeSelect('read')}
           icon={<Eye size={16} />}
-          className="function-type-button"
+          className={`function-type-button${selectedFunctionType === 'read' ? ' function-type-button-active' : ''}`}
         >
           Read Functions
           {readFunctions.length > 0 && (
@@ -81,7 +81,7 @@ const FunctionSelector: React.FC<FunctionSelectorProps> = ({
           variant={selectedFunctionType === 'write' ? 'primary' : 'ghost'}
           onClick={() => handleFunctionTypeSelect('write')}
           icon={<Edit size={16} />}
-          className="function-type-button"
+          className={`function-type-button${selectedFunctionType === 'write' ? ' function-type-button-active' : ''}`}
         >
           Write Functions
           {writeFunctions.length > 0 && (

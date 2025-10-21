@@ -87,17 +87,12 @@
 }
 
 .simple-grid__copy-button {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 1px solid rgba(71, 85, 105, 0.55);
-  background: rgba(15, 23, 42, 0.9);
   color: rgba(226, 232, 240, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  transition: color 0.18s ease;
 }
 
 .simple-grid__copy-button svg {
@@ -110,15 +105,9 @@
 
 .simple-grid__copy-button:hover,
 .simple-grid__copy-button:focus-visible {
-  border-color: rgba(147, 197, 253, 0.68);
-  background: rgba(59, 130, 246, 0.24);
   color: #f8fafc;
-  transform: translateY(-1px);
-  outline: none;
 }
 
 .simple-grid__copy-button[data-state='copied'] {
-  border-color: rgba(34, 197, 94, 0.65);
-  background: rgba(34, 197, 94, 0.22);
   color: #4ade80;
 }

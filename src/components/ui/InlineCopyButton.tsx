@@ -31,7 +31,7 @@ const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
   title,
   className = '',
   iconSize = 18,
-  size = 36,
+  size,
   onStateChange,
   onCopySuccess,
   onCopyError,
@@ -74,10 +74,7 @@ const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
     timerRef.current = window.setTimeout(resetState, STATE_RESET_MS);
   };
 
-  const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
+  const attemptCopy = async () => {
     if (disabled) {
       return;
     }
@@ -102,20 +99,67 @@ const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
     }
   };
 
-  const buttonStyle = useMemo(
-    () => ({ '--inline-copy-size': `${size}px` }) as React.CSSProperties,
-    [size]
-  );
+  const handleClick = (event: React.MouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void attemptCopy();
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (disabled) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      void attemptCopy();
+    }
+  };
+
+  const buttonStyle = useMemo(() => {
+    const padding =
+      typeof size === 'number'
+        ? Math.max(0, (size - (iconSize ?? 0)) / 2)
+        : 0;
+
+    const style: React.CSSProperties = {
+      width: 'auto',
+      height: 'auto',
+      minWidth: 0,
+      minHeight: 0,
+      background: 'transparent',
+      border: 'none',
+      boxShadow: 'none',
+      outline: 'none',
+      lineHeight: 0,
+    };
+
+    if (padding > 0) {
+      (style as React.CSSProperties & { ['--inline-copy-hit-padding']?: string })[
+        '--inline-copy-hit-padding'
+      ] = `${padding}px`;
+    }
+
+    style.pointerEvents = disabled ? 'none' : 'auto';
+
+    return style;
+  }, [size, iconSize, disabled]);
+
+  const combinedClassName = ['inline-copy-icon', className].filter(Boolean).join(' ');
 
   return (
-    <button
-      type="button"
-      className={`inline-copy-icon ${className}`.trim()}
+    <span
+      className={combinedClassName}
+      data-inline-copy
       data-state={state}
       aria-label={appliedAriaLabel}
       title={appliedTitle}
-      onClick={handleCopy}
-      disabled={disabled}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled ? 'true' : undefined}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       style={buttonStyle}
     >
       {state === 'copied' ? (
@@ -125,7 +169,7 @@ const InlineCopyButton: React.FC<InlineCopyButtonProps> = ({
       ) : (
         <CopyIcon width={iconSize} height={iconSize} />
       )}
-    </button>
+    </span>
   );
 };
 

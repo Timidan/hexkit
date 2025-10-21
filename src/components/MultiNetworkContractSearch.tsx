@@ -69,6 +69,8 @@ interface MultiNetworkContractSearchProps {
   ) => void;
   etherscanApiKey?: string;
   initialAddress?: string;
+  availableChains?: Chain[];
+  allowMultiSelect?: boolean;
 }
 
 const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
@@ -76,10 +78,16 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
   onContractSelected,
   etherscanApiKey,
   initialAddress,
+  availableChains,
+  allowMultiSelect = true,
 }) => {
+  const chains =
+    availableChains && availableChains.length > 0
+      ? availableChains
+      : SUPPORTED_CHAINS;
   const [address, setAddress] = useState(initialAddress || "");
   const [selectedChains, setSelectedChains] = useState<number[]>(
-    SUPPORTED_CHAINS.map((c) => c.id)
+    allowMultiSelect ? chains.map((c) => c.id) : chains.length ? [chains[0].id] : []
   );
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<ContractSearchResult[]>(
@@ -90,6 +98,12 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
   );
   const [searchProgress, setSearchProgress] = useState<string>("");
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setSelectedChains(
+      allowMultiSelect ? chains.map((c) => c.id) : chains.length ? [chains[0].id] : []
+    );
+  }, [allowMultiSelect, chains]);
 
   // Minimal ERC165 ABI and interface IDs
   const erc165ABI = [
@@ -283,7 +297,7 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
     try {
       // Search on selected chains
       for (const chainId of selectedChains) {
-        const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
+        const chain = chains.find((c) => c.id === chainId);
         if (!chain) continue;
 
         setSearchProgress(`Searching on ${chain.name}...`);
@@ -372,6 +386,7 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
   // Toggle chain selection
   const toggleChain = (chainId: number) => {
+    if (!allowMultiSelect) return;
     setSelectedChains((prev) =>
       prev.includes(chainId)
         ? prev.filter((id) => id !== chainId)
@@ -381,7 +396,8 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
   // Select/Deselect all chains
   const toggleAllChains = () => {
-    const allChainIds = SUPPORTED_CHAINS.map((c) => c.id);
+    if (!allowMultiSelect) return;
+    const allChainIds = chains.map((c) => c.id);
     setSelectedChains(
       selectedChains.length === allChainIds.length ? [] : allChainIds
     );
@@ -413,38 +429,49 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
         {/* Network Selection */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium">
-              Networks to Search
-            </label>
-            <button
-              onClick={toggleAllChains}
-              className="text-sm text-blue-600 hover:text-blue-800"
-              disabled={isSearching}
-            >
-              {selectedChains.length === SUPPORTED_CHAINS.length
-                ? "Deselect All"
-                : "Select All"}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {SUPPORTED_CHAINS.map((chain) => (
-              <label
-                key={chain.id}
-                className="flex items-center space-x-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedChains.includes(chain.id)}
-                  onChange={() => toggleChain(chain.id)}
+          <label className="block text-sm font-medium mb-2">
+            Networks to Search
+          </label>
+          {allowMultiSelect ? (
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs uppercase tracking-wider text-gray-500">
+                  {selectedChains.length} selected
+                </span>
+                <button
+                  onClick={toggleAllChains}
+                  className="text-sm text-blue-600 hover:text-blue-800"
                   disabled={isSearching}
-                  className="rounded"
-                />
-                <span className="truncate">{chain.name}</span>
-              </label>
-            ))}
-          </div>
+                >
+                  {selectedChains.length === chains.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {chains.map((chain) => (
+                  <label
+                    key={chain.id}
+                    className="flex items-center space-x-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChains.includes(chain.id)}
+                      onChange={() => toggleChain(chain.id)}
+                      disabled={isSearching}
+                      className="rounded"
+                    />
+                    <span className="truncate">{chain.name}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="p-3 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 bg-gray-50">
+              Searching on <strong>{chains[0]?.name ?? "selected network"}</strong>
+            </div>
+          )}
         </div>
 
         {/* Search Button */}

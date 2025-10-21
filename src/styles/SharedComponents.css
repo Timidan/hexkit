@@ -160,6 +160,284 @@
   background: var(--accent-primary-20);
 }
 
+/* Transaction Builder mode toggle */
+.interaction-mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+}
+
+.interaction-mode-toggle button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.interaction-mode-toggle button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.interaction-mode-toggle button.active {
+  background: var(--accent-primary-20);
+  color: var(--text-primary);
+}
+
+.mode-description {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.simulation-mode-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-secondary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.simulation-mode-config label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.simulation-mode-config input[type="radio"] {
+  accent-color: var(--accent-primary);
+}
+
+.onchain-hash-input {
+  width: 100%;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.simulation-warnings {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: var(--radius-md);
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.simulation-warnings h4 {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.simulation-warnings ul {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.simulation-error {
+  margin-top: var(--space-2);
+  color: var(--error);
+  font-size: var(--text-sm);
+}
+
+.simulation-revert {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.simulation-trace {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.simulation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.simulation-summary-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: var(--space-3);
+}
+
+.simulation-label {
+  display: block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.simulation-raw-trace {
+  margin-top: var(--space-3);
+}
+
+.simulation-raw-trace summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--accent-primary);
+  margin-bottom: var(--space-2);
+}
+
+.simulation-raw-trace pre {
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.segmented-option-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.builder-header {
+  margin-bottom: var(--space-4);
+}
+
+.builder-header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.simulation-wallet-trigger .wallet-inline-wrapper {
+  margin: 0;
+}
+
+.simulation-wallet-trigger .wallet-icon-inline {
+  width: 36px;
+  height: 36px;
+}
+
+.saved-contracts-grid {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.saved-contracts-grid .glass-button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.saved-contract-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.saved-contract-name {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--text-sm);
+}
+
+.saved-contract-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.saved-contract-meta--subline {
+  opacity: 0.85;
+}
+
+.saved-contract-meta--subline span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.empty-state {
+  padding: var(--space-3);
+  border: 1px dashed var(--border-secondary);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.function-argument-panel {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.builder-header h2 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-2);
+}
+
+.simulation-helper-card {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.65);
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.45);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.simulation-helper-card strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.simulation-helper-card p {
+  margin: 0;
+}
+
+.simulation-status-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.simulation-status-hint svg {
+  flex-shrink: 0;
+}
+
 /* Copyable Result */
 .copyable-result {
   position: relative;
@@ -212,23 +490,32 @@
 
 .inline-copy-icon {
   all: unset;
-  width: var(--inline-copy-size, 36px);
-  height: var(--inline-copy-size, 36px);
-  min-width: var(--inline-copy-size, 36px);
-  min-height: var(--inline-copy-size, 36px);
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.82);
-  color: rgba(226, 232, 240, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition:
-    background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
-  position: relative;
-  padding: 0;
+  color: rgba(226, 232, 240, 0.92);
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-image: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  padding: var(--inline-copy-hit-padding, 0) !important;
+  margin: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  line-height: 0;
+  transform: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+  transition: color 0.18s ease;
 }
 
 .inline-copy-icon svg {
@@ -237,37 +524,48 @@
   stroke: currentColor;
   stroke-width: 2;
   fill: none;
+  display: block;
 }
 
-.inline-copy-icon:hover:not(:disabled),
+.inline-copy-icon:hover:not([aria-disabled="true"]),
 .inline-copy-icon:focus-visible {
-  background: rgba(59, 130, 246, 0.2);
   color: #f8fafc;
-  transform: translateY(-1px);
-  outline: none;
 }
 
-.inline-copy-icon:disabled {
+.inline-copy-icon:focus-visible {
+  outline: none !important;
+}
+
+.inline-copy-icon[aria-disabled="true"] {
   opacity: 0.45;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .inline-copy-icon[data-state="copied"] {
-  background: rgba(34, 197, 94, 0.18);
   color: #4ade80;
 }
 
 .inline-copy-icon[data-state="error"] {
-  background: rgba(248, 113, 113, 0.18);
   color: #fca5a5;
 }
 
+.inline-copy-icon::before,
+.inline-copy-icon::after {
+  content: none !important;
+}
+
 .inline-action-icon {
-  background: rgba(15, 23, 42, 0.82);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .inline-action-icon.is-active {
-  background: rgba(59, 130, 246, 0.28);
+  background: transparent !important;
+  box-shadow: none !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
   color: #f8fafc;
 }
 

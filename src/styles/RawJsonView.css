@@ -16,17 +16,12 @@
 }
 
 .raw-json-copy-button {
-  --inline-copy-size: 36px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
   color: rgba(226, 232, 240, 0.9);
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition: color var(--transition-fast);
 }
 
-.raw-json-copy-button:hover:not(:disabled),
+.raw-json-copy-button:hover:not([aria-disabled="true"]),
 .raw-json-copy-button:focus-visible {
-  background: rgba(59, 130, 246, 0.18);
   color: #f8fafc;
 }
 
@@ -60,6 +55,6 @@
   }
 
   .raw-json-copy-button {
-    --inline-copy-size: 32px;
+    color: rgba(226, 232, 240, 0.9);
   }
 }

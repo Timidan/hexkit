@@ -1,9 +1,7 @@
 import React from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
-import { useWeb3Modal } from '@web3modal/wagmi/react'
 import { formatAddress } from '../utils/walletDetection'
 import { SUPPORTED_CHAINS } from '../utils/chains'
-import Web3ModalButton from './Web3ModalButton'
 import InlineActionButton from './ui/InlineActionButton'
 import { XCloseIcon } from './icons/IconLibrary'
 
@@ -21,8 +19,6 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
-  const { open } = useWeb3Modal()
-
   // Notify parent component of wallet connection changes
   React.useEffect(() => {
     if (isConnected && address && connector) {
@@ -63,10 +59,6 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
 
   const handleSwitchChain = (targetChainId: number) => {
     switchChain({ chainId: targetChainId as any })
-  }
-
-  const openWeb3Modal = () => {
-    open()
   }
 
   const getWalletIcon = (walletName: string) => {
@@ -171,17 +163,6 @@ const WalletConnectionNew: React.FC<WalletConnectionNewProps> = ({
       <p>Connect your wallet to build and simulate transactions</p>
 
       <div className="wallet-list">
-        {/* Web3Modal Button */}
-        <Web3ModalButton 
-          className="wallet-option web3modal-btn"
-          style={{ marginBottom: '16px', justifyContent: 'center' }}
-        />
-
-        {/* Fallback individual connectors */}
-        <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.7)', marginBottom: '12px' }}>
-          Or connect directly:
-        </div>
-        
         {connectors.map((connector) => (
           <button
             key={connector.uid}

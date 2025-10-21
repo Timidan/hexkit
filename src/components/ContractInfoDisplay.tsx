@@ -50,6 +50,48 @@ const ContractInfoDisplay: React.FC<ContractInfoDisplayProps> = ({
   provider,
   contractMetadata,
 }) => {
+  const normalizeNumericDisplay = useCallback((value: any): string | undefined => {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
+    if (typeof value === "number") {
+      return value.toString();
+    }
+
+    if (ethers.BigNumber.isBigNumber(value)) {
+      return value.toString();
+    }
+
+    if (typeof value === "object") {
+      if (value?._isBigNumber && value?._hex) {
+        try {
+          return ethers.BigNumber.from(value._hex).toString();
+        } catch {
+          return value._hex;
+        }
+      }
+
+      if (value?.type === "BigNumber" && value?.hex) {
+        try {
+          return ethers.BigNumber.from(value.hex).toString();
+        } catch {
+          return value.hex;
+        }
+      }
+    }
+
+    try {
+      return String(value);
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -496,8 +538,10 @@ const ContractInfoDisplay: React.FC<ContractInfoDisplayProps> = ({
                     fontWeight: "600",
                   }}
                 >
-                  {contractMetadata?.tokenInfo?.decimals ||
-                    contractInfo.decimals}
+                  {normalizeNumericDisplay(
+                    contractMetadata?.tokenInfo?.decimals ??
+                      contractInfo.decimals
+                  ) ?? "—"}
                 </div>
               </div>
             )}
@@ -551,19 +595,37 @@ const ContractInfoDisplay: React.FC<ContractInfoDisplayProps> = ({
                       contractMetadata?.tokenInfo?.decimals ||
                       contractInfo.decimals;
 
-                    if (totalSupply && decimals) {
-                      // Convert from wei to human readable format
-                      const divisor = Math.pow(
-                        10,
-                        parseInt(decimals.toString())
-                      );
-                      const humanReadable = (
-                        parseInt(totalSupply) / divisor
-                      ).toLocaleString();
-                      return `${humanReadable} ${symbol || ""}`;
+                    const totalNormalized = normalizeNumericDisplay(totalSupply);
+                    const decimalsNormalized = normalizeNumericDisplay(decimals);
+
+                    if (totalNormalized) {
+                      const symbolSuffix = symbol ? ` ${symbol}` : "";
+
+                      if (
+                        decimalsNormalized &&
+                        /^\d+$/.test(totalNormalized) &&
+                        /^\d+$/.test(decimalsNormalized)
+                      ) {
+                        const divisor = Math.pow(
+                          10,
+                          parseInt(decimalsNormalized, 10)
+                        );
+                        const humanReadable = (
+                          parseFloat(totalNormalized) / divisor
+                        ).toLocaleString(undefined, {
+                          maximumFractionDigits: 6,
+                        });
+                        return `${humanReadable}${symbolSuffix}`;
+                      }
+
+                      if (!Number.isNaN(Number(totalNormalized))) {
+                        return `${Number(totalNormalized).toLocaleString()}${symbolSuffix}`;
+                      }
+
+                      return `${totalNormalized}${symbolSuffix}`;
                     }
 
-                    return `${parseInt(totalSupply || "0").toLocaleString()} ${symbol || ""}`;
+                    return symbol || "";
                   })()}
                 </div>
               </div>

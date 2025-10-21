@@ -23,15 +23,14 @@ export interface TransactionRequest {
 }
 
 export interface SimulationResult {
+  mode: 'onchain' | 'local' | 'rpc';
   success: boolean;
-  gasUsed?: string;
-  gasLimit?: string;
-  gasPrice?: string;
-  error?: string;
-  changes?: AssetChange[];
-  events?: EventLog[];
-  trace?: CallTrace[];
-  returnData?: string;
+  error?: string | null;
+  warnings?: string[];
+  revertReason?: string | null;
+  gasUsed?: string | null;
+  gasLimitSuggested?: string | null;
+  rawTrace?: unknown;
 }
 
 export interface AssetChange {

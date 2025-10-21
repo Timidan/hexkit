@@ -18,6 +18,8 @@ export interface ContractConnectorProps {
   onContractConnected?: (contractInfo: ContractConnectorResult) => void;
   /** Callback when connection fails */
   onConnectionError?: (error: string) => void;
+  /** Callback for consumers who need loading state updates */
+  onLoadingChange?: (isLoading: boolean) => void;
   /** Whether to show advanced features like token detection */
   showAdvancedFeatures?: boolean;
   /** Custom supported chains (defaults to SUPPORTED_CHAINS) */
@@ -60,6 +62,7 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
   initialNetwork,
   onContractConnected,
   onConnectionError,
+  onLoadingChange,
   showAdvancedFeatures = true,
   supportedChains = SUPPORTED_CHAINS,
   className = ''
@@ -95,6 +98,10 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
   const [readFunctions, setReadFunctions] = useState<ethers.utils.FunctionFragment[]>([]);
   const [writeFunctions, setWriteFunctions] = useState<ethers.utils.FunctionFragment[]>([]);
   const [contractInterface, setContractInterface] = useState<ethers.utils.Interface | null>(null);
+
+  useEffect(() => {
+    onLoadingChange?.(isLoading);
+  }, [isLoading, onLoadingChange]);
 
   // Update address when prop changes
   useEffect(() => {

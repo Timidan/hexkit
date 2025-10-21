@@ -3,7 +3,8 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  useRef
+  useRef,
+  type ReactNode
 } from "react";
 import {
   useAccount,
@@ -62,7 +63,6 @@ import NetworkSelector, {
   type ExtendedChain,
   EXTENDED_NETWORKS,
 } from "./shared/NetworkSelector";
-
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { getChainById } from "../utils/chains";
 import { detectTokenType } from "../utils/universalTokenDetector";
@@ -73,6 +73,17 @@ import {
   EtherscanLogo,
   ManualLogo,
 } from "./SourceLogos";
+type SavedContractEntry = ContractInfo & {
+  savedAt?: string;
+  abiSource?: string;
+  tokenInfo?: {
+    type?: string;
+    symbol?: string;
+    name?: string;
+    decimals?: number;
+    confidence?: number;
+  } | null;
+};
 
 const stringifyResultData = (value: any): string => {
   if (value === null || value === undefined) {
@@ -171,7 +182,11 @@ const deriveResultMetadata = (
   };
 };
 
-const SimpleGridUI: React.FC = () => {
+interface SimpleGridUIProps {
+  contractModeToggle?: ReactNode;
+}
+
+const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
   // Wagmi hooks for wallet integration
   const { address, isConnected, chain: accountChain } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -468,7 +483,7 @@ const SimpleGridUI: React.FC = () => {
     error: "Error",
   };
   const abbreviateFacet = (address: string) =>
-    address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
+    address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "";
   const completedFacetDetails = facetProgressDetails.filter(
     (detail) => detail.status === "success"
   );
@@ -546,7 +561,7 @@ const SimpleGridUI: React.FC = () => {
     contractName && contractName.trim().length > 0
       ? contractName
       : isFetchingContractDetails
-        ? "Loading contract…"
+        ? "Loading contract..."
         : "Unknown Contract";
 
   // Derived: filtered functions when Diamond + a facet is selected
@@ -950,12 +965,12 @@ const SimpleGridUI: React.FC = () => {
     setWriteFunctions([]);
     setAbiSource(null);
 
-    // Try sources in order: Sourcify → Blockscout → Etherscan for all networks
+    // Try sources in order: Sourcify -> Blockscout -> Etherscan for all networks
     let result: ExtendedABIFetchResult;
     let source: string;
 
     console.log(
-      " Starting ABI fetch with order: Sourcify → Blockscout → Etherscan"
+      " Starting ABI fetch with order: Sourcify -> Blockscout -> Etherscan"
     );
 
     // Always try Sourcify first for best contract name extraction
@@ -1081,7 +1096,7 @@ const SimpleGridUI: React.FC = () => {
       }
     } else {
       setAbiError(
-        "Contract ABI not found on any source (Sourcify → Blockscout → Etherscan)"
+        "Contract ABI not found on any source (Sourcify -> Blockscout -> Etherscan)"
       );
     }
 
@@ -3677,24 +3692,6 @@ const SimpleGridUI: React.FC = () => {
   // Local storage functions
   const SAVED_CONTRACTS_KEY = "web3-toolkit-saved-contracts";
 
-  // Helper function to format contract address display
-  const formatContractAddress = (address: string): string => {
-    if (address.length >= 8) {
-      return `${address.slice(0, 4)}...${address.slice(-4)}`;
-    }
-    return address;
-  };
-
-  // Helper function to format contract display with address
-  const formatContractDisplay = (
-    name: string,
-    address: string,
-    chainName: string
-  ): string => {
-    const formattedAddress = formatContractAddress(address);
-    return `${name} on ${chainName}(${formattedAddress})`;
-  };
-
   const saveContractToStorage = useCallback(
     (contractInfo: ContractInfo) => {
       try {
@@ -3737,9 +3734,37 @@ const SimpleGridUI: React.FC = () => {
     [contractName, abiSource, tokenInfo]
   );
 
-  const loadSavedContracts = (): ContractInfo[] => {
-    try {
-      return JSON.parse(localStorage.getItem(SAVED_CONTRACTS_KEY) || "[]");
+  const normalizeSavedContracts = (
+    contracts: SavedContractEntry[]
+  ): SavedContractEntry[] => {
+    const sorted = [...contracts].sort((a, b) => {
+      const aTime = a.savedAt ? new Date(a.savedAt).getTime() : 0;
+      const bTime = b.savedAt ? new Date(b.savedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    const deduped: SavedContractEntry[] = [];
+    const seen = new Set<string>();
+
+    for (const entry of sorted) {
+      if (!entry?.address) continue;
+      const chainId = entry.chain?.id ?? 0;
+      const key = `${entry.address.toLowerCase()}-${chainId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(entry);
+      if (deduped.length >= 50) break;
+    }
+
+    return deduped;
+  };
+
+const loadSavedContracts = (): SavedContractEntry[] => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVED_CONTRACTS_KEY) || "[]");
+    const normalized = normalizeSavedContracts(Array.isArray(raw) ? raw : []);
+    localStorage.setItem(SAVED_CONTRACTS_KEY, JSON.stringify(normalized));
+      return normalized;
     } catch (loadError) {
       console.error("Failed to load saved contracts:", loadError);
       return [];
@@ -3747,11 +3772,7 @@ const SimpleGridUI: React.FC = () => {
   };
 
   const loadContractFromStorage = async (
-    savedContract: ContractInfo & {
-      savedAt?: string;
-      abiSource?: string;
-      tokenInfo?: typeof tokenInfo;
-    }
+    savedContract: SavedContractEntry
   ) => {
     // Clear previous detection and functions; keep card clean until fetch
     setContractName("");
@@ -3788,7 +3809,7 @@ const SimpleGridUI: React.FC = () => {
   // Calldata is now updated directly in EnhancedStructInput onDataChange callback
   // No need for this useEffect anymore
 
-  const [savedContracts] = useState<ContractInfo[]>(loadSavedContracts());
+  const [savedContracts] = useState<SavedContractEntry[]>(loadSavedContracts());
   const [showSavedContracts, setShowSavedContracts] = useState(false);
   const [showAbiUpload, setShowAbiUpload] = useState(false);
   const [manualAbi, setManualAbi] = useState("");
@@ -3806,8 +3827,12 @@ const SimpleGridUI: React.FC = () => {
     width: "100%",
     minWidth: 0,
     maxWidth: "100%",
-    overflowX: "auto" as const,
-  };
+    padding: 0,
+    background: "transparent",
+    border: "none",
+    borderRadius: 0,
+    boxShadow: "none",
+  } as React.CSSProperties;
 
   const gridContainerStyle = {
     width: "100%",
@@ -3830,13 +3855,11 @@ const SimpleGridUI: React.FC = () => {
 
   const gridStyle = {
     display: "grid",
-    gridTemplateColumns: "minmax(480px, 1.75fr) minmax(320px, 0.85fr)",
+    gridTemplateColumns: "1fr",
     gap: "32px",
     width: "100%",
-    maxWidth: "1600px",
-    minWidth: "min(100%, 960px)",
-    margin: "0 auto",
-    padding: "24px clamp(16px, 4vw, 40px)",
+    margin: 0,
+    padding: "24px clamp(12px, 3vw, 32px)",
   };
 
   const inputStyle = {
@@ -3930,6 +3953,8 @@ const SimpleGridUI: React.FC = () => {
         {/* LEFT COLUMN - Contract */}
         <div style={contractCardStyle}>
           <h2 style={subHeaderStyle}> Contract</h2>
+
+          {contractModeToggle && contractModeToggle}
 
           {/* Contract Source Selection */}
           <div style={{ marginBottom: "24px" }}>
@@ -4034,20 +4059,16 @@ const SimpleGridUI: React.FC = () => {
                         const index = parseInt(e.target.value);
                         if (!isNaN(index) && savedContracts[index]) {
                           await loadContractFromStorage(savedContracts[index]);
-                          setContractSource("address"); // Switch to address mode to show details
+                          setContractSource("address");
                         }
                       }}
                     >
                       <option value="">Select saved contract...</option>
                       {savedContracts.map((contract, index) => (
                         <option key={index} value={index}>
-                          {contract.name
-                            ? formatContractDisplay(
-                                contract.name,
-                                contract.address,
-                                contract.chain.name
-                              )
-                            : `${formatContractAddress(contract.address)} on ${contract.chain.name}`}
+                      {contract.name
+                        ? `${contract.name} on ${contract.chain.name} (${contract.address.slice(0, 6)}...${contract.address.slice(-4)})`
+                        : `${contract.address.slice(0, 6)}...${contract.address.slice(-4)} on ${contract.chain.name}`}
                         </option>
                       ))}
                     </select>
@@ -4099,8 +4120,7 @@ const SimpleGridUI: React.FC = () => {
                               fontFamily: "monospace",
                             }}
                           >
-                            {contract.chain.name} (
-                            {formatContractAddress(contract.address)})
+                            {contract.chain.name} ({contract.address})
                           </div>
                           <div
                             style={{
@@ -4109,11 +4129,7 @@ const SimpleGridUI: React.FC = () => {
                               marginTop: "4px",
                             }}
                           >
-                            Saved:{" "}
-                            {new Date(
-                              (contract as ContractInfo & { savedAt?: string })
-                                .savedAt || Date.now()
-                            ).toLocaleDateString()}
+                            Saved: {new Date(contract.savedAt || Date.now()).toLocaleDateString()}
                           </div>
                         </div>
                       ))}
@@ -4452,7 +4468,7 @@ const SimpleGridUI: React.FC = () => {
                         setAbiError(null);
                       }}
                     >
-                      ×
+                      x
                     </button>
                   </div>
                   <div style={{ marginBottom: "12px" }}>
@@ -4602,11 +4618,11 @@ const SimpleGridUI: React.FC = () => {
                                   undefined
                                   ? tokenDetection.tokenInfo.decimals
                                   : tokenInfo?.decimals || 0) > 0 &&
-                                  ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                                  ` - ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
                               </>
                             )
                           : isFetchingContractDetails
-                            ? "Fetching token metadata…"
+                            ? "Fetching token metadata..."
                             : "Symbol: Unknown"}
                       </div>
                     </div>
@@ -5096,11 +5112,11 @@ const SimpleGridUI: React.FC = () => {
                                         undefined
                                         ? tokenDetection.tokenInfo.decimals
                                         : tokenInfo?.decimals || 0) > 0 &&
-                                        ` • ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
+                                        ` - ${tokenDetection?.tokenInfo?.decimals || tokenInfo?.decimals} decimals`}
                                     </>
                                   )
                                 : isFetchingContractDetails
-                                  ? "Fetching token metadata…"
+                                  ? "Fetching token metadata..."
                                   : "Symbol: Unknown"}
                             </div>
                           )}
@@ -5157,7 +5173,7 @@ const SimpleGridUI: React.FC = () => {
                           }}
                         >
                           <Loader2Icon width={14} height={14} className="animate-spin" />
-                          Loading facet details…
+                          Loading facet details...
                         </span>
                       ) : (
                         <>
@@ -8256,7 +8272,7 @@ const SimpleGridUI: React.FC = () => {
                               color: "#cbd5f5",
                             }}
                           >
-                            → {abbreviateFacet(detail.address)}
+                            {"-> "}{abbreviateFacet(detail.address)}
                           </span>
                         ))}
                       </div>
@@ -8344,461 +8360,10 @@ const SimpleGridUI: React.FC = () => {
           )}
         </div>
 
-        {/* RIGHT COLUMN - Transaction Parameters */}
-        <div style={cardStyle}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h2 style={subHeaderStyle}>
-              <ZapIcon width={16} height={16} style={{ marginRight: "6px" }} />
-              Transaction Parameters
-            </h2>
-            <SettingsIcon
-              width={20}
-              height={20}
-              style={{ color: "#888", cursor: "pointer" }}
-            />
-          </div>
-
-          {/* Use Pending Block */}
-          <div
-            style={{
-              padding: "16px",
-              background: "#2a2a2a",
-              borderRadius: "10px",
-              marginBottom: "20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: "500", marginBottom: "4px" }}>
-                Use Pending Block
-              </div>
-              <div style={{ fontSize: "12px", color: "#888" }}>
-                Simulate against pending state
-              </div>
-            </div>
-            <label
-              style={{
-                position: "relative",
-                display: "inline-block",
-                width: "44px",
-                height: "24px",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={usePendingBlock}
-                onChange={(e) => setUsePendingBlock(e.target.checked)}
-                style={{ opacity: 0, width: 0, height: 0 }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  cursor: "pointer",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: usePendingBlock ? "#22c55e" : "#6b7280",
-                  transition: "0.4s",
-                  borderRadius: "24px",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    content: "",
-                    height: "18px",
-                    width: "18px",
-                    left: usePendingBlock ? "23px" : "3px",
-                    bottom: "3px",
-                    backgroundColor: "#fff",
-                    transition: "0.4s",
-                    borderRadius: "50%",
-                  }}
-                ></div>
-              </div>
-            </label>
-          </div>
-
-          {/* Parameters Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "16px",
-              marginBottom: "20px",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  color: "#ccc",
-                  marginBottom: "8px",
-                }}
-              >
-                Block Number
-              </label>
-              <input type="text" placeholder="Latest" style={inputStyle} />
-              <div style={{ fontSize: "12px", color: "#888" }}>
-                Current: 30930267
-              </div>
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  color: "#ccc",
-                  marginBottom: "8px",
-                }}
-              >
-                Tx Index
-              </label>
-              <input type="text" placeholder="0" style={inputStyle} />
-              <div style={{ fontSize: "12px", color: "#888" }}>Max: 14</div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                color: "#ccc",
-                marginBottom: "8px",
-              }}
-            >
-              From Address
-            </label>
-            <input
-              type="text"
-              defaultValue="0x0000000000000000000000000000000000000000"
-              style={{
-                ...inputStyle,
-                fontFamily: "monospace",
-                fontSize: "12px",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "16px",
-              marginBottom: "20px",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  color: "#ccc",
-                  marginBottom: "8px",
-                }}
-              >
-                Gas Limit
-              </label>
-              <input type="text" defaultValue="800000" style={inputStyle} />
-              <button
-                style={{
-                  fontSize: "12px",
-                  color: "#22c55e",
-                  background: "rgba(34, 197, 94, 0.12)",
-                  backdropFilter: "blur(10px)",
-                  border: "1px solid rgba(34, 197, 94, 0.25)",
-                  borderRadius: "8px",
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  boxShadow:
-                    "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform =
-                    "translateY(-1px) scale(1.02)";
-                  e.currentTarget.style.boxShadow =
-                    "0 6px 20px rgba(34, 197, 94, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
-                  e.currentTarget.style.background = "rgba(34, 197, 94, 0.18)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0px) scale(1)";
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 16px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
-                  e.currentTarget.style.background = "rgba(34, 197, 94, 0.12)";
-                }}
-              >
-                Use custom gas value
-              </button>
-            </div>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  color: "#ccc",
-                  marginBottom: "8px",
-                }}
-              >
-                Gas Price
-              </label>
-              <input type="text" defaultValue="0" style={inputStyle} />
-            </div>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                color: "#ccc",
-                marginBottom: "8px",
-              }}
-            >
-              Value (ETH)
-            </label>
-            <input type="text" defaultValue="0" style={inputStyle} />
-          </div>
-
-          {/* Advanced Options - Inside Transaction Parameters Container */}
-          <div
-            style={{
-              marginTop: "16px",
-              paddingTop: "16px",
-              borderTop: "1px solid #333",
-            }}
-          >
-            <h4
-              style={{
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#ccc",
-                marginBottom: "12px",
-              }}
-            >
-              Advanced Options
-            </h4>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr",
-                gap: "8px",
-              }}
-            >
-              {/* Block Header Overrides */}
-              <div
-                style={{
-                  padding: "8px 12px",
-                  background: "#2a2a2a",
-                  border: "1px solid #444",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <GemIcon width={12} height={12} />
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        color: "#fff",
-                      }}
-                    >
-                      Block Header Overrides
-                    </span>
-                  </div>
-                  <ChevronDownIcon
-                    width={12}
-                    height={12}
-                    style={{ color: "#888" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: "10px",
-                    color: "#888",
-                    marginTop: "2px",
-                    marginLeft: "18px",
-                  }}
-                >
-                  Click to configure block header parameters
-                </div>
-              </div>
-
-              {/* State Overrides */}
-              <div
-                style={{
-                  padding: "8px 12px",
-                  background: "#2a2a2a",
-                  border: "1px solid #444",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <DatabaseIcon width={12} height={12} />
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        color: "#fff",
-                      }}
-                    >
-                      State Overrides
-                    </span>
-                  </div>
-                  <ChevronDownIcon
-                    width={12}
-                    height={12}
-                    style={{ color: "#888" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: "10px",
-                    color: "#888",
-                    marginTop: "2px",
-                    marginLeft: "18px",
-                  }}
-                >
-                  No state overrides configured
-                </div>
-              </div>
-
-              {/* Access Lists */}
-              <div
-                style={{
-                  padding: "8px 12px",
-                  background: "#2a2a2a",
-                  border: "1px solid #444",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <ClipboardIcon width={12} height={12} />
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        color: "#fff",
-                      }}
-                    >
-                      Access Lists
-                    </span>
-                  </div>
-                  <ChevronDownIcon
-                    width={12}
-                    height={12}
-                    style={{ color: "#888" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: "10px",
-                    color: "#888",
-                    marginTop: "2px",
-                    marginLeft: "18px",
-                  }}
-                >
-                  No access lists configured
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Right column intentionally empty in live mode */}
+        <div />
       </div>
       </div>
-
-      {/* Action Button */}
-      <div style={{ textAlign: "center", display: "flex", justifyContent: "center", gap: "16px" }}>
-        <button
-          style={{
-            padding: "16px 48px",
-            background: "rgba(0, 123, 255, 0.15)",
-            backdropFilter: "blur(20px)",
-            color: "#007bff",
-            border: "1px solid rgba(0, 123, 255, 0.3)",
-            borderRadius: "12px",
-            fontSize: "16px",
-            fontWeight: "600",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            boxShadow:
-              "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px) scale(1.02)";
-            e.currentTarget.style.boxShadow =
-              "0 12px 40px rgba(0, 123, 255, 0.25), 0 4px 12px rgba(0, 123, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 123, 255, 0.3)";
-            e.currentTarget.style.background = "rgba(0, 123, 255, 0.2)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0px) scale(1)";
-            e.currentTarget.style.boxShadow =
-              "0 8px 32px rgba(0, 123, 255, 0.2), 0 2px 8px rgba(0, 123, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 123, 255, 0.2)";
-            e.currentTarget.style.background = "rgba(0, 123, 255, 0.15)";
-          }}
-      >
-        <PlayIcon width={20} height={20} />
-        Simulate Transaction
-      </button>
-    </div>
 
     {/* Diamond Contract Popup */}
       <DiamondContractPopup

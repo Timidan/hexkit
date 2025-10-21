@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { JSX } from 'react';
 import { ethers } from 'ethers';
 import {
@@ -186,6 +186,8 @@ const SmartDecoder: React.FC = () => {
   const [contractMetadata, setContractMetadata] = useState<any>(null);
   const [abiSource, setAbiSource] = useState<'sourcify' | 'blockscout' | 'etherscan' | 'manual' | 'signatures' | 'heuristic' | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fallbackSectionRef = useRef<HTMLDivElement | null>(null);
+  const abiContractInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (lookupMode === 'single' && !selectedLookupNetwork) {
@@ -193,6 +195,17 @@ const SmartDecoder: React.FC = () => {
       setSelectedLookupNetwork(defaultNetwork);
     }
   }, [lookupMode, selectedLookupNetwork]);
+
+  const handleScrollToFallback = useCallback(() => {
+    setAbiAcquisitionMode('address');
+    const target = fallbackSectionRef.current;
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(() => {
+      abiContractInputRef.current?.focus({ preventScroll: true });
+    }, 320);
+  }, []);
 
   const resolvedContractName = useMemo(() => {
     const candidate = [
@@ -1519,10 +1532,39 @@ const SmartDecoder: React.FC = () => {
           if (Array.isArray(abi)) {
             setCurrentSearchProgress(prev => [...prev, `Found verified contract on ${source.name}!`]);
             
+            const fallbackContractName =
+              contractMetadata?.name ??
+              contractMetadata?.contractName ??
+              contractMetadata?.metadata?.name ??
+              `Contract ${shortenAddress(address)}`;
+
+            let resolvedContractNameForModal = fallbackContractName;
+            try {
+              let fetchedDisplayName: string | null = null;
+              if (source.kind === 'blockscout') {
+                fetchedDisplayName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
+                if (!fetchedDisplayName) {
+                  fetchedDisplayName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
+                }
+              } else {
+                fetchedDisplayName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
+                if (!fetchedDisplayName) {
+                  fetchedDisplayName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
+                }
+              }
+
+              if (fetchedDisplayName) {
+                resolvedContractNameForModal = fetchedDisplayName;
+              }
+            } catch (metadataError) {
+              console.warn('Unable to resolve contract name during lookup', metadataError);
+            }
+
             // Show confirmation dialog
             setContractConfirmation({
               show: true,
               contractInfo: {
+                name: resolvedContractNameForModal,
                 address,
                 source: source.name,
                 functions: abi.filter((item: any) => item.type === 'function').length,
@@ -1535,7 +1577,7 @@ const SmartDecoder: React.FC = () => {
                 // Store ABI and contract metadata for enhanced display
                 setContractABI(abi);
                 setContractMetadata({
-                  name: `Contract ${shortenAddress(address)}`,
+                  name: resolvedContractNameForModal,
                   source: source.name,
                   functions: abi.filter((item: any) => item.type === 'function').length,
                   events: abi.filter((item: any) => item.type === 'event').length
@@ -1548,32 +1590,6 @@ const SmartDecoder: React.FC = () => {
                 } else {
                   setAbiSource('etherscan'); // Default fallback
                 }
-
-                (async () => {
-                  try {
-                    let fetchedName: string | null = null;
-                    if (source.kind === 'blockscout') {
-                      fetchedName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
-                      if (!fetchedName) {
-                        fetchedName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
-                      }
-                    } else {
-                      fetchedName = await fetchContractNameFromEtherscanInstances(address, chainIdForLookup);
-                      if (!fetchedName) {
-                        fetchedName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup);
-                      }
-                    }
-
-                    if (fetchedName) {
-                      setContractMetadata((prev) => ({
-                        ...(prev ?? {}),
-                        name: fetchedName,
-                      }));
-                    }
-                  } catch (metadataError) {
-                    console.warn('Unable to enrich contract metadata', metadataError);
-                  }
-                })();
                 resolve(abi);
               },
               onContinueSearch: () => {
@@ -2252,33 +2268,50 @@ const SmartDecoder: React.FC = () => {
           <small>Paste the transaction calldata (with or without 0x prefix)</small>
         </div>
 
-        <div className="form-group">
-          <label>Contract Address (optional, for better parameter names)</label>
-          <div className={`decoder-address-wrapper${lookupMode === 'single' ? ' has-selector' : ''}`}>
-            <div className="decoder-address-field">
-              <input
-                type="text"
-                value={contractAddress}
-                onChange={(e) => setContractAddress(e.target.value)}
-                placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
-                className="decoder-address-field__input"
-              />
-              {lookupMode === 'single' ? (
-                <NetworkSelector
-                  selectedNetwork={selectedLookupNetwork}
-                  onNetworkChange={(network) => setSelectedLookupNetwork(network)}
-                  size="sm"
-                  variant="input"
-                  showTestnets={true}
-                  className="decoder-address-field__selector"
+        {!decodedResult ? (
+          <div className="form-group">
+            <label>Contract Address (optional, for better parameter names)</label>
+            <div className={`decoder-address-wrapper${lookupMode === 'single' ? ' has-selector' : ''}`}>
+              <div className="decoder-address-field">
+                <input
+                  type="text"
+                  value={contractAddress}
+                  onChange={(e) => setContractAddress(e.target.value)}
+                  placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
+                  className="decoder-address-field__input"
                 />
-              ) : (
-                <span className="decoder-address-field__badge">All explorers</span>
-              )}
+                {lookupMode === 'single' ? (
+                  <NetworkSelector
+                    selectedNetwork={selectedLookupNetwork}
+                    onNetworkChange={(network) => setSelectedLookupNetwork(network)}
+                    size="sm"
+                    variant="input"
+                    showTestnets={true}
+                    className="decoder-address-field__selector"
+                  />
+                ) : (
+                  <span className="decoder-address-field__badge">All explorers</span>
+                )}
+              </div>
             </div>
+            <small>If provided, we'll fetch the verified ABI first for real parameter names</small>
           </div>
-          <small>If provided, we'll fetch the verified ABI first for real parameter names</small>
-        </div>
+        ) : showFallbackOptions ? (
+          <div className="decoder-address-nudge" role="note">
+            <div className="decoder-address-nudge__text">
+              <strong>Improve parameter names</strong>
+              <span>Add a contract address or ABI below to replace generic labels.</span>
+            </div>
+            <button
+              type="button"
+              className="decoder-address-nudge__button"
+              onClick={handleScrollToFallback}
+            >
+              Add contract or ABI
+              <ChevronDown size={16} />
+            </button>
+          </div>
+        ) : null}
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
           <GlassButton
@@ -2407,7 +2440,7 @@ const SmartDecoder: React.FC = () => {
 
       {/* Fallback Options */}
       {showFallbackOptions && (
-        <div className="panel">
+        <div className="panel" ref={fallbackSectionRef}>
           <h3>{decodedResult ? 'Improve Parameter Names' : 'Additional Decoding Options'}</h3>
           {decodedResult ? (
             <div
@@ -2466,6 +2499,7 @@ const SmartDecoder: React.FC = () => {
                           value={contractAddress}
                           onChange={(e) => setContractAddress(e.target.value)}
                           placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7"
+                          ref={abiContractInputRef}
                         />
                         {lookupMode === 'single' ? (
                           <NetworkSelector
@@ -2860,6 +2894,22 @@ const SmartDecoder: React.FC = () => {
               marginBottom: '24px',
               boxShadow: 'inset 0 0 25px rgba(15, 23, 42, 0.45)'
             }}>
+              <div style={{ fontSize: '14px', marginBottom: '10px' }}>
+                <strong>Name:</strong>
+                <span style={{
+                  marginLeft: '8px',
+                  background: 'rgba(15, 23, 42, 0.55)',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  color: '#c7d2fe'
+                }}>
+                  {contractConfirmation.contractInfo.name || 'Unknown Contract'}
+                </span>
+              </div>
               <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                 <strong>Contract Address:</strong>
                 <code style={{ 

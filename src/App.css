@@ -537,7 +537,7 @@ textarea:focus {
 
 /* ========== BUTTON STYLES ========== */
 
-button:not(.segmented-control__option) {
+button:not(.segmented-control__option):not(.decoder-address-nudge__button) {
   font-family: var(--font-body);
   font-weight: var(--font-weight-medium);
   font-size: var(--text-base);
@@ -555,7 +555,7 @@ button:not(.segmented-control__option) {
 /* CLEAN ETHERSCAN-STYLE BUTTON STYLING - Ensure text visibility */
 button:not(.animated-button):not(.inline-copy-icon):not(
     .segmented-control__option
-  ) {
+  ):not(.decoder-address-nudge__button) {
   font-size: var(--text-sm) !important;
   min-height: 40px !important;
   padding: 8px 16px !important;
@@ -583,19 +583,19 @@ button:not(.animated-button):not(.inline-copy-icon):not(
   gap: 6px !important;
 }
 
-button:not(.animated-button):not(.segmented-control__option):hover {
+button:not(.animated-button):not(.segmented-control__option):not(.decoder-address-nudge__button):hover {
   background: #4338ca !important;
   border-color: #4338ca !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
 }
 
-button:not(.animated-button):not(.segmented-control__option):active {
+button:not(.animated-button):not(.segmented-control__option):not(.decoder-address-nudge__button):active {
   transform: translateY(0px) !important;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
 }
 
-button:not(.animated-button):not(.segmented-control__option):disabled {
+button:not(.animated-button):not(.segmented-control__option):not(.decoder-address-nudge__button):disabled {
   opacity: 0.6 !important;
   cursor: not-allowed !important;
   transform: none !important;
@@ -1042,6 +1042,10 @@ button[style*="white"] {
   color: rgba(15, 23, 42, 0.65);
 }
 
+.simulation-contract-toggle {
+  justify-content: flex-start;
+}
+
 .abi-inline-shell {
   display: grid;
   gap: 18px;
@@ -1206,6 +1210,62 @@ button[style*="white"] {
 
 .decoder-address-field__input::placeholder {
   color: rgba(148, 163, 184, 0.6);
+}
+
+.decoder-address-nudge {
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 102, 241, 0.32);
+  background: linear-gradient(120deg, rgba(45, 64, 102, 0.45), rgba(13, 20, 36, 0.85));
+  box-shadow: 0 14px 32px rgba(56, 189, 248, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.decoder-address-nudge__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 13px;
+}
+
+.decoder-address-nudge__text strong {
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #e0e7ff;
+}
+
+.decoder-address-nudge__button {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.98), rgba(56, 189, 248, 0.95));
+  border: 1px solid rgba(165, 180, 252, 0.55);
+  color: #0f172a;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: auto;
+  box-shadow: 0 16px 32px rgba(99, 102, 241, 0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.decoder-address-nudge__button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 40px rgba(99, 102, 241, 0.35);
+}
+
+.decoder-address-nudge__button:active {
+  transform: translateY(0);
+  box-shadow: 0 10px 20px rgba(99, 102, 241, 0.25);
 }
 
 .decoder-address-field__selector {
@@ -1384,6 +1444,76 @@ button[style*="white"] {
 
 .network-category-toggle__option:not(.is-active) .network-category-toggle__status {
   opacity: 0.7;
+}
+
+.signature-tabs {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.signature-tabs__control {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.36);
+  background: linear-gradient(130deg, rgba(21, 32, 59, 0.85), rgba(14, 23, 42, 0.92));
+  box-shadow: 0 16px 32px rgba(56, 189, 248, 0.16);
+  gap: 0;
+}
+
+.signature-tabs__control .segmented-control__option {
+  padding: 12px 20px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  color: rgba(226, 232, 240, 0.78);
+  min-width: 140px;
+  justify-content: center;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.2s ease;
+}
+
+.signature-tabs__control .segmented-control__option + .segmented-control__option {
+  border-left: 1px solid rgba(99, 102, 241, 0.22);
+}
+
+.signature-tabs__control .segmented-control__option[data-state="active"] {
+  background: linear-gradient(135deg, #6366f1, #22d3ee);
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.2), 0 18px 34px rgba(56, 189, 248, 0.25);
+  transform: translateY(0);
+}
+
+.signature-tabs__control .segmented-control__option[data-state="active"] .signature-tabs__label small {
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.signature-tabs__control .segmented-control__option[data-state="active"]:hover {
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.25), 0 22px 40px rgba(56, 189, 248, 0.32);
+}
+
+.signature-tabs__control .segmented-control__option:hover {
+  color: rgba(241, 245, 249, 0.92);
+}
+
+.signature-tabs__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.signature-tabs__label strong {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.signature-tabs__label small {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: rgba(203, 213, 225, 0.75);
 }
 
 .decoder-network-picker small,
@@ -1759,4 +1889,47 @@ button[style*="white"] {
 .decoder-advanced-text small {
   font-size: 12px;
   color: rgba(148, 163, 184, 0.82);
+}
+.signature-copy-button.inline-copy-icon {
+  --inline-copy-size: 30px;
+  background: transparent !important;
+  border: none !important;
+  color: rgba(226, 232, 240, 0.82);
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.signature-copy-button.inline-copy-icon:hover:not([aria-disabled="true"]),
+.signature-copy-button.inline-copy-icon:focus-visible {
+  background: transparent !important;
+  color: #f8fafc;
+  transform: none !important;
+}
+
+.signature-copy-button.inline-copy-icon[data-state="copied"] {
+  background: transparent !important;
+  color: #34d399;
+  transform: none !important;
+}
+
+.signature-copy-button.inline-copy-icon[data-state="error"] {
+  background: transparent !important;
+  color: #f87171;
+  transform: none !important;
+}
+
+.signature-inline-action.inline-action-icon {
+  --inline-copy-size: 30px;
+  background: transparent !important;
+  border: none !important;
+  color: rgba(148, 163, 184, 0.75);
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.signature-inline-action.inline-action-icon:hover,
+.signature-inline-action.inline-action-icon:focus-visible {
+  background: transparent !important;
+  color: rgba(248, 250, 252, 0.92);
+  transform: none !important;
 }
