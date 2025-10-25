@@ -147,6 +147,7 @@ const TransactionBuilderWagmi: React.FC = () => {
     return (
       <SimpleGridUI
         contractModeToggle={renderModeToggle(viewMode, handleModeChange)}
+        mode="simulation"
       />
     );
   }

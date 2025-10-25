@@ -1,24 +1,55 @@
-import React, { useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
-import { Input, Button, LoadingSpinner, ErrorDisplay, Badge } from '../shared';
-import ChainIcon, { type ChainKey } from '../icons/ChainIcon';
+import React, { useMemo } from 'react';
+import { Search } from 'lucide-react';
+import { Button, ErrorDisplay, Badge } from '../shared';
+import NetworkSelector, {
+  EXTENDED_NETWORKS,
+  type ExtendedChain,
+} from '../shared/NetworkSelector';
 import type { Chain } from '../../types';
 import '../../styles/ContractComponents.css';
 
-// Map chain names to ChainKey
-const getChainKey = (chain: Chain): ChainKey => {
-  switch (chain.id) {
-    case 1: return 'ETH';
-    case 8453: return 'BASE';
-    case 84532: return 'BASE';
-    case 137: return 'POLY';
-    case 42161: return 'ARB';
-    case 10: return 'OP';
-    case 56: return 'BSC';
-    case 100: return 'GNO';
-    case 4202: return 'LISK';
-    default: return 'ETH';
+const DEFAULT_NATIVE_CURRENCY = {
+  name: 'Ether',
+  symbol: 'ETH',
+  decimals: 18,
+};
+
+const mapChainToExtended = (chain: Chain): ExtendedChain => {
+  const match = EXTENDED_NETWORKS.find((network) => network.id === chain.id);
+  if (match) {
+    return match;
   }
+
+  return {
+    id: chain.id,
+    name: chain.name,
+    rpcUrl: chain.rpcUrl,
+    blockExplorer: chain.blockExplorer || chain.explorerUrl,
+    isTestnet: false,
+    category: 'mainnet',
+  };
+};
+
+const mapExtendedToChain = (
+  extended: ExtendedChain,
+  fallbackChains: Chain[],
+  current?: Chain | null
+): Chain => {
+  const matched = fallbackChains.find((chain) => chain.id === extended.id);
+  if (matched) {
+    return matched;
+  }
+
+  return {
+    id: extended.id,
+    name: extended.name,
+    rpcUrl: extended.rpcUrl ?? current?.rpcUrl ?? '',
+    explorerUrl: extended.blockExplorer ?? current?.explorerUrl ?? '',
+    blockExplorer: extended.blockExplorer ?? current?.blockExplorer ?? '',
+    apiUrl: current?.apiUrl ?? '',
+    explorers: current?.explorers ?? [],
+    nativeCurrency: current?.nativeCurrency ?? DEFAULT_NATIVE_CURRENCY,
+  };
 };
 
 export interface ContractAddressInputProps {
@@ -58,9 +89,23 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   contractName,
   abiSource,
   tokenInfo,
-  className = ''
+  className = '',
 }) => {
-  const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
+  const extendedNetworks = useMemo<ExtendedChain[]>(
+    () => supportedChains.map(mapChainToExtended),
+    [supportedChains]
+  );
+
+  const selectedExtendedNetwork = useMemo<ExtendedChain | null>(() => {
+    if (!selectedNetwork) return null;
+    return (
+      extendedNetworks.find((network) => network.id === selectedNetwork.id) ??
+      mapChainToExtended(selectedNetwork)
+    );
+  }, [extendedNetworks, selectedNetwork]);
+
+  const isValidAddress =
+    contractAddress && contractAddress.length === 42 && contractAddress.startsWith('0x');
 
   const formatAbiSource = (source: NonNullable<ContractAddressInputProps['abiSource']>) => {
     if (source === 'blockscout-bytecode') {
@@ -69,105 +114,50 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
     return source;
   };
 
-  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onAddressChange(e.target.value);
-  };
-
-  const isValidAddress = contractAddress && contractAddress.length === 42 && contractAddress.startsWith('0x');
-
   return (
     <div className={`contract-address-input-container ${className}`}>
-      {/* Network Selector */}
-      <div>
-        <label className="contract-network-label">
-          Network
-        </label>
-        <div className="contract-network-dropdown">
-          <button
-            onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
-            className="contract-network-button"
-          >
-            <div className="contract-network-content">
-              {selectedNetwork && (
-                <ChainIcon 
-                  chain={getChainKey(selectedNetwork)} 
-                  size={20}
-                />
-              )}
-              <span className="contract-network-text">
-                {selectedNetwork?.name || 'Select Network'}
-              </span>
-            </div>
-            <svg className="contract-network-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {showNetworkDropdown && (
-            <div className="contract-network-dropdown-menu">
-              {supportedChains.map((chain) => (
-                <button
-                  key={chain.id}
-                  onClick={() => {
-                    onNetworkChange(chain);
-                    setShowNetworkDropdown(false);
-                  }}
-                  className="contract-network-option"
-                >
-                  <ChainIcon 
-                    chain={getChainKey(chain)} 
-                    size={20}
-                  />
-                  <span>{chain.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+      <label className="contract-endpoint-label">Contract Address</label>
+      <div className="contract-endpoint-row">
+        <div className="decoder-address-wrapper has-selector">
+          <div className="decoder-address-field decoder-address-field--contract">
+            <input
+              className="decoder-address-field__input"
+              type="text"
+              value={contractAddress}
+              onChange={(event) => onAddressChange(event.target.value)}
+              placeholder="0x..."
+            />
+            <NetworkSelector
+              className="decoder-address-field__selector"
+              selectedNetwork={selectedExtendedNetwork}
+              onNetworkChange={(network) =>
+                onNetworkChange(mapExtendedToChain(network, supportedChains, selectedNetwork))
+              }
+              networks={extendedNetworks}
+              showTestnets={extendedNetworks.some((network) => network.isTestnet)}
+              size="sm"
+              variant="input"
+            />
+            {onFetchABI && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="contract-endpoint-field__inline-action"
+                onClick={onFetchABI}
+                icon={<Search size={12} />}
+                loading={isLoading}
+                disabled={!isValidAddress || isLoading}
+              >
+                {isLoading ? '...' : 'Fetch'}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Contract Address Input */}
-      <div>
-        <Input
-          label="Contract Address"
-          value={contractAddress}
-          onChange={handleAddressChange}
-          placeholder="0x..."
-          error={error || undefined}
-          rightIcon={
-            onFetchABI && isValidAddress ? (
-              <button
-                onClick={onFetchABI}
-                disabled={isLoading}
-                style={{ 
-                  padding: 'var(--space-1)', 
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  transition: 'background var(--transition-normal)'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLoading) {
-                    e.currentTarget.style.background = 'var(--bg-tertiary)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                {isLoading ? (
-                  <LoadingSpinner size="sm" />
-                ) : (
-                  <Search size={16} />
-                )}
-              </button>
-            ) : undefined
-          }
-        />
-      </div>
+      {error && <ErrorDisplay error={error} variant="inline" />}
 
-      {/* Contract Info Display */}
       {contractName && (
         <div className="contract-info-display">
           <div className="contract-info-row">
@@ -179,7 +169,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               </Badge>
             )}
           </div>
-          
+
           {tokenInfo && (
             <div className="contract-token-info">
               {tokenInfo.name && (
@@ -200,10 +190,6 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
             </div>
           )}
         </div>
-      )}
-
-      {error && (
-        <ErrorDisplay error={error} variant="inline" />
       )}
     </div>
   );

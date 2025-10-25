@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import InlineCopyButton from "./ui/InlineCopyButton";
 import { SUPPORTED_CHAINS } from "../utils/chains";
+import { userRpcManager } from "../utils/userRpc";
 import { fetchContractABIMultiSource } from "../utils/multiSourceAbiFetcher";
 import DiamondFunctionCaller from "./DiamondFunctionCaller";
 import type { Chain } from "../types";
@@ -77,10 +78,13 @@ const UniversalContractInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"read" | "write">("read");
   const [selectedFacet, setSelectedFacet] = useState<string>("");
 
+  const resolveRpcUrl = (chain: Chain) =>
+    userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url;
+
   // Diamond detection
   const detectDiamond = async (contractAddress: string, chain: Chain) => {
     try {
-      const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+      const provider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain));
       const contract = new ethers.Contract(
         contractAddress,
         [
@@ -110,7 +114,7 @@ const UniversalContractInterface: React.FC = () => {
         const facetInfo = await fetchContractABIMultiSource(facetAddr, chain);
 
         // Get function count
-        const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+        const provider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain));
         const diamond = new ethers.Contract(
           contractAddress,
           [
@@ -459,7 +463,7 @@ const UniversalContractInterface: React.FC = () => {
                       }
                       provider={
                         new ethers.providers.JsonRpcProvider(
-                          contractInfo.chain.rpcUrl
+                          resolveRpcUrl(contractInfo.chain)
                         )
                       }
                     />

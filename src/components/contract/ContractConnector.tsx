@@ -6,6 +6,7 @@ import ContractAddressInput from './ContractAddressInput';
 import { fetchContractInfoComprehensive } from '../../utils/comprehensiveContractFetcher';
 import { detectTokenType } from '../../utils/universalTokenDetector';
 import { SUPPORTED_CHAINS, getChainById } from '../../utils/chains';
+import { userRpcManager } from '../../utils/userRpc';
 import type { Chain, ContractInfo } from '../../types';
 import '../../styles/ContractComponents.css';
 
@@ -158,7 +159,8 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
     
     try {
       // Create provider for token detection
-      const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+      const rpcUrl = userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url;
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
       const tokenResult = await detectTokenType(provider, address);
       
       if (tokenResult.type !== 'unknown') {

@@ -6,6 +6,7 @@ import type { DiamondFacet } from '../utils/diamondFacetFetcher';
 import SelectorDecoder, { type DecodedSelector } from './shared/SelectorDecoder';
 import { ethers } from 'ethers';
 import { SUPPORTED_CHAINS } from '../utils/chains';
+import { userRpcManager } from '../utils/userRpc';
 import type { Chain } from '../types';
 import InlineCopyButton from './ui/InlineCopyButton';
 import { copyTextToClipboard } from '../utils/clipboard';
@@ -78,7 +79,8 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
 
   // Fetch function selectors for a specific facet using diamond's facetFunctionSelectors
   const fetchFacetFunctionSelectors = async (diamondAddress: string, facetAddress: string, chain: Chain): Promise<string[]> => {
-    const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+    const rpcUrl = userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url;
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
     
     // Diamond contract ABI for facetFunctionSelectors function
     const diamondABI = [

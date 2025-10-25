@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import "./App.css";
 import { ToolIcon } from "./components/icons/IconLibrary";
+import { Settings as SettingsIcon } from "lucide-react";
 import RainbowKitWallet from "./components/RainbowKitWallet";
 // import WalletTest from "./components/WalletTest"; // Removed after testing
 // import PageTransition from "./components/ui/PageTransition";
@@ -18,6 +19,7 @@ import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
+import RpcSettingsModal from "./components/RpcSettingsModal";
 
 interface ToolRoute {
   path: string;
@@ -95,12 +97,30 @@ const PersistentTools: React.FC = () => {
 };
 
 function App() {
+  const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
+
   return (
     <ToolkitProvider>
       <NotificationProvider>
         <div className="app">
         <header>
           <div className="header-wallet">
+            <span
+              role="button"
+              tabIndex={0}
+              className="wallet-icon-inline rpc-settings-trigger"
+              onClick={() => setIsRpcModalOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setIsRpcModalOpen(true);
+                }
+              }}
+              title="RPC Settings"
+              aria-label="RPC settings"
+            >
+              <SettingsIcon size={18} />
+            </span>
             <RainbowKitWallet />
           </div>
           <div className="header-content">
@@ -123,6 +143,10 @@ function App() {
             </Routes>
           </ErrorBoundary>
         </main>
+        <RpcSettingsModal
+          isOpen={isRpcModalOpen}
+          onClose={() => setIsRpcModalOpen(false)}
+        />
         </div>
       </NotificationProvider>
     </ToolkitProvider>

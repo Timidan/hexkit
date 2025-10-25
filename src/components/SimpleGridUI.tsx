@@ -59,12 +59,10 @@ import ContractInputComponent, {
 } from "./ContractInputComponent";
 import { useContractInputs } from "../hooks/useContractInputs";
 import DiamondContractPopup from "./DiamondContractPopup";
-import NetworkSelector, {
-  type ExtendedChain,
-  EXTENDED_NETWORKS,
-} from "./shared/NetworkSelector";
+import ContractAddressInput from "./contract/ContractAddressInput";
 import { fetchContractInfoComprehensive } from "../utils/comprehensiveContractFetcher";
 import { getChainById } from "../utils/chains";
+import { userRpcManager, getRpcProviderLabel } from "../utils/userRpc";
 import { detectTokenType } from "../utils/universalTokenDetector";
 import { parseError, getErrorSeverity } from "../utils/errorParser";
 import {
@@ -73,6 +71,11 @@ import {
   EtherscanLogo,
   ManualLogo,
 } from "./SourceLogos";
+import { simulateTransaction } from "../utils/transactionSimulation";
+import type {
+  SimulationResult,
+  TransactionRequest,
+} from "../types/transaction";
 type SavedContractEntry = ContractInfo & {
   savedAt?: string;
   abiSource?: string;
@@ -132,6 +135,60 @@ const stringifyResultData = (value: any): string => {
   }
 };
 
+const fetchChainIdFromRpc = async (
+  url: string,
+  timeoutMs = 8000
+): Promise<number | null> => {
+  if (typeof fetch === "undefined") {
+    return null;
+  }
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : undefined;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
+      signal: controller?.signal,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json().catch(() => null);
+    if (!data) return null;
+    const result = data.result ?? data.chainId ?? data.chain_id;
+    if (typeof result === "string") {
+      const parsed = Number.parseInt(result, 16);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (typeof result === "number") {
+      return result;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (typeof timer !== "undefined") {
+      clearTimeout(timer);
+    }
+  }
+};
+
+const validateGenericRpcEndpoint = async (
+  url: string,
+  expectedChainId: number
+): Promise<boolean> => {
+  const chainId = await fetchChainIdFromRpc(url);
+  if (chainId === null || typeof chainId === "undefined") {
+    return false;
+  }
+  return Number(chainId) === Number(expectedChainId);
+};
+
 const normalizeResultString = (value: any): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
@@ -182,11 +239,309 @@ const deriveResultMetadata = (
   };
 };
 
-interface SimpleGridUIProps {
-  contractModeToggle?: ReactNode;
+type SimulationCallNode = {
+  type?: string;
+  from?: string;
+  to?: string;
+  functionName?: string;
+  label?: string;
+  gasUsed?: string | number;
+  value?: string | number;
+  input?: string;
+  output?: string;
+  children?: SimulationCallNode[];
+};
+
+type SimulationEventEntry = {
+  name?: string;
+  signature?: string;
+  address?: string;
+  decoded?: unknown;
+  data?: unknown;
+};
+
+type SimulationStorageDiffEntry = {
+  address?: string;
+  slot?: string;
+  key?: string;
+  before?: string;
+  after?: string;
+  value?: string;
+};
+
+interface SimulationArtifacts {
+  callTree: SimulationCallNode[];
+  events: SimulationEventEntry[];
+  assetChanges: Array<Record<string, any>>;
+  storageDiffs: SimulationStorageDiffEntry[];
+  rawReturnData: string | null;
+  rawPayload: string | null;
 }
 
-const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
+const ensureArray = <T,>(value: unknown, mapFn?: (item: any) => T): T[] => {
+  if (Array.isArray(value)) {
+    return mapFn ? value.map(mapFn) : (value as T[]);
+  }
+  if (value && typeof value === "object") {
+    return mapFn ? [mapFn(value)] : [value as T];
+  }
+  return [];
+};
+
+const normalizeHex = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  return value.startsWith("0x") ? value : `0x${value}`;
+};
+
+const convertEdbTraceToArtifacts = (
+  traceEntries: any[]
+): {
+  callTree: SimulationCallNode[];
+  events: SimulationEventEntry[];
+} => {
+  type InternalNode = SimulationCallNode & { __internalId: number };
+
+  const nodes = new Map<number, InternalNode>();
+  const childrenBucket = new Map<number, InternalNode[]>();
+  const events: SimulationEventEntry[] = [];
+
+  traceEntries.forEach((entryRaw: any) => {
+    if (!entryRaw || typeof entryRaw !== "object") {
+      return;
+    }
+
+    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
+    if (!Number.isFinite(id)) {
+      return;
+    }
+
+    const callType =
+      entryRaw.call_type ??
+      entryRaw.type ??
+      entryRaw.kind ??
+      (entryRaw.callType?.Call ?? entryRaw.callType);
+
+    const result = entryRaw.result ?? {};
+    const node: InternalNode = {
+      __internalId: id,
+      type:
+        typeof callType === "string"
+          ? callType
+          : typeof callType === "object"
+          ? Object.keys(callType)[0]
+          : undefined,
+      from: entryRaw.caller ?? entryRaw.from,
+      to: entryRaw.target ?? entryRaw.to,
+      functionName:
+        entryRaw.target_label ??
+        entryRaw.function_name ??
+        entryRaw.functionName ??
+        undefined,
+      label:
+        entryRaw.target_label ??
+        entryRaw.label ??
+        entryRaw.display ??
+        undefined,
+      gasUsed:
+        result.gas_used ??
+        result.gasUsed ??
+        entryRaw.gas_used ??
+        entryRaw.gasUsed,
+      value: entryRaw.value,
+      input: entryRaw.input,
+      output:
+        result.output ??
+        result.return_data ??
+        result.returnData ??
+        entryRaw.output,
+      children: [],
+    };
+
+    nodes.set(id, node);
+
+    const entryEvents = ensureArray(
+      entryRaw.events ?? entryRaw.logs ?? entryRaw.event_logs
+    );
+    entryEvents.forEach((evt: any) => {
+      events.push({
+        name: evt?.name ?? evt?.event,
+        signature: evt?.signature,
+        address: evt?.address ?? node.to,
+        decoded: evt?.args ?? evt?.decoded,
+        data: evt,
+      });
+    });
+  });
+
+  traceEntries.forEach((entryRaw: any) => {
+    if (!entryRaw || typeof entryRaw !== "object") {
+      return;
+    }
+    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
+    const node = nodes.get(id);
+    if (!node) {
+      return;
+    }
+    const parentIdRaw =
+      entryRaw.parent_id ??
+      entryRaw.parentId ??
+      entryRaw.parent_index ??
+      entryRaw.parent;
+    if (parentIdRaw === null || parentIdRaw === undefined) {
+      return;
+    }
+    const parentId = Number(parentIdRaw);
+    if (!Number.isFinite(parentId)) {
+      return;
+    }
+    const bucket = childrenBucket.get(parentId) ?? ([] as InternalNode[]);
+    bucket.push(node);
+    childrenBucket.set(parentId, bucket);
+  });
+
+  const descendantIds = new Set<number>();
+  childrenBucket.forEach((children, parentId) => {
+    const parentNode = nodes.get(parentId);
+    if (parentNode) {
+      parentNode.children = children;
+    }
+    children.forEach((child) => descendantIds.add(child.__internalId));
+  });
+
+  const stripInternalNode = (node: InternalNode): SimulationCallNode => {
+    const { __internalId: _internal, children = [], ...rest } = node;
+    const normalizedChildren = children.map((child) => stripInternalNode(child));
+    return {
+      ...rest,
+      children: normalizedChildren.length ? normalizedChildren : undefined,
+    };
+  };
+
+  const roots: SimulationCallNode[] = [];
+  nodes.forEach((node) => {
+    if (!descendantIds.has(node.__internalId)) {
+      roots.push(stripInternalNode(node));
+    }
+  });
+
+  return { callTree: roots, events };
+};
+
+const extractSimulationArtifacts = (
+  result: SimulationResult
+): SimulationArtifacts => {
+  const artifacts: SimulationArtifacts = {
+    callTree: [],
+    events: [],
+    assetChanges: [],
+    storageDiffs: [],
+    rawReturnData: null,
+    rawPayload: null,
+  };
+
+  const rawTrace = result.rawTrace;
+  if (rawTrace === null || rawTrace === undefined) {
+    return artifacts;
+  }
+
+  if (typeof rawTrace === "string") {
+    artifacts.rawPayload = rawTrace;
+    artifacts.rawReturnData = normalizeHex(rawTrace);
+    return artifacts;
+  }
+
+  if (Array.isArray(rawTrace)) {
+    try {
+      artifacts.rawPayload = JSON.stringify(rawTrace, null, 2);
+    } catch {
+      artifacts.rawPayload = null;
+    }
+    const converted = convertEdbTraceToArtifacts(rawTrace);
+    artifacts.callTree = converted.callTree;
+    artifacts.events = converted.events;
+    return artifacts;
+  }
+
+  if (typeof rawTrace !== "object") {
+    return artifacts;
+  }
+
+  const traceObj = rawTrace as Record<string, any>;
+  try {
+    artifacts.rawPayload = JSON.stringify(traceObj, null, 2);
+  } catch {
+    artifacts.rawPayload = null;
+  }
+
+  const innerTraceEntries = ensureArray(traceObj.inner);
+  if (innerTraceEntries.length > 0) {
+    const converted = convertEdbTraceToArtifacts(innerTraceEntries);
+    artifacts.callTree = converted.callTree;
+    artifacts.events = converted.events;
+  }
+
+  if (artifacts.callTree.length === 0) {
+    const treeCandidates = [
+      traceObj.callTree,
+      traceObj.trace,
+      traceObj.calls,
+      traceObj.callPath,
+    ];
+    for (const candidate of treeCandidates) {
+      const nodes = ensureArray<SimulationCallNode>(candidate);
+      if (nodes.length > 0) {
+        artifacts.callTree = nodes;
+        break;
+      }
+    }
+  }
+
+  if (artifacts.events.length === 0) {
+    const eventCandidates = ensureArray(traceObj.events)
+    .concat(ensureArray(traceObj.logs))
+    .concat(ensureArray(traceObj.decodedLogs))
+    .concat(ensureArray(traceObj.eventLogs));
+    artifacts.events = eventCandidates.map((event: any) => ({
+      name: event?.name || event?.event,
+      signature: event?.signature,
+      address: event?.address,
+      decoded: event?.args ?? event?.decoded,
+      data: event,
+    }));
+  }
+
+  artifacts.assetChanges = ensureArray(traceObj.assetChanges);
+
+  const storageCandidates = ensureArray(traceObj.storageDiffs)
+    .concat(ensureArray(traceObj.stateDiffs))
+    .concat(ensureArray(traceObj.storageChanges));
+  artifacts.storageDiffs = storageCandidates.map((entry: any) => ({
+    address: entry?.address,
+    slot: entry?.slot ?? entry?.key,
+    key: entry?.key,
+    before: entry?.before ?? entry?.previous,
+    after: entry?.after ?? entry?.current ?? entry?.value,
+    value: entry?.value,
+  }));
+
+  artifacts.rawReturnData =
+    normalizeHex(traceObj.returnData) ??
+    normalizeHex(traceObj.output) ??
+    normalizeHex(traceObj.return_value) ??
+    null;
+
+  return artifacts;
+};
+
+interface SimpleGridUIProps {
+  contractModeToggle?: ReactNode;
+  mode?: "live" | "simulation";
+}
+
+const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
+  contractModeToggle,
+  mode = "live",
+}) => {
   // Wagmi hooks for wallet integration
   const { address, isConnected, chain: accountChain } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -195,6 +550,8 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
   const { switchChain } = useSwitchChain();
   const { showSuccess, showError, showWarning, showInfo, showNotification } =
     useNotifications();
+
+  const isSimulationMode = mode === "simulation";
 
   // Diamond popup state
   const [isDiamondPopupOpen, setIsDiamondPopupOpen] = useState(false);
@@ -234,6 +591,62 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
     },
     [accountChain?.id, chainId]
   );
+
+  const renderCallTreeNodes = (
+    nodes: SimulationCallNode[],
+    depth = 0
+  ): React.ReactNode | null => {
+    if (!nodes || nodes.length === 0) {
+      return null;
+    }
+
+    return (
+      <ul className="simulation-call-tree">
+        {nodes.slice(0, 25).map((node, index) => {
+          const label =
+            node.functionName ||
+            node.label ||
+            node.type ||
+            `${node.from || "unknown"} → ${node.to || "unknown"}`;
+          const gas = node.gasUsed !== undefined ? String(node.gasUsed) : null;
+          const value =
+            node.value !== undefined ? String(node.value) : undefined;
+
+          return (
+            <li key={`call-node-${depth}-${index}`} className="simulation-call-node">
+              <div className="simulation-call-node__title">{label}</div>
+              <div className="simulation-call-node__meta">
+                {node.from && (
+                  <span>
+                    from{" "}
+                    <code className="simulation-call-node__code">{node.from}</code>
+                  </span>
+                )}
+                {node.to && (
+                  <span>
+                    to{" "}
+                    <code className="simulation-call-node__code">{node.to}</code>
+                  </span>
+                )}
+                {gas && <span>gas: {gas}</span>}
+                {value && <span>value: {value}</span>}
+              </div>
+              {node.children && node.children.length > 0 && (
+                <div className="simulation-call-node__children">
+                  {renderCallTreeNodes(node.children, depth + 1)}
+                </div>
+              )}
+            </li>
+          );
+        })}
+        {nodes.length > 25 && (
+          <li className="simulation-panel__hint">
+            +{nodes.length - 25} additional call frames
+          </li>
+        )}
+      </ul>
+    );
+  };
 
   // Add CSS keyframes for spinning animation and result formatting
   React.useEffect(() => {
@@ -275,6 +688,12 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
   const [functionInputs, setFunctionInputs] = useState<{
     [key: string]: string;
   }>({});
+  const [simulationFromAddress, setSimulationFromAddress] =
+    useState<string>("");
+  const [simulationResult, setSimulationResult] =
+    useState<SimulationResult | null>(null);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   // Unified comprehensive input system
   const contractInputsHook = useContractInputs({
@@ -317,6 +736,27 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
       setGeneratedCallData(calldata);
     },
   });
+  const requiresWalletForWrite = !isSimulationMode;
+  const walletMissingForWrite =
+    selectedFunctionType === "write" &&
+    requiresWalletForWrite &&
+    (!isConnected || !walletClient);
+  const disableSimulationAction =
+    isSimulationMode && isSimulating && selectedFunctionType === "write";
+
+  useEffect(() => {
+    if (isSimulationMode && address && !simulationFromAddress) {
+      setSimulationFromAddress(address);
+    }
+  }, [isSimulationMode, address, simulationFromAddress]);
+
+  useEffect(() => {
+    if (!isSimulationMode) {
+      setSimulationResult(null);
+      setSimulationError(null);
+      setIsSimulating(false);
+    }
+  }, [isSimulationMode]);
   const [contractName, setContractName] = useState<string>("");
   const [tokenInfo, setTokenInfo] = useState<{
     symbol?: string;
@@ -418,28 +858,31 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
   >(null);
 
   // Contract address and network state
+  const resetContractDerivedState = useCallback(() => {
+    setTokenInfo(null);
+    setTokenDetection(null);
+    setIsERC20(false);
+    setIsERC721(false);
+    setIsERC1155(false);
+    setIsERC777(false);
+    setIsERC4626(false);
+    setIsERC2981(false);
+    setIsDiamond(false);
+    setReadFunctions([]);
+    setWriteFunctions([]);
+    setContractInfo(null);
+    setAbiSource(null);
+    setAbiError(null);
+  }, []);
+
   const [contractAddress, setContractAddress] = useState("");
   const [selectedNetwork, setSelectedNetwork] = useState<Chain | null>(
     SUPPORTED_CHAINS[0]
   );
-  const extendedSelectedNetwork = useMemo<ExtendedChain | null>(() => {
-    if (!selectedNetwork) {
-      return null;
-    }
-
-    const baseNetwork = EXTENDED_NETWORKS.find(
-      (network) => network.id === selectedNetwork.id
-    );
-    const isTestnet = baseNetwork?.isTestnet ?? false;
-    const category = baseNetwork?.category ?? (isTestnet ? "testnet" : "mainnet");
-
-    return {
-      ...(baseNetwork ?? {}),
-      ...selectedNetwork,
-      isTestnet,
-      category,
-    };
-  }, [selectedNetwork]);
+  const handleManualAddressChange = (value: string) => {
+    setContractAddress(value);
+    resetContractDerivedState();
+  };
   const [isLoadingABI, setIsLoadingABI] = useState(false);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const fetchRequestRef = useRef<number>(0);
@@ -675,7 +1118,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
   }, [functionSearch, allReadFunctions, allWriteFunctions]);
 
   // Helper function to create ethers provider with explicit network configuration
-  const createEthersProvider = (selectedNetwork: any) => {
+  const createEthersProvider = async (selectedNetwork: any) => {
     if (!selectedNetwork) {
       throw new Error("No network selected");
     }
@@ -704,12 +1147,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
 
     // Choose RPC URL - prioritize current configuration over cached data
     let rpcUrl = currentNetworkConfig?.rpcUrl || selectedNetwork.rpcUrl;
-    if (
-      !rpcUrl ||
-      rpcUrl.includes("undefined") ||
-      rpcUrl.includes("null") ||
-      rpcUrl.includes("infura")
-    ) {
+    if (!rpcUrl || rpcUrl.includes("undefined") || rpcUrl.includes("null")) {
       console.warn(
         ` [Provider] Invalid/outdated RPC URL for ${selectedNetwork.name}, using fallback...`
       );
@@ -720,6 +1158,49 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
         );
       }
       console.log(` [Provider] Using fallback RPC URL:`, rpcUrl);
+    }
+
+    const defaultRpcUrl = rpcUrl;
+    const resolution = userRpcManager.getEffectiveRpcUrl(
+      currentNetworkConfig ?? selectedNetwork,
+      defaultRpcUrl
+    );
+
+    if (resolution.note) {
+      showWarning("RPC configuration", resolution.note);
+    }
+
+    if (resolution.mode === "GENERIC") {
+      const isValid = await validateGenericRpcEndpoint(
+        resolution.url,
+        selectedNetwork.id
+      );
+      if (!isValid) {
+        showError(
+          "Custom RPC mismatch",
+          `The custom RPC endpoint did not return chain ID ${selectedNetwork.id}. The default RPC for ${selectedNetwork.name} will be used instead.`
+        );
+        const currentSettings = userRpcManager.getSettings();
+        if (currentSettings.mode === "GENERIC") {
+          userRpcManager.saveSettings({
+            ...currentSettings,
+            mode: "DEFAULT",
+          });
+        }
+        rpcUrl = defaultRpcUrl;
+      } else {
+        rpcUrl = resolution.url;
+        console.log(
+          ` [Provider] Using user-defined Custom RPC URL:`,
+          rpcUrl
+        );
+      }
+    } else if (resolution.mode !== "DEFAULT") {
+      rpcUrl = resolution.url;
+      console.log(
+        ` [Provider] Using ${getRpcProviderLabel(resolution.mode)} RPC URL:`,
+        rpcUrl
+      );
     }
 
     // Create network configuration for ethers
@@ -783,6 +1264,375 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
         `Failed to create provider for ${selectedNetwork.name}: ${error}`
       );
     }
+  };
+
+  const runSimulation = useCallback(
+    async (
+      transaction: TransactionRequest,
+      options?: { description?: string; fromOverride?: string }
+    ): Promise<SimulationResult | null> => {
+      if (!selectedNetwork) {
+        showWarning(
+          "Network Required",
+          "Select a network before running a simulation."
+        );
+        return null;
+      }
+
+      const fromCandidate =
+        (options?.fromOverride || simulationFromAddress || "").trim() ||
+        address ||
+        "0x0000000000000000000000000000000000000000";
+
+      if (!ethers.utils.isAddress(fromCandidate)) {
+        showError(
+          "Invalid Simulation Address",
+          "Enter a valid address to impersonate for the simulation."
+        );
+        return null;
+      }
+
+      const normalizedFrom = ethers.utils.getAddress(fromCandidate);
+
+      setIsSimulating(true);
+      setSimulationError(null);
+      setSimulationResult(null);
+
+      try {
+        const provider = await createEthersProvider(selectedNetwork);
+        const result = await simulateTransaction(
+          transaction,
+          selectedNetwork,
+          normalizedFrom,
+          provider
+        );
+        setSimulationResult(result);
+
+        if (result.success) {
+          showSuccess(
+            "Simulation Complete",
+            options?.description
+              ? `${options.description} simulated successfully`
+              : "Transaction simulated successfully"
+          );
+        } else {
+          const message =
+            result.error ||
+            result.revertReason ||
+            "Transaction would revert during execution.";
+          setSimulationError(message);
+          showWarning("Simulation Failed", message);
+        }
+
+        return result;
+      } catch (error: any) {
+        console.error("Simulation run failed:", error);
+        const message =
+          error?.message ||
+          error?.toString?.() ||
+          "Simulation failed due to an unexpected error.";
+        setSimulationError(message);
+        showError("Simulation Error", message);
+        return null;
+      } finally {
+        setIsSimulating(false);
+      }
+    },
+    [
+      address,
+      selectedNetwork,
+      showError,
+      showSuccess,
+      showWarning,
+      simulationFromAddress,
+    ]
+  );
+
+const renderSimulationInsights = (
+    options?: { emptyMessage?: string }
+  ): ReactNode => {
+    if (!isSimulationMode) {
+      return null;
+    }
+
+    if (isSimulating) {
+      return (
+        <div className="simulation-helper-card">
+          <Loader2Icon
+            width={20}
+            height={20}
+            style={{ animation: "spin 1s linear infinite", color: "#93c5fd" }}
+          />
+          <div>
+            <strong>Running simulation</strong>
+            <p style={{ margin: 0 }}>
+              Forking state and executing the transaction…
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (simulationResult) {
+      const artifacts = extractSimulationArtifacts(simulationResult);
+      const gasUsedDisplay = simulationResult.gasUsed ?? "—";
+      const gasLimitDisplay = simulationResult.gasLimitSuggested ?? "—";
+      const modeDisplay = (simulationResult.mode || "rpc").toUpperCase();
+      const callerCandidate =
+        simulationFromAddress?.trim() ||
+        address ||
+        "0x0000000000000000000000000000000000000000";
+      const callerDisplay =
+        callerCandidate && ethers.utils.isAddress(callerCandidate)
+          ? ethers.utils.getAddress(callerCandidate)
+          : callerCandidate;
+      const warningsList = simulationResult.warnings ?? [];
+      const statusLabel = simulationResult.success ? "Succeeded" : "Reverted";
+      const statusClass = simulationResult.success
+        ? "simulation-status-badge simulation-status-badge--success"
+        : "simulation-status-badge simulation-status-badge--error";
+      const assetChanges = artifacts.assetChanges ?? [];
+      const storageDiffs = artifacts.storageDiffs ?? [];
+      const events = artifacts.events ?? [];
+      const callTree = artifacts.callTree ?? [];
+      const rawPayload = artifacts.rawPayload;
+      const rawReturnData = artifacts.rawReturnData;
+
+      return (
+        <div className="simulation-shell">
+          <div className="simulation-shell__summary">
+            <div className={statusClass}>
+              <span className="simulation-status-dot" />
+              {statusLabel}
+            </div>
+            <div className="simulation-metrics-grid">
+              <div>
+                <span className="simulation-label">Gas Used</span>
+                <div className="simulation-metric">{gasUsedDisplay}</div>
+              </div>
+              <div>
+                <span className="simulation-label">Suggested Gas</span>
+                <div className="simulation-metric">{gasLimitDisplay}</div>
+              </div>
+              <div>
+                <span className="simulation-label">Mode</span>
+                <div className="simulation-metric">{modeDisplay}</div>
+              </div>
+              <div>
+                <span className="simulation-label">Caller</span>
+                <div className="simulation-metric">{callerDisplay}</div>
+              </div>
+            </div>
+            {!!warningsList.length && (
+              <div className="simulation-chip-row">
+                {warningsList.map((warning, index) => (
+                  <span
+                    key={`simulation-warning-chip-${index}`}
+                    className="simulation-chip simulation-chip--warning"
+                  >
+                    {warning}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {simulationResult.error && (
+            <div className="simulation-status-alert">
+              <AlertTriangleIcon width={16} height={16} />
+              <span>{simulationResult.error}</span>
+            </div>
+          )}
+            {simulationResult.revertReason && (
+              <div className="simulation-status-alert simulation-status-alert--muted">
+                <span>
+                  <strong>Revert reason:</strong> {simulationResult.revertReason}
+                </span>
+              </div>
+            )}
+
+          <div className="simulation-shell__panels">
+            <section className="simulation-panel">
+              <header className="simulation-panel__header">
+                <span>Stack Trace</span>
+                <span className="simulation-chip simulation-chip--info">
+                  beta
+                </span>
+              </header>
+              {callTree.length > 0 ? (
+                <>
+                  <p className="simulation-panel__description">
+                    Displaying the first 25 call frames. Export the raw payload for
+                    exhaustive traces.
+                  </p>
+                  {renderCallTreeNodes(callTree)}
+                </>
+              ) : (
+                <p className="simulation-panel__placeholder">
+                  No structured call trace returned by the simulator.
+                </p>
+              )}
+            </section>
+
+            <section className="simulation-panel">
+              <header className="simulation-panel__header">
+                <span>State &amp; Asset Changes</span>
+                <span className="simulation-chip simulation-chip--info">
+                  beta
+                </span>
+              </header>
+              {assetChanges.length > 0 ? (
+                <ul className="simulation-changes-list">
+                  {assetChanges.slice(0, 4).map((change, index) => (
+                    <li key={`simulation-asset-change-${index}`}>
+                      <span className="simulation-change-amount">
+                        {change.amount ?? change.rawAmount ?? "—"}
+                      </span>
+                      <span className="simulation-change-asset">
+                        {change.symbol || change.name || "Asset"}
+                      </span>
+                      <span className="simulation-change-address">
+                        {change.address || "—"}
+                      </span>
+                    </li>
+                  ))}
+                  {assetChanges.length > 4 && (
+                    <li className="simulation-panel__hint">
+                      +{assetChanges.length - 4} more changes
+                    </li>
+                  )}
+                </ul>
+              ) : (
+                <p className="simulation-panel__placeholder">
+                  No asset or balance shifts detected in this simulation.
+                </p>
+              )}
+              {storageDiffs.length > 0 && (
+                <ul className="simulation-storage-list">
+                  {storageDiffs.slice(0, 6).map((diff, index) => (
+                    <li key={`simulation-storage-${index}`}>
+                      <div className="simulation-storage-address">
+                        {diff.address || "Storage"}
+                      </div>
+                      <div className="simulation-storage-slot">
+                        slot {diff.slot || diff.key || "?"}
+                      </div>
+                      <div className="simulation-storage-values">
+                        <span>
+                          before:{" "}
+                          <code>{diff.before ?? "—"}</code>
+                        </span>
+                        <span>
+                          after:{" "}
+                          <code>{diff.after ?? diff.value ?? "—"}</code>
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                  {storageDiffs.length > 6 && (
+                    <li className="simulation-panel__hint">
+                      +{storageDiffs.length - 6} additional storage mutations
+                    </li>
+                  )}
+                </ul>
+              )}
+            </section>
+
+            <section className="simulation-panel">
+              <header className="simulation-panel__header">
+                <span>Events</span>
+                <span className="simulation-chip simulation-chip--info">
+                  beta
+                </span>
+              </header>
+              {events.length > 0 ? (
+                <ul className="simulation-events-list">
+                  {events.slice(0, 6).map((event, index) => (
+                    <li key={`simulation-event-${index}`}>
+                      <div className="simulation-event-name">
+                        {event.name || event.signature || "Event"}
+                      </div>
+                      <div className="simulation-event-meta">
+                        {event.address && (
+                          <span>
+                            <code>{event.address}</code>
+                          </span>
+                        )}
+                        {event.signature && (
+                          <span className="simulation-event-signature">
+                            {event.signature}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                  {events.length > 6 && (
+                    <li className="simulation-panel__hint">
+                      +{events.length - 6} additional events
+                    </li>
+                  )}
+                </ul>
+              ) : (
+                <p className="simulation-panel__placeholder">
+                  No events were emitted during this simulation.
+                </p>
+              )}
+            </section>
+
+            <section className="simulation-panel simulation-panel--raw">
+              <header className="simulation-panel__header">
+                <span>Raw Payload</span>
+              </header>
+              {rawReturnData && (
+                <div className="simulation-panel__raw-return">
+                  <span className="simulation-label">Return Data</span>
+                  <code className="simulation-panel__pre simulation-panel__pre--inline">
+                    {rawReturnData}
+                  </code>
+                </div>
+              )}
+              {rawPayload ? (
+                <pre className="simulation-panel__pre">{rawPayload}</pre>
+              ) : (
+                <p className="simulation-panel__placeholder">
+                  No raw payload returned from the simulator.
+                </p>
+              )}
+            </section>
+          </div>
+        </div>
+      );
+    }
+
+    if (simulationError) {
+      return (
+        <div
+          className="simulation-helper-card"
+          style={{
+            borderColor: "rgba(248, 113, 113, 0.4)",
+            color: "#fecaca",
+          }}
+        >
+          <AlertTriangleIcon width={20} height={20} />
+          <div>
+            <strong>Simulation failed</strong>
+            <p style={{ margin: 0 }}>{simulationError}</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="simulation-helper-card">
+        <ZapIcon width={20} height={20} />
+        <div>
+          <strong>Ready to simulate</strong>
+          <p style={{ margin: 0 }}>
+            {options?.emptyMessage ??
+              "Build calldata above and run the simulation to preview execution without touching the live network."}
+          </p>
+        </div>
+      </div>
+    );
   };
 
   // ABI fetching functions
@@ -2499,7 +3349,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
           const rpcUrl = selectedNetwork?.rpcUrl || SUPPORTED_CHAINS[0].rpcUrl;
 
           console.log("Creating provider with RPC URL:", rpcUrl);
-          const provider = createEthersProvider(selectedNetwork);
+          const provider = await createEthersProvider(selectedNetwork);
           const contract = new ethers.Contract(contractAddress, abi, provider);
 
           console.log("Provider created successfully");
@@ -3539,7 +4389,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
           // Universal token detection independent of ABI (robust RPC + non-destructive)
           try {
             // Use chain RPC directly (env-backed)
-            const provider = createEthersProvider(selectedNetwork);
+            const provider = await createEthersProvider(selectedNetwork);
 
             // Always run ERC165 universal detection and prefer its result
             const result = await detectTokenType(provider, contractAddress);
@@ -3590,7 +4440,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({ contractModeToggle }) => {
             });
           }
 
-          const provider = createEthersProvider(selectedNetwork);
+          const provider = await createEthersProvider(selectedNetwork);
           const det = await detectTokenType(provider, contractAddress);
 
           if (isStale()) {
@@ -4172,101 +5022,21 @@ const loadSavedContracts = (): SavedContractEntry[] => {
               </div>
             </div>
           ) : (
-            <div style={{ marginBottom: "24px" }}>
-              {/* Network Selection */}
-              <div style={{ marginBottom: "16px" }}>
-                <NetworkSelector
-                  selectedNetwork={extendedSelectedNetwork}
-                  onNetworkChange={(extendedChain: ExtendedChain) => {
-                    // Convert ExtendedChain back to Chain for compatibility
-                    const chain = SUPPORTED_CHAINS.find(
-                      (c) => c.id === extendedChain.id
-                    ) || {
-                      id: extendedChain.id,
-                      name: extendedChain.name,
-                      rpcUrl: extendedChain.rpcUrl || "",
-                      blockExplorer: extendedChain.blockExplorer || "",
-                      explorerUrl: extendedChain.blockExplorer || "",
-                      apiUrl: "",
-                      explorers: [],
-                      nativeCurrency: {
-                        name: "ETH",
-                        symbol: "ETH",
-                        decimals: 18,
-                      },
-                    };
-                    setSelectedNetwork(chain);
-                  }}
-                  showTestnets={true}
-                  size="md"
-                  variant="default"
+            <div>
+              <div style={{ marginBottom: "24px" }}>
+                <ContractAddressInput
+                  contractAddress={contractAddress}
+                  onAddressChange={handleManualAddressChange}
+                  selectedNetwork={selectedNetwork}
+                  onNetworkChange={setSelectedNetwork}
+                  supportedChains={SUPPORTED_CHAINS}
+                  isLoading={isLoadingABI}
+                  error={abiError}
+                  onFetchABI={handleFetchABI}
+                  contractName={resolvedContractName}
+                  abiSource={abiSource}
+                  tokenInfo={tokenInfo}
                 />
-              </div>
-
-              {/* Contract Address Input */}
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "14px",
-                    color: "#ccc",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Contract Address
-                </label>
-                <div style={{ display: "flex", gap: "12px" }}>
-                  <input
-                    type="text"
-                    placeholder="0x..."
-                    value={contractAddress}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setContractAddress(v);
-                      // Reset all derived state to avoid stale data bleed
-                      setTokenInfo(null);
-                      setTokenDetection(null);
-                      setIsERC20(false);
-                      setIsERC721(false);
-                      setIsERC1155(false);
-                      setIsERC777(false);
-                      setIsERC4626(false);
-                      setIsERC2981(false);
-                      setIsDiamond(false);
-                      setReadFunctions([]);
-                      setWriteFunctions([]);
-                      setContractInfo(null);
-                      setAbiSource(null);
-                      setAbiError(null);
-                    }}
-                    style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }}
-                  />
-                  <button
-                    style={{
-                      ...buttonStyle,
-                      background: isLoadingABI ? "#666" : "#22c55e",
-                      cursor: isLoadingABI ? "not-allowed" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                    onClick={handleFetchABI}
-                    disabled={
-                      isLoadingABI || !contractAddress || !selectedNetwork
-                    }
-                  >
-                    {isLoadingABI ? (
-                      <Loader2Icon
-                        width={16}
-                        height={16}
-                        className="animate-spin"
-                      />
-                    ) : (
-                      <SearchIcon width={16} height={16} />
-                    )}
-                    {isLoadingABI ? "Searching..." : "Fetch"}
-                  </button>
-                </div>
               </div>
 
               {/* ABI Status */}
@@ -4357,7 +5127,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             </div>
                           )}
 
-                          {selectedFunctionType === "write" && (
+                          {selectedFunctionType === "write" && !isSimulationMode && (
                             <div style={{ marginTop: "12px" }}>
                               <InlineWalletConnect
                                 size="compact"
@@ -6602,6 +7372,103 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                       {/* Function Execution Section */}
                       {selectedFunctionObj && (
                         <div style={{ marginTop: "20px" }}>
+                          {isSimulationMode &&
+                            selectedFunctionType === "write" && (
+                              <div
+                                style={{
+                                  marginBottom: "12px",
+                                  padding: "12px",
+                                  borderRadius: "10px",
+                                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                                  background: "rgba(30, 64, 175, 0.18)",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "10px",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "12px",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <div style={{ flex: 1, minWidth: "220px" }}>
+                                    <label
+                                      style={{
+                                        display: "block",
+                                        fontSize: "11px",
+                                        letterSpacing: "0.06em",
+                                        textTransform: "uppercase",
+                                        color: "#bfdbfe",
+                                        marginBottom: "6px",
+                                      }}
+                                    >
+                                      Simulation Caller
+                                    </label>
+                                    <input
+                                      value={simulationFromAddress}
+                                      onChange={(event) =>
+                                        setSimulationFromAddress(event.target.value)
+                                      }
+                                      placeholder="0x... (optional)"
+                                      style={{
+                                        width: "100%",
+                                        padding: "10px 12px",
+                                        borderRadius: "8px",
+                                        border:
+                                          "1px solid rgba(148, 163, 184, 0.35)",
+                                        background: "rgba(15, 23, 42, 0.6)",
+                                        color: "#e2e8f0",
+                                        fontFamily: "monospace",
+                                        fontSize: "12px",
+                                      }}
+                                    />
+                                  </div>
+                                  {address && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSimulationFromAddress(address)}
+                                      style={{
+                                        padding: "8px 12px",
+                                        borderRadius: "8px",
+                                        border:
+                                          "1px solid rgba(59, 130, 246, 0.45)",
+                                        background: "rgba(59, 130, 246, 0.15)",
+                                        color: "#bfdbfe",
+                                        fontSize: "12px",
+                                        cursor: "pointer",
+                                        transition: "all 0.2s ease",
+                                      }}
+                                      onMouseEnter={(event) => {
+                                        event.currentTarget.style.background =
+                                          "rgba(59, 130, 246, 0.25)";
+                                      }}
+                                      onMouseLeave={(event) => {
+                                        event.currentTarget.style.background =
+                                          "rgba(59, 130, 246, 0.15)";
+                                      }}
+                                    >
+                                      Use Connected Wallet
+                                    </button>
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "#cbd5f5",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  <DatabaseIcon width={14} height={14} />
+                                  This caller is impersonated locally. Leave blank to
+                                  use a neutral default address.
+                                </div>
+                              </div>
+                            )}
                           <div
                             style={{
                               display: "flex",
@@ -6615,27 +7482,33 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                 padding: "8px 12px",
                                 background:
                                   selectedFunctionType === "write"
-                                    ? isConnected
-                                      ? "rgba(245, 158, 11, 0.18)"
-                                      : "rgba(148, 163, 184, 0.16)"
+                                    ? walletMissingForWrite
+                                      ? "rgba(148, 163, 184, 0.16)"
+                                      : isSimulationMode
+                                        ? "rgba(14, 165, 233, 0.18)"
+                                        : "rgba(245, 158, 11, 0.18)"
                                     : "rgba(34, 197, 94, 0.18)",
                                 border:
                                   selectedFunctionType === "write"
-                                    ? isConnected
-                                      ? "1px solid rgba(245, 158, 11, 0.45)"
-                                      : "1px solid rgba(148, 163, 184, 0.35)"
+                                    ? walletMissingForWrite
+                                      ? "1px solid rgba(148, 163, 184, 0.35)"
+                                      : isSimulationMode
+                                        ? "1px solid rgba(14, 165, 233, 0.45)"
+                                        : "1px solid rgba(245, 158, 11, 0.45)"
                                     : "1px solid rgba(34, 197, 94, 0.45)",
                                 borderRadius: "8px",
                                 color: "#f8fafc",
                                 fontWeight: "600",
                                 fontSize: "13px",
-                                cursor:
-                                  selectedFunctionType === "write" && !isConnected
+                                cursor: disableSimulationAction
+                                  ? "wait"
+                                  : walletMissingForWrite
                                     ? "not-allowed"
                                     : "pointer",
-                                opacity:
-                                  selectedFunctionType === "write" && !isConnected
-                                    ? 0.6
+                                opacity: walletMissingForWrite
+                                  ? 0.6
+                                  : disableSimulationAction
+                                    ? 0.75
                                     : 1,
                                 transition: "all 0.2s ease",
                                 display: "flex",
@@ -6644,12 +7517,17 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                 flex: 1,
                                 boxShadow:
                                   selectedFunctionType === "write"
-                                    ? "0 6px 20px rgba(245, 158, 11, 0.15)"
+                                    ? isSimulationMode
+                                      ? "0 6px 20px rgba(14, 165, 233, 0.2)"
+                                      : "0 6px 20px rgba(245, 158, 11, 0.15)"
                                     : "0 6px 20px rgba(34, 197, 94, 0.15)",
                                 backdropFilter: "blur(16px)",
                                 WebkitBackdropFilter: "blur(16px)",
                               }}
                               onMouseEnter={(e) => {
+                                if (walletMissingForWrite || disableSimulationAction) {
+                                  return;
+                                }
                                 e.currentTarget.style.transform =
                                   "translateY(-1px)";
                                 e.currentTarget.style.boxShadow =
@@ -6660,10 +7538,16 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                   "translateY(0)";
                                 e.currentTarget.style.boxShadow =
                                   selectedFunctionType === "write"
-                                    ? "0 6px 20px rgba(245, 158, 11, 0.15)"
+                                    ? isSimulationMode
+                                      ? "0 6px 20px rgba(14, 165, 233, 0.2)"
+                                      : "0 6px 20px rgba(245, 158, 11, 0.15)"
                                     : "0 6px 20px rgba(34, 197, 94, 0.15)";
                               }}
                               onClick={async () => {
+                                if (disableSimulationAction) {
+                                  return;
+                                }
+
                                 if (!selectedFunctionObj || !contractAddress) {
                                   showWarning(
                                     "Selection required",
@@ -6673,10 +7557,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                 }
 
                                 // For WRITE operations, check wallet connection and open modal if needed
-                                if (
-                                  selectedFunctionType === "write" &&
-                                  (!isConnected || !walletClient)
-                                ) {
+                                if (selectedFunctionType === "write" && walletMissingForWrite) {
                                   showWarning(
                                     "Wallet required",
                                     "Connect your wallet to send transactions."
@@ -6870,6 +7751,72 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                     contractAddress
                                   );
 
+                                  if (isSimulationMode && selectedFunctionType === "write") {
+                                    const iface = new ethers.utils.Interface(contractABI);
+                                    const encodedCalldata = iface.encodeFunctionData(
+                                      selectedFunctionObj.name,
+                                      args
+                                    );
+
+                                    if (encodedCalldata) {
+                                      setGeneratedCallData(encodedCalldata);
+                                    }
+
+                                    setFunctionResult({ data: null, isLoading: true });
+
+                                    const simulation = await runSimulation(
+                                      {
+                                        to: contractAddress as `0x${string}`,
+                                        data: encodedCalldata as `0x${string}`,
+                                      },
+                                      {
+                                        description: selectedFunctionObj.name,
+                                        fromOverride: simulationFromAddress,
+                                      }
+                                    );
+
+                                    if (!simulation) {
+                                      setFunctionResult({
+                                        data: null,
+                                        error:
+                                          simulationError ||
+                                          "Simulation did not complete.",
+                                        isLoading: false,
+                                      });
+                                      return;
+                                    }
+
+                                    if (!simulation.success) {
+                                      const failureMessage =
+                                        simulation.error ||
+                                        simulation.revertReason ||
+                                        "Simulation indicated this call would revert.";
+                                      setFunctionResult({
+                                        data: null,
+                                        error: failureMessage,
+                                        isLoading: false,
+                                      });
+                                      return;
+                                    }
+
+                                    setFunctionResult({
+                                      data: {
+                                        mode: simulation.mode,
+                                        gasUsed: simulation.gasUsed,
+                                        warnings: simulation.warnings ?? [],
+                                      },
+                                      formattedResult: {
+                                        displayValue:
+                                          simulation.gasUsed
+                                            ? `Simulation succeeded. Estimated gas usage: ${simulation.gasUsed}.`
+                                            : "Simulation succeeded.",
+                                        type: "simulation",
+                                      },
+                                      isLoading: false,
+                                    });
+                                    return;
+                                  }
+
                                   if (selectedFunctionType === "read") {
                                     // Set loading state
                                     setFunctionResult({
@@ -6878,267 +7825,157 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                     });
 
                                     try {
-                                      // For diamond contracts, force ethers.js fallback since viem has issues
-                                      if (isDiamond || !publicClient) {
-                                        console.log(
-                                          ` [Function Call] Using ethers.js fallback for diamond contract...`
-                                        );
-                                        console.log(
-                                          ` [Function Call] Selected network:`,
-                                          selectedNetwork
-                                        );
-                                        console.log(
-                                          ` [Function Call] Contract address:`,
-                                          contractAddress
-                                        );
-
-                                        if (!selectedNetwork) {
-                                          throw new Error(
-                                            "No network selected"
-                                          );
-                                        }
-
-                                        console.log(
-                                          ` [Function Call] Using RPC URL:`,
-                                          selectedNetwork.rpcUrl
-                                        );
-                                        const provider =
-                                          createEthersProvider(selectedNetwork);
-                                        const contract = new ethers.Contract(
-                                          contractAddress,
-                                          contractABI,
-                                          provider
-                                        );
-                                        console.log(
-                                          ` [Function Call] Calling ${selectedFunctionObj.name} with ethers...`
-                                        );
-                                        console.log(
-                                          ` [Function Call] Contract Address:`,
-                                          contractAddress
-                                        );
-                                        console.log(
-                                          ` [Function Call] ABI Functions Count:`,
-                                          contractABI.filter(
-                                            (item: any) =>
-                                              item.type === "function"
-                                          ).length
-                                        );
-                                        console.log(
-                                          ` [Function Call] Function exists in ABI:`,
-                                          contractABI.some(
-                                            (item: any) =>
-                                              item.type === "function" &&
-                                              item.name ===
-                                                selectedFunctionObj.name
-                                          )
-                                        );
-                                        const result = await contract[
-                                          selectedFunctionObj.name
-                                        ](...args);
-                                        console.log(
-                                          ` [Function Call] Ethers result:`,
-                                          result
-                                        );
-
-                                        // Format result and set state (Ethers fallback)
-                                        // Get the raw ABI item for proper output formatting
+                                      const persistResult = (resultValue: any) => {
                                         const rawFunctionABI = contractABI.find(
                                           (item: any) =>
                                             item.type === "function" &&
-                                            item.name ===
-                                              selectedFunctionObj.name
+                                            item.name === selectedFunctionObj.name
                                         );
 
-                                        console.log(
-                                          ` [Function Call] Raw function ABI:`,
-                                          rawFunctionABI
-                                        );
-                                        console.log(
-                                          ` [Function Call] Function outputs:`,
-                                          rawFunctionABI?.outputs
-                                        );
-                                        console.log(
-                                          ` [Function Call] Result data type:`,
-                                          typeof result
-                                        );
-                                        console.log(
-                                          ` [Function Call] Result is array:`,
-                                          Array.isArray(result)
-                                        );
-                                        console.log(
-                                          ` [Function Call] Result structure:`,
-                                          result
-                                        );
-                                        console.log(
-                                          ` [Function Call] Result keys:`,
-                                          Object.keys(result || {})
-                                        );
-
-                                        // Debug named properties
-                                        if (
-                                          Array.isArray(result) &&
-                                          rawFunctionABI?.outputs
-                                        ) {
-                                          console.log(
-                                            ` [Function Call] Testing named access:`
-                                          );
-                                          rawFunctionABI.outputs.forEach(
-                                            (output: any, idx: number) => {
-                                              const namedValue =
-                                                result[output.name];
-                                              const indexValue = result[idx];
-                                              console.log(
-                                                `  ${output.name} (${output.type}): named=${namedValue}, indexed=${indexValue}`
-                                              );
-                                            }
-                                          );
-                                        }
-
-                                        // Force construction of proper outputs structure
                                         let functionObjToUse = rawFunctionABI;
 
-                                        // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
                                         if (
                                           selectedFunctionObj &&
                                           selectedFunctionObj.outputs &&
-                                          Array.isArray(
-                                            selectedFunctionObj.outputs
-                                          )
+                                          Array.isArray(selectedFunctionObj.outputs)
                                         ) {
                                           functionObjToUse = {
                                             name: selectedFunctionObj.name,
-                                            outputs:
-                                              selectedFunctionObj.outputs.map(
-                                                (output: any) => ({
-                                                  name:
-                                                    output.name ||
-                                                    `output_${output.type}`,
-                                                  type: output.type,
-                                                  internalType:
-                                                    output.internalType,
-                                                  components: output.components, // CRITICAL: Include components for nested tuples
-                                                })
-                                              ),
-                                          };
-                                          console.log(
-                                            ` CONSTRUCTED functionObjToUse:`,
-                                            functionObjToUse
-                                          );
-                                          console.log(
-                                            ` FIRST OUTPUT:`,
-                                            functionObjToUse.outputs[0]
-                                          );
-                                          console.log(
-                                            ` FIRST OUTPUT COMPONENTS:`,
-                                            functionObjToUse.outputs[0]
-                                              ?.components
-                                          );
+                                            outputs: selectedFunctionObj.outputs.map(
+                                              (output: any) => ({
+                                                name:
+                                                  output.name || `output_${output.type}`,
+                                                type: output.type,
+                                                internalType: output.internalType,
+                                                components: output.components,
+                                              })
+                                            ),
+                                          } as any;
                                         } else if (!functionObjToUse) {
-                                          // Final fallback
-                                          functionObjToUse =
-                                            selectedFunctionObj;
+                                          functionObjToUse = selectedFunctionObj;
                                         }
 
                                         const formattedResult =
                                           ContractResultFormatter.formatResult(
-                                            result,
-                                            functionObjToUse ??
-                                              selectedFunctionObj ?? {
-                                                outputs: [],
-                                              }
+                                            resultValue,
+                                            functionObjToUse ?? selectedFunctionObj ?? {
+                                              outputs: [],
+                                            }
                                           );
+
                                         setFunctionResult({
-                                          data: safeBigNumberToString(result),
-                                          formattedResult: formattedResult,
-                                          functionABI:
-                                            functionObjToUse ??
-                                            selectedFunctionObj,
+                                          data: safeBigNumberToString(resultValue),
+                                          formattedResult,
+                                          functionABI: functionObjToUse ?? selectedFunctionObj,
                                           isLoading: false,
                                         });
-                                      } else {
-                                        console.log(
-                                          ` [Function Call] Using ethers provider for selected network...`
+                                      };
+
+                                      if (isSimulationMode) {
+                                        const iface = new ethers.utils.Interface(contractABI);
+                                        const encodedCalldata = iface.encodeFunctionData(
+                                          selectedFunctionObj.name,
+                                          args
                                         );
 
-                                        // Use the selected network's RPC instead of wagmi's publicClient
+                                        if (encodedCalldata) {
+                                          setGeneratedCallData(encodedCalldata);
+                                        }
+
+                                        const simulation = await runSimulation(
+                                          {
+                                            to: contractAddress as `0x${string}`,
+                                            data: encodedCalldata as `0x${string}`,
+                                          },
+                                          {
+                                            description: selectedFunctionObj.name,
+                                            fromOverride: simulationFromAddress,
+                                          }
+                                        );
+
+                                        if (!simulation) {
+                                          setFunctionResult({
+                                            data: null,
+                                            error:
+                                              simulationError ||
+                                              "Simulation did not complete.",
+                                            isLoading: false,
+                                          });
+                                          return;
+                                        }
+
+                                        if (!simulation.success) {
+                                          const failureMessage =
+                                            simulation.error ||
+                                            simulation.revertReason ||
+                                            "Simulation indicated this call would revert.";
+                                          setFunctionResult({
+                                            data: null,
+                                            error: failureMessage,
+                                            isLoading: false,
+                                          });
+                                          return;
+                                        }
+
+                                        const rawTrace = simulation.rawTrace as unknown;
+                                        const returnData =
+                                          typeof rawTrace === "string"
+                                            ? rawTrace
+                                            : rawTrace &&
+                                                typeof rawTrace === "object" &&
+                                                "returnData" in (rawTrace as Record<string, any>)
+                                              ? (rawTrace as Record<string, any>).returnData
+                                              : null;
+
+                                        if (!returnData || returnData === "0x") {
+                                          setFunctionResult({
+                                            data: null,
+                                            error: "Simulation succeeded but returned no data.",
+                                            isLoading: false,
+                                          });
+                                          return;
+                                        }
+
+                                        const decodedResult = iface.decodeFunctionResult(
+                                          selectedFunctionObj.name,
+                                          returnData
+                                        );
+                                        persistResult(decodedResult);
+                                        return;
+                                      }
+
+                                      if (isDiamond || !publicClient) {
+                                        if (!selectedNetwork) {
+                                          throw new Error("No network selected");
+                                        }
+
                                         const provider =
-                                          createEthersProvider(selectedNetwork);
+                                          await createEthersProvider(selectedNetwork);
                                         const contract = new ethers.Contract(
                                           contractAddress,
                                           contractABI,
                                           provider
                                         );
-
                                         const result = await contract[
                                           selectedFunctionObj.name
                                         ](...args);
-                                        console.log(
-                                          ` [Function Call] Wagmi result:`,
-                                          result
-                                        );
-
-                                        // Format result and set state
-                                        // Get the raw ABI item for proper output formatting
-                                        const rawFunctionABI = contractABI.find(
-                                          (item: any) =>
-                                            item.type === "function" &&
-                                            item.name ===
-                                              selectedFunctionObj.name
-                                        );
-
-                                        // Force construction of proper outputs structure
-                                        let functionObjToUse2 = rawFunctionABI;
-
-                                        // CRITICAL FIX: Always construct from selectedFunctionObj if we have it
-                                        if (
-                                          selectedFunctionObj &&
-                                          selectedFunctionObj.outputs &&
-                                          Array.isArray(
-                                            selectedFunctionObj.outputs
-                                          )
-                                        ) {
-                                          functionObjToUse2 = {
-                                            name: selectedFunctionObj.name,
-                                            outputs:
-                                              selectedFunctionObj.outputs.map(
-                                                (output: any) => ({
-                                                  name:
-                                                    output.name ||
-                                                    `output_${output.type}`,
-                                                  type: output.type,
-                                                  internalType:
-                                                    output.internalType,
-                                                  components: output.components, // CRITICAL: Include components for nested tuples
-                                                })
-                                              ),
-                                          };
-                                          console.log(
-                                            ` CONSTRUCTED functionObjToUse2:`,
-                                            functionObjToUse2
+                                        persistResult(result);
+                                      } else {
+                                        if (!publicClient) {
+                                          throw new Error(
+                                            "Public client unavailable"
                                           );
-                                        } else if (!functionObjToUse2) {
-                                          // Final fallback
-                                          functionObjToUse2 =
-                                            selectedFunctionObj;
                                         }
 
-                                        const formattedResult =
-                                          ContractResultFormatter.formatResult(
-                                            result,
-                                            functionObjToUse2 ??
-                                              selectedFunctionObj ?? {
-                                                outputs: [],
-                                              }
-                                          );
-                                        setFunctionResult({
-                                          data: safeBigNumberToString(result),
-                                          formattedResult: formattedResult,
-                                          functionABI:
-                                            functionObjToUse2 ??
-                                            selectedFunctionObj,
-                                          isLoading: false,
+                                        const result = await publicClient.readContract({
+                                          address: contractAddress as `0x${string}`,
+                                          abi: contractABI,
+                                          functionName: selectedFunctionObj.name,
+                                          args,
                                         });
+                                        persistResult(result);
                                       }
+                                      return;
                                     } catch (error: any) {
                                       console.error(
                                         ` [Function Call] Error calling '${selectedFunctionObj.name}':`,
@@ -7256,67 +8093,69 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                         }
                                       }
 
-                                      // Write function transaction - requires wallet
-                                      console.log(
-                                        ` [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
-                                      );
-                                     const activeWalletClient = walletClient;
-                                     if (!activeWalletClient) {
-                                       showError('Wallet Disconnected', 'Wallet client became unavailable.');
-                                       return;
-                                     }
-
-                                      const resolvedClientChainId =
-                                        await getWalletChainId(activeWalletClient);
-
-                                      if (
-                                        selectedNetwork &&
-                                        resolvedClientChainId !== undefined &&
-                                        resolvedClientChainId !== selectedNetwork.id
-                                      ) {
-                                        const expectedName = selectedNetwork.name || 'selected network';
-                                        showError(
-                                          'Network Mismatch',
-                                          `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                      if (!isSimulationMode) {
+                                        // Write function transaction - requires wallet
+                                        console.log(
+                                          ` [Write Function] Executing ${selectedFunctionObj.name} on chain ${chainId}`
                                         );
-                                        setFunctionResult({
-                                          data: null,
-                                          error: `Wallet network mismatch. Expected ${expectedName}.`,
-                                          isLoading: false,
-                                        });
-                                        return;
-                                      }
+                                        const activeWalletClient = walletClient;
+                                        if (!activeWalletClient) {
+                                          showError(
+                                            "Wallet Disconnected",
+                                            "Wallet client became unavailable."
+                                          );
+                                          return;
+                                        }
 
-                                      const hash =
-                                        await activeWalletClient.writeContract({
-                                          address:
-                                            contractAddress as `0x${string}`,
+                                        const resolvedClientChainId =
+                                          await getWalletChainId(activeWalletClient);
+
+                                        if (
+                                          selectedNetwork &&
+                                          resolvedClientChainId !== undefined &&
+                                          resolvedClientChainId !== selectedNetwork.id
+                                        ) {
+                                          const expectedName = selectedNetwork.name || "selected network";
+                                          showError(
+                                            "Network Mismatch",
+                                            `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                          );
+                                          setFunctionResult({
+                                            data: null,
+                                            error: `Wallet network mismatch. Expected ${expectedName}.`,
+                                            isLoading: false,
+                                          });
+                                          return;
+                                        }
+
+                                        const hash = await activeWalletClient.writeContract({
+                                          address: contractAddress as `0x${string}`,
                                           abi: contractABI,
-                                          functionName:
-                                            selectedFunctionObj.name,
+                                          functionName: selectedFunctionObj.name,
                                           args: args,
                                         });
-                                      // Show transaction success notification
-                                      const networkName =
-                                        selectedNetwork?.name ||
-                                        "Unknown Network";
-                                      const explorerUrl =
-                                        selectedNetwork?.explorerUrl ||
-                                        "https://etherscan.io";
-                                      showNotification({
-                                        type: "success",
-                                        title: "Transaction Sent",
-                                        message: `Transaction submitted on ${networkName}`,
-                                        duration: 8000,
-                                        action: {
-                                          label: "View on Explorer",
-                                          onClick: () =>
-                                            window.open(
-                                              `${explorerUrl}/tx/${hash}`,
-                                              "_blank"
-                                            ),
-                                        },
-                                      });
+                                        // Show transaction success notification
+                                        const networkName =
+                                          selectedNetwork?.name ||
+                                          "Unknown Network";
+                                        const explorerUrl =
+                                          selectedNetwork?.explorerUrl ||
+                                          "https://etherscan.io";
+                                        showNotification({
+                                          type: "success",
+                                          title: "Transaction Sent",
+                                          message: `Transaction submitted on ${networkName}`,
+                                          duration: 8000,
+                                          action: {
+                                            label: "View on Explorer",
+                                            onClick: () =>
+                                              window.open(
+                                                `${explorerUrl}/tx/${hash}`,
+                                                "_blank"
+                                              ),
+                                          },
+                                        });
+                                      }
                                     } catch (error: any) {
                                       // Handle write function errors
                                       console.error(
@@ -7356,12 +8195,28 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                 }
                               }}
                             >
-                              <PlayIcon width={16} height={16} />
+                              {isSimulationMode && isSimulating ? (
+                                <Loader2Icon
+                                  width={16}
+                                  height={16}
+                                  style={{ animation: "spin 1s linear infinite" }}
+                                />
+                              ) : (
+                                <PlayIcon width={16} height={16} />
+                              )}
                               {selectedFunctionType === "read"
-                                ? "Call Function"
-                                : !isConnected
-                                  ? "Connect Wallet"
-                                  : "Send Transaction"}
+                                ? isSimulationMode
+                                  ? isSimulating
+                                    ? "Simulating..."
+                                    : "Simulate Call"
+                                  : "Call Function"
+                                : isSimulationMode
+                                  ? isSimulating
+                                    ? "Simulating..."
+                                    : "Run Simulation"
+                                  : !isConnected
+                                    ? "Connect Wallet"
+                                    : "Send Transaction"}
                             </button>
 
                             {selectedFunctionType === "write" && (
@@ -7378,6 +8233,14 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                 }}
                                 onClick={async () => {
                                   try {
+                                    if (isSimulationMode) {
+                                      showWarning(
+                                        "Unavailable in Simulation",
+                                        "Gas estimation will run after simulation support lands in the engine."
+                                      );
+                                      return;
+                                    }
+
                                     // Check if wallet is connected
                                     if (!isConnected || !walletClient) {
                                       showWarning(
@@ -7469,7 +8332,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
 
                                     // Estimate gas using the selected network's provider
                                     const provider =
-                                      createEthersProvider(selectedNetwork);
+                                      await createEthersProvider(selectedNetwork);
                                     const contract = new ethers.Contract(
                                       contractAddress,
                                       contractABI,
@@ -7511,8 +8374,15 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             )}
                           </div>
 
-                          {/* Wallet connection reminder - only for write operations */}
-                          {selectedFunctionType === "write" && (
+                          {isSimulationMode &&
+                            selectedFunctionType === "write" && (
+                              <div style={{ marginTop: "16px" }}>
+                                {renderSimulationInsights()}
+                              </div>
+                            )}
+
+                          {/* Wallet / simulation reminder */}
+                          {selectedFunctionType === "write" && !isSimulationMode && (
                             <div
                               style={{
                                 padding: "8px 12px",
@@ -7528,6 +8398,24 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             >
                                Connect your wallet using the button above to
                               execute transactions
+                            </div>
+                          )}
+                          {selectedFunctionType === "write" && isSimulationMode && (
+                            <div
+                              style={{
+                                padding: "8px 12px",
+                                background: "rgba(14, 165, 233, 0.12)",
+                                border: "1px solid rgba(14, 165, 233, 0.35)",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                color: "#bae6fd",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              Simulations run locally—no wallet connection
+                              required.
                             </div>
                           )}
 
@@ -7653,9 +8541,14 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                             }}
                                           />
                                         )}
-                                      </CopyableResult>
-                                    );
-                                  })()
+                                  </CopyableResult>
+                                );
+                              })()
+                            )}
+                                {isSimulationMode && (
+                                  <div style={{ marginTop: "16px" }}>
+                                    {renderSimulationInsights()}
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -7782,13 +8675,67 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             }
 
                             try {
+                              if (isSimulationMode) {
+                                const simulation = await runSimulation(
+                                  {
+                                    to: contractAddress as `0x${string}`,
+                                    data: generatedCallData as `0x${string}`,
+                                  },
+                                  {
+                                    description: "Raw calldata",
+                                    fromOverride: simulationFromAddress,
+                                  }
+                                );
+
+                                if (!simulation) {
+                                  setFunctionResult({
+                                    data: null,
+                                    error:
+                                      simulationError ||
+                                      "Simulation did not complete.",
+                                    isLoading: false,
+                                  });
+                                  return;
+                                }
+
+                                if (!simulation.success) {
+                                  const failureMessage =
+                                    simulation.error ||
+                                    simulation.revertReason ||
+                                    "Simulation indicated this call would revert.";
+                                  setFunctionResult({
+                                    data: null,
+                                    error: failureMessage,
+                                    isLoading: false,
+                                  });
+                                  return;
+                                }
+
+                                const artifacts =
+                                  extractSimulationArtifacts(simulation);
+                                const returnData = artifacts.rawReturnData;
+                                const payload =
+                                  returnData ?? artifacts.rawPayload ?? "0x";
+
+                                setFunctionResult({
+                                  data: payload,
+                                  error: undefined,
+                                  isLoading: false,
+                                  formattedResult: {
+                                    displayValue: payload,
+                                    htmlContent: `<div style="font-family: monospace; color: #22c55e;">Raw Result: ${payload}</div>`,
+                                  },
+                                });
+                                return;
+                              }
+
                               showInfo(
                                 "Executing Call",
                                 "Calling contract with raw calldata..."
                               );
 
                               const provider =
-                                createEthersProvider(selectedNetwork);
+                                await createEthersProvider(selectedNetwork);
                               const result = await provider.call({
                                 to: contractAddress,
                                 data: generatedCallData,
@@ -7841,14 +8788,6 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             transition: "all 0.2s ease",
                           }}
                           onClick={async () => {
-                            if (!isConnected || !walletClient) {
-                              showWarning(
-                                "Wallet Required",
-                                "Please connect your wallet to send transactions"
-                              );
-                              return;
-                            }
-
                             if (
                               !generatedCallData ||
                               generatedCallData.length < 10
@@ -7860,86 +8799,116 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                               return;
                             }
 
-                            try {
-                              // Network validation
-                              const currentWalletChain = chainId;
-                              const appSelectedChain = selectedNetwork?.id;
-
-                              if (currentWalletChain !== appSelectedChain) {
-                                const networkName =
-                                  selectedNetwork?.name ||
-                                  `Chain ${appSelectedChain}`;
-                                showInfo(
-                                  "Network Switch Required",
-                                  `Switching to ${networkName}...`
-                                );
-
-                                if (switchChain && appSelectedChain) {
-                                  await switchChain({
-                                    chainId: appSelectedChain as any,
-                                  });
-                                  await new Promise((resolve) =>
-                                    setTimeout(resolve, 1500)
-                                  );
-                                  showSuccess(
-                                    "Network Switched",
-                                    `Successfully switched to ${networkName}`
-                                  );
-                                }
-                              }
-
-                                      const activeWalletClient = walletClient;
-                                      if (!activeWalletClient) {
-                                        showError('Wallet Disconnected', 'Wallet client became unavailable.');
-                                        return;
-                                      }
-
-                                      const resolvedClientChainId =
-                                        accountChain?.id ??
-                                        activeWalletClient.chain?.id;
-
-                                      if (
-                                        selectedNetwork &&
-                                        resolvedClientChainId !== undefined &&
-                                        resolvedClientChainId !== selectedNetwork.id
-                                      ) {
-                                        const expectedName = selectedNetwork.name || 'selected network';
-                                        showError(
-                                          'Network Mismatch',
-                                          `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
-                                        );
+                            if (isSimulationMode) {
+                              if (isSimulating) {
                                 return;
                               }
-
-                              showInfo(
-                                "Sending Transaction",
-                                "Broadcasting raw transaction..."
-                              );
-
-                              const hash = await activeWalletClient.sendTransaction({
-                                to: contractAddress as `0x${string}`,
-                                data: generatedCallData as `0x${string}`,
-                              });
-
-                              const networkName =
-                                selectedNetwork?.name || "Unknown Network";
-                              const explorerUrl =
-                                selectedNetwork?.explorerUrl ||
-                                "https://etherscan.io";
-                              showNotification({
-                                type: "success",
-                                title: "Transaction Sent",
-                                message: `Raw transaction submitted on ${networkName}`,
-                                duration: 8000,
-                                action: {
-                                  label: "View on Explorer",
-                                  onClick: () =>
-                                    window.open(
-                                      `${explorerUrl}/tx/${hash}`,
-                                      "_blank"
-                                    ),
+                              await runSimulation(
+                                {
+                                  to: contractAddress as `0x${string}`,
+                                  data: generatedCallData as `0x${string}`,
                                 },
-                              });
+                                {
+                                  description: "Raw calldata",
+                                  fromOverride: simulationFromAddress,
+                                }
+                              );
+                              return;
+                            }
+
+                            if (!isSimulationMode && (!isConnected || !walletClient)) {
+                              showWarning(
+                                "Wallet Required",
+                                "Please connect your wallet to send transactions"
+                              );
+                              return;
+                            }
+
+                            try {
+                              if (!isSimulationMode) {
+                                const currentWalletChain = chainId;
+                                const appSelectedChain = selectedNetwork?.id;
+
+                                if (currentWalletChain !== appSelectedChain) {
+                                  const networkName =
+                                    selectedNetwork?.name ||
+                                    `Chain ${appSelectedChain}`;
+                                  showInfo(
+                                    "Network Switch Required",
+                                    `Switching to ${networkName}...`
+                                  );
+
+                                  if (switchChain && appSelectedChain) {
+                                    await switchChain({
+                                      chainId: appSelectedChain as any,
+                                    });
+                                    await new Promise((resolve) =>
+                                      setTimeout(resolve, 1500)
+                                    );
+                                    showSuccess(
+                                      "Network Switched",
+                                      `Successfully switched to ${networkName}`
+                                    );
+                                  }
+                                }
+
+                                const activeWalletClient = walletClient;
+                                if (!activeWalletClient) {
+                                  showError(
+                                    "Wallet Disconnected",
+                                    "Wallet client became unavailable."
+                                  );
+                                  return;
+                                }
+
+                                const resolvedClientChainId =
+                                  accountChain?.id ??
+                                  activeWalletClient.chain?.id;
+
+                                if (
+                                  selectedNetwork &&
+                                  resolvedClientChainId !== undefined &&
+                                  resolvedClientChainId !== selectedNetwork.id
+                                ) {
+                                  const expectedName =
+                                    selectedNetwork.name || "selected network";
+                                  showError(
+                                    "Network Mismatch",
+                                    `Wallet is connected to chain ID ${resolvedClientChainId}, expected ${selectedNetwork.id}. Please switch to ${expectedName}.`
+                                  );
+                                  return;
+                                }
+
+                                showInfo(
+                                  "Sending Transaction",
+                                  "Broadcasting raw transaction..."
+                                );
+
+                                const hash = await activeWalletClient.sendTransaction({
+                                  to: contractAddress as `0x${string}`,
+                                  data: generatedCallData as `0x${string}`,
+                                });
+
+                                const networkName =
+                                  selectedNetwork?.name || "Unknown Network";
+                                const explorerUrl =
+                                  selectedNetwork?.explorerUrl ||
+                                  "https://etherscan.io";
+                                showNotification({
+                                  type: "success",
+                                  title: "Transaction Sent",
+                                  message: `Raw transaction submitted on ${networkName}`,
+                                  duration: 8000,
+                                  action: {
+                                    label: "View on Explorer",
+                                    onClick: () =>
+                                      window.open(
+                                        `${explorerUrl}/tx/${hash}`,
+                                        "_blank"
+                                      ),
+                                  },
+                                });
+                              }
                             } catch (error: any) {
                               console.error("Raw transaction error:", error);
                               const parsedError = parseError(error);
@@ -7964,6 +8933,15 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                           </span>
                         </button>
                       </div>
+
+                      {isSimulationMode && functionMode === "raw" && (
+                        <div style={{ marginTop: "16px" }}>
+                          {renderSimulationInsights({
+                            emptyMessage:
+                              "Paste calldata and run the simulation to inspect the raw execution locally.",
+                          })}
+                        </div>
+                      )}
 
                       {/* Result display for raw mode */}
                       {functionResult && (
@@ -8363,24 +9341,24 @@ const loadSavedContracts = (): SavedContractEntry[] => {
         {/* Right column intentionally empty in live mode */}
         <div />
       </div>
-      </div>
+    </div>
 
     {/* Diamond Contract Popup */}
-      <DiamondContractPopup
-        isOpen={isDiamondPopupOpen}
-        onClose={() => setIsDiamondPopupOpen(false)}
-        contractAddress={contractAddress}
-        facets={diamondFacets}
-        networkName={selectedNetwork?.name || "Unknown Network"}
-        blockExplorerUrl={
-          selectedNetwork?.explorers
-            ?.find((e) => e.type === "blockscout")
-            ?.url?.replace("/api", "")
-            ?.replace("/api/", "") || selectedNetwork?.blockExplorer
-        }
-        chain={selectedNetwork || undefined}
-      />
-    </div>
+    <DiamondContractPopup
+      isOpen={isDiamondPopupOpen}
+      onClose={() => setIsDiamondPopupOpen(false)}
+      contractAddress={contractAddress}
+      facets={diamondFacets}
+      networkName={selectedNetwork?.name || "Unknown Network"}
+      blockExplorerUrl={
+        selectedNetwork?.explorers
+          ?.find((e) => e.type === "blockscout")
+          ?.url?.replace("/api", "")
+          ?.replace("/api/", "") || selectedNetwork?.blockExplorer
+      }
+      chain={selectedNetwork || undefined}
+    />
+  </div>
   );
 };
 

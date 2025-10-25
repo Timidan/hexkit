@@ -36,6 +36,7 @@ import DiamondFunctionCaller from './DiamondFunctionCaller';
 import ABIFetcher from './ABIFetcher';
 import ContractInfoDisplay from './ContractInfoDisplay';
 import { SUPPORTED_CHAINS } from '../utils/chains';
+import { userRpcManager } from '../utils/userRpc';
 import { simulateTransaction } from '../utils/transactionSimulation';
 import InlineCopyButton from './ui/InlineCopyButton';
 import { parseTransactionError, formatErrorForUser } from '../utils/errorParser';
@@ -104,7 +105,8 @@ export default function TransactionBuilder() {
       name: currentChain.name,
       chainId: currentChain.id
     };
-    return new ethers.providers.JsonRpcProvider(currentChain.rpcUrl, network);
+    const rpcUrl = userRpcManager.getEffectiveRpcUrl(currentChain, currentChain.rpcUrl).url;
+    return new ethers.providers.JsonRpcProvider(rpcUrl, network);
   }, [currentChain]);
 
   // Helper functions

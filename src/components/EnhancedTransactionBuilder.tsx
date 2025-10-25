@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import InlineCopyButton from './ui/InlineCopyButton';
 import { SUPPORTED_CHAINS } from '../utils/chains';
+import { userRpcManager } from '../utils/userRpc';
 import SimpleWalletConnection from './SimpleWalletConnection';
 import type { Chain } from '../types';
 import type { WalletInfo } from '../types/transaction';
@@ -78,6 +79,11 @@ const EnhancedTransactionBuilder: React.FC = () => {
   const [functionInputs, setFunctionInputs] = useState<Record<string, any>>({});
   const [functionResults, setFunctionResults] = useState<Record<string, any>>({});
   const [isExecuting, setIsExecuting] = useState(false);
+
+  const resolveRpcUrl = useCallback(
+    (chain: Chain) => userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url,
+    []
+  );
 
   // ABI Sources in priority order
   const ABI_SOURCES: ABISource[] = [
@@ -153,7 +159,7 @@ const EnhancedTransactionBuilder: React.FC = () => {
   // Check if contract is a Diamond
   const checkDiamond = async (address: string): Promise<string[] | null> => {
     try {
-      const provider = new ethers.providers.JsonRpcProvider(selectedChain.rpcUrl);
+      const provider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(selectedChain));
       const contract = new ethers.Contract(
         address,
         ["function facetAddresses() external view returns (address[] memory facetAddresses_)"],
@@ -169,7 +175,7 @@ const EnhancedTransactionBuilder: React.FC = () => {
   // Get function selectors for a facet
   const getFacetFunctionSelectors = async (diamondAddress: string, facetAddress: string): Promise<string[]> => {
     try {
-      const provider = new ethers.providers.JsonRpcProvider(selectedChain.rpcUrl);
+      const provider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(selectedChain));
       const contract = new ethers.Contract(
         diamondAddress,
         ["function facetFunctionSelectors(address _facet) external view returns (bytes4[] memory)"],

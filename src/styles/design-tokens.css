@@ -71,16 +71,16 @@
   --font-weight-bold: 700;
   --font-weight-black: 900;
   
-  /* Font Sizes - Better Readable Typography Scale */
-  --text-xs: clamp(0.875rem, 0.8rem + 0.2vw, 1rem);        /* 14-16px */
-  --text-sm: clamp(1rem, 0.9rem + 0.3vw, 1.125rem);        /* 16-18px */
-  --text-base: clamp(1.125rem, 1rem + 0.4vw, 1.25rem);     /* 18-20px */
-  --text-lg: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);       /* 20-24px */
-  --text-xl: clamp(1.5rem, 1.3rem + 0.6vw, 1.75rem);       /* 24-28px */
-  --text-2xl: clamp(1.75rem, 1.5rem + 0.8vw, 2.25rem);     /* 28-36px */
-  --text-3xl: clamp(2.25rem, 1.9rem + 1vw, 2.75rem);       /* 36-44px */
-  --text-4xl: clamp(2.75rem, 2.3rem + 1.2vw, 3.25rem);     /* 44-52px */
-  --text-5xl: clamp(3.25rem, 2.75rem + 1.5vw, 4rem);       /* 52-64px */
+  /* Font Sizes - Slightly Condensed Scale */
+  --text-xs: clamp(0.8rem, 0.72rem + 0.18vw, 0.95rem);        /* 13-15px */
+  --text-sm: clamp(0.95rem, 0.85rem + 0.25vw, 1.05rem);       /* 15-17px */
+  --text-base: clamp(1.05rem, 0.95rem + 0.3vw, 1.2rem);       /* 16-19px */
+  --text-lg: clamp(1.2rem, 1.05rem + 0.4vw, 1.35rem);         /* 19-22px */
+  --text-xl: clamp(1.35rem, 1.2rem + 0.45vw, 1.55rem);        /* 22-25px */
+  --text-2xl: clamp(1.6rem, 1.35rem + 0.55vw, 2rem);          /* 25-32px */
+  --text-3xl: clamp(2rem, 1.7rem + 0.8vw, 2.4rem);            /* 32-38px */
+  --text-4xl: clamp(2.4rem, 2rem + 0.9vw, 2.9rem);            /* 38-46px */
+  --text-5xl: clamp(2.9rem, 2.4rem + 1.2vw, 3.6rem);          /* 46-57px */
   
   /* Line Heights */
   --leading-tight: 1.2;
@@ -99,19 +99,19 @@
   /* Spacing Scale */
   --space-px: 1px;
   --space-0: 0;
-  --space-1: 0.25rem;      /* 4px */
-  --space-2: 0.5rem;       /* 8px */
-  --space-3: 0.75rem;      /* 12px */
-  --space-4: 1rem;         /* 16px */
-  --space-5: 1.25rem;      /* 20px */
-  --space-6: 1.5rem;       /* 24px */
-  --space-8: 2rem;         /* 32px */
-  --space-10: 2.5rem;      /* 40px */
-  --space-12: 3rem;        /* 48px */
-  --space-16: 4rem;        /* 64px */
-  --space-20: 5rem;        /* 80px */
-  --space-24: 6rem;        /* 96px */
-  --space-32: 8rem;        /* 128px */
+  --space-1: 0.2rem;       /* ~3px */
+  --space-2: 0.45rem;      /* ~7px */
+  --space-3: 0.65rem;      /* ~10px */
+  --space-4: 0.9rem;       /* ~14px */
+  --space-5: 1.1rem;       /* ~18px */
+  --space-6: 1.35rem;      /* ~22px */
+  --space-8: 1.8rem;       /* ~29px */
+  --space-10: 2.2rem;      /* ~35px */
+  --space-12: 2.6rem;      /* ~42px */
+  --space-16: 3.4rem;      /* ~54px */
+  --space-20: 4.2rem;      /* ~67px */
+  --space-24: 5.2rem;      /* ~83px */
+  --space-32: 6.8rem;      /* ~109px */
   
   /* ========== EFFECTS & ANIMATIONS ========== */
   

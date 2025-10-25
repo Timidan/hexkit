@@ -17,6 +17,7 @@ import {
 import MultiNetworkContractSearch from './MultiNetworkContractSearch';
 import DiamondFunctionCaller from './DiamondFunctionCaller';
 import { SUPPORTED_CHAINS } from '../utils/chains';
+import { userRpcManager } from '../utils/userRpc';
 import type { Chain } from '../types';
 
 interface ContractSearchResult {
@@ -138,7 +139,11 @@ const DiamondContractInterface: React.FC = () => {
   // Get provider for the selected chain
   const provider = useMemo(() => {
     if (!selectedContract) return undefined;
-    return new ethers.providers.JsonRpcProvider(selectedContract.chain.rpcUrl);
+    const rpcUrl = userRpcManager.getEffectiveRpcUrl(
+      selectedContract.chain,
+      selectedContract.chain.rpcUrl
+    ).url;
+    return new ethers.providers.JsonRpcProvider(rpcUrl);
   }, [selectedContract]);
 
   return (

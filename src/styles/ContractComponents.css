@@ -7,82 +7,38 @@
   gap: var(--space-4);
 }
 
-.contract-network-label {
-  display: block;
+.contract-endpoint-label {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
-  margin-bottom: var(--space-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.contract-network-dropdown {
-  position: relative;
+
+.contract-endpoint-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.contract-network-button {
+.contract-endpoint-row .decoder-address-wrapper {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  transition: all var(--transition-normal);
-  cursor: pointer;
 }
 
-.contract-network-button:hover {
-  border-color: var(--accent-primary);
+.contract-endpoint-row .decoder-address-field {
+  flex: 1;
+  gap: var(--space-2);
+  padding-right: var(--space-2);
 }
 
-.contract-network-content {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.contract-network-text {
-  color: var(--text-primary);
-}
-
-.contract-network-arrow {
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-tertiary);
-}
-
-.contract-network-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: var(--space-1);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
-  z-index: 50;
-  max-height: 15rem;
-  overflow-y: auto;
-}
-
-.contract-network-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: transparent;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background var(--transition-normal);
-  text-align: left;
-}
-
-.contract-network-option:hover {
-  background: var(--bg-tertiary);
+.contract-endpoint-field__inline-action {
+  background: rgba(56, 189, 248, 0.12) !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  color: rgba(191, 219, 254, 0.95) !important;
+  border-radius: 10px !important;
+  min-width: 68px;
+  justify-content: center;
 }
 
 .contract-info-display {
