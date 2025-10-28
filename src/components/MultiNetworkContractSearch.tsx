@@ -245,7 +245,7 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
         const facetAbiResult = await fetchContractABIMultiSource(
           facetAddress,
           chain,
-          etherscanApiKey
+          { etherscanApiKey }
         );
 
         const facetDetails: FacetDetails = {
@@ -304,11 +304,9 @@ const MultiNetworkContractSearch: React.FC<MultiNetworkContractSearchProps> = ({
 
         try {
           // Fetch contract info
-          const contractInfo = await fetchContractABIMultiSource(
-            address,
-            chain,
-            etherscanApiKey
-          );
+          const contractInfo = await fetchContractABIMultiSource(address, chain, {
+            etherscanApiKey,
+          });
 
           console.log(` [${chain.name}] Contract info for ${address}:`, {
             success: contractInfo.success,

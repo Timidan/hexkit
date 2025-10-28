@@ -4,6 +4,8 @@ export interface ExplorerAPI {
   type: 'etherscan' | 'blockscout';
 }
 
+export type ExplorerSource = 'sourcify' | 'blockscout' | 'etherscan';
+
 export interface Chain {
   id: number;
   name: string;

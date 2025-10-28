@@ -380,7 +380,11 @@ export async function buildDiamondABI(
   for (const facetAddress of uniqueFacetAddresses) {
     try {
       console.log(`Fetching ABI for facet: ${facetAddress}`);
-      const facetAbiResult = await fetchContractABIMultiSource(facetAddress, chain, etherscanApiKey);
+      const facetAbiResult = await fetchContractABIMultiSource(
+        facetAddress,
+        chain,
+        { etherscanApiKey }
+      );
       
       if (facetAbiResult.success && facetAbiResult.abi) {
         const facetAbi = JSON.parse(facetAbiResult.abi);

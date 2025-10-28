@@ -8,6 +8,7 @@ import type {
   Chain,
   ExtendedABIFetchResult,
   ExtendedABITokenInfo,
+  ExplorerSource,
 } from "../types";
 
 const isValidAddress = (address: string) =>
@@ -100,12 +101,20 @@ const summarizeAttempts = (attempts: ExtendedABIFetchResult[]) =>
     })
     .join("; ");
 
+export interface FetchABIMultiSourceOptions {
+  etherscanApiKey?: string;
+  blockscoutApiKey?: string;
+  provider?: ethers.providers.Provider;
+  preferredSources?: ExplorerSource[];
+}
+
 export const fetchContractABIMultiSource = async (
   contractAddress: string,
   chain: Chain,
-  etherscanApiKey?: string,
-  provider?: ethers.providers.Provider
+  options: FetchABIMultiSourceOptions = {}
 ): Promise<ExtendedABIFetchResult> => {
+  const { etherscanApiKey, blockscoutApiKey, provider, preferredSources } =
+    options;
   if (!isValidAddress(contractAddress)) {
     return {
       success: false,
@@ -131,6 +140,8 @@ export const fetchContractABIMultiSource = async (
       undefined,
       {
         etherscanApiKey,
+        blockscoutApiKey,
+        preferredSources,
       }
     );
     const comprehensiveResult = toExtendedResult(comprehensive, {
@@ -183,11 +194,9 @@ export const searchContractAcrossNetworks = async (
   const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
 
   const lookups = SUPPORTED_CHAINS.map(async (chain) => {
-    const result = await fetchContractABIMultiSource(
-      contractAddress,
-      chain,
-      etherscanApiKey
-    );
+    const result = await fetchContractABIMultiSource(contractAddress, chain, {
+      etherscanApiKey,
+    });
     return { chain, result };
   });
 

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { ethers } from "ethers";
-import type { Chain, ExtendedABIFetchResult } from "../types";
+import type { Chain, ExtendedABIFetchResult, ExplorerSource } from "../types";
 import {
   fetchFromWhatsABI,
   createFunctionStubsFromSelectors,
@@ -44,6 +44,8 @@ interface FacetFetchOptions {
   etherscanApiKey?: string;
   blockscoutApiKey?: string;
   provider?: ethers.providers.Provider;
+  preferredSources?: ExplorerSource[];
+  onPreferredSourceDetected?: (source: ExplorerSource) => void;
 }
 
 const facetFetchCache = new Map<string, Promise<DiamondFacet | null>>();
@@ -373,12 +375,13 @@ async function fetchFacetABI(
     let selectorStubs: SelectorFunctionStub[] = [];
 
     try {
-      const result = await fetchContractABIMultiSource(
-        facetAddress,
-        chain,
-        options.etherscanApiKey,
-        options.provider
-      );
+      const result = await fetchContractABIMultiSource(facetAddress, chain, {
+        etherscanApiKey: options.etherscanApiKey,
+        blockscoutApiKey:
+          options.blockscoutApiKey ?? options.etherscanApiKey,
+        provider: options.provider,
+        preferredSources: options.preferredSources,
+      });
       if (result && result.success && typeof result.abi === "string") {
         const parsed = JSON.parse(result.abi) as unknown[];
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -388,6 +391,19 @@ async function fetchFacetABI(
               ? String(result.contractName)
               : resolvedName;
           resolvedSource = result.source || resolvedSource;
+          const normalizedSource = result.source
+            ? String(result.source).toLowerCase()
+            : undefined;
+          if (normalizedSource === "blockscout") {
+            options.onPreferredSourceDetected?.("blockscout");
+          } else if (
+            normalizedSource &&
+            (normalizedSource === "sourcify" || normalizedSource === "etherscan")
+          ) {
+            options.onPreferredSourceDetected?.(
+              normalizedSource as ExplorerSource
+            );
+          }
           selectors = Array.isArray(result.selectors)
             ? result.selectors.map((selector) => selector.toLowerCase())
             : selectors;
@@ -413,57 +429,83 @@ async function fetchFacetABI(
     }
 
     if (!resolvedAbi) {
-      try {
-        const outcomes = await Promise.allSettled([
-          fetchFromSourcify(chain, facetAddress),
-          fetchFromEtherscan(chain, facetAddress, options.etherscanApiKey),
-          fetchFromBlockscout(
+      const sourceRunners: Array<{
+        key: ExplorerSource;
+        runner: () => Promise<ExtendedABIFetchResult | null>;
+      }> = [
+        {
+          key: "sourcify",
+          runner: () => fetchFromSourcify(chain, facetAddress),
+        },
+        {
+          key: "etherscan",
+          runner: () => fetchFromEtherscan(
             chain,
             facetAddress,
-            options.blockscoutApiKey ?? options.etherscanApiKey
+            options.etherscanApiKey
           ),
-        ]);
+        },
+        {
+          key: "blockscout",
+          runner: () =>
+            fetchFromBlockscout(
+              chain,
+              facetAddress,
+              options.blockscoutApiKey ?? options.etherscanApiKey
+            ),
+        },
+      ];
 
-        const prioritized = outcomes.flatMap((outcome, idx) => {
-          if (outcome.status !== "fulfilled" || !outcome.value) return [];
-          return [{ result: outcome.value, order: idx }];
-        });
+      const preferenceOrder = options.preferredSources?.length
+        ? [
+            ...options.preferredSources,
+            ...sourceRunners
+              .map((runner) => runner.key)
+              .filter((key) => !options.preferredSources?.includes(key)),
+          ]
+        : sourceRunners.map((runner) => runner.key);
 
-        prioritized.sort((a, b) => a.order - b.order);
-
-        for (const candidate of prioritized) {
-          const result = candidate.result;
-          if (result && result.success && typeof result.abi === "string") {
-            try {
-              const parsed = JSON.parse(result.abi) as unknown[];
-              if (!Array.isArray(parsed) || parsed.length === 0) {
-                continue;
-              }
-              resolvedAbi = parsed;
-              resolvedName =
-                result.contractName && String(result.contractName).trim() !== ""
-                  ? String(result.contractName)
-                  : resolvedName;
-              resolvedSource = result.source || resolvedSource;
-              if (
-                result.confidence === "verified" ||
-                result.confidence === "inferred" ||
-                result.confidence === "extracted"
-              ) {
-                confidence = result.confidence;
-                isVerified = result.confidence === "verified";
-              }
-              break;
-            } catch (parseError) {
-              continue;
-            }
-          }
+      for (const sourceKey of preferenceOrder) {
+        const runnerEntry = sourceRunners.find((entry) => entry.key === sourceKey);
+        if (!runnerEntry) {
+          continue;
         }
-      } catch (parallelError) {
-        console.warn(
-          `Parallel ABI sources failed for ${facetAddress}:`,
-          parallelError
-        );
+
+        try {
+          const result = await runnerEntry.runner();
+          if (!result || !result.success || typeof result.abi !== "string") {
+            continue;
+          }
+
+          const parsed = JSON.parse(result.abi) as unknown[];
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            continue;
+          }
+
+          resolvedAbi = parsed;
+          resolvedName =
+            result.contractName && String(result.contractName).trim() !== ""
+              ? String(result.contractName)
+              : resolvedName;
+          resolvedSource = result.source || runnerEntry.key;
+
+          options.onPreferredSourceDetected?.(runnerEntry.key);
+
+          if (
+            result.confidence === "verified" ||
+            result.confidence === "inferred" ||
+            result.confidence === "extracted"
+          ) {
+            confidence = result.confidence;
+            isVerified = result.confidence === "verified";
+          }
+          break;
+        } catch (fallbackError) {
+          console.warn(
+            `Fallback ABI fetch failed for ${facetAddress} via ${runnerEntry.key}:`,
+            fallbackError
+          );
+        }
       }
     }
 
@@ -642,9 +684,24 @@ export async function fetchDiamondFacets(
   const progressState: ProgressState = { completed: 0 };
   const provider =
     options.provider ?? new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+  let sharedPreferredSources = options.preferredSources?.slice();
   const sharedOptions: FacetFetchOptions = {
     ...options,
     provider,
+    preferredSources: sharedPreferredSources,
+  };
+
+  sharedOptions.onPreferredSourceDetected = (source) => {
+    if (
+      sharedPreferredSources &&
+      sharedPreferredSources.length === 1 &&
+      sharedPreferredSources[0] === source
+    ) {
+      return;
+    }
+
+    sharedPreferredSources = [source];
+    sharedOptions.preferredSources = sharedPreferredSources;
   };
 
   // Process facets in batches

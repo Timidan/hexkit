@@ -1,5 +1,4 @@
 import React from 'react';
-import { Loader2Icon } from '../icons/IconLibrary';
 import '../../styles/SharedComponents.css';
 
 export interface LoadingSpinnerProps {
@@ -15,23 +14,33 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   text,
   className = ''
 }) => {
-  const spinnerClasses = [
+  const baseClasses = [
     'shared-loading-spinner',
     `shared-loading-spinner-${size}`,
     `shared-loading-spinner-${variant}`,
-    className
-  ].filter(Boolean).join(' ');
+  ].join(' ');
 
   if (text) {
     return (
-      <div className="shared-loading-with-text">
-        <Loader2Icon className={spinnerClasses} />
+      <div
+        className={`shared-loading-with-text ${className}`.trim()}
+        role="status"
+        aria-live="polite"
+      >
+        <span className={baseClasses} aria-hidden="true" />
         <span className="shared-loading-text">{text}</span>
       </div>
     );
   }
 
-  return <Loader2Icon className={spinnerClasses} />;
+  return (
+    <span
+      className={`${baseClasses} ${className}`.trim()}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    />
+  );
 };
 
 export default LoadingSpinner;
