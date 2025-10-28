@@ -76,6 +76,14 @@ import type {
   SimulationResult,
   TransactionRequest,
 } from "../types/transaction";
+import {
+  extractSimulationArtifacts,
+  flattenCallTreeEntries,
+  getCallNodeError,
+  type SimulationCallNode,
+} from "../utils/simulationArtifacts";
+import "../styles/SharedComponents.css";
+import "../styles/SimulatorWorkbench.css";
 type SavedContractEntry = ContractInfo & {
   savedAt?: string;
   abiSource?: string;
@@ -239,300 +247,15 @@ const deriveResultMetadata = (
   };
 };
 
-type SimulationCallNode = {
-  type?: string;
-  from?: string;
-  to?: string;
-  functionName?: string;
-  label?: string;
-  gasUsed?: string | number;
-  value?: string | number;
-  input?: string;
-  output?: string;
-  children?: SimulationCallNode[];
+const shortAddress = (value?: string | null) => {
+  if (!value) return "—";
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
 };
 
-type SimulationEventEntry = {
-  name?: string;
-  signature?: string;
-  address?: string;
-  decoded?: unknown;
-  data?: unknown;
+const decodeFunctionSelector = (input?: string): string => {
+  if (!input || input === "0x") return "Fallback";
+  return input.slice(0, 10);
 };
-
-type SimulationStorageDiffEntry = {
-  address?: string;
-  slot?: string;
-  key?: string;
-  before?: string;
-  after?: string;
-  value?: string;
-};
-
-interface SimulationArtifacts {
-  callTree: SimulationCallNode[];
-  events: SimulationEventEntry[];
-  assetChanges: Array<Record<string, any>>;
-  storageDiffs: SimulationStorageDiffEntry[];
-  rawReturnData: string | null;
-  rawPayload: string | null;
-}
-
-const ensureArray = <T,>(value: unknown, mapFn?: (item: any) => T): T[] => {
-  if (Array.isArray(value)) {
-    return mapFn ? value.map(mapFn) : (value as T[]);
-  }
-  if (value && typeof value === "object") {
-    return mapFn ? [mapFn(value)] : [value as T];
-  }
-  return [];
-};
-
-const normalizeHex = (value: unknown): string | null => {
-  if (typeof value !== "string") return null;
-  return value.startsWith("0x") ? value : `0x${value}`;
-};
-
-const convertEdbTraceToArtifacts = (
-  traceEntries: any[]
-): {
-  callTree: SimulationCallNode[];
-  events: SimulationEventEntry[];
-} => {
-  type InternalNode = SimulationCallNode & { __internalId: number };
-
-  const nodes = new Map<number, InternalNode>();
-  const childrenBucket = new Map<number, InternalNode[]>();
-  const events: SimulationEventEntry[] = [];
-
-  traceEntries.forEach((entryRaw: any) => {
-    if (!entryRaw || typeof entryRaw !== "object") {
-      return;
-    }
-
-    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
-    if (!Number.isFinite(id)) {
-      return;
-    }
-
-    const callType =
-      entryRaw.call_type ??
-      entryRaw.type ??
-      entryRaw.kind ??
-      (entryRaw.callType?.Call ?? entryRaw.callType);
-
-    const result = entryRaw.result ?? {};
-    const node: InternalNode = {
-      __internalId: id,
-      type:
-        typeof callType === "string"
-          ? callType
-          : typeof callType === "object"
-          ? Object.keys(callType)[0]
-          : undefined,
-      from: entryRaw.caller ?? entryRaw.from,
-      to: entryRaw.target ?? entryRaw.to,
-      functionName:
-        entryRaw.target_label ??
-        entryRaw.function_name ??
-        entryRaw.functionName ??
-        undefined,
-      label:
-        entryRaw.target_label ??
-        entryRaw.label ??
-        entryRaw.display ??
-        undefined,
-      gasUsed:
-        result.gas_used ??
-        result.gasUsed ??
-        entryRaw.gas_used ??
-        entryRaw.gasUsed,
-      value: entryRaw.value,
-      input: entryRaw.input,
-      output:
-        result.output ??
-        result.return_data ??
-        result.returnData ??
-        entryRaw.output,
-      children: [],
-    };
-
-    nodes.set(id, node);
-
-    const entryEvents = ensureArray(
-      entryRaw.events ?? entryRaw.logs ?? entryRaw.event_logs
-    );
-    entryEvents.forEach((evt: any) => {
-      events.push({
-        name: evt?.name ?? evt?.event,
-        signature: evt?.signature,
-        address: evt?.address ?? node.to,
-        decoded: evt?.args ?? evt?.decoded,
-        data: evt,
-      });
-    });
-  });
-
-  traceEntries.forEach((entryRaw: any) => {
-    if (!entryRaw || typeof entryRaw !== "object") {
-      return;
-    }
-    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
-    const node = nodes.get(id);
-    if (!node) {
-      return;
-    }
-    const parentIdRaw =
-      entryRaw.parent_id ??
-      entryRaw.parentId ??
-      entryRaw.parent_index ??
-      entryRaw.parent;
-    if (parentIdRaw === null || parentIdRaw === undefined) {
-      return;
-    }
-    const parentId = Number(parentIdRaw);
-    if (!Number.isFinite(parentId)) {
-      return;
-    }
-    const bucket = childrenBucket.get(parentId) ?? ([] as InternalNode[]);
-    bucket.push(node);
-    childrenBucket.set(parentId, bucket);
-  });
-
-  const descendantIds = new Set<number>();
-  childrenBucket.forEach((children, parentId) => {
-    const parentNode = nodes.get(parentId);
-    if (parentNode) {
-      parentNode.children = children;
-    }
-    children.forEach((child) => descendantIds.add(child.__internalId));
-  });
-
-  const stripInternalNode = (node: InternalNode): SimulationCallNode => {
-    const { __internalId: _internal, children = [], ...rest } = node;
-    const normalizedChildren = children.map((child) => stripInternalNode(child));
-    return {
-      ...rest,
-      children: normalizedChildren.length ? normalizedChildren : undefined,
-    };
-  };
-
-  const roots: SimulationCallNode[] = [];
-  nodes.forEach((node) => {
-    if (!descendantIds.has(node.__internalId)) {
-      roots.push(stripInternalNode(node));
-    }
-  });
-
-  return { callTree: roots, events };
-};
-
-const extractSimulationArtifacts = (
-  result: SimulationResult
-): SimulationArtifacts => {
-  const artifacts: SimulationArtifacts = {
-    callTree: [],
-    events: [],
-    assetChanges: [],
-    storageDiffs: [],
-    rawReturnData: null,
-    rawPayload: null,
-  };
-
-  const rawTrace = result.rawTrace;
-  if (rawTrace === null || rawTrace === undefined) {
-    return artifacts;
-  }
-
-  if (typeof rawTrace === "string") {
-    artifacts.rawPayload = rawTrace;
-    artifacts.rawReturnData = normalizeHex(rawTrace);
-    return artifacts;
-  }
-
-  if (Array.isArray(rawTrace)) {
-    try {
-      artifacts.rawPayload = JSON.stringify(rawTrace, null, 2);
-    } catch {
-      artifacts.rawPayload = null;
-    }
-    const converted = convertEdbTraceToArtifacts(rawTrace);
-    artifacts.callTree = converted.callTree;
-    artifacts.events = converted.events;
-    return artifacts;
-  }
-
-  if (typeof rawTrace !== "object") {
-    return artifacts;
-  }
-
-  const traceObj = rawTrace as Record<string, any>;
-  try {
-    artifacts.rawPayload = JSON.stringify(traceObj, null, 2);
-  } catch {
-    artifacts.rawPayload = null;
-  }
-
-  const innerTraceEntries = ensureArray(traceObj.inner);
-  if (innerTraceEntries.length > 0) {
-    const converted = convertEdbTraceToArtifacts(innerTraceEntries);
-    artifacts.callTree = converted.callTree;
-    artifacts.events = converted.events;
-  }
-
-  if (artifacts.callTree.length === 0) {
-    const treeCandidates = [
-      traceObj.callTree,
-      traceObj.trace,
-      traceObj.calls,
-      traceObj.callPath,
-    ];
-    for (const candidate of treeCandidates) {
-      const nodes = ensureArray<SimulationCallNode>(candidate);
-      if (nodes.length > 0) {
-        artifacts.callTree = nodes;
-        break;
-      }
-    }
-  }
-
-  if (artifacts.events.length === 0) {
-    const eventCandidates = ensureArray(traceObj.events)
-    .concat(ensureArray(traceObj.logs))
-    .concat(ensureArray(traceObj.decodedLogs))
-    .concat(ensureArray(traceObj.eventLogs));
-    artifacts.events = eventCandidates.map((event: any) => ({
-      name: event?.name || event?.event,
-      signature: event?.signature,
-      address: event?.address,
-      decoded: event?.args ?? event?.decoded,
-      data: event,
-    }));
-  }
-
-  artifacts.assetChanges = ensureArray(traceObj.assetChanges);
-
-  const storageCandidates = ensureArray(traceObj.storageDiffs)
-    .concat(ensureArray(traceObj.stateDiffs))
-    .concat(ensureArray(traceObj.storageChanges));
-  artifacts.storageDiffs = storageCandidates.map((entry: any) => ({
-    address: entry?.address,
-    slot: entry?.slot ?? entry?.key,
-    key: entry?.key,
-    before: entry?.before ?? entry?.previous,
-    after: entry?.after ?? entry?.current ?? entry?.value,
-    value: entry?.value,
-  }));
-
-  artifacts.rawReturnData =
-    normalizeHex(traceObj.returnData) ??
-    normalizeHex(traceObj.output) ??
-    normalizeHex(traceObj.return_value) ??
-    null;
-
-  return artifacts;
-};
-
 interface SimpleGridUIProps {
   contractModeToggle?: ReactNode;
   mode?: "live" | "simulation";
@@ -693,6 +416,20 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   const [simulationResult, setSimulationResult] =
     useState<SimulationResult | null>(null);
   const [simulationError, setSimulationError] = useState<string | null>(null);
+  const [collapsedStackFrames, setCollapsedStackFrames] = useState<Set<string>>(new Set());
+  const [activeSimulationFrame, setActiveSimulationFrame] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    gas: true,
+    full: true,
+    storage: true,
+    events: true,
+  });
+  const summaryTrace = useMemo(() => {
+    if (simulationResult && typeof simulationResult.rawTrace === "object" && simulationResult.rawTrace && !Array.isArray(simulationResult.rawTrace)) {
+      return simulationResult.rawTrace as Record<string, unknown>;
+    }
+    return null;
+  }, [simulationResult]);
   const [isSimulating, setIsSimulating] = useState(false);
 
   // Unified comprehensive input system
@@ -737,6 +474,18 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
     },
   });
   const requiresWalletForWrite = !isSimulationMode;
+  useEffect(() => {
+    if (simulationResult) {
+      const artifacts = extractSimulationArtifacts(simulationResult);
+      const firstFrame = artifacts.callTree?.[0]?.frameKey ?? null;
+      setActiveSimulationFrame(firstFrame);
+      setCollapsedStackFrames(new Set());
+    } else {
+      setActiveSimulationFrame(null);
+      setCollapsedStackFrames(new Set());
+    }
+  }, [simulationResult]);
+
   const walletMissingForWrite =
     selectedFunctionType === "write" &&
     requiresWalletForWrite &&
@@ -1387,221 +1136,366 @@ const renderSimulationInsights = (
           ? ethers.utils.getAddress(callerCandidate)
           : callerCandidate;
       const warningsList = simulationResult.warnings ?? [];
-      const statusLabel = simulationResult.success ? "Succeeded" : "Reverted";
-      const statusClass = simulationResult.success
-        ? "simulation-status-badge simulation-status-badge--success"
-        : "simulation-status-badge simulation-status-badge--error";
       const assetChanges = artifacts.assetChanges ?? [];
       const storageDiffs = artifacts.storageDiffs ?? [];
       const events = artifacts.events ?? [];
+      const snapshots = artifacts.snapshots ?? [];
       const callTree = artifacts.callTree ?? [];
+      const activeFrameKey = activeSimulationFrame ?? callTree[0]?.frameKey ?? null;
+      const activeStackError = activeFrameKey
+        ? callTree.find((node) => node.frameKey === activeFrameKey)?.error ?? null
+        : null;
+      const traceEntries = flattenCallTreeEntries(callTree);
       const rawPayload = artifacts.rawPayload;
-      const rawReturnData = artifacts.rawReturnData;
 
-      return (
-        <div className="simulation-shell">
-          <div className="simulation-shell__summary">
-            <div className={statusClass}>
-              <span className="simulation-status-dot" />
-              {statusLabel}
-            </div>
-            <div className="simulation-metrics-grid">
-              <div>
-                <span className="simulation-label">Gas Used</span>
-                <div className="simulation-metric">{gasUsedDisplay}</div>
-              </div>
-              <div>
-                <span className="simulation-label">Suggested Gas</span>
-                <div className="simulation-metric">{gasLimitDisplay}</div>
-              </div>
-              <div>
-                <span className="simulation-label">Mode</span>
-                <div className="simulation-metric">{modeDisplay}</div>
-              </div>
-              <div>
-                <span className="simulation-label">Caller</span>
-                <div className="simulation-metric">{callerDisplay}</div>
-              </div>
-            </div>
-            {!!warningsList.length && (
-              <div className="simulation-chip-row">
-                {warningsList.map((warning, index) => (
-                  <span
-                    key={`simulation-warning-chip-${index}`}
-                    className="simulation-chip simulation-chip--warning"
+      const toggleStackNode = (frameKey: string) => {
+        setCollapsedStackFrames((prev) => {
+          const next = new Set(prev);
+          if (next.has(frameKey)) {
+            next.delete(frameKey);
+          } else {
+            next.add(frameKey);
+          }
+          return next;
+        });
+      };
+
+      const expandAllFrames = () => setCollapsedStackFrames(new Set());
+      const collapseAllFrames = () => {
+        const next = new Set<string>();
+        traceEntries.forEach((entry) => next.add(entry.frameKey));
+        setCollapsedStackFrames(next);
+      };
+
+      const renderStackBranch = (nodes: SimulationCallNode[]): React.ReactNode =>
+        nodes.map((node) => {
+          const collapsed = collapsedStackFrames.has(node.frameKey);
+          const hasChildren = !!node.children?.length;
+          const nodeError = getCallNodeError(node);
+          return (
+            <li
+              key={node.frameKey}
+              className={`stack-node${activeFrameKey === node.frameKey ? " active" : ""}${
+                collapsed ? " collapsed" : ""
+              }`}
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest(".stack-caret")) {
+                  return;
+                }
+                setActiveSimulationFrame(node.frameKey);
+              }}
+            >
+              <div className="stack-node__row">
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    className="stack-caret"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleStackNode(node.frameKey);
+                    }}
                   >
-                    {warning}
-                  </span>
-                ))}
+                    {collapsed ? "▸" : "▾"}
+                  </button>
+                ) : (
+                  <span className="stack-caret stack-caret--empty" />
+                )}
+                <div>
+                  <strong>{node.functionName ?? "Call"}</strong>
+                  <div className="stack-meta">
+                    {shortAddress(node.from)} → {shortAddress(node.to)}
+                  </div>
+                  <div className="stack-meta">Depth {node.depth ?? 0}</div>
+                  {nodeError ? (
+                    <div className="stack-meta" style={{ color: "var(--sim-error)" }}>
+                      {nodeError}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            )}
-          </div>
-          {simulationResult.error && (
-            <div className="simulation-status-alert">
-              <AlertTriangleIcon width={16} height={16} />
-              <span>{simulationResult.error}</span>
-            </div>
-          )}
-            {simulationResult.revertReason && (
-              <div className="simulation-status-alert simulation-status-alert--muted">
-                <span>
-                  <strong>Revert reason:</strong> {simulationResult.revertReason}
-                </span>
-              </div>
-            )}
-
-          <div className="simulation-shell__panels">
-            <section className="simulation-panel">
-              <header className="simulation-panel__header">
-                <span>Stack Trace</span>
-                <span className="simulation-chip simulation-chip--info">
-                  beta
-                </span>
-              </header>
-              {callTree.length > 0 ? (
-                <>
-                  <p className="simulation-panel__description">
-                    Displaying the first 25 call frames. Export the raw payload for
-                    exhaustive traces.
-                  </p>
-                  {renderCallTreeNodes(callTree)}
-                </>
-              ) : (
-                <p className="simulation-panel__placeholder">
-                  No structured call trace returned by the simulator.
-                </p>
-              )}
-            </section>
-
-            <section className="simulation-panel">
-              <header className="simulation-panel__header">
-                <span>State &amp; Asset Changes</span>
-                <span className="simulation-chip simulation-chip--info">
-                  beta
-                </span>
-              </header>
-              {assetChanges.length > 0 ? (
-                <ul className="simulation-changes-list">
-                  {assetChanges.slice(0, 4).map((change, index) => (
-                    <li key={`simulation-asset-change-${index}`}>
-                      <span className="simulation-change-amount">
-                        {change.amount ?? change.rawAmount ?? "—"}
-                      </span>
-                      <span className="simulation-change-asset">
-                        {change.symbol || change.name || "Asset"}
-                      </span>
-                      <span className="simulation-change-address">
-                        {change.address || "—"}
-                      </span>
-                    </li>
-                  ))}
-                  {assetChanges.length > 4 && (
-                    <li className="simulation-panel__hint">
-                      +{assetChanges.length - 4} more changes
-                    </li>
-                  )}
-                </ul>
-              ) : (
-                <p className="simulation-panel__placeholder">
-                  No asset or balance shifts detected in this simulation.
-                </p>
-              )}
-              {storageDiffs.length > 0 && (
-                <ul className="simulation-storage-list">
-                  {storageDiffs.slice(0, 6).map((diff, index) => (
-                    <li key={`simulation-storage-${index}`}>
-                      <div className="simulation-storage-address">
-                        {diff.address || "Storage"}
-                      </div>
-                      <div className="simulation-storage-slot">
-                        slot {diff.slot || diff.key || "?"}
-                      </div>
-                      <div className="simulation-storage-values">
-                        <span>
-                          before:{" "}
-                          <code>{diff.before ?? "—"}</code>
-                        </span>
-                        <span>
-                          after:{" "}
-                          <code>{diff.after ?? diff.value ?? "—"}</code>
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                  {storageDiffs.length > 6 && (
-                    <li className="simulation-panel__hint">
-                      +{storageDiffs.length - 6} additional storage mutations
-                    </li>
-                  )}
-                </ul>
-              )}
-            </section>
-
-            <section className="simulation-panel">
-              <header className="simulation-panel__header">
-                <span>Events</span>
-                <span className="simulation-chip simulation-chip--info">
-                  beta
-                </span>
-              </header>
-              {events.length > 0 ? (
-                <ul className="simulation-events-list">
-                  {events.slice(0, 6).map((event, index) => (
-                    <li key={`simulation-event-${index}`}>
-                      <div className="simulation-event-name">
-                        {event.name || event.signature || "Event"}
-                      </div>
-                      <div className="simulation-event-meta">
-                        {event.address && (
-                          <span>
-                            <code>{event.address}</code>
-                          </span>
-                        )}
-                        {event.signature && (
-                          <span className="simulation-event-signature">
-                            {event.signature}
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                  {events.length > 6 && (
-                    <li className="simulation-panel__hint">
-                      +{events.length - 6} additional events
-                    </li>
-                  )}
-                </ul>
-              ) : (
-                <p className="simulation-panel__placeholder">
-                  No events were emitted during this simulation.
-                </p>
-              )}
-            </section>
-
-            <section className="simulation-panel simulation-panel--raw">
-              <header className="simulation-panel__header">
-                <span>Raw Payload</span>
-              </header>
-              {rawReturnData && (
-                <div className="simulation-panel__raw-return">
-                  <span className="simulation-label">Return Data</span>
-                  <code className="simulation-panel__pre simulation-panel__pre--inline">
-                    {rawReturnData}
-                  </code>
+              {hasChildren && !collapsed && (
+                <div className="stack-children">
+                  <ul>{renderStackBranch(node.children ?? [])}</ul>
                 </div>
               )}
-              {rawPayload ? (
-                <pre className="simulation-panel__pre">{rawPayload}</pre>
+            </li>
+          );
+        });
+
+      const renderTraceRows = () =>
+        traceEntries.map((entry, index) => {
+          const label =
+            entry.functionName ||
+            entry.label ||
+            (entry.input && entry.input !== "0x"
+              ? entry.input.slice(0, 10)
+              : entry.type || "Call");
+          const entryError = getCallNodeError(entry);
+          return (
+            <div
+              key={`trace-log-${index}`}
+              className={`trace-log__row${activeFrameKey === entry.frameKey ? " active" : ""}`}
+              onClick={() => setActiveSimulationFrame(entry.frameKey)}
+            >
+              <div className="trace-log__meta">
+                <span
+                  className={`trace-log__op ${
+                    entryError ? "trace-log__op--error" : "trace-log__op--call"
+                  }`}
+                >
+                  {entry.type ?? "CALL"}
+                </span>
+                <span>Depth {entry.depth ?? 0}</span>
+              </div>
+              <div className="trace-log__body">
+                <div className="trace-log__line">
+                  <strong>{label}</strong>
+                  <span>
+                    {shortAddress(entry.from)} → {shortAddress(entry.to)}
+                  </span>
+                </div>
+                {entryError ? (
+                  <div className="trace-log__error">{entryError}</div>
+                ) : null}
+              </div>
+            </div>
+          );
+        });
+
+      return (
+        <div className="tenderly-sim">
+          <section className="sim-summary-block">
+            <div className="sim-summary-row">
+              <div className="sim-summary-grid">
+                <div className="sim-summary-item">
+                  <span>Simulation</span>
+                  <strong>{modeDisplay}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Network</span>
+                  <strong>
+                    {(summaryTrace?.network as string) ||
+                      (summaryTrace?.chain as string) ||
+                      selectedNetwork?.name ||
+                      "Local"}
+                  </strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Function</span>
+                  <strong>{decodeFunctionSelector(traceEntries[0]?.input)}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Value</span>
+                  <strong>{traceEntries[0]?.value ?? "0"}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Tx Type</span>
+                  <strong>{traceEntries[0]?.type ?? "Call"}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Gas Price</span>
+                  <strong>{(traceEntries[0] as any)?.gas_price ?? "—"}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Gas Used</span>
+                  <strong>{gasUsedDisplay}</strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Caller</span>
+                  <code>{traceEntries[0] ? shortAddress(traceEntries[0].from) : "—"}</code>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Target</span>
+                  <code>{traceEntries[0] ? shortAddress(traceEntries[0].to) : "—"}</code>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Block</span>
+                  <strong>
+                    {(summaryTrace?.blockNumber as string | number | undefined) ?? "N/A"}
+                  </strong>
+                </div>
+                <div className="sim-summary-item">
+                  <span>Timestamp</span>
+                  <strong>
+                    {(summaryTrace?.timestamp as string | number | undefined) ?? "N/A"}
+                  </strong>
+                </div>
+              </div>
+              <div className="sim-summary-actions">
+                <span className={`sim-summary-pill ${simulationResult.success ? "success" : "error"}`}>
+                  {simulationResult.success ? "Succeeded" : "Failed"}
+                </span>
+                <span className="sim-summary-pill">Mode: {modeDisplay}</span>
+                <button className="sim-pill-button" type="button">Rerun</button>
+                <button className="sim-pill-button" type="button">Share</button>
+              </div>
+            </div>
+          </section>
+          {simulationResult.error && (
+            <div className="stack-error-banner">
+              <strong>Error:</strong> {simulationResult.error}
+            </div>
+          )}
+          {simulationResult.revertReason && (
+            <div className="stack-error-banner">
+              <strong>Revert:</strong> {simulationResult.revertReason}
+            </div>
+          )}
+
+          <section className="sim-panel">
+            <h2>Input and Output</h2>
+            <div className="sim-input-output">
+              <div className="sim-io-card">
+                <header>
+                  <span>Input</span>
+                  <button
+                    className="copy-button"
+                    onClick={() => navigator.clipboard.writeText(generatedCallData || "0x")}
+                  >
+                    Copy
+                  </button>
+                </header>
+                <pre>{generatedCallData || "0x"}</pre>
+              </div>
+              <div className="sim-io-card">
+                <header>
+                  <span>Output</span>
+                  <button
+                    className="copy-button"
+                    onClick={() => navigator.clipboard.writeText(simulationResult.rawTrace ? JSON.stringify(simulationResult.rawTrace, null, 2) : simulationResult.revertReason ?? "")}
+                  >
+                    Copy
+                  </button>
+                </header>
+                <pre>{simulationResult.rawTrace ? JSON.stringify(simulationResult.rawTrace, null, 2) : simulationResult.revertReason ?? "0x"}</pre>
+              </div>
+            </div>
+          </section>
+
+          <div className="tenderly-stack-row">
+            <section className="stack-trace">
+              <div className="stack-header">
+                <h2>Stack Trace</h2>
+                <div className="stack-controls">
+                  <button onClick={expandAllFrames}>Expand</button>
+                  <button onClick={collapseAllFrames}>Collapse</button>
+                  <button className="sim-pill-button">Debug</button>
+                </div>
+              </div>
+              {activeStackError ? (
+                <div className="stack-error-banner">
+                  <strong>Error Message:</strong> {activeStackError}
+                </div>
+              ) : null}
+              {callTree.length ? (
+                <ul className="stack-tree">{renderStackBranch(callTree)}</ul>
               ) : (
-                <p className="simulation-panel__placeholder">
-                  No raw payload returned from the simulator.
-                </p>
+                <p style={{ padding: 12 }}>No call frames recorded.</p>
               )}
             </section>
+
+            <section className="trace-log-panel">
+              <div className="trace-toolbar">
+                <div className="trace-toolbar-left">
+                  <button className="trace-tab active">All</button>
+                  <button className="trace-tab">Errors</button>
+                </div>
+                <div className="trace-toolbar-right">
+                  <div className="trace-toggle-group">
+                    {(["gas", "full", "storage", "events"] as const).map((key) => (
+                      <label key={key}>
+                        <input
+                          type="checkbox"
+                          checked={filters[key]}
+                          onChange={(event) =>
+                            setFilters((prev) => ({ ...prev, [key]: event.target.checked }))
+                          }
+                        />
+                        {key}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="trace-log">
+                {traceEntries.length ? renderTraceRows() : (
+                  <p style={{ padding: 12 }}>No trace entries.</p>
+                )}
+              </div>
+            </section>
           </div>
+
+          <section className="sim-panel">
+            <h2>Execution Trace</h2>
+            <div className="sim-timeline-shell">
+              <div className="sim-timeline-list">
+                {!snapshots.length ? (
+                  <p style={{ padding: 12 }}>No opcode snapshots.</p>
+                ) : (
+                  snapshots.slice(0, 200).map((snap) => (
+                    <div
+                      className={`sim-timeline-row ${
+                        filters.full && activeFrameKey === String(snap.frameId ?? "") ? "active" : ""
+                      }`}
+                      key={snap.id}
+                    >
+                      <div>
+                        <div className="sim-op-badge">{snap.type}</div>
+                        <div className="meta">PC {snap.pc ?? "?"}</div>
+                      </div>
+                      <div className="meta">{snap.targetAddress ?? "—"}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="sim-panel">
+            <h2>State & Events</h2>
+            {filters.events && events.length ? (
+              <div className="events-storage">
+                {events.slice(0, 6).map((event, index) => (
+                  <div className="event-item" key={`event-${index}`}>
+                    <strong>{event.name ?? event.signature ?? "Event"}</strong>
+                    <div>
+                      <small>{event.address ?? ""}</small>
+                    </div>
+                    <pre>{JSON.stringify(event.decoded ?? event.data, null, 2)}</pre>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="simulation-panel__placeholder">No events.</p>
+            )}
+            {filters.storage && storageDiffs.length ? (
+              <div className="events-storage">
+                {storageDiffs.slice(0, 6).map((entry, index) => (
+                  <div className="storage-item" key={`storage-${index}`}>
+                    <strong>Storage slot {entry.slot ?? entry.key}</strong>
+                    <div>
+                      <small>Before</small> <code>{entry.before ?? "—"}</code>
+                    </div>
+                    <div>
+                      <small>After</small> <code>{entry.after ?? entry.value ?? "—"}</code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          {rawPayload && (
+            <section className="sim-panel sim-raw-panel">
+              <h2>Raw Payload</h2>
+              <pre>{rawPayload}</pre>
+            </section>
+          )}
         </div>
       );
     }
+
 
     if (simulationError) {
       return (

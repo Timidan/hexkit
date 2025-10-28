@@ -21,6 +21,15 @@ interface BridgeSimulationResponsePayload {
   rawTrace?: unknown;
 }
 
+export interface BridgeAnalysisOptions {
+  quickMode?: boolean;
+  collectCallTree?: boolean;
+  collectEvents?: boolean;
+  collectStorageDiff?: boolean;
+  collectSnapshots?: boolean;
+  etherscanApiKey?: string;
+}
+
 type SerializableTransactionField =
   | string
   | number
@@ -168,39 +177,17 @@ const normalizeBridgeResult = (
   };
 };
 
-const trySimulatorBridge = async (
-  transaction: TransactionRequest,
-  chain: Chain,
-  fromAddress: string
+const postSimulatorJob = async (
+  payload: Record<string, unknown>
 ): Promise<SimulationResult | null> => {
   if (!SIMULATOR_BRIDGE_ENDPOINT) {
     return null;
   }
 
-  if (!chain?.rpcUrl) {
-    console.warn(
-      '[simulation] Simulator bridge configured but missing RPC URL for chain:',
-      chain
-    );
-    return null;
-  }
-
   const url = `${SIMULATOR_BRIDGE_ENDPOINT}/simulate`;
-  const requestPayload = {
-    mode: 'local' as const,
-    rpcUrl: chain.rpcUrl,
-    chainId: chain.id,
-    transaction: buildBridgeTransactionPayload(transaction, fromAddress),
-    analysisOptions: {
-      quickMode: true,
-      collectCallTree: true,
-      collectEvents: true,
-      collectStorageDiff: true,
-    },
-  };
 
   try {
-    const response = await axios.post(url, requestPayload, {
+    const response = await axios.post(url, payload, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -214,6 +201,7 @@ const trySimulatorBridge = async (
       return null;
     }
 
+    hasLoggedSimulatorBridgeFailure = false;
     return normalizeBridgeResult(
       response.data as BridgeSimulationResponsePayload
     );
@@ -228,10 +216,102 @@ const trySimulatorBridge = async (
       );
       hasLoggedSimulatorBridgeFailure = true;
     }
-    throw new Error(
-      `[simulation] Simulator bridge request failed: ${message}`
-    );
+    return null;
   }
+};
+
+const trySimulatorBridge = async (
+  transaction: TransactionRequest,
+  chain: Chain,
+  fromAddress: string
+): Promise<SimulationResult | null> => {
+  if (!chain?.rpcUrl) {
+    console.warn(
+      '[simulation] Simulator bridge configured but missing RPC URL for chain:',
+      chain
+    );
+    return null;
+  }
+
+  const requestPayload = {
+    mode: 'local' as const,
+    rpcUrl: chain.rpcUrl,
+    chainId: chain.id,
+    transaction: buildBridgeTransactionPayload(transaction, fromAddress),
+    analysisOptions: mergeAnalysisOptions(),
+  };
+
+  return postSimulatorJob(requestPayload);
+};
+
+const DEFAULT_ANALYSIS_OPTIONS: BridgeAnalysisOptions = {
+  quickMode: true,
+  collectCallTree: true,
+  collectEvents: true,
+  collectStorageDiff: true,
+};
+
+const mergeAnalysisOptions = (
+  overrides?: BridgeAnalysisOptions
+): BridgeAnalysisOptions => ({
+  ...DEFAULT_ANALYSIS_OPTIONS,
+  ...(overrides ?? {}),
+});
+
+const normalizeBlockTag = (value?: string | number): string | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  return undefined;
+};
+
+export const replayTransactionWithSimulator = async (
+  chain: Chain,
+  txHash: string,
+  options?: {
+    blockTag?: string | number;
+    analysisOptions?: BridgeAnalysisOptions;
+  }
+): Promise<SimulationResult | null> => {
+  const hash = txHash?.trim();
+  if (!hash) {
+    return null;
+  }
+
+  if (!hash.startsWith('0x')) {
+    console.warn('[simulation] Provided transaction hash is missing 0x prefix:', hash);
+    return null;
+  }
+
+  if (!chain?.rpcUrl) {
+    console.warn(
+      '[simulation] Simulator bridge cannot replay without a valid RPC URL for chain:',
+      chain
+    );
+    return null;
+  }
+
+  const payload: Record<string, unknown> = {
+    mode: 'onchain',
+    rpcUrl: chain.rpcUrl,
+    chainId: chain.id,
+    txHash: hash,
+    analysisOptions: mergeAnalysisOptions(options?.analysisOptions),
+  };
+
+  const normalizedBlockTag = normalizeBlockTag(options?.blockTag);
+  if (normalizedBlockTag) {
+    payload.blockTag = normalizedBlockTag;
+  }
+
+  return postSimulatorJob(payload);
 };
 
 // Enhanced simulation that tries to actually call the contract

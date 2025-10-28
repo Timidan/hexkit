@@ -30,6 +30,12 @@ const Navigation: React.FC = () => {
         <SearchIcon width={16} height={16} style={{ marginRight: "4px" }} />
         Contract Search
       </NavLink>
+      <NavLink
+        to="/simulator"
+        className={({ isActive }) => (isActive ? "active" : "")}
+      >
+        Simulator Sandbox
+      </NavLink>
     </nav>
   );
 };

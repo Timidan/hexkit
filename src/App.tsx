@@ -15,6 +15,7 @@ import NewSimpleGridUI from "./components/NewSimpleGridUI";
 import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
 import ComprehensiveContractSearch from "./components/ComprehensiveContractSearch";
+import SimulatorWorkbench from "./components/SimulatorWorkbench";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -33,6 +34,7 @@ const TOOL_ROUTES: ToolRoute[] = [
   { path: "/database", render: () => <SignatureDatabase /> },
   { path: "/signatures", render: () => <SignatureDatabase initialTab="tools" /> },
   { path: "/contract-search", render: () => <ComprehensiveContractSearch /> },
+  { path: "/simulator", render: () => <SimulatorWorkbench /> },
 ];
 
 const PersistentTools: React.FC = () => {
