@@ -230,7 +230,7 @@
     linear-gradient(180deg, rgba(15, 23, 42, 0.85) 0%, rgba(15, 15, 20, 0.95) 100%);
   border: 1px solid rgba(59, 130, 246, 0.2);
   box-shadow: 0 18px 40px rgba(2, 6, 23, 0.4);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .contract-interaction-card::before {

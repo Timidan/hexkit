@@ -6,9 +6,17 @@ import ContractAddressInput from './ContractAddressInput';
 import { fetchContractInfoComprehensive } from '../../utils/comprehensiveContractFetcher';
 import { detectTokenType } from '../../utils/universalTokenDetector';
 import { SUPPORTED_CHAINS, getChainById } from '../../utils/chains';
+import { getSharedProvider } from '../../utils/providerPool';
 import { userRpcManager } from '../../utils/userRpc';
 import type { Chain, ContractInfo } from '../../types';
+import type { ContractInfoResult, ContractSearchProgress } from '../../types/contractInfo';
 import '../../styles/ContractComponents.css';
+
+const CONTRACT_RESULT_CACHE_TTL_MS = 2 * 60 * 1000;
+const contractResultCache = new Map<
+  string,
+  { timestamp: number; result: ContractInfoResult }
+>();
 
 export interface ContractConnectorProps {
   /** Initial contract address */
@@ -75,6 +83,11 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
+  const [searchTimeline, setSearchTimeline] = useState<Array<{
+    source: string;
+    status: 'searching' | 'found' | 'not_found' | 'error';
+    message?: string;
+  }> | null>(null);
   
   // Contract info state
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
@@ -119,6 +132,7 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
   const resetState = useCallback(() => {
     setError(null);
     setSearchProgress(null);
+    setSearchTimeline(null);
     setContractInfo(null);
     setAbiSource(null);
     setContractName('');
@@ -149,38 +163,53 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
     return { readFunctions: readFuncs, writeFunctions: writeFuncs };
   }, []);
 
-  const detectAndFetchTokenInfo = useCallback(async (
-    address: string,
-    chain: Chain,
-    abi: any[],
-    preserveName = false
-  ) => {
-    if (!showAdvancedFeatures) return;
-    
-    try {
-      // Create provider for token detection
-      const rpcUrl = userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url;
-      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-      const tokenResult = await detectTokenType(provider, address);
-      
-      if (tokenResult.type !== 'unknown') {
-        setTokenInfo({
-          type: tokenResult.type,
-          symbol: tokenResult.symbol,
-          name: preserveName ? contractName : (tokenResult.name || contractName),
-          decimals: tokenResult.decimals,
-          confidence: tokenResult.confidence
-        });
-        
-        // Update contract name if we got a better one from token detection
-        if (!preserveName && tokenResult.name) {
-          setContractName(tokenResult.name);
+  const resolveTokenInfo = useCallback(
+    async (
+      address: string,
+      chain: Chain,
+      abi: any[],
+      currentName: string,
+      preserveName: boolean
+    ): Promise<
+      | {
+          info: NonNullable<ContractConnectorResult['tokenInfo']>;
+          name?: string;
         }
+      | null
+    > => {
+      if (!showAdvancedFeatures) return null;
+
+      try {
+        const provider = getSharedProvider(chain);
+        const tokenResult = await detectTokenType(provider, address);
+
+        if (tokenResult.type !== 'unknown') {
+          const resolvedName =
+            preserveName || !tokenResult.name
+              ? undefined
+              : tokenResult.name;
+
+          return {
+            info: {
+              type: tokenResult.type,
+              symbol: tokenResult.symbol,
+              name: preserveName
+                ? currentName
+                : tokenResult.name || currentName,
+              decimals: tokenResult.decimals,
+              confidence: tokenResult.confidence,
+            },
+            name: resolvedName,
+          };
+        }
+      } catch (error) {
+        console.warn('Token detection failed:', error);
       }
-    } catch (error) {
-      console.warn('Token detection failed:', error);
-    }
-  }, [showAdvancedFeatures, contractName]);
+
+      return null;
+    },
+    [showAdvancedFeatures]
+  );
 
   const fetchABI = useCallback(async () => {
     if (!contractAddress || !selectedNetwork) {
@@ -193,122 +222,189 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
       return;
     }
 
+    const checksumAddress = ethers.utils.getAddress(contractAddress);
+    const chainConfig =
+      getChainById(selectedNetwork?.id || 0) || selectedNetwork;
+    const cacheKey = `${chainConfig.id}:${checksumAddress}`;
+
+    const hydrateResult = async (
+      lookupResult: ContractInfoResult,
+      options: { fromCache: boolean }
+    ) => {
+      if (!lookupResult.abi) {
+        throw new Error('Lookup returned an empty ABI payload');
+      }
+
+      let parsedAbi: any[];
+      try {
+        parsedAbi =
+          typeof lookupResult.abi === 'string'
+            ? JSON.parse(lookupResult.abi)
+            : lookupResult.abi;
+      } catch (parseError) {
+        throw new Error(
+          `Failed to parse ABI from ${lookupResult.source || 'lookup'}`
+        );
+      }
+
+      const iface = new ethers.utils.Interface(parsedAbi);
+      const { readFunctions: reads, writeFunctions: writes } =
+        categorizeABIFunctions(parsedAbi);
+
+      let finalName = lookupResult.contractName || 'Unknown Contract';
+      let finalTokenInfo =
+        lookupResult.tokenInfo && Object.keys(lookupResult.tokenInfo).length
+          ? lookupResult.tokenInfo
+          : null;
+
+      if (!finalTokenInfo) {
+        const resolution = await resolveTokenInfo(
+          checksumAddress,
+          chainConfig,
+          parsedAbi,
+          finalName,
+          lookupResult.source === 'sourcify'
+        );
+        if (resolution) {
+          finalTokenInfo = resolution.info;
+          if (resolution.name) {
+            finalName = resolution.name;
+          }
+        }
+      }
+
+      setTokenInfo(finalTokenInfo);
+      setContractName(finalName);
+      setContractInterface(iface);
+      setReadFunctions(reads);
+      setWriteFunctions(writes);
+      setAbiSource(
+        (lookupResult.source as ContractConnectorResult['abiSource']) ?? 'manual'
+      );
+      setContractInfo({
+        address: checksumAddress,
+        chain: chainConfig,
+        abi:
+          typeof lookupResult.abi === 'string'
+            ? lookupResult.abi
+            : JSON.stringify(lookupResult.abi),
+        name: finalName,
+        verified: Boolean(lookupResult.success),
+      });
+      setSearchProgress({
+        source: options.fromCache
+          ? 'Cache'
+          : lookupResult.source || 'Unknown',
+        status: 'found',
+        message: options.fromCache
+          ? `Loaded cached contract: ${finalName}`
+          : `Found contract: ${finalName}`,
+      });
+      setSearchTimeline(lookupResult.searchProgress || []);
+
+      if (onContractConnected) {
+        onContractConnected({
+          address: checksumAddress,
+          chain: chainConfig,
+          abi: parsedAbi,
+          contractName: finalName,
+          abiSource:
+            (lookupResult.source as ContractConnectorResult['abiSource']) ??
+            'manual',
+          tokenInfo: finalTokenInfo || undefined,
+          readFunctions: reads,
+          writeFunctions: writes,
+          interface: iface,
+        });
+      }
+    };
+
     setIsLoading(true);
     resetState();
 
     try {
-      // Use checksum address for better compatibility
-      const checksumAddress = ethers.utils.getAddress(contractAddress);
-      
+      const cached = contractResultCache.get(cacheKey);
+      if (
+        cached &&
+        Date.now() - cached.timestamp < CONTRACT_RESULT_CACHE_TTL_MS
+      ) {
+        await hydrateResult(cached.result, { fromCache: true });
+        return;
+      }
+
       setSearchProgress({
         source: 'Comprehensive Search',
         status: 'searching',
-        message: 'Searching multiple sources...'
+        message: 'Searching multiple sources...',
       });
+      setSearchTimeline(null);
 
-      const chainConfig =
-        getChainById(selectedNetwork?.id || 0) || selectedNetwork;
+      const progressEvents: ContractSearchProgress[] = [];
 
       const result = await fetchContractInfoComprehensive(
         checksumAddress,
-        chainConfig
+        chainConfig,
+        (progress) => {
+          progressEvents.push(progress);
+          setSearchTimeline([...progressEvents]);
+          setSearchProgress({
+            source: progress.source,
+            status: progress.status,
+            message: progress.message,
+          });
+        },
+        {
+          etherscanApiKey: userRpcManager.getEtherscanKey(),
+        }
       );
 
       if (result.success && result.abi) {
-        const parsedABI = JSON.parse(result.abi);
-        const iface = new ethers.utils.Interface(parsedABI);
-        const { readFunctions: reads, writeFunctions: writes } = categorizeABIFunctions(parsedABI);
-        
-        // Update state
-        setContractInterface(iface);
-        setReadFunctions(reads);
-        setWriteFunctions(writes);
-        setAbiSource(
-          result.source as
-            | 'sourcify'
-            | 'blockscout'
-            | 'etherscan'
-            | 'blockscout-bytecode'
-        );
-        
-        // Set contract name
-        const extractedName = result.contractName || 'Unknown Contract';
-        setContractName(extractedName);
-        
-        // Create contract info
-        const info: ContractInfo = {
-          address: checksumAddress,
-          chain: chainConfig,
-          abi: result.abi,
-          name: extractedName,
-          verified: true
-        };
-        setContractInfo(info);
-        
-        setSearchProgress({
-          source: result.source || 'Unknown',
-          status: 'found',
-          message: `Found contract: ${extractedName}`
+        contractResultCache.set(cacheKey, {
+          timestamp: Date.now(),
+          result,
         });
-
-        // Detect token information
-        await detectAndFetchTokenInfo(
-          checksumAddress,
-          selectedNetwork,
-          parsedABI,
-          result.source === 'sourcify' // Preserve Sourcify names
-        );
-
-        // Call success callback
-        if (onContractConnected) {
-          const connectorResult: ContractConnectorResult = {
-            address: checksumAddress,
-            chain: chainConfig,
-            abi: parsedABI,
-            contractName: extractedName,
-            abiSource: result.source as
-              | 'sourcify'
-              | 'blockscout'
-              | 'etherscan'
-              | 'blockscout-bytecode'
-              | 'manual',
-            tokenInfo: tokenInfo || undefined,
-            readFunctions: reads,
-            writeFunctions: writes,
-            interface: iface
-          };
-          onContractConnected(connectorResult);
-        }
-
+        await hydrateResult(result, { fromCache: false });
       } else {
-        const errorMsg = result.error || 'Could not fetch ABI from any source';
+        setSearchTimeline(result.searchProgress || []);
+        const errorMsg =
+          result.error || 'Could not fetch ABI from any explorer';
         setError(errorMsg);
         setSearchProgress({
           source: 'All Sources',
           status: 'not_found',
-          message: errorMsg
+          message: errorMsg,
         });
-        
+
         if (onConnectionError) {
           onConnectionError(errorMsg);
         }
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch contract ABI';
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to fetch contract ABI';
       setError(errorMessage);
       setSearchProgress({
         source: 'Error',
         status: 'error',
-        message: errorMessage
+        message: errorMessage,
       });
-      
+      setSearchTimeline(null);
+
       if (onConnectionError) {
         onConnectionError(errorMessage);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [contractAddress, selectedNetwork, onContractConnected, onConnectionError, resetState, categorizeABIFunctions, detectAndFetchTokenInfo, tokenInfo]);
+  }, [
+    contractAddress,
+    selectedNetwork,
+    onContractConnected,
+    onConnectionError,
+    resetState,
+    categorizeABIFunctions,
+    resolveTokenInfo,
+  ]);
 
   return (
     <div className={`contract-connector ${className}`}>
@@ -359,6 +455,46 @@ const ContractConnector: React.FC<ContractConnectorProps> = ({
                   {searchProgress.status}
                 </Badge>
               </div>
+            </Card>
+          </div>
+        )}
+
+        {searchTimeline && searchTimeline.length > 0 && (
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <Card title="Lookup Trace" variant="default" padding="sm">
+              <ol style={{ listStyle: 'decimal', paddingLeft: '1.25rem', margin: 0 }}>
+                {searchTimeline.map((entry, index) => {
+                  const color =
+                    entry.status === 'found'
+                      ? 'var(--success)'
+                      : entry.status === 'searching'
+                        ? 'var(--info)'
+                        : entry.status === 'not_found'
+                          ? 'var(--warning)'
+                          : 'var(--error)';
+                  return (
+                    <li
+                      key={`${entry.source}-${index}`}
+                      style={{ marginBottom: index === searchTimeline.length - 1 ? 0 : '0.35rem' }}
+                    >
+                      <span style={{ fontWeight: 500, color }}>
+                        {entry.source} &mdash; {entry.status}
+                      </span>
+                      {entry.message && (
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {entry.message}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
             </Card>
           </div>
         )}

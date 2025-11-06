@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { Chain } from '../../types';
 import type { ContractInfoResult } from '../../types/contractInfo';
-import { withRetry } from './common';
 
 interface SourcifyResponse {
   match?: any; // "match", "exact_match", or null
@@ -26,9 +25,34 @@ interface SourcifyResponse {
   };
 }
 
-const buildRepoUrls = (chainId: number, address: string) => [
-  `/api/sourcify/repository/contracts/full_match/${chainId}/${address}/metadata.json`,
-  `/api/sourcify/repository/contracts/partial_match/${chainId}/${address}/metadata.json`,
+const REPO_TIMEOUT_MS = 3500;
+const API_TIMEOUT_MS = 4500;
+
+const getRepoBases = () => {
+  if (typeof window !== 'undefined') {
+    return ['/api/sourcify/repository', 'https://repo.sourcify.dev'];
+  }
+  return ['https://repo.sourcify.dev', '/api/sourcify/repository'];
+};
+
+const getApiBases = () => {
+  if (typeof window !== 'undefined') {
+    return ['/api/sourcify/server', 'https://sourcify.dev/server'];
+  }
+  return ['https://sourcify.dev/server', '/api/sourcify/server'];
+};
+
+const normalizeBase = (base: string) => base.replace(/\/+$/, '');
+
+const joinUrl = (base: string, path: string) => {
+  const normalizedBase = normalizeBase(base);
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+};
+
+const buildRepoPaths = (chainId: number, address: string) => [
+  `/contracts/full_match/${chainId}/${address}/metadata.json`,
+  `/contracts/partial_match/${chainId}/${address}/metadata.json`,
 ];
 
 const extractContractName = (metadata: any): string | undefined => {
@@ -42,6 +66,37 @@ const extractContractName = (metadata: any): string | undefined => {
   return metadata?.name;
 };
 
+const attemptFetch = async <T>(
+  bases: string[],
+  builder: (base: string) => string,
+  timeoutMs: number,
+  headers?: Record<string, string>
+): Promise<T> => {
+  const errors: string[] = [];
+
+  for (const base of bases) {
+    const url = builder(base);
+    try {
+      const response = await axios.get<T>(url, {
+        timeout: timeoutMs,
+        headers,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.code === 'ECONNABORTED') {
+        errors.push(`${url}: timeout`);
+      } else if (error?.response?.status) {
+        errors.push(`${url}: ${error.response.status}`);
+      } else {
+        errors.push(`${url}: ${error.message || error}`);
+      }
+      continue;
+    }
+  }
+
+  throw new Error(errors.join(' | '));
+};
+
 export const fetchFromSourcify = async (
   address: string,
   chain: Chain
@@ -52,70 +107,79 @@ export const fetchFromSourcify = async (
   }
 
   try {
-    for (const url of buildRepoUrls(chain.id, normalizedAddress)) {
+    const repoErrors: string[] = [];
+
+    const repoBases = getRepoBases();
+    const repoPaths = buildRepoPaths(chain.id, normalizedAddress);
+
+    for (const path of repoPaths) {
       try {
-        const metadataResponse = await withRetry(() =>
-          axios.get(url, {
-            timeout: 10000,
-            headers: {
-              Accept: 'application/json',
-            },
-          })
+        const metadata = await attemptFetch<Record<string, any>>(
+          repoBases,
+          (base) => joinUrl(base, path),
+          REPO_TIMEOUT_MS
         );
 
-        const abi = metadataResponse.data?.output?.abi;
+        const abi = metadata?.output?.abi;
         if (Array.isArray(abi)) {
           return {
             success: true,
-            contractName: extractContractName(metadataResponse.data),
+            contractName: extractContractName(metadata),
             abi: JSON.stringify(abi),
             source: 'sourcify',
             explorerName: 'Sourcify',
             verified: true,
           };
         }
-      } catch (repoErr: any) {
-        if (repoErr.response?.status === 404) {
-          console.log(
-            ` [Sourcify] Repo endpoint ${url} returned 404 (expected for unverified contracts)`
-          );
-        } else {
-          console.warn(` [Sourcify] Repo endpoint ${url} failed:`, repoErr.message);
-        }
-        continue;
+        repoErrors.push(`${path}: missing ABI payload`);
+      } catch (error: any) {
+        repoErrors.push(`${path}: ${error.message || error}`);
       }
     }
 
-    const checkUrl = `/api/sourcify/server/v2/contract/${chain.id}/${normalizedAddress}?fields=abi,metadata`;
-    const response = await withRetry(() =>
-      axios.get<SourcifyResponse>(checkUrl, {
-        timeout: 15000,
-      })
-    );
+    const apiBases = getApiBases();
+    const cacheBuster = Date.now().toString(36);
+    try {
+      const apiResponse = await attemptFetch<SourcifyResponse>(
+        apiBases,
+        (base) =>
+          joinUrl(
+            base,
+            `/v2/contract/${chain.id}/${normalizedAddress}?fields=abi,metadata&_=${cacheBuster}`
+          ),
+        API_TIMEOUT_MS,
+        {
+          Accept: 'application/json',
+        }
+      );
 
-    const hasValidData =
-      response.data.match ||
-      response.data.creationMatch ||
-      response.data.runtimeMatch ||
-      (response.status === 304 &&
-        response.data.abi &&
-        Array.isArray(response.data.abi));
+      const hasValidData =
+        apiResponse.match ||
+        apiResponse.creationMatch ||
+        apiResponse.runtimeMatch ||
+        (Array.isArray(apiResponse.abi) && apiResponse.abi.length > 0);
 
-    if (hasValidData) {
-      const abiArray = response.data.abi;
-      if (abiArray && Array.isArray(abiArray)) {
+      if (hasValidData && Array.isArray(apiResponse.abi)) {
         return {
           success: true,
-          contractName: extractContractName(response.data.metadata),
-          abi: JSON.stringify(abiArray),
+          contractName: extractContractName(apiResponse.metadata),
+          abi: JSON.stringify(apiResponse.abi),
           source: 'sourcify',
           explorerName: 'Sourcify',
           verified: true,
         };
       }
+      repoErrors.push('API response missing verified ABI');
+    } catch (error: any) {
+      repoErrors.push(`API lookup: ${error.message || error}`);
     }
 
-    return { success: false, error: 'Contract not verified on Sourcify' };
+    const errorMessage =
+      repoErrors.length > 0
+        ? `Contract not verified on Sourcify (${repoErrors.join(' | ')})`
+        : 'Contract not verified on Sourcify';
+
+    return { success: false, error: errorMessage };
   } catch (error: any) {
     if (error.response?.status === 404) {
       return { success: false, error: 'Contract not found on Sourcify' };

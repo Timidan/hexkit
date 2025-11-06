@@ -1,0 +1,326 @@
+/* ============================================
+   RAINBOWKIT CUSTOM STYLING
+   Following claude-UI-rules.md design patterns
+   ============================================ */
+
+/* RainbowKit uses CSS custom properties and specific class names.
+   We override these to match our design system with inline SVG patterns. */
+
+/* ============================================
+   MODAL BACKDROP & CONTAINER
+   ============================================ */
+
+/* Modal backdrop - overlay */
+div[data-rk][style*="position: fixed"] {
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.96)) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+/* Modal container card */
+div[data-rk] div[role="dialog"] {
+  background: linear-gradient(180deg, rgba(15, 16, 20, 0.98), rgba(10, 12, 16, 0.98)) !important;
+  backdrop-filter: blur(30px) !important;
+  border: 1px solid rgba(99, 102, 241, 0.15) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ============================================
+   CLOSE BUTTON (Inline SVG Pattern)
+   Following claude-UI-rules.md Inline SVG Controls
+   ============================================ */
+
+/* Close button - kill all button chrome */
+[data-rk] button[aria-label="Close"],
+[data-rk] button[aria-label*="close" i],
+[data-rk] button[aria-label*="Close"],
+[data-rk] [role="dialog"] button[aria-label="Close"],
+[data-rk] div[role="dialog"] > div > button,
+[data-rk] .ju367vb6,
+div[data-rk] button[aria-label="Close"],
+button[data-rk][aria-label="Close"] {
+  /* Kill all button chrome - complete removal */
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+
+  /* Layout - let SVG dictate size */
+  padding: 8px !important;
+  margin: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: auto !important;
+  min-height: auto !important;
+
+  /* Interactive styling */
+  cursor: pointer !important;
+  color: rgba(154, 154, 172, 0.8) !important;
+  transition: color 0.15s ease, opacity 0.15s ease, transform 0.1s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  opacity: 0.8 !important;
+}
+
+/* Strip pseudo-elements */
+[data-rk] button[aria-label="Close"]::before,
+[data-rk] button[aria-label="Close"]::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Hover state */
+[data-rk] button[aria-label="Close"]:hover {
+  color: rgba(246, 246, 251, 1) !important;
+  opacity: 1 !important;
+  transform: scale(1.1) !important;
+}
+
+/* Active state */
+[data-rk] button[aria-label="Close"]:active {
+  color: #6366f1 !important;
+  transform: scale(0.95) !important;
+}
+
+/* Focus state for keyboard navigation */
+[data-rk] button[aria-label="Close"]:focus-visible {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================
+   WALLET BUTTONS & LIST ITEMS
+   ============================================ */
+
+/* Wallet option buttons - glass morphism */
+[data-rk] button[role="menuitem"],
+[data-rk] .ju367v5w {
+  background: rgba(30, 35, 50, 0.4) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  border-radius: 14px !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  padding: 16px 18px !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-rk] button[role="menuitem"]:hover,
+[data-rk] .ju367v5w:hover {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  transform: translateY(-3px) scale(1.02) !important;
+  box-shadow:
+    0 12px 28px rgba(99, 102, 241, 0.25),
+    0 0 0 1px rgba(99, 102, 241, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-rk] button[role="menuitem"]:active,
+[data-rk] .ju367v5w:active {
+  transform: translateY(-1px) scale(0.99) !important;
+  box-shadow:
+    0 6px 16px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ============================================
+   PRIMARY BUTTONS (Connect, Get Wallet, etc)
+   ============================================ */
+
+[data-rk] button[class*="ju367v"][class*="accent"],
+[data-rk] a[class*="ju367v"][class*="accent"] {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  border: 1px solid rgba(99, 102, 241, 0.5) !important;
+  border-radius: 14px !important;
+  padding: 14px 28px !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 10px 20px rgba(99, 102, 241, 0.35),
+    0 0 30px rgba(99, 102, 241, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-decoration: none !important;
+}
+
+[data-rk] button[class*="ju367v"][class*="accent"]:hover,
+[data-rk] a[class*="ju367v"][class*="accent"]:hover {
+  transform: translateY(-3px) !important;
+  box-shadow:
+    0 16px 32px rgba(99, 102, 241, 0.45),
+    0 0 40px rgba(99, 102, 241, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-rk] button[class*="ju367v"][class*="accent"]:active,
+[data-rk] a[class*="ju367v"][class*="accent"]:active {
+  transform: translateY(-1px) !important;
+  box-shadow:
+    0 8px 16px rgba(99, 102, 241, 0.3),
+    0 0 20px rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Secondary/text buttons (Learn More, etc) */
+[data-rk] a[class*="ju367v"]:not([class*="accent"]) {
+  background: transparent !important;
+  border: none !important;
+  color: #a5b4fc !important;
+  padding: 12px 20px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+}
+
+[data-rk] a[class*="ju367v"]:not([class*="accent"]):hover {
+  color: #c7d2fe !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-radius: 10px !important;
+}
+
+/* ============================================
+   TEXT & TYPOGRAPHY
+   ============================================ */
+
+/* Modal title */
+[data-rk] h1,
+[data-rk] h2,
+[data-rk] .ju367v1u {
+  color: #f6f6fb !important;
+  font-weight: 700 !important;
+  font-size: 24px !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 0 8px 0 !important;
+}
+
+/* Subtitle and descriptive text */
+[data-rk] p,
+[data-rk] .ju367v2d {
+  color: #9a9aac !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  margin: 0 0 20px 0 !important;
+}
+
+/* Section labels (Installed, Recommended, etc) */
+[data-rk] [data-testid="rk-wallet-option-group-label"],
+[data-rk] h3 {
+  color: #6b7280 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  margin: 20px 0 12px 0 !important;
+  opacity: 0.8 !important;
+}
+
+/* ============================================
+   WALLET ICONS
+   ============================================ */
+
+[data-rk] img[alt*="Wallet"],
+[data-rk] .ju367v46 {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Wallet button text */
+[data-rk] button[role="menuitem"] span {
+  color: #f6f6fb !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+}
+
+/* ============================================
+   SECTIONS & HEADERS
+   ============================================ */
+
+[data-rk] .ju367v82 {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  padding-bottom: 16px !important;
+}
+
+/* ============================================
+   SCROLLBARS
+   ============================================ */
+
+[data-rk] *::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-rk] *::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 4px;
+}
+
+[data-rk] *::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+[data-rk] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+/* ============================================
+   LOADING STATES
+   ============================================ */
+
+[data-rk] .ju367vd8 {
+  color: #6366f1 !important;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+
+@media (max-width: 640px) {
+  [data-rk] [role="dialog"] {
+    border-radius: 12px 12px 0 0 !important;
+  }
+
+  [data-rk] button[role="menuitem"] {
+    padding: 12px 14px !important;
+  }
+}
+
+/* ============================================
+   FOCUS STATES (Accessibility)
+   ============================================ */
+
+[data-rk] button:focus-visible {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-rk] * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+

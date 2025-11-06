@@ -1,0 +1,350 @@
+/* ============================================
+   WEB3MODAL CUSTOM STYLING
+   Following claude-UI-rules.md design patterns
+   ============================================ */
+
+/* ============================================
+   MODAL CONTAINER & BACKDROP
+   ============================================ */
+
+w3m-modal {
+  --w3m-z-index: 2000;
+}
+
+w3m-modal::backdrop {
+  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.92));
+  backdrop-filter: blur(20px);
+}
+
+/* ============================================
+   MODAL CARD & MAIN CONTAINER
+   ============================================ */
+
+wui-card,
+w3m-modal wui-card {
+  background: rgba(15, 16, 20, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ============================================
+   WALLET BUTTONS & OPTIONS
+   ============================================ */
+
+wui-list-wallet,
+wui-wallet-button {
+  background: rgba(17, 24, 39, 0.5) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  border-radius: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-list-wallet:hover,
+wui-wallet-button:hover {
+  background: rgba(17, 24, 39, 0.75) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.15) !important;
+}
+
+wui-list-wallet.selected,
+wui-wallet-button.selected {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(34, 211, 238, 0.15)) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 12px 26px rgba(56, 189, 248, 0.25) !important;
+}
+
+/* ============================================
+   PRIMARY BUTTONS (Connect, Confirm)
+   ============================================ */
+
+wui-button[variant="accent"],
+wui-button[variant="highlight"] {
+  background: linear-gradient(135deg, #6366f1, #5b5bd6) !important;
+  border: 1px solid rgba(99, 102, 241, 0.5) !important;
+  border-radius: 10px !important;
+  padding: 12px 24px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-button[variant="accent"]:hover,
+wui-button[variant="highlight"]:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.4) !important;
+}
+
+wui-button[variant="accent"]:active,
+wui-button[variant="highlight"]:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 6px 12px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* ============================================
+   SECONDARY BUTTONS
+   ============================================ */
+
+wui-button[variant="neutral"] {
+  background: rgba(99, 102, 241, 0.1) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  color: #a5b4fc !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-button[variant="neutral"]:hover {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+/* ============================================
+   CLOSE/ICON BUTTONS (Inline SVG Pattern)
+   Following claude-UI-rules.md Inline SVG Controls
+   ============================================ */
+
+wui-icon-link[data-icon="close"],
+wui-icon-link,
+w3m-modal wui-icon-link,
+w3m-modal button[aria-label="Close"],
+wui-card wui-icon-link {
+  /* Kill all button chrome - complete removal */
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-image: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+
+  /* Layout - let SVG dictate size */
+  padding: 0 !important;
+  margin: 0 !important;
+  width: auto !important;
+  height: auto !important;
+
+  /* Interactive styling */
+  cursor: pointer !important;
+  color: rgba(154, 154, 172, 0.8) !important;
+  transition: color 0.15s ease, opacity 0.15s ease, transform 0.1s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  opacity: 0.8 !important;
+}
+
+/* Strip pseudo-elements */
+wui-icon-link[data-icon="close"]::before,
+wui-icon-link[data-icon="close"]::after,
+wui-icon-link::before,
+wui-icon-link::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Hover state */
+wui-icon-link[data-icon="close"]:hover,
+wui-icon-link:hover {
+  color: rgba(246, 246, 251, 1) !important;
+  opacity: 1 !important;
+  transform: scale(1.1) !important;
+}
+
+/* Active state */
+wui-icon-link[data-icon="close"]:active,
+wui-icon-link:active {
+  color: #6366f1 !important;
+  transform: scale(0.95) !important;
+}
+
+/* Focus state for keyboard navigation */
+wui-icon-link[data-icon="close"]:focus-visible,
+wui-icon-link:focus-visible {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================
+   TEXT & TYPOGRAPHY
+   ============================================ */
+
+wui-text[variant="paragraph"],
+wui-text[variant="label-md"] {
+  color: #9a9aac !important;
+}
+
+wui-text[variant="heading-2"],
+wui-text[variant="heading-3"],
+wui-text[variant="heading-4"] {
+  color: #f6f6fb !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================
+   INPUTS & FIELDS
+   ============================================ */
+
+wui-input-text {
+  background: rgba(15, 23, 42, 0.5) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  border-radius: 10px !important;
+  color: #f6f6fb !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-input-text:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* ============================================
+   TABS
+   ============================================ */
+
+wui-tab-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  color: #9a9aac !important;
+  padding: 12px 16px !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-tab-button[data-state="active"],
+wui-tab-button.selected {
+  color: #f6f6fb !important;
+  border-bottom-color: #6366f1 !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================
+   SEPARATORS & DIVIDERS
+   ============================================ */
+
+wui-separator {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ============================================
+   TAGS & BADGES
+   ============================================ */
+
+wui-tag,
+wui-chip {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  color: #a5b4fc !important;
+  border-radius: 6px !important;
+}
+
+/* ============================================
+   LOADING & SPINNERS
+   ============================================ */
+
+wui-loading-spinner {
+  color: #6366f1 !important;
+}
+
+/* ============================================
+   SCROLLBARS
+   ============================================ */
+
+wui-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+wui-card::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+wui-card::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+wui-card::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+}
+
+/* ============================================
+   RECOMMENDED BADGE/LABEL STYLING
+   ============================================ */
+
+wui-tag[variant="accent"] {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.2), rgba(249, 115, 22, 0.15)) !important;
+  border: 1px solid rgba(249, 115, 22, 0.4) !important;
+  color: #fed7aa !important;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 640px) {
+  wui-button[variant="accent"],
+  wui-button[variant="highlight"] {
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+  }
+
+  wui-list-wallet,
+  wui-wallet-button {
+    padding: 14px 12px !important;
+  }
+
+  wui-tab-button {
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* ============================================
+   FOCUS STATES (Accessibility)
+   ============================================ */
+
+wui-button:focus-visible,
+wui-icon-link:focus-visible,
+wui-tab-button:focus-visible {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  wui-button,
+  wui-icon-link,
+  wui-list-wallet,
+  wui-wallet-button,
+  wui-tab-button,
+  wui-card {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ============================================
+   NEON ACCENT GLOW EFFECT (Optional)
+   ============================================ */
+
+wui-button[variant="accent"]:not(:disabled) {
+  box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3),
+              0 0 20px rgba(99, 102, 241, 0.15) !important;
+}
+
+wui-button[variant="accent"]:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.4),
+              0 0 30px rgba(99, 102, 241, 0.25) !important;
+}

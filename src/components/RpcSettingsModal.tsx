@@ -20,10 +20,11 @@ type FormState = {
   alchemyKey: string;
   infuraKey: string;
   genericUrl: string;
+  etherscanKey: string;
 };
 
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
-type SecretField = "alchemy" | "infura";
+type SecretField = "alchemy" | "infura" | "etherscan";
 
 const EyeIcon: React.FC<{ isRevealed: boolean }> = ({ isRevealed }) =>
   isRevealed ? (
@@ -115,12 +116,14 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     alchemyKey: "",
     infuraKey: "",
     genericUrl: "",
+    etherscanKey: "",
   });
   const [errors, setErrors] = useState<{ [P in RpcProviderMode]?: string }>({});
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
   const [secretVisibility, setSecretVisibility] = useState<Record<SecretField, boolean>>({
     alchemy: false,
     infura: false,
+    etherscan: false,
   });
   const panelRef = useRef<HTMLDivElement | null>(null);
   const autoSaveTimer = useRef<number | null>(null);
@@ -134,10 +137,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
       alchemyKey: settings.alchemyKey ?? "",
       infuraKey: settings.infuraKey ?? "",
       genericUrl: settings.genericUrl ?? "",
+      etherscanKey: settings.etherscanKey ?? "",
     });
     setSecretVisibility({
       alchemy: false,
       infura: false,
+      etherscan: false,
     });
     setErrors({});
     setAutoSaveState("saved");
@@ -259,6 +264,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
         alchemyKey: formState.alchemyKey.trim(),
         infuraKey: formState.infuraKey.trim(),
         genericUrl: formState.genericUrl.trim(),
+        etherscanKey: formState.etherscanKey.trim(),
       });
       const hasErrors = Object.keys(nextErrors).length > 0;
       setAutoSaveState(hasErrors ? "error" : "saved");
@@ -511,6 +517,48 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
           </p>
         </div>
       )}
+
+      {/* Etherscan API Key - works with all modes for contract verification */}
+      <div className="rpc-input-card" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: "16px", paddingTop: "16px" }}>
+        <label htmlFor="rpc-etherscan-key">
+          Etherscan API Key <span style={{ fontSize: "12px", fontWeight: "normal", color: "#9ca3af" }}>(Optional)</span>
+        </label>
+        <div className="rpc-input-field">
+          <input
+            id="rpc-etherscan-key"
+            type={secretVisibility.etherscan ? "text" : "password"}
+            autoComplete="new-password"
+            spellCheck={false}
+            value={formState.etherscanKey}
+            onChange={(e) =>
+              setFormState((prev) => ({
+                ...prev,
+                etherscanKey: e.target.value,
+              }))
+            }
+            placeholder="Paste your Etherscan API key..."
+          />
+          {formState.etherscanKey && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="inline-copy-icon rpc-input-toggle"
+              onClick={() => toggleSecretVisibility("etherscan")}
+              onKeyDown={(event) =>
+                handleKeyActivate(event, () => toggleSecretVisibility("etherscan"))
+              }
+              aria-pressed={secretVisibility.etherscan}
+              aria-label={`${secretVisibility.etherscan ? "Hide" : "Show"} Etherscan API key`}
+              style={{ "--inline-copy-hit-padding": "4px" } as React.CSSProperties}
+            >
+              <EyeIcon isRevealed={secretVisibility.etherscan} />
+            </span>
+          )}
+        </div>
+        <small className="form-hint">
+          Used for fetching verified contract ABIs from Etherscan and other EVM explorers. One key works for all EVM networks. Stored only in your browser cache.
+        </small>
+      </div>
     </div>,
     document.body
   );

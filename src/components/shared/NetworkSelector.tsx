@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Network, Wifi, WifiOff } from 'lucide-react';
 import type { Chain } from '../../types';
 import ChainIcon, { type ChainKey } from '../icons/ChainIcon';
@@ -237,6 +238,8 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
     selectedNetwork?.isTestnet ? 'testnet' : showTestnets ? 'testnet' : 'live'
   );
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{top: number; left: number; width: number; right?: number} | null>(null);
 
   useEffect(() => {
     if (!selectedNetwork) return;
@@ -244,12 +247,39 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   }, [selectedNetwork?.id, selectedNetwork?.isTestnet]);
 
   useEffect(() => {
+    if (isDropdownOpen && containerRef.current) {
+      const updatePosition = () => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          setDropdownPosition({
+            top: rect.bottom + 8,
+            left: rect.left,
+            width: rect.width,
+            right: window.innerWidth - rect.right
+          });
+        }
+      };
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
+    } else {
+      setDropdownPosition(null);
+    }
+  }, [isDropdownOpen]);
+
+  useEffect(() => {
     if (!isDropdownOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(event.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
       }
@@ -514,27 +544,29 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
         )}
       </div>
 
-      {/* Dropdown menu */}
-      {isDropdownOpen && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: isInputVariant ? 'auto' : 0,
-          right: 0,
-          width: isInputVariant ? '260px' : 'auto',
-          minWidth: isInputVariant ? '260px' : 'auto',
-          background: 'rgba(20, 20, 20, 0.95)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '12px',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          zIndex: 1000,
-          marginTop: '8px',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          maxHeight: '400px',
-          overflowY: 'auto'
-        }}>
+      {/* Dropdown menu - rendered via Portal to escape parent constraints */}
+      {isDropdownOpen && dropdownPosition && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: `${dropdownPosition.top}px`,
+            left: isInputVariant ? 'auto' : `${dropdownPosition.left}px`,
+            right: isInputVariant ? `${dropdownPosition.right}px` : 'auto',
+            width: isInputVariant ? '260px' : `${dropdownPosition.width}px`,
+            minWidth: isInputVariant ? '260px' : 'auto',
+            background: 'rgba(20, 20, 20, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '12px',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            zIndex: 9999,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
           {/* Category selector */}
           <div className="network-dropdown__header">
             <div className="network-dropdown__metrics">
@@ -654,7 +686,8 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
               )}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

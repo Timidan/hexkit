@@ -231,15 +231,61 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   }
 
   return (
-    <div
-      style={{
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-        borderRadius: "8px",
-        padding: "16px",
-        margin: "16px 0",
-        backgroundColor: "rgba(255, 255, 255, 0.02)",
-      }}
-    >
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+
+          .facet-loader-show-details-btn {
+            background-color: transparent;
+            color: #a855f7;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            border-radius: 6px;
+            padding: 6px 12px;
+            fontSize: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+
+          .facet-loader-show-details-btn:hover {
+            background-color: rgba(168, 85, 247, 0.1);
+            border-color: rgba(168, 85, 247, 0.6);
+          }
+
+          .facet-loader-load-btn {
+            background-color: #6366f1;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            fontSize: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+          }
+
+          .facet-loader-load-btn:hover {
+            background-color: #5b5bd6;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+          }
+        `}
+      </style>
+      <div
+        style={{
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: "8px",
+          padding: "16px",
+          margin: "16px 0",
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
+        }}
+      >
       <div
         style={{
           display: "flex",
@@ -263,15 +309,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           {facetDetails.length > 0 && (
             <button
               onClick={() => setShowDetails((prev) => !prev)}
-              style={{
-                backgroundColor: "transparent",
-                color: "#a855f7",
-                border: "1px solid rgba(168, 85, 247, 0.4)",
-                borderRadius: "6px",
-                padding: "6px 12px",
-                fontSize: "12px",
-                cursor: "pointer",
-              }}
+              className="facet-loader-show-details-btn"
             >
               {showDetails ? "Hide details" : "Show details"}
             </button>
@@ -280,22 +318,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           {!isLoading && facets.length === 0 && (
             <button
               onClick={loadFacets}
-              style={{
-                backgroundColor: "#6366f1",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "6px",
-                padding: "8px 16px",
-                fontSize: "14px",
-                cursor: "pointer",
-                transition: "background-color 0.2s ease",
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = "#5b5bd6";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = "#6366f1";
-              }}
+              className="facet-loader-load-btn"
             >
               Load Facets
             </button>
@@ -330,16 +353,56 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
             }}
           >
             <div style={{ flexGrow: 1 }}>
-              <div style={{ color: "#94a3b8", fontSize: "13px", marginBottom: "8px" }}>
-                Processing facet
-                <strong style={{ color: "#38bdf8", marginLeft: "6px" }}>
-                  {progress.index}/{progress.total}
-                </strong>
-                {progress.currentFacet && (
-                  <span style={{ marginLeft: "6px", color: "#cbd5f5" }}>
-                    ({abbreviate(progress.currentFacet)})
-                  </span>
-                )}
+              <div style={{
+                color: "#94a3b8",
+                fontSize: "13px",
+                marginBottom: "8px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{
+                    animation: "spin 1s linear infinite"
+                  }}
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="#38bdf8"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="31.4 31.4"
+                    strokeDashoffset="0"
+                    opacity="0.25"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="#38bdf8"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="31.4 31.4"
+                    strokeDashoffset="23.55"
+                  />
+                </svg>
+                <span>
+                  Processing facet
+                  <strong style={{ color: "#38bdf8", marginLeft: "6px" }}>
+                    {progress.index}/{progress.total}
+                  </strong>
+                  {progress.currentFacet && (
+                    <span style={{ marginLeft: "6px", color: "#cbd5f5" }}>
+                      ({abbreviate(progress.currentFacet)})
+                    </span>
+                  )}
+                </span>
               </div>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {displayedCompleted.map((detail) => (
@@ -463,6 +526,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           })}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };

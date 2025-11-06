@@ -124,7 +124,23 @@ const buildBridgeTransactionPayload = (
 };
 
 const normalizeBridgeResult = (
-  payload: BridgeSimulationResponsePayload
+  payload: BridgeSimulationResponsePayload,
+  transactionMetadata?: {
+    from?: string;
+    to?: string;
+    data?: string;
+    value?: string;
+    blockNumber?: string | number | null;
+    nonce?: number | null;
+    functionName?: string | null;
+    timestamp?: number | null;
+    gasPrice?: string | null;
+    maxFeePerGas?: string | null;
+    maxPriorityFeePerGas?: string | null;
+    baseFeePerGas?: string | null;
+    effectiveGasPrice?: string | null;
+    type?: number | null;
+  }
 ): SimulationResult => {
   const rawTrace =
     (payload as any).rawTrace ??
@@ -165,6 +181,19 @@ const normalizeBridgeResult = (
       ? modeValue
       : 'rpc';
 
+  // Extract block number and nonce from EDB response if available
+  const blockNumber =
+    (payload as any).blockNumber ??
+    (payload as any).block_number ??
+    (payload as any).block ??
+    transactionMetadata?.blockNumber ??
+    null;
+
+  const nonce =
+    (payload as any).nonce ??
+    transactionMetadata?.nonce ??
+    null;
+
   return {
     mode: canonicalMode,
     success: successValue,
@@ -174,11 +203,43 @@ const normalizeBridgeResult = (
     gasUsed,
     gasLimitSuggested,
     rawTrace,
+    // Include transaction metadata
+    from: transactionMetadata?.from ?? null,
+    to: transactionMetadata?.to ?? null,
+    data: transactionMetadata?.data ?? null,
+    value: transactionMetadata?.value ?? null,
+    blockNumber,
+    nonce,
+    functionName: transactionMetadata?.functionName ?? null,
+    timestamp: transactionMetadata?.timestamp ?? null,
+    // Gas pricing fields
+    gasPrice: transactionMetadata?.gasPrice ?? null,
+    maxFeePerGas: transactionMetadata?.maxFeePerGas ?? null,
+    maxPriorityFeePerGas: transactionMetadata?.maxPriorityFeePerGas ?? null,
+    baseFeePerGas: transactionMetadata?.baseFeePerGas ?? null,
+    effectiveGasPrice: transactionMetadata?.effectiveGasPrice ?? null,
+    type: transactionMetadata?.type ?? null,
   };
 };
 
 const postSimulatorJob = async (
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  transactionMetadata?: {
+    from?: string;
+    to?: string;
+    data?: string;
+    value?: string;
+    blockNumber?: number | null;
+    nonce?: number | null;
+    functionName?: string | null;
+    timestamp?: number | null;
+    gasPrice?: string | null;
+    maxFeePerGas?: string | null;
+    maxPriorityFeePerGas?: string | null;
+    baseFeePerGas?: string | null;
+    effectiveGasPrice?: string | null;
+    type?: number | null;
+  }
 ): Promise<SimulationResult | null> => {
   if (!SIMULATOR_BRIDGE_ENDPOINT) {
     return null;
@@ -203,7 +264,8 @@ const postSimulatorJob = async (
 
     hasLoggedSimulatorBridgeFailure = false;
     return normalizeBridgeResult(
-      response.data as BridgeSimulationResponsePayload
+      response.data as BridgeSimulationResponsePayload,
+      transactionMetadata
     );
   } catch (error: any) {
     const message =
@@ -233,6 +295,81 @@ const trySimulatorBridge = async (
     return null;
   }
 
+  // Fetch block number, nonce, timestamp, and gas pricing from RPC before simulation
+  let blockNumber: number | null = null;
+  let nonce: number | null = null;
+  let timestamp: number | null = null;
+  let gasPrice: string | null = null;
+  let baseFeePerGas: string | null = null;
+  let maxFeePerGas: string | null = null;
+  let maxPriorityFeePerGas: string | null = null;
+  let txType: number | null = null;
+
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+
+    // Get current block number (this is the block we're forking from)
+    const currentBlock = await provider.getBlockNumber();
+    blockNumber = currentBlock;
+
+    // Get block details including base fee
+    const block = await provider.getBlock(currentBlock);
+    timestamp = block?.timestamp || null;
+    baseFeePerGas = block?.baseFeePerGas?.toString() || null;
+
+    // Get nonce for the from address
+    const fromAddr = fromAddress || '0x0000000000000000000000000000000000000000';
+    const accountNonce = await provider.getTransactionCount(fromAddr);
+    nonce = accountNonce;
+
+    // Determine transaction type and get gas pricing
+    // If block has baseFee, network supports EIP-1559 (type 2)
+    if (baseFeePerGas) {
+      txType = 2; // EIP-1559
+
+      // Get suggested priority fee
+      try {
+        const feeData = await provider.getFeeData();
+        maxFeePerGas = feeData.maxFeePerGas?.toString() || null;
+        maxPriorityFeePerGas = feeData.maxPriorityFeePerGas?.toString() || null;
+
+        // Calculate effective gas price (baseFee + priorityFee, capped at maxFee)
+        if (baseFeePerGas && maxPriorityFeePerGas) {
+          const baseFee = ethers.BigNumber.from(baseFeePerGas);
+          const priorityFee = ethers.BigNumber.from(maxPriorityFeePerGas);
+          const effectivePrice = baseFee.add(priorityFee);
+          gasPrice = effectivePrice.toString();
+        }
+      } catch (feeError) {
+        console.warn('[simulation] Failed to fetch EIP-1559 fee data:', feeError);
+      }
+    } else {
+      // Legacy transaction (type 0)
+      txType = 0;
+      try {
+        const legacyGasPrice = await provider.getGasPrice();
+        gasPrice = legacyGasPrice?.toString() || null;
+      } catch (gasPriceError) {
+        console.warn('[simulation] Failed to fetch legacy gas price:', gasPriceError);
+      }
+    }
+
+    console.log('[simulation] Fetched metadata:', {
+      blockNumber,
+      nonce,
+      timestamp,
+      fromAddress: fromAddr,
+      txType,
+      gasPrice,
+      baseFeePerGas,
+      maxFeePerGas,
+      maxPriorityFeePerGas
+    });
+  } catch (error) {
+    console.warn('[simulation] Failed to fetch metadata from RPC:', error);
+    // Continue with simulation even if metadata fetch fails
+  }
+
   const requestPayload = {
     mode: 'local' as const,
     rpcUrl: chain.rpcUrl,
@@ -241,7 +378,25 @@ const trySimulatorBridge = async (
     analysisOptions: mergeAnalysisOptions(),
   };
 
-  return postSimulatorJob(requestPayload);
+  // Prepare transaction metadata to include in result
+  const transactionMetadata = {
+    from: fromAddress || '0x0000000000000000000000000000000000000000',
+    to: transaction.to,
+    data: transaction.data,
+    value: transaction.value ? String(transaction.value) : '0',
+    blockNumber,
+    nonce,
+    functionName: transaction.functionName || null,
+    timestamp,
+    gasPrice,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+    baseFeePerGas,
+    effectiveGasPrice: gasPrice, // For display purposes, use calculated gas price as effective
+    type: txType,
+  };
+
+  return postSimulatorJob(requestPayload, transactionMetadata);
 };
 
 const DEFAULT_ANALYSIS_OPTIONS: BridgeAnalysisOptions = {

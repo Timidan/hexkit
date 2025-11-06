@@ -552,7 +552,7 @@ textarea:focus {
 
 button:not(.segmented-control__option):not(.decoder-address-nudge__button):not(
     .inline-copy-icon
-  ) {
+  ):not(.sim-copy-btn):not(.sim-header-btn) {
   font-family: var(--font-body);
   font-weight: var(--font-weight-medium);
   font-size: var(--text-base);
@@ -570,7 +570,7 @@ button:not(.segmented-control__option):not(.decoder-address-nudge__button):not(
 /* CLEAN ETHERSCAN-STYLE BUTTON STYLING - Ensure text visibility */
 button:not(.animated-button):not(.inline-copy-icon):not(
     .segmented-control__option
-  ):not(.decoder-address-nudge__button) {
+  ):not(.decoder-address-nudge__button):not(.sim-copy-btn):not(.sim-header-btn) {
   font-size: var(--text-sm) !important;
   min-height: 40px !important;
   padding: 8px 16px !important;
@@ -600,7 +600,7 @@ button:not(.animated-button):not(.inline-copy-icon):not(
 
 button:not(.animated-button):not(.segmented-control__option):not(
     .decoder-address-nudge__button
-  ):not(.inline-copy-icon):hover {
+  ):not(.inline-copy-icon):not(.sim-copy-btn):not(.sim-header-btn):hover {
   background: #4338ca !important;
   border-color: #4338ca !important;
   transform: translateY(-1px) !important;
@@ -609,14 +609,14 @@ button:not(.animated-button):not(.segmented-control__option):not(
 
 button:not(.animated-button):not(.segmented-control__option):not(
     .decoder-address-nudge__button
-  ):not(.inline-copy-icon):active {
+  ):not(.inline-copy-icon):not(.sim-copy-btn):not(.sim-header-btn):active {
   transform: translateY(0px) !important;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
 }
 
 button:not(.animated-button):not(.segmented-control__option):not(
     .decoder-address-nudge__button
-  ):not(.inline-copy-icon):disabled {
+  ):not(.inline-copy-icon):not(.sim-copy-btn):not(.sim-header-btn):disabled {
   opacity: 0.6 !important;
   cursor: not-allowed !important;
   transform: none !important;
@@ -879,7 +879,7 @@ button[style*="white"] {
   }
 
   /* Ensure buttons stay readable on mobile */
-  button:not(.animated-button):not(.segmented-control__option) {
+  button:not(.animated-button):not(.segmented-control__option):not(.sim-copy-btn):not(.sim-header-btn) {
     min-height: 44px !important;
     font-size: 15px !important;
     padding: 10px 16px !important;
@@ -1176,9 +1176,7 @@ button[style*="white"] {
   gap: 12px;
 }
 
-.decoder-lookup-segmented {
-  width: fit-content;
-}
+/* .decoder-lookup-segmented moved above to .decoder-advanced-toggle section */
 
 .decoder-network-picker {
   display: flex;
@@ -1355,6 +1353,23 @@ button[style*="white"] {
   align-items: center;
   gap: 12px;
   text-align: center;
+  min-height: fit-content !important;
+  flex-shrink: 0;
+}
+
+/* Force network dropdown to show full content */
+.network-dropdown-menu-visible {
+  min-height: 450px !important;
+  height: auto !important;
+  max-height: 70vh !important;
+  overflow-y: auto !important;
+  display: block !important;
+}
+
+.decoder-address-field__selector > div > div[style*="position: absolute"] {
+  min-height: 400px !important;
+  height: auto !important;
+  max-height: 70vh !important;
 }
 
 .network-dropdown__metrics span {
@@ -1380,12 +1395,13 @@ button[style*="white"] {
 .network-category-toggle {
   display: inline-flex;
   align-items: stretch;
-  border-radius: 0;
+  border-radius: 6px;
   border: 1px solid rgba(99, 102, 241, 0.38);
   background: linear-gradient(135deg, rgba(12, 19, 33, 0.92), rgba(20, 27, 46, 0.96));
   box-shadow: 0 10px 24px rgba(56, 189, 248, 0.12);
   overflow: hidden;
   margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .network-category-toggle__option {
@@ -1465,6 +1481,26 @@ button[style*="white"] {
 
 .network-category-toggle__option:not(.is-active) .network-category-toggle__status {
   opacity: 0.7;
+}
+
+/* Network dropdown scrollbar styling */
+div[style*="overflowY: auto"]::-webkit-scrollbar {
+  width: 8px;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+div[style*="overflowY: auto"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .signature-tabs {
@@ -1870,24 +1906,82 @@ button[style*="white"] {
   color: rgba(191, 219, 254, 0.7);
 }
 
+.decoder-lookup-segmented {
+  width: fit-content;
+  max-width: 320px;
+  flex-shrink: 0;
+}
+
 .decoder-advanced-toggle {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 16px;
+  padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.28);
   background: rgba(17, 24, 39, 0.65);
   color: rgba(226, 232, 240, 0.9);
   font-size: 13px;
-  cursor: pointer;
   transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.decoder-advanced-toggle .decoder-advanced-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.decoder-advanced-toggle .decoder-advanced-text {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.decoder-advanced-toggle .decoder-advanced-text strong {
+  display: block;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.decoder-advanced-toggle .decoder-advanced-text small {
+  display: block;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.75);
+  line-height: 1.4;
+}
+
+.decoder-advanced-toggle .decoder-lookup-segmented {
+  flex-shrink: 0;
+  min-width: fit-content;
+  max-width: 320px;
+  grid-column: 3;
+}
+
+@media (max-width: 768px) {
+  .decoder-advanced-toggle {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .decoder-advanced-toggle .decoder-lookup-segmented {
+    max-width: 100%;
+    width: 100%;
+    grid-column: 1;
+  }
 }
 
 .decoder-advanced-toggle:hover {
   border-color: rgba(147, 197, 253, 0.45);
   background: rgba(30, 41, 59, 0.75);
+}
+
+.decoder-advanced-toggle label {
+  cursor: pointer;
 }
 
 .decoder-advanced-toggle input {
@@ -2362,5 +2456,306 @@ button[style*="white"] {
   .rpc-provider-control .segmented-control__option {
     min-width: 100%;
     flex-basis: 100%;
+  }
+}
+
+/* ============================================
+   WEB3MODAL CUSTOM STYLING
+   ============================================ */
+
+/* Web3Modal uses custom web components (wui-*) and CSS custom properties.
+   We override these to match our design system with inline SVG patterns. */
+
+/* Override CSS custom properties at root level */
+:root {
+  --w3m-color-mix: rgba(15, 16, 20, 0.95) !important;
+  --w3m-color-mix-strength: 100% !important;
+  --w3m-accent: #6366f1 !important;
+  --w3m-border-radius-master: 8px !important;
+  --wui-color-accent-100: #6366f1 !important;
+  --wui-color-bg-100: rgba(15, 16, 20, 0.95) !important;
+  --wui-color-bg-125: rgba(20, 21, 25, 0.95) !important;
+  --wui-color-bg-150: rgba(25, 26, 30, 0.95) !important;
+  --wui-color-bg-175: rgba(30, 31, 35, 0.95) !important;
+  --wui-color-bg-200: rgba(35, 36, 40, 0.95) !important;
+  --wui-color-bg-225: rgba(40, 41, 45, 0.95) !important;
+  --wui-color-bg-250: rgba(45, 46, 50, 0.95) !important;
+  --wui-color-bg-275: rgba(50, 51, 55, 0.95) !important;
+  --wui-color-bg-300: rgba(55, 56, 60, 0.95) !important;
+}
+
+/* Modal backdrop and container */
+wui-modal,
+w3m-modal,
+w3m-modal::part(container),
+wui-modal::part(container) {
+  --w3m-z-index: 10000;
+}
+
+/* Modal card - apply our glass morphism */
+w3m-modal wui-card,
+wui-card {
+  background: rgba(15, 16, 20, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Header styling */
+wui-flex[data-type="header"] {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding-bottom: 16px !important;
+}
+
+/* Wallet buttons and list items - apply inline SVG button pattern */
+wui-list-wallet,
+wui-wallet-button,
+w3m-wallet-button,
+wui-list-item,
+wui-list-item[data-type="wallet"],
+wui-card-select,
+wui-card-select-loader {
+  /* Remove default button chrome and bright backgrounds */
+  background: rgba(255, 255, 255, 0.03) !important;
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-list-wallet:hover,
+wui-wallet-button:hover,
+w3m-wallet-button:hover,
+wui-list-item:hover,
+wui-list-item[data-type="wallet"]:hover,
+wui-card-select:hover {
+  background: rgba(99, 102, 241, 0.1) !important;
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  transform: scale(1.02) !important;
+}
+
+wui-list-wallet:active,
+wui-wallet-button:active,
+w3m-wallet-button:active,
+wui-list-item:active,
+wui-card-select:active {
+  transform: scale(0.98) !important;
+}
+
+/* Target the specific wallet list items with data attributes */
+wui-list-item[data-active],
+wui-list-item[tabindex] {
+  background: rgba(255, 255, 255, 0.03) !important;
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Wallet icons - ensure proper sizing */
+wui-wallet-image,
+wui-logo,
+w3m-wallet-image {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 8px !important;
+}
+
+/* Text styling */
+wui-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  color: rgba(246, 246, 251, 0.95) !important;
+}
+
+/* Close button - apply inline SVG pattern */
+wui-icon-link[data-icon="close"],
+w3m-modal wui-icon-link {
+  /* Kill button chrome */
+  background: none !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+
+  /* Visual styling */
+  color: rgba(154, 154, 172, 0.8) !important;
+  transition: color 0.15s ease, transform 0.1s ease !important;
+  cursor: pointer !important;
+}
+
+wui-icon-link[data-icon="close"]:hover,
+w3m-modal wui-icon-link:hover {
+  color: rgba(246, 246, 251, 1) !important;
+  transform: scale(1.1) !important;
+}
+
+wui-icon-link[data-icon="close"]:active,
+w3m-modal wui-icon-link:active {
+  transform: scale(0.95) !important;
+}
+
+/* Connect button (primary action) */
+wui-button[variant="accent"],
+w3m-button {
+  background: linear-gradient(135deg, #6366f1, #5b5bd6) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 12px 24px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+}
+
+wui-button[variant="accent"]:hover,
+w3m-button:hover {
+  background: linear-gradient(135deg, #5b5bd6, #4f46e5) !important;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+wui-button[variant="accent"]:active,
+w3m-button:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Secondary buttons */
+wui-button[variant="shade"],
+wui-button[variant="neutral"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: rgba(246, 246, 251, 0.9) !important;
+}
+
+wui-button[variant="shade"]:hover,
+wui-button[variant="neutral"]:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Info sections and dividers */
+wui-separator,
+w3m-modal wui-separator {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Loading states */
+wui-loading-spinner,
+wui-loading-thumbnail {
+  color: #6366f1 !important;
+}
+
+/* QR code container */
+wui-qr-code {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 16px !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Tabs */
+wui-tabs,
+w3m-modal wui-tabs {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+wui-tab-button {
+  color: rgba(154, 154, 172, 0.8) !important;
+  transition: color 0.2s ease !important;
+}
+
+wui-tab-button[active="true"] {
+  color: #6366f1 !important;
+  border-bottom-color: #6366f1 !important;
+}
+
+wui-tab-button:hover {
+  color: rgba(246, 246, 251, 1) !important;
+}
+
+/* Input fields */
+wui-input-text,
+w3m-modal input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  color: rgba(246, 246, 251, 0.95) !important;
+  padding: 12px 16px !important;
+  transition: all 0.2s ease !important;
+}
+
+wui-input-text:focus,
+w3m-modal input:focus {
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+  outline: none !important;
+}
+
+/* Network badges */
+wui-tag,
+wui-chip {
+  background: rgba(99, 102, 241, 0.15) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 6px !important;
+  color: #6366f1 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* Scrollbar styling */
+w3m-modal ::-webkit-scrollbar {
+  width: 8px;
+}
+
+w3m-modal ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+w3m-modal ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+w3m-modal ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Help text and descriptions */
+wui-text[variant="small-400"],
+wui-text[variant="paragraph-500"] {
+  color: rgba(154, 154, 172, 0.9) !important;
+  line-height: 1.5 !important;
+}
+
+/* Success/error states */
+wui-icon[color="success"] {
+  color: #22c55e !important;
+}
+
+wui-icon[color="error"] {
+  color: #ef4444 !important;
+}
+
+/* Tooltips */
+wui-tooltip {
+  background: rgba(15, 16, 20, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 430px) {
+  wui-modal,
+  w3m-modal {
+    --w3m-modal-width: calc(100vw - 32px) !important;
+  }
+
+  wui-wallet-image,
+  wui-logo,
+  w3m-wallet-image {
+    width: 40px !important;
+    height: 40px !important;
   }
 }

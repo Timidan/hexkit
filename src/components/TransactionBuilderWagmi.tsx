@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import SegmentedControl from "./shared/SegmentedControl";
 import type { SegmentedControlOption } from "./shared/SegmentedControl";
 import {
@@ -22,6 +23,7 @@ import {
   getCallNodeError,
   type SimulationCallNode,
 } from "../utils/simulationArtifacts";
+import { useSimulation } from "../contexts/SimulationContext";
 import "../styles/SharedComponents.css";
 import "../styles/SimulatorWorkbench.css";
 
@@ -388,11 +390,12 @@ const defaultReplayChain =
 const TransactionReplayView: React.FC<{
   modeToggle: ReactNode;
 }> = ({ modeToggle }) => {
+  const navigate = useNavigate();
+  const { setSimulation } = useSimulation();
   const [selectedChain, setSelectedChain] = useState<Chain>(defaultReplayChain);
   const [txHash, setTxHash] = useState("");
   const [blockTag, setBlockTag] = useState("");
   const [isSimulating, setIsSimulating] = useState(false);
-  const [result, setResult] = useState<SimulationResult | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [bridgeWarning, setBridgeWarning] = useState<string | null>(null);
 
@@ -400,14 +403,12 @@ const TransactionReplayView: React.FC<{
     const trimmedHash = txHash.trim();
     if (!/^0x[a-fA-F0-9]{64}$/.test(trimmedHash)) {
       setFormError("Enter a valid 32-byte transaction hash (0x-prefixed).");
-      setResult(null);
       return;
     }
 
     setFormError(null);
     setBridgeWarning(null);
     setIsSimulating(true);
-    setResult(null);
 
     try {
       const simulation = await replayTransactionWithSimulator(
@@ -425,7 +426,21 @@ const TransactionReplayView: React.FC<{
         return;
       }
 
-      setResult(simulation);
+      // Enrich simulation result with transaction metadata
+      const enrichedSimulation = {
+        ...simulation,
+        networkName: selectedChain?.name || "Unknown",
+        chainId: selectedChain?.id,
+        transactionHash: trimmedHash,
+        blockNumber: blockTag.trim() || undefined,
+        timestamp: new Date().toISOString(),
+        simulationId: trimmedHash || `sim-${Date.now()}`,
+      };
+
+      // Store enriched simulation in context and navigate to dedicated results page
+      setSimulation(enrichedSimulation as any);
+      const simulationId = enrichedSimulation.simulationId || trimmedHash || `sim-${Date.now()}`;
+      navigate(`/simulation/${simulationId}`);
     } catch (error: any) {
       const message =
         error?.message ??
@@ -434,12 +449,11 @@ const TransactionReplayView: React.FC<{
     } finally {
       setIsSimulating(false);
     }
-  }, [selectedChain, txHash, blockTag]);
+  }, [selectedChain, txHash, blockTag, navigate, setSimulation]);
 
   const resetForm = useCallback(() => {
     setTxHash("");
     setBlockTag("");
-    setResult(null);
     setFormError(null);
     setBridgeWarning(null);
   }, []);
@@ -647,17 +661,15 @@ const TransactionReplayView: React.FC<{
                 <div>
                   <strong>Executing replay…</strong>
                   <p style={{ margin: 0, color: "#cbd5f5" }}>
-                    Forking state and running the transaction through EDB.
+                    Forking state and running the transaction through EDB. Results will open in a new page.
                   </p>
                 </div>
               </div>
-            ) : result ? (
-              <SimulationReplayResults result={result} />
             ) : (
               <div style={{ color: "#94a3b8", fontSize: "14px" }}>
                 Provide a transaction hash and click{" "}
                 <strong>Run Replay</strong> to fetch the call trace, storage diffs,
-                and snapshots.
+                and snapshots. Results will open in a dedicated page (Tenderly-style).
               </div>
             )}
           </section>
@@ -668,7 +680,12 @@ const TransactionReplayView: React.FC<{
 };
 
 const TransactionBuilderWagmi: React.FC = () => {
-  const [viewMode, setViewMode] = useState<SimulationViewMode>("builder");
+  const { contractContext } = useSimulation();
+
+  // Initialize to "builder" mode, especially if there's simulation context to restore
+  const [viewMode, setViewMode] = useState<SimulationViewMode>(() => {
+    return contractContext?.address ? "builder" : "builder";
+  });
 
   const handleModeChange = (mode: SimulationViewMode) => setViewMode(mode);
 
@@ -677,6 +694,12 @@ const TransactionBuilderWagmi: React.FC = () => {
       <SimpleGridUI
         contractModeToggle={renderModeToggle(viewMode, handleModeChange)}
         mode="simulation"
+        initialContractData={contractContext ? {
+          address: contractContext.address,
+          name: contractContext.name,
+          abi: contractContext.abi || [],
+          networkId: contractContext.networkId,
+        } : undefined}
       />
     );
   }

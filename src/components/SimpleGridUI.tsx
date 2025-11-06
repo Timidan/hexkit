@@ -6,6 +6,7 @@ import React, {
   useRef,
   type ReactNode
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useAccount,
   useWalletClient,
@@ -82,6 +83,7 @@ import {
   getCallNodeError,
   type SimulationCallNode,
 } from "../utils/simulationArtifacts";
+import { useSimulation } from "../contexts/SimulationContext";
 import "../styles/SharedComponents.css";
 import "../styles/SimulatorWorkbench.css";
 type SavedContractEntry = ContractInfo & {
@@ -259,11 +261,18 @@ const decodeFunctionSelector = (input?: string): string => {
 interface SimpleGridUIProps {
   contractModeToggle?: ReactNode;
   mode?: "live" | "simulation";
+  initialContractData?: {
+    address: string;
+    name?: string;
+    abi: any[];
+    networkId: number;
+  };
 }
 
 const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   contractModeToggle,
   mode = "live",
+  initialContractData,
 }) => {
   // Wagmi hooks for wallet integration
   const { address, isConnected, chain: accountChain } = useAccount();
@@ -273,6 +282,8 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   const { switchChain } = useSwitchChain();
   const { showSuccess, showError, showWarning, showInfo, showNotification } =
     useNotifications();
+  const navigate = useNavigate();
+  const { setSimulation, contractContext } = useSimulation();
 
   const isSimulationMode = mode === "simulation";
 
@@ -379,7 +390,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
-      
+
       ${ContractResultFormatter.getCSS()}
     `;
     document.head.appendChild(style);
@@ -388,9 +399,15 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
     };
   }, []);
 
-  const [contractSource, setContractSource] = useState<"project" | "address">(
-    "project"
-  );
+  const [contractSource, setContractSource] = useState<"project" | "address">(() => {
+    // If we have initial contract data, show the address input mode
+    if (initialContractData?.address || contractContext?.address) {
+      console.log('[SimpleGridUI] Initializing contractSource to "address" (have initial data)');
+      return "address";
+    }
+    console.log('[SimpleGridUI] Initializing contractSource to "project" (no initial data)');
+    return "project";
+  });
   const [functionMode, setFunctionMode] = useState<"function" | "raw">(
     "function"
   );
@@ -506,7 +523,6 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
       setIsSimulating(false);
     }
   }, [isSimulationMode]);
-  const [contractName, setContractName] = useState<string>("");
   const [tokenInfo, setTokenInfo] = useState<{
     symbol?: string;
     name?: string;
@@ -624,17 +640,176 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
     setAbiError(null);
   }, []);
 
-  const [contractAddress, setContractAddress] = useState("");
-  const [selectedNetwork, setSelectedNetwork] = useState<Chain | null>(
-    SUPPORTED_CHAINS[0]
-  );
+  // Initialize from prop if available, otherwise from context or empty
+  const getInitialData = () => {
+    console.log('[SimpleGridUI] getInitialData - initialContractData:', initialContractData);
+    console.log('[SimpleGridUI] getInitialData - contractContext:', contractContext);
+
+    if (initialContractData) {
+      console.log('[SimpleGridUI] Using initialContractData');
+      return {
+        address: initialContractData.address,
+        network: SUPPORTED_CHAINS.find(c => c.id === initialContractData.networkId) || SUPPORTED_CHAINS[0],
+        name: initialContractData.name || "",
+      };
+    }
+    if (contractContext?.address) {
+      console.log('[SimpleGridUI] Using contractContext');
+      return {
+        address: contractContext.address,
+        network: SUPPORTED_CHAINS.find(c => c.id === contractContext.networkId) || SUPPORTED_CHAINS[0],
+        name: contractContext.name || "",
+      };
+    }
+    console.log('[SimpleGridUI] No initial data');
+    return {
+      address: "",
+      network: SUPPORTED_CHAINS[0],
+      name: "",
+    };
+  };
+
+  const initialData = getInitialData();
+  console.log('[SimpleGridUI] Computed initialData:', initialData);
+
+  const [contractAddress, setContractAddress] = useState(initialData.address);
+  const [selectedNetwork, setSelectedNetwork] = useState<Chain | null>(initialData.network);
+  const [contractName, setContractName] = useState<string>(initialData.name);
   const handleManualAddressChange = (value: string) => {
     setContractAddress(value);
     resetContractDerivedState();
+    restoredAddressRef.current = null; // Clear restoration ref when manually changing address
   };
   const [isLoadingABI, setIsLoadingABI] = useState(false);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
   const fetchRequestRef = useRef<number>(0);
+  const restoredAddressRef = useRef<string | null>(null);
+
+  // Handle initial contract data from prop
+  React.useEffect(() => {
+    if (initialContractData && initialContractData.abi && initialContractData.abi.length > 0) {
+      console.log('[SimpleGridUI] Processing initialContractData:', initialContractData);
+      try {
+        // Switch to address input mode
+        setContractSource("address");
+
+        const iface = new ethers.utils.Interface(initialContractData.abi);
+        const readFns: ethers.utils.FunctionFragment[] = [];
+        const writeFns: ethers.utils.FunctionFragment[] = [];
+
+        Object.values(iface.functions).forEach((fn) => {
+          if (fn.stateMutability === "view" || fn.stateMutability === "pure") {
+            readFns.push(fn);
+          } else {
+            writeFns.push(fn);
+          }
+        });
+
+        setReadFunctions(readFns);
+        setWriteFunctions(writeFns);
+
+        const network = SUPPORTED_CHAINS.find(c => c.id === initialContractData.networkId);
+        if (network) {
+          const info: ContractInfo = {
+            address: initialContractData.address,
+            chain: network,
+            abi: JSON.stringify(initialContractData.abi),
+            verified: true,
+            name: initialContractData.name,
+          };
+          setContractInfo(info);
+          setAbiSource("restored");
+        }
+
+        console.log('[SimpleGridUI] Initialized from prop:', {
+          address: initialContractData.address,
+          name: initialContractData.name,
+          readFns: readFns.length,
+          writeFns: writeFns.length,
+        });
+      } catch (error) {
+        console.error('[SimpleGridUI] Failed to process initialContractData:', error);
+      }
+    }
+  }, [initialContractData]);
+
+  // Debug: Log whenever contractContext changes
+  React.useEffect(() => {
+    console.log('[SimpleGridUI] contractContext changed:', contractContext);
+    console.log('[SimpleGridUI] Current contractAddress:', contractAddress);
+    console.log('[SimpleGridUI] restoredAddressRef:', restoredAddressRef.current);
+  }, [contractContext, contractAddress]);
+
+  // Restore contract context from SimulationContext when navigating back
+  React.useEffect(() => {
+    if (contractContext && contractContext.address) {
+      console.log('[SimpleGridUI] Restoring from context:', contractContext);
+
+      // Only restore if we haven't already restored this address
+      const alreadyRestored = restoredAddressRef.current?.toLowerCase() === contractContext.address.toLowerCase();
+
+      if (!alreadyRestored) {
+        console.log('[SimpleGridUI] Restoring contract address and info');
+        restoredAddressRef.current = contractContext.address;
+
+        // Switch to address input mode
+        setContractSource("address");
+
+        // Restore contract address
+        setContractAddress(contractContext.address);
+
+        // Restore network
+        const matchingNetwork = SUPPORTED_CHAINS.find(
+          (chain) => chain.id === contractContext.networkId
+        );
+        if (matchingNetwork) {
+          setSelectedNetwork(matchingNetwork);
+        }
+
+        // Restore contract info and parse ABI if available
+        if (contractContext.abi && Array.isArray(contractContext.abi) && matchingNetwork) {
+          try {
+            const abiString = JSON.stringify(contractContext.abi);
+            const iface = new ethers.utils.Interface(contractContext.abi);
+
+            // Parse functions from ABI
+            const readFns: ethers.utils.FunctionFragment[] = [];
+            const writeFns: ethers.utils.FunctionFragment[] = [];
+
+            Object.values(iface.functions).forEach((fn) => {
+              if (fn.stateMutability === "view" || fn.stateMutability === "pure") {
+                readFns.push(fn);
+              } else {
+                writeFns.push(fn);
+              }
+            });
+
+            setReadFunctions(readFns);
+            setWriteFunctions(writeFns);
+            setContractName(contractContext.name || "");
+
+            const restoredInfo: ContractInfo = {
+              address: contractContext.address,
+              chain: matchingNetwork,
+              abi: abiString,
+              verified: true,
+              name: contractContext.name,
+            };
+            setContractInfo(restoredInfo);
+            setAbiSource("restored");
+
+            console.log('[SimpleGridUI] Restored functions:', {
+              read: readFns.length,
+              write: writeFns.length,
+              name: contractContext.name
+            });
+          } catch (error) {
+            console.error('[SimpleGridUI] Failed to restore ABI:', error);
+          }
+        }
+      }
+    }
+  }, [contractContext, contractAddress]);
   const [abiError, setAbiError] = useState<string | null>(null);
   const [searchProgress, setSearchProgress] = useState<{
     source: string;
@@ -867,7 +1042,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   }, [functionSearch, allReadFunctions, allWriteFunctions]);
 
   // Helper function to create ethers provider with explicit network configuration
-  const createEthersProvider = async (selectedNetwork: any) => {
+  const createEthersProvider = useCallback(async (selectedNetwork: any) => {
     if (!selectedNetwork) {
       throw new Error("No network selected");
     }
@@ -1013,7 +1188,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
         `Failed to create provider for ${selectedNetwork.name}: ${error}`
       );
     }
-  };
+  }, [showWarning, showError]);
 
   const runSimulation = useCallback(
     async (
@@ -1055,23 +1230,55 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
           normalizedFrom,
           provider
         );
-        setSimulationResult(result);
 
-        if (result.success) {
-          showSuccess(
-            "Simulation Complete",
-            options?.description
-              ? `${options.description} simulated successfully`
-              : "Transaction simulated successfully"
-          );
-        } else {
-          const message =
-            result.error ||
-            result.revertReason ||
-            "Transaction would revert during execution.";
-          setSimulationError(message);
-          showWarning("Simulation Failed", message);
+        // Store simulation result and contract context
+        // Parse ABI if it's a string (which it always is in ContractInfo)
+        let parsedAbi: any[] | null = null;
+        if (contractInfo?.abi) {
+          try {
+            parsedAbi = typeof contractInfo.abi === 'string'
+              ? JSON.parse(contractInfo.abi)
+              : contractInfo.abi;
+          } catch {
+            // Silently fail - ABI parsing is optional
+            parsedAbi = null;
+          }
         }
+
+        console.log('[SimpleGridUI] Before saving - contractInfo:', contractInfo);
+        console.log('[SimpleGridUI] Before saving - contractName state:', contractName);
+
+        const contractContextToSave = {
+          address: contractAddress || transaction.to || "",
+          name: contractInfo?.name || contractName || undefined,
+          abi: parsedAbi,
+          networkId: selectedNetwork?.id || 1,
+          networkName: selectedNetwork?.name || "Ethereum",
+        };
+
+        console.log('[SimpleGridUI] Saving simulation with contract context:', {
+          name: contractContextToSave.name,
+          address: contractContextToSave.address,
+          hasAbi: !!contractContextToSave.abi,
+          abiLength: contractContextToSave.abi?.length,
+          contractInfoName: contractInfo?.name,
+          contractNameState: contractName
+        });
+
+        setSimulation(result, contractContextToSave);
+
+        // Generate simulation ID
+        const simulationId =
+          (result as any).simulationId ||
+          (result as any).transactionHash ||
+          (result as any).txHash ||
+          Date.now().toString();
+
+        // Navigate to dedicated simulation results page
+        navigate(`/simulation/${simulationId}`);
+
+        // Clear local state since we're navigating away
+        setSimulationResult(null);
 
         return result;
       } catch (error: any) {
@@ -1091,9 +1298,13 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
       address,
       selectedNetwork,
       showError,
-      showSuccess,
       showWarning,
       simulationFromAddress,
+      navigate,
+      setSimulation,
+      createEthersProvider,
+      contractAddress,
+      contractInfo?.abi,
     ]
   );
 
@@ -1122,6 +1333,14 @@ const renderSimulationInsights = (
       );
     }
 
+    // Simulation results are now displayed on a dedicated page (/simulation/:id)
+    // No inline display needed - navigation happens automatically after simulation
+    if (simulationResult) {
+      return null;
+    }
+
+    /*
+    // OLD INLINE SIMULATION DISPLAY - REMOVED
     if (simulationResult) {
       const artifacts = extractSimulationArtifacts(simulationResult);
       const gasUsedDisplay = simulationResult.gasUsed ?? "—";
@@ -1495,7 +1714,7 @@ const renderSimulationInsights = (
         </div>
       );
     }
-
+    */
 
     if (simulationError) {
       return (
@@ -1736,11 +1955,17 @@ const renderSimulationInsights = (
     if (result.success && result.abi) {
       try {
         const parsedABI = sanitizeAbiEntries(JSON.parse(result.abi));
+
+        // Check if contract name was extracted from ABI fetch
+        const extendedResult = result as ExtendedABIFetchResult;
+        const fetchedContractName = extendedResult.contractName || undefined;
+
         const contractInfoObj: ContractInfo = {
           address,
           chain,
           abi: result.abi,
           verified: true,
+          name: fetchedContractName,
         };
 
         setContractInfo(contractInfoObj);
@@ -1756,18 +1981,17 @@ const renderSimulationInsights = (
           setAbiSource(source);
         }
 
-        // Check if contract name was extracted from ABI fetch
-        const extendedResult = result as ExtendedABIFetchResult;
-        if (extendedResult.contractName) {
+        // Set the contract name state
+        if (fetchedContractName) {
           console.log(
-            ` [SimpleGridUI] Setting contract name from fetch result: ${extendedResult.contractName}`
+            ` [SimpleGridUI] Setting contract name from fetch result: ${fetchedContractName}`
           );
           console.log(
             ` [SimpleGridUI] Current contractName state BEFORE set: ${contractName}`
           );
 
           // Set the contract name and log immediately after
-          setContractName(extendedResult.contractName);
+          setContractName(fetchedContractName);
 
           // Use setTimeout to log the state after the state update
           setTimeout(() => {
@@ -4198,6 +4422,7 @@ const renderSimulationInsights = (
             chain: result.chain,
             abi: result.abi,
             verified: true,
+            name: result.contractName || undefined,
           };
 
           if (isStale()) {
@@ -5854,7 +6079,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                               height={16}
                               style={{ marginRight: "4px" }}
                             />
-                            {totalFacetReads.toString()} read functions
+                            {(isDiamond ? totalFacetReads : readFunctions.length).toString()} read functions
                           </span>
                           <span
                             style={{
@@ -5865,7 +6090,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                             }}
                           >
                             <EditIcon width={16} height={16} />
-                            {totalFacetWrites.toString()} write functions
+                            {(isDiamond ? totalFacetWrites : writeFunctions.length).toString()} write functions
                           </span>
                         </>
                       )}
@@ -7662,6 +7887,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                       {
                                         to: contractAddress as `0x${string}`,
                                         data: encodedCalldata as `0x${string}`,
+                                        functionName: selectedFunctionObj.name,
                                       },
                                       {
                                         description: selectedFunctionObj.name,
@@ -7780,6 +8006,7 @@ const loadSavedContracts = (): SavedContractEntry[] => {
                                           {
                                             to: contractAddress as `0x${string}`,
                                             data: encodedCalldata as `0x${string}`,
+                                            functionName: selectedFunctionObj.name,
                                           },
                                           {
                                             description: selectedFunctionObj.name,

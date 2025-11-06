@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import SimpleGridUI from "./SimpleGridUI";
 import TransactionBuilderWagmi from "./TransactionBuilderWagmi";
 import SegmentedControl from "./shared/SegmentedControl";
 import type { SegmentedControlOption } from "./shared/SegmentedControl";
+import { useSimulation } from "../contexts/SimulationContext";
 
 type BuilderMode = "live" | "simulation";
 
@@ -32,7 +33,19 @@ const BUILDER_MODE_OPTIONS: Array<
 ];
 
 const TransactionBuilderHub: React.FC = () => {
-  const [mode, setMode] = useState<BuilderMode>("live");
+  const { contractContext } = useSimulation();
+
+  // Initialize mode based on whether there's simulation context
+  const [mode, setMode] = useState<BuilderMode>(() => {
+    return contractContext?.address ? "simulation" : "live";
+  });
+
+  // Switch to simulation mode if simulation context is available
+  useEffect(() => {
+    if (contractContext?.address && mode !== "simulation") {
+      setMode("simulation");
+    }
+  }, [contractContext?.address, mode]);
 
   return (
     <div className="transaction-builder-hub">

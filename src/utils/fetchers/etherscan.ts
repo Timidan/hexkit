@@ -19,6 +19,147 @@ const isAbiVerified = (abi: string) =>
   abi !== 'Source code not verified' &&
   abi !== '[]';
 
+const V2_AGGREGATOR = 'https://api.etherscan.io/v2/api';
+const V1_AGGREGATOR = 'https://api.etherscan.io/api';
+
+const normalizeBase = (base: string) => base.replace(/\/+$/, '');
+
+const toV2Base = (base: string) => {
+  const trimmed = normalizeBase(base);
+  if (trimmed.includes('/v2/')) {
+    return trimmed;
+  }
+  if (trimmed.endsWith('/api')) {
+    return `${trimmed.slice(0, -4)}/v2/api`;
+  }
+  return `${trimmed}/v2/api`;
+};
+
+const detectMissingApiKey = (message?: string) =>
+  typeof message === 'string' && /missing\/invalid api key/i.test(message);
+
+interface AttemptOutcome {
+  success: boolean;
+  abi?: string;
+  contractName?: string;
+  failureMessage?: string;
+  missingApiKey?: boolean;
+}
+
+const extractContractName = (result: any): string | undefined => {
+  const candidate =
+    result?.ContractName ||
+    result?.contractName ||
+    result?.contract_name ||
+    result?.Contract_Name;
+
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (trimmed.length > 0 && !/^smart contract$/i.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return undefined;
+};
+
+const attemptEtherscanRequest = async (
+  base: string,
+  address: string,
+  chain: Chain,
+  apiKey: string | undefined,
+  version: 'v2' | 'v1'
+): Promise<AttemptOutcome> => {
+  const isV2 = version === 'v2';
+
+  const buildParams = (action: 'getabi' | 'getsourcecode') => {
+    const params: Record<string, string> = {
+      module: 'contract',
+      action,
+      address,
+    };
+
+    if (apiKey) {
+      params.apikey = apiKey;
+    }
+
+    if (isV2) {
+      params.chainid = String(chain.id);
+    }
+
+    return params;
+  };
+
+  try {
+    const abiResponse = await axios.get(base, {
+      params: buildParams('getabi'),
+      timeout: 15000,
+    });
+
+    const abiData = abiResponse.data;
+    const abiStatus = abiData?.status;
+    const abiResult = abiData?.result;
+
+    if (
+      abiStatus === '1' &&
+      typeof abiResult === 'string' &&
+      isAbiVerified(abiResult)
+    ) {
+      try {
+        JSON.parse(abiResult);
+      } catch {
+        return {
+          success: false,
+          failureMessage: 'Invalid ABI payload returned by Etherscan',
+        };
+      }
+
+      let contractName: string | undefined;
+      try {
+        const nameResponse = await axios.get(base, {
+          params: buildParams('getsourcecode'),
+          timeout: 15000,
+        });
+
+        const nameData = nameResponse.data;
+        if (Array.isArray(nameData?.result) && nameData.result.length > 0) {
+          contractName = extractContractName(nameData.result[0]);
+        }
+      } catch (nameError) {
+        console.warn('Etherscan name lookup failed:', nameError);
+      }
+
+      if (!contractName) {
+        contractName = 'Smart Contract';
+      }
+
+      return {
+        success: true,
+        abi: abiResult,
+        contractName,
+      };
+    }
+
+    const failureMessage =
+      typeof abiResult === 'string' && abiResult.trim().length > 0
+        ? abiResult
+        : abiData?.message || 'Unknown Etherscan response';
+
+    return {
+      success: false,
+      failureMessage,
+      missingApiKey: detectMissingApiKey(failureMessage),
+    };
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || String(error);
+    return {
+      success: false,
+      failureMessage: message,
+      missingApiKey: detectMissingApiKey(message),
+    };
+  }
+};
+
 export const fetchFromEtherscan = async (
   address: string,
   chain: Chain,
@@ -36,109 +177,92 @@ export const fetchFromEtherscan = async (
       };
     }
 
-    let abi: string | undefined;
-    let contractName: string | undefined;
-    let lastFailure: string | undefined;
+    const explorerName = etherscanExplorer.name || 'Etherscan';
 
-    const keyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : '';
-    const baseCandidates = [
+    const rawBases = new Set<string>([
       resolveProxy(chain),
       etherscanExplorer.url,
       chain.apiUrl,
-    ].filter(
-      (base, index, arr) => !!base && arr.findIndex((b) => b === base) === index
-    ) as string[];
+    ].filter(Boolean) as string[]);
 
-    for (const base of baseCandidates) {
-      try {
-        const [abiResponse, nameResponse] = await Promise.allSettled([
-          axios.get(
-            `${base}?module=contract&action=getabi&address=${address}${keyParam}`,
-            {
-              timeout: 15000,
-            }
-          ),
-          axios.get(
-            `${base}?module=contract&action=getsourcecode&address=${address}${keyParam}`,
-            {
-              timeout: 15000,
-            }
-          ),
-        ]);
+    const v2Bases = new Set<string>(
+      Array.from(rawBases).map((base) => toV2Base(base))
+    );
+    v2Bases.add(V2_AGGREGATOR);
 
-        if (abiResponse.status === 'fulfilled') {
-          const data = abiResponse.value.data;
-          if (
-            data?.status === '1' &&
-            typeof data.result === 'string' &&
-            isAbiVerified(data.result)
-          ) {
-            try {
-              JSON.parse(data.result);
-              abi = data.result;
-            } catch {
-              lastFailure = 'Invalid ABI payload returned by Etherscan';
-            }
-          } else {
-            lastFailure =
-              data?.result ||
-              data?.message ||
-              'Contract ABI not found on Etherscan';
-          }
-        } else {
-          lastFailure = abiResponse.reason?.message || String(abiResponse.reason);
-        }
+    const v1Bases = new Set<string>(rawBases);
+    v1Bases.add(V1_AGGREGATOR);
 
-        if (!abi) {
-          continue;
-        }
+    const v2Failures: string[] = [];
+    let missingApiKeyDetected = false;
 
-        if (nameResponse.status === 'fulfilled') {
-          const nameData = nameResponse.value.data?.result?.[0];
-          if (nameData) {
-            const candidate =
-              nameData.ContractName ||
-              nameData.contractName ||
-              nameData.contract_name ||
-              nameData.Contract_Name;
-            if (
-              typeof candidate === 'string' &&
-              candidate.trim().length > 0 &&
-              !/^smart contract$/i.test(candidate)
-            ) {
-              contractName = candidate.trim();
-            }
-          }
-          if (!contractName) {
-            contractName = 'Smart Contract';
-          }
-        }
+    for (const base of v2Bases) {
+      const outcome = await attemptEtherscanRequest(
+        base,
+        address,
+        chain,
+        apiKey,
+        'v2'
+      );
 
-        // Successful fetch, break the loop
-        break;
-      } catch (err: any) {
-        lastFailure = err?.message || String(err);
-        continue;
+      if (outcome.success && outcome.abi) {
+        return {
+          success: true,
+          abi: outcome.abi,
+          contractName: outcome.contractName,
+          source: 'etherscan',
+          explorerName,
+          verified: true,
+        };
+      }
+
+      if (outcome.missingApiKey) {
+        missingApiKeyDetected = true;
+      }
+
+      if (outcome.failureMessage) {
+        v2Failures.push(outcome.failureMessage);
       }
     }
 
-    if (!abi) {
-      return {
-        success: false,
-        error:
-          lastFailure?.trim().length
-            ? `Contract ABI not found on Etherscan (${lastFailure})`
-            : 'Contract ABI not found on Etherscan',
-      };
+    if (!missingApiKeyDetected) {
+      for (const base of v1Bases) {
+        const outcome = await attemptEtherscanRequest(
+          base,
+          address,
+          chain,
+          apiKey,
+          'v1'
+        );
+
+        if (outcome.success && outcome.abi) {
+          return {
+            success: true,
+            abi: outcome.abi,
+            contractName: outcome.contractName,
+            source: 'etherscan',
+            explorerName,
+            verified: true,
+          };
+        }
+
+        if (outcome.failureMessage) {
+          v2Failures.push(outcome.failureMessage);
+        }
+      }
     }
 
+    const failureSummary = v2Failures
+      .filter(Boolean)
+      .join('; ');
+
     return {
-      success: true,
-      abi,
-      contractName,
-      source: 'etherscan',
-      explorerName: etherscanExplorer.name,
-      verified: true,
+      success: false,
+      error: missingApiKeyDetected
+        ? 'Etherscan API V2 rejected the request: missing or invalid API key. Add a valid key in the API settings and retry.'
+        : failureSummary.length
+          ? `Contract ABI not found on Etherscan (${failureSummary})`
+          : 'Contract ABI not found on Etherscan',
     };
   } catch (error: any) {
     console.error('Etherscan API error:', error);

@@ -1,16 +1,17 @@
-import React, { useMemo } from 'react';
-import { Search } from 'lucide-react';
-import { Button, ErrorDisplay, Badge } from '../shared';
+import React, { useMemo } from "react";
+import { Search } from "lucide-react";
+import { ethers } from "ethers";
+import { Button, ErrorDisplay, Badge } from "../shared";
 import NetworkSelector, {
   EXTENDED_NETWORKS,
   type ExtendedChain,
-} from '../shared/NetworkSelector';
-import type { Chain } from '../../types';
-import '../../styles/ContractComponents.css';
+} from "../shared/NetworkSelector";
+import type { Chain } from "../../types";
+import "../../styles/ContractComponents.css";
 
 const DEFAULT_NATIVE_CURRENCY = {
-  name: 'Ether',
-  symbol: 'ETH',
+  name: "Ether",
+  symbol: "ETH",
   decimals: 18,
 };
 
@@ -26,7 +27,7 @@ const mapChainToExtended = (chain: Chain): ExtendedChain => {
     rpcUrl: chain.rpcUrl,
     blockExplorer: chain.blockExplorer || chain.explorerUrl,
     isTestnet: false,
-    category: 'mainnet',
+    category: "mainnet",
   };
 };
 
@@ -43,10 +44,10 @@ const mapExtendedToChain = (
   return {
     id: extended.id,
     name: extended.name,
-    rpcUrl: extended.rpcUrl ?? current?.rpcUrl ?? '',
-    explorerUrl: extended.blockExplorer ?? current?.explorerUrl ?? '',
-    blockExplorer: extended.blockExplorer ?? current?.blockExplorer ?? '',
-    apiUrl: current?.apiUrl ?? '',
+    rpcUrl: extended.rpcUrl ?? current?.rpcUrl ?? "",
+    explorerUrl: extended.blockExplorer ?? current?.explorerUrl ?? "",
+    blockExplorer: extended.blockExplorer ?? current?.blockExplorer ?? "",
+    apiUrl: current?.apiUrl ?? "",
     explorers: current?.explorers ?? [],
     nativeCurrency: current?.nativeCurrency ?? DEFAULT_NATIVE_CURRENCY,
   };
@@ -63,11 +64,11 @@ export interface ContractAddressInputProps {
   onFetchABI?: () => void;
   contractName?: string;
   abiSource?:
-    | 'sourcify'
-    | 'blockscout'
-    | 'etherscan'
-    | 'blockscout-bytecode'
-    | 'manual'
+    | "sourcify"
+    | "blockscout"
+    | "etherscan"
+    | "blockscout-bytecode"
+    | "manual"
     | null;
   tokenInfo?: {
     symbol?: string;
@@ -89,7 +90,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   contractName,
   abiSource,
   tokenInfo,
-  className = '',
+  className = "",
 }) => {
   const extendedNetworks = useMemo<ExtendedChain[]>(
     () => supportedChains.map(mapChainToExtended),
@@ -104,12 +105,15 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
     );
   }, [extendedNetworks, selectedNetwork]);
 
+  const trimmedAddress = contractAddress?.trim() || "";
   const isValidAddress =
-    contractAddress && contractAddress.length === 42 && contractAddress.startsWith('0x');
+    trimmedAddress && ethers.utils.isAddress(trimmedAddress);
 
-  const formatAbiSource = (source: NonNullable<ContractAddressInputProps['abiSource']>) => {
-    if (source === 'blockscout-bytecode') {
-      return 'blockscout-ebytecode';
+  const formatAbiSource = (
+    source: NonNullable<ContractAddressInputProps["abiSource"]>
+  ) => {
+    if (source === "blockscout-bytecode") {
+      return "blockscout-ebytecode";
     }
     return source;
   };
@@ -131,10 +135,14 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               className="decoder-address-field__selector"
               selectedNetwork={selectedExtendedNetwork}
               onNetworkChange={(network) =>
-                onNetworkChange(mapExtendedToChain(network, supportedChains, selectedNetwork))
+                onNetworkChange(
+                  mapExtendedToChain(network, supportedChains, selectedNetwork)
+                )
               }
               networks={extendedNetworks}
-              showTestnets={extendedNetworks.some((network) => network.isTestnet)}
+              showTestnets={extendedNetworks.some(
+                (network) => network.isTestnet
+              )}
               size="sm"
               variant="input"
             />
@@ -149,7 +157,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
                 loading={isLoading}
                 disabled={!isValidAddress || isLoading}
               >
-                {isLoading ? '...' : 'Fetch'}
+                {isLoading ? "..." : "Fetch"}
               </Button>
             )}
           </div>
@@ -157,40 +165,6 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
       </div>
 
       {error && <ErrorDisplay error={error} variant="inline" />}
-
-      {contractName && (
-        <div className="contract-info-display">
-          <div className="contract-info-row">
-            <span className="contract-info-label">Contract:</span>
-            <span className="contract-info-value">{contractName}</span>
-            {abiSource && (
-              <Badge variant="info" size="sm">
-                {formatAbiSource(abiSource)}
-              </Badge>
-            )}
-          </div>
-
-          {tokenInfo && (
-            <div className="contract-token-info">
-              {tokenInfo.name && (
-                <span className="contract-token-item">
-                  Name: <span className="contract-token-value">{tokenInfo.name}</span>
-                </span>
-              )}
-              {tokenInfo.symbol && (
-                <span className="contract-token-item">
-                  Symbol: <span className="contract-token-value">{tokenInfo.symbol}</span>
-                </span>
-              )}
-              {tokenInfo.decimals !== undefined && (
-                <span className="contract-token-item">
-                  Decimals: <span className="contract-token-value">{tokenInfo.decimals}</span>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

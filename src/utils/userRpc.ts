@@ -7,6 +7,7 @@ export interface UserRpcSettings {
   alchemyKey?: string;
   infuraKey?: string;
   genericUrl?: string;
+  etherscanKey?: string;
 }
 
 interface EffectiveRpcResolution {
@@ -62,6 +63,7 @@ const safeParse = (value: string | null): UserRpcSettings => {
       alchemyKey: parsed.alchemyKey ?? "",
       infuraKey: parsed.infuraKey ?? "",
       genericUrl: parsed.genericUrl ?? "",
+      etherscanKey: parsed.etherscanKey ?? "",
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -127,6 +129,20 @@ export const userRpcManager = {
     writeSettings({
       ...DEFAULT_SETTINGS,
       ...settings,
+    });
+  },
+
+  getEtherscanKey(): string | undefined {
+    const key = this.getSettings().etherscanKey;
+    const trimmed = key?.trim();
+    return trimmed ? trimmed : undefined;
+  },
+
+  setEtherscanKey(key: string) {
+    const current = this.getSettings();
+    this.saveSettings({
+      ...current,
+      etherscanKey: key.trim(),
     });
   },
 
@@ -226,4 +242,3 @@ export const isValidRpcUrl = (value: string): boolean => {
   const trimmed = normalizeGenericUrl(value);
   return /^https?:\/\//i.test(trimmed);
 };
-

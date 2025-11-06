@@ -20,6 +20,7 @@ export interface TransactionRequest {
   maxPriorityFeePerGas?: string;
   nonce?: number;
   type?: number;
+  functionName?: string; // Optional function name for display purposes
 }
 
 export interface SimulationResult {
@@ -31,6 +32,23 @@ export interface SimulationResult {
   gasUsed?: string | null;
   gasLimitSuggested?: string | null;
   rawTrace?: unknown;
+  // Transaction metadata
+  from?: string | null;
+  to?: string | null;
+  data?: string | null;
+  value?: string | null;
+  blockNumber?: string | number | null;
+  nonce?: number | null;
+  functionName?: string | null;
+  timestamp?: number | null; // Block timestamp in seconds
+  // Gas pricing (EIP-1559 and legacy)
+  gasPrice?: string | null; // Legacy gas price or effective gas price
+  maxFeePerGas?: string | null; // EIP-1559 max fee
+  maxPriorityFeePerGas?: string | null; // EIP-1559 priority fee
+  baseFeePerGas?: string | null; // EIP-1559 base fee from block
+  effectiveGasPrice?: string | null; // Actual gas price used
+  // Transaction type
+  type?: number | null; // 0 = Legacy, 1 = EIP-2930, 2 = EIP-1559
 }
 
 export interface AssetChange {

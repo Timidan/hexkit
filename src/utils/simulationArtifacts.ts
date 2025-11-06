@@ -287,6 +287,8 @@ const convertEdbTraceToArtifacts = (
       value: entryRaw.value,
       input: entryRaw.input,
       output:
+        result.Success?.output ??
+        result.success?.output ??
         result.output ??
         result.return_data ??
         result.returnData ??
@@ -444,8 +446,15 @@ export const extractSimulationArtifacts = (
     artifacts.rawPayload = null;
   }
 
-  const innerTraceEntries = ensureArray(traceObj.inner);
+  // Handle nested inner structure (EDB can have inner.inner)
+  let innerTraceEntries = ensureArray(traceObj.inner);
   if (innerTraceEntries.length > 0) {
+    // Check if there's another level of nesting (inner.inner)
+    const firstInner = innerTraceEntries[0];
+    if (firstInner && typeof firstInner === 'object' && firstInner.inner) {
+      innerTraceEntries = ensureArray(firstInner.inner);
+    }
+
     const converted = convertEdbTraceToArtifacts(innerTraceEntries);
     artifacts.callTree = converted.callTree;
     artifacts.events = converted.events;

@@ -4,6 +4,7 @@ import "./App.css";
 import { ToolIcon } from "./components/icons/IconLibrary";
 import { Settings as SettingsIcon } from "lucide-react";
 import RainbowKitWallet from "./components/RainbowKitWallet";
+import { useApplyRainbowKitTheme } from "./config/rainbowkit";
 // import WalletTest from "./components/WalletTest"; // Removed after testing
 // import PageTransition from "./components/ui/PageTransition";
 // import DynamicWalletButton from "./components/DynamicWalletButton";
@@ -16,7 +17,9 @@ import SignatureDatabase from "./components/SignatureDatabase";
 import SmartDecoder from "./components/SmartDecoder";
 import ComprehensiveContractSearch from "./components/ComprehensiveContractSearch";
 import SimulatorWorkbench from "./components/SimulatorWorkbench";
+import SimulationResultsPage from "./components/SimulationResultsPage";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
+import { SimulationProvider } from "./contexts/SimulationContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
@@ -100,57 +103,74 @@ const PersistentTools: React.FC = () => {
 
 function App() {
   const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
+  const location = useLocation();
+
+  // Hide app shell for full-page simulation results
+  const isSimulationPage = location.pathname.startsWith("/simulation/");
+
+  useApplyRainbowKitTheme();
 
   return (
     <ToolkitProvider>
-      <NotificationProvider>
-        <div className="app">
-        <header>
-          <div className="header-wallet">
-            <span
-              role="button"
-              tabIndex={0}
-              className="wallet-icon-inline rpc-settings-trigger"
-              onClick={() => setIsRpcModalOpen(true)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setIsRpcModalOpen(true);
-                }
-              }}
-              title="RPC Settings"
-              aria-label="RPC settings"
-            >
-              <SettingsIcon size={18} />
-            </span>
-            <RainbowKitWallet />
-          </div>
-          <div className="header-content">
-            <div className="header-title">
-              <h1>
-                <ToolIcon width={24} height={24} className="inline mr-2" /> Web3 Toolkit
-              </h1>
-              <p>Ethereum Development Tools</p>
-            </div>
-          </div>
-        </header>
-
-        <Navigation />
-
-        <main className="content">
+      <SimulationProvider>
+        <NotificationProvider>
           <ErrorBoundary>
+            {isSimulationPage ? (
+            // Full-page simulation (no app shell)
             <Routes>
-              <Route path="/" element={<Navigate to="/decoder" replace />} />
-              <Route path="/*" element={<PersistentTools />} />
+              <Route path="/simulation/:id" element={<SimulationResultsPage />} />
             </Routes>
+          ) : (
+            // Normal app with header and navigation
+            <div className="app">
+              <header>
+                <div className="header-wallet">
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="wallet-icon-inline rpc-settings-trigger"
+                    onClick={() => setIsRpcModalOpen(true)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setIsRpcModalOpen(true);
+                      }
+                    }}
+                    title="RPC Settings"
+                    aria-label="RPC settings"
+                  >
+                    <SettingsIcon size={18} />
+                  </span>
+                  <RainbowKitWallet />
+                </div>
+                <div className="header-content">
+                  <div className="header-title">
+                    <h1>
+                      <ToolIcon width={24} height={24} className="inline mr-2" /> Web3 Toolkit
+                    </h1>
+                    <p>Ethereum Development Tools</p>
+                  </div>
+                </div>
+              </header>
+
+              <Navigation />
+
+              <main className="content">
+                <Routes>
+                  <Route path="/" element={<Navigate to="/decoder" replace />} />
+                  <Route path="/*" element={<PersistentTools />} />
+                </Routes>
+              </main>
+
+              <RpcSettingsModal
+                isOpen={isRpcModalOpen}
+                onClose={() => setIsRpcModalOpen(false)}
+              />
+            </div>
+            )}
           </ErrorBoundary>
-        </main>
-        <RpcSettingsModal
-          isOpen={isRpcModalOpen}
-          onClose={() => setIsRpcModalOpen(false)}
-        />
-        </div>
-      </NotificationProvider>
+        </NotificationProvider>
+      </SimulationProvider>
     </ToolkitProvider>
   );
 }

@@ -2357,7 +2357,7 @@ const SmartDecoder: React.FC = () => {
             </div>
 
             <div className="decoder-advanced-panel">
-              <label className="decoder-advanced-toggle">
+              <div className="decoder-advanced-toggle">
                 <span className="decoder-advanced-icon">
                   <span className="decoder-segmented-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2368,10 +2368,10 @@ const SmartDecoder: React.FC = () => {
                     </svg>
                   </span>
                 </span>
-                <span className="decoder-advanced-text">
+                <div className="decoder-advanced-text">
                   <strong>Default explorer mode</strong>
                   <small>Decide whether we search all explorers or target one network.</small>
-                </span>
+                </div>
                 <SegmentedControl
                   className="abi-source-segmented decoder-lookup-segmented"
                   ariaLabel="ABI lookup mode selector"
@@ -2387,7 +2387,7 @@ const SmartDecoder: React.FC = () => {
                     )
                   }))}
                 />
-              </label>
+              </div>
 
               <label className="decoder-advanced-toggle">
                 <input
