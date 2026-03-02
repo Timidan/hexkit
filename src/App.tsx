@@ -16,6 +16,7 @@ import { useNetworkConfig } from "./contexts/NetworkConfigContext";
 import { Button } from "./components/ui/button";
 import TopBar from "./components/TopBar";
 import ConstellationBackground from "./components/ConstellationBackground";
+import HomePage from "./components/HomePage";
 
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
@@ -28,6 +29,7 @@ function App() {
   const { config, hasAcknowledgedDefaults, acknowledgeDefaults } = useNetworkConfig();
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
+  const isHomePage = location.pathname === "/";
 
   useApplyRainbowKitTheme();
 
@@ -57,13 +59,16 @@ function App() {
                     <Route path="/simulation/:id" element={<SimulationResultsPage />} />
                   </Routes>
                 </Suspense>
+              ) : isHomePage ? (
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                </Routes>
               ) : (
                 <div className="app">
                   <Navigation />
 
                   <main className="content">
                     <Routes>
-                      <Route path="/" element={<Navigate to="/database" replace />} />
                       <Route path="/*" element={<PersistentTools />} />
                     </Routes>
                   </main>
