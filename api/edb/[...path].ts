@@ -27,10 +27,7 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
   });
 }
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
 
@@ -132,7 +129,7 @@ export default async function handler(
     // Standard response — pipe status + body
     res.status(upstream.status);
 
-    for (const key of ["content-type", "content-encoding", "vary"]) {
+    for (const key of ["content-type", "vary"]) {
       const v = upstream.headers.get(key);
       if (v) res.setHeader(key, v);
     }

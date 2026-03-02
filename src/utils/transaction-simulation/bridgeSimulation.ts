@@ -8,34 +8,40 @@
  * Exports: postSimulatorJob, trySimulatorBridge, replayTransactionWithSimulator
  */
 
-import axios from 'axios';
-import { ethers } from 'ethers';
-import type { TransactionRequest, SimulationResult } from '../../types/transaction';
-import type { Chain } from '../../types';
-import { getSimulatorBridgeUrl, getBridgeHeaders } from '../env';
-import { cacheRawTraceText } from '../traceRawTextCache';
-import { networkConfigManager } from '../../config/networkConfig';
+import axios from "axios";
+import { ethers } from "ethers";
+import type {
+  TransactionRequest,
+  SimulationResult,
+} from "../../types/transaction";
+import type { Chain } from "../../types";
+import { getSimulatorBridgeUrl, getBridgeHeaders } from "../env";
+import { cacheRawTraceText } from "../traceRawTextCache";
+import { networkConfigManager } from "../../config/networkConfig";
 
 import {
   type BridgeSimulationResponsePayload,
   type BridgeAnalysisOptions,
   type SourcifyArtifact,
   normalizeBlockTag,
-} from './types';
-import { buildArtifactsFromSourcify, fetchBlockscoutMetadata } from './artifactFetching';
+} from "./types";
+import {
+  buildArtifactsFromSourcify,
+  fetchBlockscoutMetadata,
+} from "./artifactFetching";
 
 import {
   buildBridgeTransactionPayload,
   mergeAnalysisOptions,
   inferArtifactSourcePriority,
-} from './requestBuilding';
+} from "./requestBuilding";
 
-import { normalizeBridgeResult } from './responseParsing';
+import { normalizeBridgeResult } from "./responseParsing";
 
 const SIMULATOR_BRIDGE_URL = getSimulatorBridgeUrl();
 const SIMULATOR_BRIDGE_ENDPOINT = SIMULATOR_BRIDGE_URL
-  ? SIMULATOR_BRIDGE_URL.replace(/\/+$/, '')
-  : '';
+  ? SIMULATOR_BRIDGE_URL.replace(/\/+$/, "")
+  : "";
 
 export const postSimulatorJob = async (
   payload: Record<string, unknown>,
@@ -54,7 +60,7 @@ export const postSimulatorJob = async (
     baseFeePerGas?: string | null;
     effectiveGasPrice?: string | null;
     type?: number | null;
-  }
+  },
 ): Promise<SimulationResult | null> => {
   if (!SIMULATOR_BRIDGE_ENDPOINT) {
     return null;
@@ -62,7 +68,7 @@ export const postSimulatorJob = async (
 
   const url = `${SIMULATOR_BRIDGE_ENDPOINT}/simulate`;
 
-  if (payload.analysisOptions && typeof payload.analysisOptions === 'object') {
+  if (payload.analysisOptions && typeof payload.analysisOptions === "object") {
     const ao = { ...(payload.analysisOptions as Record<string, unknown>) };
     const collectStorage =
       (ao.collectStorageDiffs as boolean | undefined) ??
@@ -83,15 +89,17 @@ export const postSimulatorJob = async (
   }
 
   try {
-    let rawResponseText = '';
+    let rawResponseText = "";
 
     const response = await axios.post(url, payload, {
       headers: getBridgeHeaders(),
       transformResponse: [
         (data: string) => {
           // Guard against excessively large responses (>50MB)
-          if (typeof data === 'string' && data.length > 50 * 1024 * 1024) {
-            throw new Error('Bridge response exceeds maximum size limit (50MB)');
+          if (typeof data === "string" && data.length > 50 * 1024 * 1024) {
+            throw new Error(
+              "Bridge response exceeds maximum size limit (50MB)",
+            );
           }
           rawResponseText = data;
           try {
@@ -103,11 +111,11 @@ export const postSimulatorJob = async (
       ],
     });
 
-    if (!response?.data || typeof response.data !== 'object') {
+    if (!response?.data || typeof response.data !== "object") {
       return null;
     }
 
-    if (response.data.rawTrace && typeof response.data.rawTrace === 'object') {
+    if (response.data.rawTrace && typeof response.data.rawTrace === "object") {
       // Always cache raw response text — the legacy 3-phase FE decode
       // needs it for source extraction, PC map building, etc.
       // (V2 enrichment is disabled until Stage 2 Rust EDB.)
@@ -116,15 +124,15 @@ export const postSimulatorJob = async (
 
     return normalizeBridgeResult(
       response.data as BridgeSimulationResponsePayload,
-      transactionMetadata
+      transactionMetadata,
     );
   } catch (error: any) {
-    if (error?.response?.data && typeof error.response.data === 'object') {
+    if (error?.response?.data && typeof error.response.data === "object") {
       const errorData = error.response.data;
       return {
-        mode: 'edb' as const,
+        mode: "edb" as const,
         success: false,
-        error: errorData.error || 'Simulation failed',
+        error: errorData.error || "Simulation failed",
         warnings: [],
         revertReason: null,
         gasUsed: null,
@@ -133,7 +141,19 @@ export const postSimulatorJob = async (
       };
     }
 
-    return null;
+    const message =
+      error instanceof Error ? error.message : "Unknown network error";
+    console.error("[postSimulatorJob] network error:", message);
+    return {
+      mode: "edb" as const,
+      success: false,
+      error: `Simulation request failed: ${message}`,
+      warnings: [],
+      revertReason: null,
+      gasUsed: null,
+      gasLimitSuggested: null,
+      rawTrace: null,
+    };
   }
 };
 
@@ -143,7 +163,7 @@ export const trySimulatorBridge = async (
   fromAddress: string,
   options?: {
     enableDebug?: boolean;
-  }
+  },
 ): Promise<SimulationResult | null> => {
   const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
   const rpcUrl = resolution.url;
@@ -162,24 +182,31 @@ export const trySimulatorBridge = async (
   let txType: number | null = null;
 
   const userBlockTag = normalizeBlockTag(transaction.blockTag);
-  const targetBlockTag = userBlockTag ? (
-    /^\d+$/.test(userBlockTag) ? parseInt(userBlockTag, 10) : userBlockTag
-  ) : 'latest';
+  const targetBlockTag = userBlockTag
+    ? /^\d+$/.test(userBlockTag)
+      ? parseInt(userBlockTag, 10)
+      : userBlockTag
+    : "latest";
 
   try {
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
-    const currentBlock = typeof targetBlockTag === 'number'
-      ? targetBlockTag
-      : await provider.getBlockNumber();
+    const currentBlock =
+      typeof targetBlockTag === "number"
+        ? targetBlockTag
+        : await provider.getBlockNumber();
     blockNumber = currentBlock;
 
     const block = await provider.getBlock(currentBlock);
     timestamp = block?.timestamp || null;
     baseFeePerGas = block?.baseFeePerGas?.toString() || null;
 
-    const fromAddr = fromAddress || '0x0000000000000000000000000000000000000000';
-    const accountNonce = await provider.getTransactionCount(fromAddr, currentBlock);
+    const fromAddr =
+      fromAddress || "0x0000000000000000000000000000000000000000";
+    const accountNonce = await provider.getTransactionCount(
+      fromAddr,
+      currentBlock,
+    );
     nonce = accountNonce;
 
     if (baseFeePerGas) {
@@ -197,7 +224,10 @@ export const trySimulatorBridge = async (
           gasPrice = effectivePrice.toString();
         }
       } catch (err) {
-        console.warn('[simulation] EIP-1559 fee data fetch failed:', (err as Error)?.message);
+        console.warn(
+          "[simulation] EIP-1559 fee data fetch failed:",
+          (err as Error)?.message,
+        );
       }
     } else {
       txType = 0;
@@ -205,12 +235,17 @@ export const trySimulatorBridge = async (
         const legacyGasPrice = await provider.getGasPrice();
         gasPrice = legacyGasPrice?.toString() || null;
       } catch (err) {
-        console.warn('[simulation] Legacy gas price fetch failed:', (err as Error)?.message);
+        console.warn(
+          "[simulation] Legacy gas price fetch failed:",
+          (err as Error)?.message,
+        );
       }
     }
-
   } catch (err) {
-    console.warn('[simulation] RPC metadata fetch failed:', (err as Error)?.message);
+    console.warn(
+      "[simulation] RPC metadata fetch failed:",
+      (err as Error)?.message,
+    );
   }
 
   let contractArtifacts: SourcifyArtifact[] | null = null;
@@ -218,20 +253,32 @@ export const trySimulatorBridge = async (
 
   if (transaction.to) {
     try {
-      const sourcifyResult = await buildArtifactsFromSourcify(transaction.to, chain.id);
+      const sourcifyResult = await buildArtifactsFromSourcify(
+        transaction.to,
+        chain.id,
+      );
       contractArtifacts = sourcifyResult.artifacts;
       contractMetadata = sourcifyResult.metadata;
     } catch (err) {
-      console.warn('[simulation] Sourcify metadata fetch failed:', (err as Error)?.message);
+      console.warn(
+        "[simulation] Sourcify metadata fetch failed:",
+        (err as Error)?.message,
+      );
     }
 
     if (!contractArtifacts) {
       try {
-        const blockscoutResult = await fetchBlockscoutMetadata(transaction.to, chain.id);
+        const blockscoutResult = await fetchBlockscoutMetadata(
+          transaction.to,
+          chain.id,
+        );
         contractArtifacts = blockscoutResult.artifacts;
         contractMetadata = blockscoutResult.metadata;
       } catch (err) {
-        console.warn('[simulation] Blockscout metadata fetch failed:', (err as Error)?.message);
+        console.warn(
+          "[simulation] Blockscout metadata fetch failed:",
+          (err as Error)?.message,
+        );
       }
     }
   }
@@ -239,15 +286,20 @@ export const trySimulatorBridge = async (
   let sourcifyArtifacts = contractArtifacts;
   const sourcifyMetadata = contractMetadata;
 
-  if (transaction.diamondFacetAddresses && transaction.diamondFacetAddresses.length > 0) {
+  if (
+    transaction.diamondFacetAddresses &&
+    transaction.diamondFacetAddresses.length > 0
+  ) {
     if (!sourcifyArtifacts) {
       sourcifyArtifacts = [];
     }
 
-    const existingAddresses = new Set(sourcifyArtifacts.map(a => a.address?.toLowerCase()));
+    const existingAddresses = new Set(
+      sourcifyArtifacts.map((a) => a.address?.toLowerCase()),
+    );
 
     const facetsToFetch = transaction.diamondFacetAddresses.filter(
-      addr => !existingAddresses.has(addr.toLowerCase())
+      (addr) => !existingAddresses.has(addr.toLowerCase()),
     );
 
     if (facetsToFetch.length > 0) {
@@ -257,16 +309,22 @@ export const trySimulatorBridge = async (
         const batchResults = await Promise.all(
           batch.map(async (facetAddr) => {
             try {
-              const result = await buildArtifactsFromSourcify(facetAddr, chain.id);
+              const result = await buildArtifactsFromSourcify(
+                facetAddr,
+                chain.id,
+              );
               if (result.artifacts && result.artifacts.length > 0) {
                 return result.artifacts[0];
               }
             } catch (e) {
               // Facet not on Sourcify — non-critical, skip
-              if (import.meta.env.DEV) console.debug(`[simulation] Facet ${facetAddr} not on Sourcify`);
+              if (import.meta.env.DEV)
+                console.debug(
+                  `[simulation] Facet ${facetAddr} not on Sourcify`,
+                );
             }
             return null;
-          })
+          }),
         );
 
         for (const artifact of batchResults) {
@@ -275,20 +333,25 @@ export const trySimulatorBridge = async (
           }
         }
       }
-
     }
   }
 
-  if (transaction.proxyImplementationAddresses && transaction.proxyImplementationAddresses.length > 0) {
+  if (
+    transaction.proxyImplementationAddresses &&
+    transaction.proxyImplementationAddresses.length > 0
+  ) {
     if (!sourcifyArtifacts) {
       sourcifyArtifacts = [];
     }
 
-    const existingAddresses = new Set(sourcifyArtifacts.map(a => a.address?.toLowerCase()));
-
-    const implementationsToFetch = transaction.proxyImplementationAddresses.filter(
-      addr => !existingAddresses.has(addr.toLowerCase())
+    const existingAddresses = new Set(
+      sourcifyArtifacts.map((a) => a.address?.toLowerCase()),
     );
+
+    const implementationsToFetch =
+      transaction.proxyImplementationAddresses.filter(
+        (addr) => !existingAddresses.has(addr.toLowerCase()),
+      );
 
     if (implementationsToFetch.length > 0) {
       const BATCH_SIZE = 5;
@@ -310,7 +373,7 @@ export const trySimulatorBridge = async (
               // Failed to fetch sources for implementation
             }
             return null;
-          })
+          }),
         );
 
         for (const artifact of batchResults) {
@@ -319,12 +382,11 @@ export const trySimulatorBridge = async (
           }
         }
       }
-
     }
   }
 
   const requestPayload: Record<string, unknown> = {
-    mode: 'local' as const,
+    mode: "local" as const,
     rpcUrl,
     chainId: chain.id,
     transaction: buildBridgeTransactionPayload(transaction, fromAddress),
@@ -344,11 +406,13 @@ export const trySimulatorBridge = async (
   }
 
   if (transaction.storageOverrides && transaction.storageOverrides.length > 0) {
-    requestPayload.storageOverrides = transaction.storageOverrides.map((override) => ({
-      address: override.address,
-      slot: override.slot,
-      value: override.value,
-    }));
+    requestPayload.storageOverrides = transaction.storageOverrides.map(
+      (override) => ({
+        address: override.address,
+        slot: override.slot,
+        value: override.value,
+      }),
+    );
   }
 
   if (sourcifyArtifacts) {
@@ -365,48 +429,65 @@ export const trySimulatorBridge = async (
 
         const hasSettings = artifact.settings && !artifact.missingSettings;
         let normalizedLibraries: Record<string, Record<string, string>> = {};
-        if (artifact.settings?.libraries && typeof artifact.settings.libraries === 'object') {
-          const entries = Object.entries(artifact.settings.libraries as Record<string, unknown>);
+        if (
+          artifact.settings?.libraries &&
+          typeof artifact.settings.libraries === "object"
+        ) {
+          const entries = Object.entries(
+            artifact.settings.libraries as Record<string, unknown>,
+          );
           const flatLibraries: Record<string, string> = {};
           let hasNested = false;
 
           for (const [key, value] of entries) {
-            if (value && typeof value === 'object' && !Array.isArray(value)) {
+            if (value && typeof value === "object" && !Array.isArray(value)) {
               hasNested = true;
               normalizedLibraries[key] = value as Record<string, string>;
-            } else if (typeof value === 'string') {
+            } else if (typeof value === "string") {
               flatLibraries[key] = value;
             }
           }
 
           if (!hasNested && Object.keys(flatLibraries).length > 0) {
-            const targetFiles = Object.keys(artifact.settings?.compilationTarget || {});
-            const libraryFiles = targetFiles.length > 0 ? targetFiles : Object.keys(sourcesObj);
+            const targetFiles = Object.keys(
+              artifact.settings?.compilationTarget || {},
+            );
+            const libraryFiles =
+              targetFiles.length > 0 ? targetFiles : Object.keys(sourcesObj);
             for (const file of libraryFiles) {
               normalizedLibraries[file] = { ...flatLibraries };
             }
           }
         }
 
-        const inputSettings = hasSettings ? {
-          optimizer: artifact.settings?.optimizer || { enabled: false, runs: 200 },
-          evmVersion: artifact.settings?.evmVersion || 'paris',
-          compilationTarget: artifact.settings?.compilationTarget || {},
-          libraries: normalizedLibraries,
-          outputSelection: {
-            '*': {
-              '*': [
-                'abi', 'evm.bytecode', 'evm.deployedBytecode',
-                'evm.methodIdentifiers', 'metadata', 'storageLayout'
-              ],
-              '': ['ast']
+        const inputSettings = hasSettings
+          ? {
+              optimizer: artifact.settings?.optimizer || {
+                enabled: false,
+                runs: 200,
+              },
+              evmVersion: artifact.settings?.evmVersion || "paris",
+              compilationTarget: artifact.settings?.compilationTarget || {},
+              libraries: normalizedLibraries,
+              outputSelection: {
+                "*": {
+                  "*": [
+                    "abi",
+                    "evm.bytecode",
+                    "evm.deployedBytecode",
+                    "evm.methodIdentifiers",
+                    "metadata",
+                    "storageLayout",
+                  ],
+                  "": ["ast"],
+                },
+              },
             }
-          },
-        } : null;
+          : null;
 
         artifactsInline[addr] = {
           input: {
-            language: 'Solidity',
+            language: "Solidity",
             sources: sourcesObj,
             settings: inputSettings,
           },
@@ -414,11 +495,11 @@ export const trySimulatorBridge = async (
           meta: {
             Name: artifact.contractName,
             ContractName: artifact.contractName,
-            CompilerVersion: artifact.compilerVersion || 'unknown',
-            ABI: artifact.abi || '',
-            OptimizationUsed: artifact.settings?.optimizer?.enabled ? '1' : '0',
+            CompilerVersion: artifact.compilerVersion || "unknown",
+            ABI: artifact.abi || "",
+            OptimizationUsed: artifact.settings?.optimizer?.enabled ? "1" : "0",
             Runs: String(artifact.settings?.optimizer?.runs || 200),
-            EVMVersion: artifact.settings?.evmVersion || 'Default',
+            EVMVersion: artifact.settings?.evmVersion || "Default",
           },
           missingSettings: artifact.missingSettings || !hasSettings,
           sources: sourcesObj,
@@ -435,10 +516,10 @@ export const trySimulatorBridge = async (
   }
 
   const transactionMetadata = {
-    from: fromAddress || '0x0000000000000000000000000000000000000000',
+    from: fromAddress || "0x0000000000000000000000000000000000000000",
     to: transaction.to,
     data: transaction.data,
-    value: transaction.value ? String(transaction.value) : '0',
+    value: transaction.value ? String(transaction.value) : "0",
     blockNumber,
     nonce,
     functionName: transaction.functionName || null,
@@ -461,14 +542,14 @@ export const replayTransactionWithSimulator = async (
     blockTag?: string | number;
     analysisOptions?: BridgeAnalysisOptions;
     enableDebug?: boolean;
-  }
+  },
 ): Promise<SimulationResult | null> => {
   const hash = txHash?.trim();
   if (!hash) {
     return null;
   }
 
-  if (!hash.startsWith('0x')) {
+  if (!hash.startsWith("0x")) {
     return null;
   }
 
@@ -479,22 +560,24 @@ export const replayTransactionWithSimulator = async (
   const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
   const rpcUrl = resolution.url;
 
-  let transactionMetadata: {
-    from?: string;
-    to?: string;
-    data?: string;
-    value?: string;
-    blockNumber?: number | null;
-    nonce?: number | null;
-    functionName?: string | null;
-    timestamp?: number | null;
-    gasPrice?: string | null;
-    maxFeePerGas?: string | null;
-    maxPriorityFeePerGas?: string | null;
-    baseFeePerGas?: string | null;
-    effectiveGasPrice?: string | null;
-    type?: number | null;
-  } | undefined;
+  let transactionMetadata:
+    | {
+        from?: string;
+        to?: string;
+        data?: string;
+        value?: string;
+        blockNumber?: number | null;
+        nonce?: number | null;
+        functionName?: string | null;
+        timestamp?: number | null;
+        gasPrice?: string | null;
+        maxFeePerGas?: string | null;
+        maxPriorityFeePerGas?: string | null;
+        baseFeePerGas?: string | null;
+        effectiveGasPrice?: string | null;
+        type?: number | null;
+      }
+    | undefined;
 
   try {
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
@@ -530,7 +613,10 @@ export const replayTransactionWithSimulator = async (
         maxFeePerGas: tx.maxFeePerGas?.toString() ?? null,
         maxPriorityFeePerGas: tx.maxPriorityFeePerGas?.toString() ?? null,
         baseFeePerGas,
-        effectiveGasPrice: receipt?.effectiveGasPrice?.toString() ?? tx.gasPrice?.toString() ?? null,
+        effectiveGasPrice:
+          receipt?.effectiveGasPrice?.toString() ??
+          tx.gasPrice?.toString() ??
+          null,
         type: tx.type ?? null,
       };
     }
@@ -539,7 +625,7 @@ export const replayTransactionWithSimulator = async (
   }
 
   const payload: Record<string, unknown> = {
-    mode: 'onchain',
+    mode: "onchain",
     rpcUrl,
     chainId: chain.id,
     txHash: hash,
