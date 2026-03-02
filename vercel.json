@@ -71,6 +71,10 @@
     {
       "source": "/api/repo/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
