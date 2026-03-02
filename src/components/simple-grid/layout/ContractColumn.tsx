@@ -111,7 +111,7 @@ export default function ContractColumn(): React.ReactElement {
                   }}
                 >
                   <SelectTrigger className="w-full max-w-[400px]">
-                    <SelectValue placeholder="Select saved contract\u2026" />
+                    <SelectValue placeholder="Select saved contract…" />
                   </SelectTrigger>
                   <SelectContent position="popper" className="max-h-[280px] overflow-y-auto">
                     {savedContracts.map((contract: any, index: number) => (

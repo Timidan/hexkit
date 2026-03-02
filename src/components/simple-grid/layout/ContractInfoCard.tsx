@@ -494,32 +494,24 @@ export default function ContractInfoCard(): React.ReactElement | null {
                 </div>
               )}
             </div>
-          ) : (
+          ) : tokenDetection?.type === "unknown" && !isDiamond ? null : (
             <div
               style={{
                 fontSize: "14px",
                 color: isDiamond
                   ? "#a78bfa"
-                  : tokenDetection?.type === "unknown"
-                    ? "#ef4444"
-                    : "#ffffff",
+                  : "#ffffff",
                 fontWeight: "500",
                 padding: "2px 8px",
                 background: isDiamond
                   ? "rgba(124, 58, 237, 0.15)"
-                  : tokenDetection?.type === "unknown"
-                    ? "rgba(239, 68, 68, 0.1)"
-                    : "rgba(255, 255, 255, 0.1)",
+                  : "rgba(255, 255, 255, 0.1)",
                 borderRadius: "6px",
                 display: "inline-block",
                 width: "fit-content",
               }}
             >
-              {tokenDetection?.type === "unknown"
-                ? isDiamond
-                  ? ""
-                  : "Unknown Contract Type"
-                : "Smart Contract"}
+              {isDiamond ? "Diamond Proxy" : "Smart Contract"}
             </div>
           )}
         </div>
