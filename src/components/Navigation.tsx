@@ -163,6 +163,7 @@ const Navigation: React.FC = () => {
 
   // Track whether initial measurement has happened (suppress animation on mount)
   const hasMountedRef = useRef(false);
+  const [hasInitialRender, setHasInitialRender] = useState(true);
 
   const syncMainIndicator = useCallback(() => {
     const m = measureBtn(mainRowRef.current, activeToolId, "tool");
@@ -195,6 +196,7 @@ const Navigation: React.FC = () => {
     const raf = requestAnimationFrame(() => {
       syncSubIndicator();
       hasMountedRef.current = true;
+      if (hasInitialRender) setHasInitialRender(false);
     });
     // Delayed attempt — AnimatePresence exit+enter may take ~150ms
     const timer = setTimeout(() => {
@@ -319,7 +321,7 @@ const Navigation: React.FC = () => {
                   key={activeToolId}
                   className="capsule-sub-items"
                   variants={{ visible: { transition: SUB_STAGGER }, hidden: {}, exit: {} }}
-                  initial="hidden"
+                  initial={hasInitialRender ? false : "hidden"}
                   animate="visible"
                   exit="exit"
                 >
@@ -330,7 +332,7 @@ const Navigation: React.FC = () => {
                       data-sub={sub.id}
                       className={`capsule-sub-tab${sub.id === activeSubId ? " active" : ""}`}
                       onClick={() => handleSubTabClick(sub)}
-                      variants={SUB_ITEM}
+                      variants={hasInitialRender ? undefined : SUB_ITEM}
                       whileTap={{ scale: 0.94 }}
                     >
                       {sub.icon}
