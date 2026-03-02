@@ -17,6 +17,8 @@ import { Button } from "./components/ui/button";
 import TopBar from "./components/TopBar";
 import ConstellationBackground from "./components/ConstellationBackground";
 import HomePage from "./components/HomePage";
+import MobileDrawer from "./components/MobileDrawer";
+import { useBreakpoint } from "./hooks/useBreakpoint";
 
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
@@ -25,7 +27,9 @@ const StorageManagerModal = React.lazy(() => import("./components/StorageManager
 function App() {
   const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { isMobile } = useBreakpoint();
   const { config, hasAcknowledgedDefaults, acknowledgeDefaults } = useNetworkConfig();
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
@@ -51,7 +55,16 @@ function App() {
               <TopBar
                 onOpenRpcSettings={() => setIsRpcModalOpen(true)}
                 onOpenStorageManager={() => setIsStorageModalOpen(true)}
+                onToggleMobileMenu={() => setIsMobileMenuOpen((v) => !v)}
+                isMobileMenuOpen={isMobileMenuOpen}
               />
+
+              {isMobile && (
+                <MobileDrawer
+                  open={isMobileMenuOpen}
+                  onOpenChange={setIsMobileMenuOpen}
+                />
+              )}
 
               {isSimulationPage ? (
                 <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
@@ -65,7 +78,7 @@ function App() {
                 </Routes>
               ) : (
                 <div className="app">
-                  <Navigation />
+                  {!isMobile && <Navigation />}
 
                   <main className="content">
                     <Routes>
