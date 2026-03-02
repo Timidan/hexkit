@@ -52,21 +52,18 @@ export default async function handler(
     return;
   }
 
-  // Extract and validate path segments
-  const segments = req.query.path;
-  const parts = Array.isArray(segments)
-    ? segments
-    : segments
-      ? [segments]
-      : [];
+  // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes
+  const urlPath = (req.url || "").split("?")[0];
+  const subPath = urlPath.replace(/^\/api\/edb\/?/, "");
 
+  // Validate each path segment
+  const parts = subPath ? subPath.split("/") : [];
   for (const seg of parts) {
     if (seg === "." || seg === ".." || /[^a-zA-Z0-9_\-:.]/.test(seg)) {
       return res.status(400).json({ error: "invalid_path" });
     }
   }
 
-  const subPath = parts.join("/");
   const target = `${bridgeUrl.replace(/\/+$/, "")}/${subPath}`;
 
   // Build upstream headers (explicit allowlist — no client headers leak through)
