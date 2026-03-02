@@ -26,7 +26,7 @@ export const getBlockscoutBytecodeDbUrl = () =>
 export const getSimulatorBridgeUrl = () => {
   const value = readEnv(
     ["VITE_SIMULATOR_BRIDGE_URL"],
-    "http://127.0.0.1:5789"
+    "/api/edb"
   );
 
   if (!value) {
@@ -39,6 +39,11 @@ export const getSimulatorBridgeUrl = () => {
   }
 
   return value;
+};
+
+/** Returns default headers for bridge requests. API key is injected server-side by the proxy. */
+export const getBridgeHeaders = (extra?: Record<string, string>): Record<string, string> => {
+  return { 'Content-Type': 'application/json', ...extra };
 };
 
 type RpcResolutionOptions = {

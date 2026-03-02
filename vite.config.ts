@@ -78,6 +78,14 @@ export default defineConfig(() => {
         ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
       },
       proxy: {
+        // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
+        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev
+        "/api/edb": {
+          target: process.env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/edb/, ""),
+        },
         // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
         "/api/sourcify/repository": {
           target: "https://repo.sourcify.dev",

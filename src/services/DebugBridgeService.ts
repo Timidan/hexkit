@@ -30,7 +30,7 @@ import type {
   OpcodeSnapshotDetail,
   HookSnapshotDetail,
 } from '../types/debug';
-import { getSimulatorBridgeUrl } from '../utils/env';
+import { getSimulatorBridgeUrl, getBridgeHeaders } from '../utils/env';
 import { extractInlineArtifacts } from '../utils/debugArtifacts';
 import {
   transformEdbSnapshot,
@@ -39,7 +39,7 @@ import {
 } from './debugBridgeProtocol';
 
 // Bridge URL - derived from env config with fallback
-const getBridgeUrl = () => getSimulatorBridgeUrl() || 'http://127.0.0.1:5789';
+const getBridgeUrl = () => getSimulatorBridgeUrl() || '/api/edb';
 
 const STORAGE_CACHE_MAX_ENTRIES = 5000;
 
@@ -103,7 +103,7 @@ class DebugBridgeService {
   private async rpcCall(sessionId: string, method: string, params: unknown[] = []): Promise<unknown> {
     const response = await fetch(`${getBridgeUrl()}/debug/rpc`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBridgeHeaders(),
       body: JSON.stringify({ sessionId, method, params }),
       signal: AbortSignal.timeout(30_000),
     });
@@ -134,7 +134,7 @@ class DebugBridgeService {
     try {
       const response = await fetch(`${getBridgeUrl()}/trace/detail`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getBridgeHeaders(),
         body: JSON.stringify({ id: traceDetailHandleId }),
         signal: AbortSignal.timeout(30_000),
       });
@@ -217,7 +217,7 @@ class DebugBridgeService {
       try {
         const response = await fetch(`${getBridgeUrl()}/debug/start`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getBridgeHeaders(),
           body: JSON.stringify({
             ...bridgeRequest,
             ...(artifactsInline ? { artifacts_inline: artifactsInline } : {}),
@@ -264,7 +264,7 @@ class DebugBridgeService {
       try {
         const simResponse = await fetch(`${getBridgeUrl()}/simulate`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getBridgeHeaders(),
           body: JSON.stringify({
             mode: 'local',
             ...bridgeRequest,
@@ -615,7 +615,7 @@ class DebugBridgeService {
   async endSession(request: EndDebugSessionRequest): Promise<EndDebugSessionResponse> {
     const response = await fetch(`${getBridgeUrl()}/debug/end`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBridgeHeaders(),
       body: JSON.stringify(request),
       signal: AbortSignal.timeout(30_000),
     });
@@ -747,7 +747,7 @@ class DebugBridgeService {
   }): Promise<{ prepareId: string }> {
     const response = await fetch(`${getBridgeUrl()}/debug/prepare`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getBridgeHeaders(),
       body: JSON.stringify(params),
       signal: AbortSignal.timeout(30_000),
     });
@@ -766,6 +766,7 @@ class DebugBridgeService {
   /** Poll debug preparation status (fallback when SSE is unavailable). */
   async getPrepareStatus(prepareId: string): Promise<PrepareStatusResult> {
     const response = await fetch(`${getBridgeUrl()}/debug/prepare/${prepareId}`, {
+      headers: getBridgeHeaders(),
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {

@@ -12,7 +12,7 @@ import axios from 'axios';
 import { ethers } from 'ethers';
 import type { TransactionRequest, SimulationResult } from '../../types/transaction';
 import type { Chain } from '../../types';
-import { getSimulatorBridgeUrl } from '../env';
+import { getSimulatorBridgeUrl, getBridgeHeaders } from '../env';
 import { cacheRawTraceText } from '../traceRawTextCache';
 import { networkConfigManager } from '../../config/networkConfig';
 
@@ -86,9 +86,7 @@ export const postSimulatorJob = async (
     let rawResponseText = '';
 
     const response = await axios.post(url, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getBridgeHeaders(),
       transformResponse: [
         (data: string) => {
           // Guard against excessively large responses (>50MB)

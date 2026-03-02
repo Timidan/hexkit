@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getSimulatorBridgeUrl } from "../utils/env";
+import { getSimulatorBridgeUrl, getBridgeHeaders } from "../utils/env";
 
 type BridgeStatus = "checking" | "connected" | "disconnected" | "disabled";
 
@@ -43,6 +43,7 @@ const EdbBridgeStatus: React.FC<EdbBridgeStatusProps> = ({ className = "" }) => 
     try {
       const response = await fetch(`${bridgeBaseUrl}/health`, {
         method: "GET",
+        headers: getBridgeHeaders(),
         cache: "no-store",
         signal: controller.signal,
       });
