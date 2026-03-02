@@ -54,7 +54,11 @@ export default defineConfig(() => {
           manualChunks: {
             vendor: ["react", "react-dom", "react-router-dom"],
             wagmi: ["wagmi", "@wagmi/core", "@wagmi/connectors"],
-            walletconnect: ["@walletconnect/ethereum-provider", "@reown/appkit", "@reown/appkit-controllers"],
+            walletconnect: [
+              "@walletconnect/ethereum-provider",
+              "@reown/appkit",
+              "@reown/appkit-controllers",
+            ],
             ethers: ["ethers"],
           },
         },
@@ -98,7 +102,8 @@ export default defineConfig(() => {
           target: "https://sourcify.dev",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/sourcify\/server/, "/server"),
+          rewrite: (path) =>
+            path.replace(/^\/api\/sourcify\/server/, "/server"),
         },
         // Legacy Sourcify proxy (fallback for other paths)
         "/api/sourcify": {
@@ -144,7 +149,8 @@ export default defineConfig(() => {
           target: "https://sepolia-blockscout.lisk.com",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/lisk-sepolia-blockscout/, ""),
+          rewrite: (path) =>
+            path.replace(/^\/api\/lisk-sepolia-blockscout/, ""),
         },
         // Proxy for Etherscan APIs
         "/api/basescan": {

@@ -11,6 +11,8 @@ import { freemem, totalmem } from "node:os";
 
 import {
   PORT,
+  EDB_API_KEY,
+  ALLOWED_ORIGINS,
   SIMULATOR_BINARY_PATH,
   SIMULATION_QUEUE_TIMEOUT_MS,
   MAX_CONCURRENT_SIMULATIONS,
@@ -88,18 +90,20 @@ function send503(res, err) {
     "Content-Type": "application/json",
     "Retry-After": String(retryAfterSec),
   });
-  res.end(JSON.stringify({
-    success: false,
-    error: err.message,
-    code: err.code,
-    retry: true,
-    capacity: {
-      active: simulationSemaphore.activeCount,
-      queued: simulationSemaphore.queueLength,
-      maxConcurrent: simulationSemaphore.maxConcurrent,
-      maxQueue: simulationSemaphore.maxQueueSize,
-    },
-  }));
+  res.end(
+    JSON.stringify({
+      success: false,
+      error: err.message,
+      code: err.code,
+      retry: true,
+      capacity: {
+        active: simulationSemaphore.activeCount,
+        queued: simulationSemaphore.queueLength,
+        maxConcurrent: simulationSemaphore.maxConcurrent,
+        maxQueue: simulationSemaphore.maxQueueSize,
+      },
+    }),
+  );
 }
 
 // =============================================================================
@@ -110,7 +114,10 @@ const EDB_API_KEY = process.env.EDB_API_KEY || "";
 
 // Comma-separated list of allowed origins, e.g. "https://example.com,https://app.example.com"
 const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean)
+  (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 );
 
 const server = http.createServer(async (req, res) => {
@@ -150,29 +157,31 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url === "/health") {
     pruneTraceDetailStore();
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "ok",
-      edbServerRunning: false,
-      activeSessions: keepAliveSessions.size,
-      traceDetailHandles: traceDetailStore.size,
-      traceDetailBytes: Array.from(traceDetailStore.values()).reduce(
-        (sum, entry) => sum + getTraceDetailEntryBytes(entry),
-        0,
-      ),
-      concurrency: {
-        activeSimulations: simulationSemaphore.activeCount,
-        queuedRequests: simulationSemaphore.queueLength,
-        maxConcurrent: simulationSemaphore.maxConcurrent,
-        maxQueue: simulationSemaphore.maxQueueSize,
-        queueTimeoutMs: SIMULATION_QUEUE_TIMEOUT_MS,
-      },
-      memory: {
-        totalMB: Math.round(totalmem() / (1024 * 1024)),
-        freeMB: Math.round(freemem() / (1024 * 1024)),
-        pressureThresholdMB: MEMORY_PRESSURE_THRESHOLD_MB,
-        hardLimitMB: MEMORY_PRESSURE_HARD_LIMIT_MB,
-      },
-    }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        edbServerRunning: false,
+        activeSessions: keepAliveSessions.size,
+        traceDetailHandles: traceDetailStore.size,
+        traceDetailBytes: Array.from(traceDetailStore.values()).reduce(
+          (sum, entry) => sum + getTraceDetailEntryBytes(entry),
+          0,
+        ),
+        concurrency: {
+          activeSimulations: simulationSemaphore.activeCount,
+          queuedRequests: simulationSemaphore.queueLength,
+          maxConcurrent: simulationSemaphore.maxConcurrent,
+          maxQueue: simulationSemaphore.maxQueueSize,
+          queueTimeoutMs: SIMULATION_QUEUE_TIMEOUT_MS,
+        },
+        memory: {
+          totalMB: Math.round(totalmem() / (1024 * 1024)),
+          freeMB: Math.round(freemem() / (1024 * 1024)),
+          pressureThresholdMB: MEMORY_PRESSURE_THRESHOLD_MB,
+          hardLimitMB: MEMORY_PRESSURE_HARD_LIMIT_MB,
+        },
+      }),
+    );
     return;
   }
 
@@ -193,30 +202,41 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "Access-Control-Allow-Origin": ALLOWED_ORIGINS.size > 0 && ALLOWED_ORIGINS.has(origin) ? origin : ALLOWED_ORIGINS.size === 0 ? "*" : "",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin":
+          ALLOWED_ORIGINS.size > 0 && ALLOWED_ORIGINS.has(origin)
+            ? origin
+            : ALLOWED_ORIGINS.size === 0
+              ? "*"
+              : "",
       });
 
       if (job.status === "ready") {
-        res.write(`event: ready\ndata: ${JSON.stringify({
-          sessionId: job.sessionId,
-          snapshotCount: job.snapshotCount,
-          sourceFiles: job.sourceFiles,
-        })}\n\n`);
+        res.write(
+          `event: ready\ndata: ${JSON.stringify({
+            sessionId: job.sessionId,
+            snapshotCount: job.snapshotCount,
+            sourceFiles: job.sourceFiles,
+          })}\n\n`,
+        );
         res.end();
         return;
       }
       if (job.status === "failed") {
-        res.write(`event: failed\ndata: ${JSON.stringify({ error: job.error })}\n\n`);
+        res.write(
+          `event: failed\ndata: ${JSON.stringify({ error: job.error })}\n\n`,
+        );
         res.end();
         return;
       }
 
-      res.write(`event: stage\ndata: ${JSON.stringify({
-        stage: job.stage || "queued",
-        progressPct: job.progressPct || 0,
-        message: job.message || "Waiting...",
-      })}\n\n`);
+      res.write(
+        `event: stage\ndata: ${JSON.stringify({
+          stage: job.stage || "queued",
+          progressPct: job.progressPct || 0,
+          message: job.message || "Waiting...",
+        })}\n\n`,
+      );
 
       job.sseClients.add(res);
       req.on("close", () => {
@@ -236,17 +256,19 @@ const server = http.createServer(async (req, res) => {
       }
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        prepareId: job.prepareId,
-        status: job.status,
-        stage: job.stage,
-        progressPct: job.progressPct,
-        message: job.message,
-        sessionId: job.sessionId,
-        snapshotCount: job.snapshotCount,
-        sourceFiles: job.sourceFiles,
-        error: job.error,
-      }));
+      res.end(
+        JSON.stringify({
+          prepareId: job.prepareId,
+          status: job.status,
+          stage: job.stage,
+          progressPct: job.progressPct,
+          message: job.message,
+          sessionId: job.sessionId,
+          snapshotCount: job.snapshotCount,
+          sourceFiles: job.sourceFiles,
+          error: job.error,
+        }),
+      );
       return;
     }
 
@@ -293,11 +315,17 @@ const server = http.createServer(async (req, res) => {
             break;
           }
 
-          const useKeepAlive = rpcUrl && (transaction || (mode === "onchain" && txHash)) && enableDebug !== false;
+          const useKeepAlive =
+            rpcUrl &&
+            (transaction || (mode === "onchain" && txHash)) &&
+            enableDebug !== false;
           if (useKeepAlive) {
             try {
-              console.log("[simulator-bridge] running simulation with keep-alive for debugging");
-              const { result, session } = await runSimulationWithKeepAlive(payload);
+              console.log(
+                "[simulator-bridge] running simulation with keep-alive for debugging",
+              );
+              const { result, session } =
+                await runSimulationWithKeepAlive(payload);
 
               if (session) {
                 result.debugSession = {
@@ -307,21 +335,42 @@ const server = http.createServer(async (req, res) => {
                 };
               }
 
-              if (result.renderedTrace && typeof result.renderedTrace === "object") {
+              if (
+                result.renderedTrace &&
+                typeof result.renderedTrace === "object"
+              ) {
                 const rt = result.renderedTrace;
                 if (Array.isArray(rt.rows) && rt.rows.length > 0) {
                   result.traceSchemaVersion = 3;
                   const rawTrace = result.rawTrace;
                   if (rawTrace && typeof rawTrace === "object") {
-                    for (const field of ["snapshots", "sources", "opcodeTrace"]) {
+                    for (const field of [
+                      "snapshots",
+                      "sources",
+                      "opcodeTrace",
+                    ]) {
                       if (rawTrace[field]) delete rawTrace[field];
-                      if (rawTrace.inner && typeof rawTrace.inner === "object" && rawTrace.inner[field]) delete rawTrace.inner[field];
+                      if (
+                        rawTrace.inner &&
+                        typeof rawTrace.inner === "object" &&
+                        rawTrace.inner[field]
+                      )
+                        delete rawTrace.inner[field];
                     }
-                    if (rawTrace.artifacts && typeof rawTrace.artifacts === "object") {
-                      for (const [addr, artifact] of Object.entries(rawTrace.artifacts)) {
+                    if (
+                      rawTrace.artifacts &&
+                      typeof rawTrace.artifacts === "object"
+                    ) {
+                      for (const [addr, artifact] of Object.entries(
+                        rawTrace.artifacts,
+                      )) {
                         if (artifact && typeof artifact === "object") {
-                          const cName = artifact.meta?.ContractName || artifact.meta?.Name || null;
-                          const storageLayout = extractStorageLayoutFromArtifact(artifact, cName);
+                          const cName =
+                            artifact.meta?.ContractName ||
+                            artifact.meta?.Name ||
+                            null;
+                          const storageLayout =
+                            extractStorageLayoutFromArtifact(artifact, cName);
                           rawTrace.artifacts[addr] = {
                             ...(artifact.meta ? { meta: artifact.meta } : {}),
                             ...(storageLayout ? { storageLayout } : {}),
@@ -330,30 +379,45 @@ const server = http.createServer(async (req, res) => {
                       }
                     }
                   }
-                  console.log(`[simulator-bridge] keep-alive V3 rendered trace: ${rt.rows.length} rows`);
+                  console.log(
+                    `[simulator-bridge] keep-alive V3 rendered trace: ${rt.rows.length} rows`,
+                  );
                 }
               }
 
-              const responsePayload = enableLiteTraceTransport ? applyLiteTraceTransport(result) : result;
+              const responsePayload = enableLiteTraceTransport
+                ? applyLiteTraceTransport(result)
+                : result;
               sendJson(res, req, 200, responsePayload);
             } catch (err) {
-              console.error("[simulator-bridge] keep-alive simulation failed:", err);
+              console.error(
+                "[simulator-bridge] keep-alive simulation failed:",
+                err,
+              );
 
-              const isOutputTooLarge = err.message?.includes('too large') ||
-                                        err.message?.includes('ERR_STRING_TOO_LONG') ||
-                                        err.message?.includes('string longer than');
+              const isOutputTooLarge =
+                err.message?.includes("too large") ||
+                err.message?.includes("ERR_STRING_TOO_LONG") ||
+                err.message?.includes("string longer than");
               if (isOutputTooLarge) {
-                console.error("[simulator-bridge] trace output exceeds Node.js string limit, cannot proceed");
+                console.error(
+                  "[simulator-bridge] trace output exceeds Node.js string limit, cannot proceed",
+                );
                 res.writeHead(413, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({
-                  success: false,
-                  error: "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
-                  details: err.message,
-                }));
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    error:
+                      "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
+                    details: err.message,
+                  }),
+                );
                 break;
               }
 
-              console.log("[simulator-bridge] falling back to regular simulation");
+              console.log(
+                "[simulator-bridge] falling back to regular simulation",
+              );
               const result = await runSimulation(payload);
               let responsePayload = parseSimulationResult(result);
               if (enableLiteTraceTransport) {
@@ -371,22 +435,28 @@ const server = http.createServer(async (req, res) => {
               sendJson(res, req, 200, responsePayload);
             } catch (err) {
               console.error("[simulator-bridge] simulation failed:", err);
-              const isOutputTooLarge = err.message?.includes('too large') ||
-                                        err.message?.includes('ERR_STRING_TOO_LONG') ||
-                                        err.message?.includes('string longer than');
+              const isOutputTooLarge =
+                err.message?.includes("too large") ||
+                err.message?.includes("ERR_STRING_TOO_LONG") ||
+                err.message?.includes("string longer than");
               if (isOutputTooLarge) {
                 res.writeHead(413, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({
-                  success: false,
-                  error: "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
-                  details: err.message,
-                }));
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    error:
+                      "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
+                    details: err.message,
+                  }),
+                );
               } else {
                 res.writeHead(500, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({
-                  success: false,
-                  error: err.message || "Simulation failed",
-                }));
+                res.end(
+                  JSON.stringify({
+                    success: false,
+                    error: err.message || "Simulation failed",
+                  }),
+                );
               }
             }
           }
@@ -418,7 +488,10 @@ const server = http.createServer(async (req, res) => {
         try {
           decodedFields = decodeTraceDetailPayload(detailEntry);
         } catch (error) {
-          console.error("[simulator-bridge] failed to decode trace detail payload:", error);
+          console.error(
+            "[simulator-bridge] failed to decode trace detail payload:",
+            error,
+          );
           traceDetailStore.delete(id);
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "trace_detail_decode_failed" }));
@@ -439,14 +512,22 @@ const server = http.createServer(async (req, res) => {
       // =========================================================================
 
       case "/debug/prepare": {
-        const { rpcUrl, chainId, blockTag, transaction, txHash, artifacts, artifacts_inline } =
-          body;
+        const {
+          rpcUrl,
+          chainId,
+          blockTag,
+          transaction,
+          txHash,
+          artifacts,
+          artifacts_inline,
+        } = body;
 
         if (!rpcUrl || !chainId || (!transaction && !txHash)) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(
             JSON.stringify({
-              error: "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
+              error:
+                "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
             }),
           );
           return;
@@ -484,7 +565,10 @@ const server = http.createServer(async (req, res) => {
           artifacts,
           artifacts_inline,
         }).catch((err) => {
-          console.error(`[simulator-bridge] uncaught error in debug prep ${prepareId}:`, err);
+          console.error(
+            `[simulator-bridge] uncaught error in debug prep ${prepareId}:`,
+            err,
+          );
         });
 
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -493,14 +577,22 @@ const server = http.createServer(async (req, res) => {
       }
 
       case "/debug/start": {
-        const { rpcUrl, chainId, blockTag, transaction, txHash, artifacts, artifacts_inline } =
-          body;
+        const {
+          rpcUrl,
+          chainId,
+          blockTag,
+          transaction,
+          txHash,
+          artifacts,
+          artifacts_inline,
+        } = body;
 
         if (!rpcUrl || !chainId || (!transaction && !txHash)) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(
             JSON.stringify({
-              error: "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
+              error:
+                "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
             }),
           );
           return;
@@ -530,17 +622,27 @@ const server = http.createServer(async (req, res) => {
 
         if (!sessionId || !method) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Missing required fields: sessionId, method" }));
+          res.end(
+            JSON.stringify({
+              error: "Missing required fields: sessionId, method",
+            }),
+          );
           return;
         }
 
         const keepAliveSession = keepAliveSessions.get(sessionId);
         if (keepAliveSession) {
-          const result = await makeKeepAliveRpcCall(keepAliveSession, method, params || []);
+          const result = await makeKeepAliveRpcCall(
+            keepAliveSession,
+            method,
+            params || [],
+          );
           sendJson(res, req, 200, { result });
         } else {
           res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: `Debug session not found: ${sessionId}` }));
+          res.end(
+            JSON.stringify({ error: `Debug session not found: ${sessionId}` }),
+          );
         }
         break;
       }
@@ -550,7 +652,9 @@ const server = http.createServer(async (req, res) => {
 
         if (!sessionId) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Missing required field: sessionId" }));
+          res.end(
+            JSON.stringify({ error: "Missing required field: sessionId" }),
+          );
           return;
         }
 
@@ -601,21 +705,33 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   cleanupStaleKeepAliveProcesses();
   console.log(`[simulator-bridge] listening on http://127.0.0.1:${PORT}`);
-  console.log(`[simulator-bridge] using simulator binary at ${SIMULATOR_BINARY_PATH}`);
+  console.log(
+    `[simulator-bridge] using simulator binary at ${SIMULATOR_BINARY_PATH}`,
+  );
   console.log(`[simulator-bridge] endpoints:`);
   console.log(`  POST /simulate     - Run quick simulation`);
   console.log(`  POST /trace/detail - Fetch heavy trace payload fields`);
-  console.log(`  POST /debug/prepare - Start async debug preparation (returns prepareId)`);
-  console.log(`  GET  /debug/prepare/:id/events - SSE stream for debug prep progress`);
+  console.log(
+    `  POST /debug/prepare - Start async debug preparation (returns prepareId)`,
+  );
+  console.log(
+    `  GET  /debug/prepare/:id/events - SSE stream for debug prep progress`,
+  );
   console.log(`  GET  /debug/prepare/:id - Poll debug prep status`);
   console.log(`  POST /debug/start  - Start debug session (synchronous)`);
   console.log(`  POST /debug/rpc    - Call debug RPC method`);
   console.log(`  POST /debug/end    - End debug session`);
   console.log(`  POST /debug/sessions - List active sessions`);
   console.log(`  GET  /health       - Health check`);
-  console.log(`[simulator-bridge] concurrency: max=${MAX_CONCURRENT_SIMULATIONS} processes, queue=${SIMULATION_QUEUE_MAX}, queue_timeout=${SIMULATION_QUEUE_TIMEOUT_MS}ms`);
-  console.log(`[simulator-bridge] memory-pressure: evict_threshold=${MEMORY_PRESSURE_THRESHOLD_MB}MB, hard_limit=${MEMORY_PRESSURE_HARD_LIMIT_MB}MB, system_total=${Math.round(totalmem() / (1024 * 1024))}MB`);
-  console.log(`[simulator-bridge] keep-alive: max_sessions=${KEEP_ALIVE_MAX_SESSIONS}, idle_ttl=${KEEP_ALIVE_IDLE_TTL_MS / 1000}s, sweep_interval=${KEEP_ALIVE_SWEEP_INTERVAL_MS / 1000}s`);
+  console.log(
+    `[simulator-bridge] concurrency: max=${MAX_CONCURRENT_SIMULATIONS} processes, queue=${SIMULATION_QUEUE_MAX}, queue_timeout=${SIMULATION_QUEUE_TIMEOUT_MS}ms`,
+  );
+  console.log(
+    `[simulator-bridge] memory-pressure: evict_threshold=${MEMORY_PRESSURE_THRESHOLD_MB}MB, hard_limit=${MEMORY_PRESSURE_HARD_LIMIT_MB}MB, system_total=${Math.round(totalmem() / (1024 * 1024))}MB`,
+  );
+  console.log(
+    `[simulator-bridge] keep-alive: max_sessions=${KEEP_ALIVE_MAX_SESSIONS}, idle_ttl=${KEEP_ALIVE_IDLE_TTL_MS / 1000}s, sweep_interval=${KEEP_ALIVE_SWEEP_INTERVAL_MS / 1000}s`,
+  );
 });
 
 function gracefulShutdown(signal) {
@@ -624,7 +740,9 @@ function gracefulShutdown(signal) {
   simulationSemaphore.drainAndRejectAll();
 
   if (keepAliveSessions.size > 0) {
-    console.log(`[simulator-bridge] stopping ${keepAliveSessions.size} keep-alive session(s)`);
+    console.log(
+      `[simulator-bridge] stopping ${keepAliveSessions.size} keep-alive session(s)`,
+    );
     for (const sessionId of keepAliveSessions.keys()) {
       endKeepAliveSession(sessionId);
     }

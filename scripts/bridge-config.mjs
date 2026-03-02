@@ -7,6 +7,10 @@ import { existsSync } from "node:fs";
 import { totalmem, freemem } from "node:os";
 
 export const PORT = Number(process.env.SIMULATOR_BRIDGE_PORT ?? 5789);
+export const EDB_API_KEY = process.env.EDB_API_KEY || "";
+export const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
 export const EDB_WS_PORT = Number(process.env.EDB_WS_PORT ?? 9001);
 export const TRACE_DETAIL_TTL_MS = Number(process.env.TRACE_DETAIL_TTL_MS ?? 30 * 60 * 1000);
 export const TRACE_DETAIL_MAX_ENTRIES = Number(process.env.TRACE_DETAIL_MAX_ENTRIES ?? 64);
