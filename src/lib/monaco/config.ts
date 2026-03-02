@@ -13,7 +13,7 @@ import type { editor } from 'monaco-editor';
 
 // ─── CDN ─────────────────────────────────────────────────────────
 
-const MONACO_CDN_VERSION = '0.45.0';
+const MONACO_CDN_VERSION = '0.55.1';
 
 /** Call once at app startup (main.tsx) to set the CDN path. */
 export function configureMonacoCdn(): void {
