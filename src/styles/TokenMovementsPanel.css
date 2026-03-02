@@ -1,0 +1,382 @@
+/* Token Movements Panel - Token transfer summary */
+
+.token-movements-panel {
+  background: rgba(15, 15, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+/* Header with tabs and grouping */
+.token-movements-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(20, 20, 28, 0.4);
+}
+
+/* Token type tabs */
+.token-movements-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.token-movements-tab {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.token-movements-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+}
+
+.token-movements-tab.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #e5e5e5;
+}
+
+/* Grouping toggle */
+.token-movements-grouping {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grouping-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.grouping-btn {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.grouping-btn:first-of-type {
+  border-radius: 4px 0 0 4px;
+}
+
+.grouping-btn:last-of-type {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.grouping-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.grouping-btn.active {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #e5e5e5;
+}
+
+/* Table wrapper */
+.token-movements-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Direction group divider (between outgoing and incoming rows) */
+.token-movements-table tr.token-movements-group-divider td {
+  padding: 0;
+  border-bottom: none;
+  height: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Table styles */
+.token-movements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.token-movements-table thead th {
+  text-align: left;
+  padding: 4px 10px;
+  color: #666;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(15, 15, 20, 0.3);
+}
+
+/* Address-grouped table widths */
+.token-movements-table--address th:nth-child(1),
+.token-movements-table--address td:nth-child(1) {
+  width: 22%;
+}
+
+.token-movements-table--address th:nth-child(2),
+.token-movements-table--address td:nth-child(2) {
+  width: 18%;
+}
+
+.token-movements-table--address th:nth-child(3),
+.token-movements-table--address td:nth-child(3) {
+  width: 38%;
+  text-align: right;
+}
+
+.token-movements-table--address th:nth-child(4),
+.token-movements-table--address td:nth-child(4) {
+  width: 22%;
+  text-align: right;
+}
+
+/* Chronological table widths */
+.token-movements-table--chronological th:nth-child(1),
+.token-movements-table--chronological td:nth-child(1) {
+  width: 18%;
+}
+
+.token-movements-table--chronological th:nth-child(2),
+.token-movements-table--chronological td:nth-child(2) {
+  width: 18%;
+}
+
+.token-movements-table--chronological th:nth-child(3),
+.token-movements-table--chronological td:nth-child(3) {
+  width: 11%;
+  text-align: right;
+}
+
+.token-movements-table--chronological th:nth-child(4),
+.token-movements-table--chronological td:nth-child(4) {
+  width: 15%;
+}
+
+.token-movements-table--chronological th:nth-child(5),
+.token-movements-table--chronological td:nth-child(5) {
+  width: 11%;
+}
+
+.token-movements-table--chronological th:nth-child(6),
+.token-movements-table--chronological td:nth-child(6) {
+  width: 10%;
+}
+
+.token-movements-table--chronological th:nth-child(7),
+.token-movements-table--chronological td:nth-child(7) {
+  width: 17%;
+}
+
+.token-movements-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.1s ease;
+}
+
+.token-movements-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.token-movements-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.token-movements-table td {
+  padding: 4px 10px;
+  vertical-align: middle;
+}
+
+/* Address cell */
+.address-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.address-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.address-icon.icon-out {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.address-icon.icon-in {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.address-value {
+  color: #d4d4d4;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.address-label {
+  color: #22c55e;
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Token cell */
+.token-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-cell-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.token-icon-img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.token-icon-fallback {
+  color: #6b7280;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.token-symbol {
+  color: #e2e8f0;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.token-address-fallback {
+  color: #6b7280;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.token-id {
+  color: #888;
+  font-size: 10px;
+}
+
+/* Token ID cell (for NFTs) */
+.token-id-cell {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+  color: #d4d4d4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Delta cell */
+.delta-cell {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-weight: 500;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delta-cell.delta-negative {
+  color: #ef4444;
+}
+
+.delta-cell.delta-positive {
+  color: #22c55e;
+}
+
+/* USD value cell */
+.usd-cell {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+  color: #6b7280;
+}
+
+.usd-cell.delta-negative {
+  color: #ef4444;
+}
+
+.usd-cell.delta-positive {
+  color: #22c55e;
+}
+
+/* Empty state */
+.token-movements-empty {
+  padding: 12px;
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+}
+
+/* ======================================
+   Cross-reference highlighting
+   ====================================== */
+
+/* Base highlightable value styling */
+.token-movements-panel .highlightable-value {
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+}
+
+.token-movements-panel .highlightable-value:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Highlighted state - indigo theme matching trace */
+.token-movements-panel .highlightable-value.highlighted {
+  background-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .token-movements-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .token-movements-table {
+    font-size: 13px;
+  }
+
+  .token-movements-table td,
+  .token-movements-table th {
+    padding: 8px 12px;
+  }
+}

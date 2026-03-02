@@ -7,6 +7,7 @@ import {
   type SelectorFunctionStub,
 } from "./whatsabiFetcher";
 import { fetchContractABIMultiSource } from "./multiSourceAbiFetcher";
+import { networkConfigManager } from "../config/networkConfig";
 
 // Diamond facet information
 export interface DiamondFacet {
@@ -49,36 +50,21 @@ interface FacetFetchOptions {
 }
 
 const facetFetchCache = new Map<string, Promise<DiamondFacet | null>>();
+const FACET_CACHE_MAX_SIZE = 200;
 
 // Batch processing configuration
 const BATCH_SIZE = 6;
 const FETCH_TIMEOUT = 10000; // 10 seconds per facet
 
-// Get API key from environment
-const API_KEY =
-  (import.meta.env as unknown as { VITE_API_KEY?: string }).VITE_API_KEY ||
-  (import.meta.env as unknown as { API_KEY?: string }).API_KEY ||
-  "";
-
 // Helper to get RPC URL for a chain
 function getRpcUrl(chain: Chain): string {
-  // Prefer the chain-provided RPC first
-  if (chain.rpcUrl) {
-    return chain.rpcUrl as string;
+  const resolved = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
+  if (resolved?.url) {
+    return resolved.url;
   }
 
-  // Fallbacks by numeric chain id
-  const id = chain.id;
-  if (id === 1) return `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}`;
-  if (id === 8453)
-    return API_KEY
-      ? `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`
-      : "https://mainnet.base.org";
-  if (id === 137) return `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`;
-  if (id === 42161) return `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`;
-  if (id === 10) return `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}`;
-  // Common public fallbacks
-  return "https://cloudflare-eth.com";
+  // Use the chain's default RPC as final fallback
+  return chain.rpcUrl;
 }
 
 // Helper to get explorer API URLs (using Vite proxy paths)
@@ -345,11 +331,7 @@ async function fetchFacetSelectors(
       facetAddress
     );
     return (selectors || []).map((selector) => selector.toLowerCase());
-  } catch (error) {
-    console.warn(
-      `Failed to fetch facetFunctionSelectors for ${facetAddress}:`,
-      error
-    );
+  } catch {
     return [];
   }
 }
@@ -421,11 +403,8 @@ async function fetchFacetABI(
           }
         }
       }
-    } catch (error) {
-      console.warn(
-        `Aggregator ABI fetch failed for ${facetAddress}:`,
-        error
-      );
+    } catch {
+      // Aggregator ABI fetch failed, try individual sources
     }
 
     if (!resolvedAbi) {
@@ -500,11 +479,8 @@ async function fetchFacetABI(
             isVerified = result.confidence === "verified";
           }
           break;
-        } catch (fallbackError) {
-          console.warn(
-            `Fallback ABI fetch failed for ${facetAddress} via ${runnerEntry.key}:`,
-            fallbackError
-          );
+        } catch {
+          // Fallback ABI fetch failed, try next source
         }
       }
     }
@@ -520,11 +496,8 @@ async function fetchFacetABI(
         confidence = whatsabiResult.confidence;
         selectors = whatsabiResult.selectors || [];
       }
-    } catch (error) {
-      console.warn(
-        `WhatsABI analysis failed for facet ${facetAddress}:`,
-        error
-      );
+    } catch {
+      // WhatsABI analysis failed, try selector-based inference
     }
   }
 
@@ -551,11 +524,8 @@ async function fetchFacetABI(
         confidence = selectorStubs.some((stub) => stub.confidence === "inferred")
           ? "inferred"
           : "extracted";
-      } catch (error) {
-        console.warn(
-          `Failed to build selector stubs for facet ${facetAddress}:`,
-          error
-        );
+      } catch {
+        // Selector stub building failed
       }
     }
   }
@@ -588,6 +558,16 @@ async function fetchFacetABI(
   })();
 
   facetFetchCache.set(cacheKey, promise);
+
+  // LRU eviction: if cache exceeds max size, delete oldest entries
+  if (facetFetchCache.size > FACET_CACHE_MAX_SIZE) {
+    const keysIter = facetFetchCache.keys();
+    while (facetFetchCache.size > FACET_CACHE_MAX_SIZE) {
+      const oldest = keysIter.next();
+      if (oldest.done) break;
+      facetFetchCache.delete(oldest.value);
+    }
+  }
 
   try {
     const result = await promise;
@@ -626,8 +606,8 @@ async function processBatch(
         status: "fetching",
         index: ordinal,
       });
-    } catch (error) {
-      console.warn("Progress callback failed:", error);
+    } catch {
+      // Progress callback failed
     }
 
     const facet = await fetchFacetABI(
@@ -657,8 +637,8 @@ async function processBatch(
           index: ordinal,
         });
       }
-    } catch (error) {
-      console.warn("Progress callback failed:", error);
+    } catch {
+      // Progress callback failed
     }
 
     return facet;
@@ -770,16 +750,12 @@ export async function getDiamondFacetAddresses(
         new Set((facets || []).map((f) => f.facetAddress))
       ).filter(Boolean);
       return addresses;
-    } catch (e2) {
-      console.error(
-        "Error fetching Diamond facet addresses (fallback facets()):",
-        e2
-      );
+    } catch {
+      // Fallback facets() also failed
     }
 
     return [];
-  } catch (error) {
-    console.error("Error fetching Diamond facet addresses:", error);
+  } catch {
     return [];
   }
 }

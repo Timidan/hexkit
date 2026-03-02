@@ -1,76 +1,45 @@
-import { ethers } from "ethers";
+/**
+ * Simulation artifact extraction and helpers.
+ *
+ * Types live in ./simulationArtifactTypes.ts
+ * EDB trace conversion lives in ./edbTraceConverter.ts
+ * This file is the entry point and re-exports everything.
+ */
+
 import type { SimulationResult } from "../types/transaction";
 
-export type SimulationCallNode = {
-  frameKey: string;
-  type?: string;
-  from?: string;
-  to?: string;
-  functionName?: string;
-  label?: string;
-  gasUsed?: string | number;
-  value?: string | number;
-  input?: string;
-  output?: string;
-  depth?: number;
-  error?: string | null;
-  children?: SimulationCallNode[];
-};
+// Re-export types
+export type {
+  SimulationCallNode,
+  SimulationEventEntry,
+  SimulationStorageDiffEntry,
+  SimulationAssetChangeEntry,
+  SimulationSnapshotEntry,
+  LightweightOpcodeEntry,
+  SimulationArtifacts,
+  ExtractSimulationArtifactsOptions,
+} from "./simulationArtifactTypes";
 
-export type SimulationEventEntry = {
-  name?: string;
-  signature?: string;
-  address?: string;
-  decoded?: unknown;
-  data?: unknown;
-};
+import type {
+  SimulationCallNode,
+  SimulationAssetChangeEntry,
+  SimulationStorageDiffEntry,
+  SimulationSnapshotEntry,
+  LightweightOpcodeEntry,
+  SimulationArtifacts,
+  ExtractSimulationArtifactsOptions,
+} from "./simulationArtifactTypes";
 
-export type SimulationStorageDiffEntry = {
-  address?: string;
-  slot?: string;
-  key?: string;
-  before?: string;
-  after?: string;
-  value?: string;
-};
+// Re-export EDB converter helpers
+export {
+  convertEdbTraceToArtifacts,
+  normalizeAssetChangeEntry,
+  buildOpcodeTraceFromTraceLiteRows,
+} from "./edbTraceConverter";
 
-export type SimulationAssetChangeEntry = {
-  address?: string;
-  symbol?: string;
-  amount?: string;
-  rawAmount?: string;
-  direction?: "in" | "out";
-  counterparty?: string;
-  name?: string;
-};
+import { convertEdbTraceToArtifacts, normalizeAssetChangeEntry, buildOpcodeTraceFromTraceLiteRows } from "./edbTraceConverter";
 
-export type SimulationSnapshotEntry = {
-  id?: number;
-  frameId?: number;
-  type: "opcode" | "hook";
-  targetAddress?: string;
-  bytecodeAddress?: string;
-  pc?: number;
-  opcode?: number;
-  stackTop?: string | null;
-  stackDepth?: number;
-  calldata?: string | null;
-  sourcePath?: string | null;
-  sourceOffset?: number | null;
-  sourceLength?: number | null;
-  locals?: Record<string, unknown> | null;
-  state?: Record<string, unknown> | null;
-};
-
-export interface SimulationArtifacts {
-  callTree: SimulationCallNode[];
-  events: SimulationEventEntry[];
-  assetChanges: SimulationAssetChangeEntry[];
-  storageDiffs: SimulationStorageDiffEntry[];
-  snapshots: SimulationSnapshotEntry[];
-  rawReturnData: string | null;
-  rawPayload: string | null;
-}
+// ---- shared utilities -------------------------------------------------
 
 export const ensureArray = <T,>(value: unknown, mapFn?: (item: any) => T): T[] => {
   if (Array.isArray(value)) {
@@ -87,297 +56,72 @@ export const normalizeHex = (value: unknown): string | null => {
   return value.startsWith("0x") ? value : `0x${value}`;
 };
 
-const normalizeTraceAddress = (value: unknown): string | undefined => {
-  if (typeof value !== "string") {
-    return undefined;
+const parseRawTracePayload = (rawTrace: unknown): Record<string, any> | null => {
+  if (!rawTrace) return null;
+  let trace: any = rawTrace;
+  if (typeof trace === "string") {
+    try {
+      trace = JSON.parse(trace);
+    } catch {
+      return null;
+    }
   }
-  try {
-    return ethers.utils.getAddress(value);
-  } catch {
-    return value;
-  }
-};
-
-const parseTraceValue = (value: unknown): ethers.BigNumber | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (ethers.BigNumber.isBigNumber(value)) {
-    return ethers.BigNumber.from(value);
-  }
-
-  if (typeof value === "object") {
-    const maybeHex =
-      (value as any)?._hex ??
-      (value as any)?.hex ??
-      (value as any)?.value ??
-      (value as any)?.raw;
-    if (typeof maybeHex === "string") {
+  if (trace && typeof trace === "object" && trace.rawTrace) {
+    trace = trace.rawTrace;
+    if (typeof trace === "string") {
       try {
-        return ethers.BigNumber.from(maybeHex);
+        trace = JSON.parse(trace);
       } catch {
         return null;
       }
     }
   }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return null;
-    }
-    try {
-      if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
-        return ethers.BigNumber.from(trimmed);
-      }
-      return ethers.BigNumber.from(trimmed);
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    return ethers.BigNumber.from(value as any);
-  } catch {
-    return null;
-  }
+  return trace && typeof trace === "object" ? (trace as Record<string, any>) : null;
 };
 
-const normalizeAssetChangeEntry = (
-  entry: any
-): SimulationAssetChangeEntry | null => {
-  if (!entry || typeof entry !== "object") {
-    return null;
-  }
-  const directionRaw = entry.direction ?? entry.flow ?? entry.type;
-  const direction =
-    directionRaw === "in" ||
-    directionRaw === "out" ||
-    directionRaw === "incoming" ||
-    directionRaw === "outgoing"
-      ? (directionRaw.startsWith("in") ? "in" : "out")
-      : undefined;
+export const buildOpcodeTraceFromSnapshots = (
+  rawTrace: unknown
+): LightweightOpcodeEntry[] => {
+  const traceObj = parseRawTracePayload(rawTrace);
+  if (!traceObj) return [];
+  const snapshotEntries = ensureArray(traceObj.snapshots ?? traceObj.inner?.snapshots);
+  if (snapshotEntries.length === 0) return [];
 
-  return {
-    address: entry.address ?? entry.account ?? entry.owner ?? undefined,
-    symbol:
-      entry.symbol ??
-      entry.token_symbol ??
-      entry.tokenSymbol ??
-      entry.asset ??
-      undefined,
-    amount: entry.amount ?? entry.display ?? entry.formatted ?? undefined,
-    rawAmount:
-      entry.rawAmount ??
-      entry.raw_amount ??
-      entry.raw ??
-      entry.value ??
-      entry.amount_raw ??
-      undefined,
-    direction,
-    counterparty:
-      entry.counterparty ??
-      entry.counterParty ??
-      entry.peer ??
-      entry.from ??
-      entry.to ??
-      undefined,
-    name:
-      entry.name ?? entry.label ?? entry.description ?? entry.asset ?? undefined,
-  };
-};
+  const opcodeTrace: LightweightOpcodeEntry[] = [];
+  snapshotEntries.forEach((entry: any, index: number) => {
+    if (!entry || typeof entry !== "object") return;
+    const detail = entry.detail ?? entry.Detail ?? entry;
+    const opcodeDetail = detail?.Opcode ?? detail?.opcode;
+    if (!opcodeDetail || typeof opcodeDetail !== "object") return;
 
-const convertEdbTraceToArtifacts = (
-  traceEntries: any[]
-): {
-  callTree: SimulationCallNode[];
-  events: SimulationEventEntry[];
-  assetChanges: SimulationAssetChangeEntry[];
-} => {
-  type InternalNode = SimulationCallNode & {
-    __internalId: number;
-    __children?: InternalNode[];
-  };
-
-  const nodes = new Map<number, InternalNode>();
-  const childrenBucket = new Map<number, InternalNode[]>();
-  const events: SimulationEventEntry[] = [];
-  const assetChanges: SimulationAssetChangeEntry[] = [];
-
-  const recordEthTransfer = (
-    address: string | undefined,
-    value: ethers.BigNumber,
-    direction: "in" | "out",
-    counterparty?: string
-  ) => {
-    if (!address || value.isZero()) {
-      return;
-    }
-    const formatted = ethers.utils.formatEther(value);
-    const prefix = direction === "in" ? "+" : "-";
-    assetChanges.push({
-      address,
-      symbol: "ETH",
-      name: "Ether",
-      amount: `${prefix}${formatted}`,
-      rawAmount: value.toString(),
-      direction,
-      counterparty,
-    });
-  };
-
-  traceEntries.forEach((entryRaw: any) => {
-    if (!entryRaw || typeof entryRaw !== "object") {
-      return;
-    }
-
-    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
-    if (!Number.isFinite(id)) {
-      return;
-    }
-
-    const callType =
-      entryRaw.call_type ??
-      entryRaw.type ??
-      entryRaw.kind ??
-      (entryRaw.callType?.Call ?? entryRaw.callType);
-
-    const fromAddress = normalizeTraceAddress(entryRaw.caller ?? entryRaw.from);
-    const toAddress = normalizeTraceAddress(
-      entryRaw.target ?? entryRaw.to ?? entryRaw.address
+    const stackArray = ensureArray(opcodeDetail.stack).map((item) =>
+      typeof item === "string" ? item : JSON.stringify(item)
     );
+    const storageRead =
+      opcodeDetail.storage_read ?? opcodeDetail.storageRead ?? entry.storageRead ?? entry.storage_read ?? null;
+    const storageWrite =
+      opcodeDetail.storage_write ?? opcodeDetail.storageWrite ?? entry.storageWrite ?? entry.storage_write ?? null;
 
-    const result = entryRaw.result ?? {};
-    const depthValue = Number(entryRaw.depth ?? 0);
-    const errorValue =
-      result?.Revert?.reason ||
-      result?.Error?.reason ||
-      result?.Revert?.output ||
-      result?.Error?.output ||
-      null;
-    const node: InternalNode = {
-      __internalId: id,
-      frameKey: entryRaw.frame_key ?? `${id}:${depthValue}`,
-      type:
-        typeof callType === "string"
-          ? callType
-          : typeof callType === "object"
-          ? Object.keys(callType)[0]
-          : undefined,
-      from: fromAddress,
-      to: toAddress,
-      functionName:
-        entryRaw.target_label ??
-        entryRaw.function_name ??
-        entryRaw.functionName ??
-        undefined,
-      label:
-        entryRaw.target_label ??
-        entryRaw.label ??
-        entryRaw.display ??
-        undefined,
-      depth: depthValue,
-      error: typeof errorValue === "string" ? errorValue : null,
-      gasUsed:
-        result.gas_used ??
-        result.gasUsed ??
-        entryRaw.gas_used ??
-        entryRaw.gasUsed,
-      value: entryRaw.value,
-      input: entryRaw.input,
-      output:
-        result.Success?.output ??
-        result.success?.output ??
-        result.output ??
-        result.return_data ??
-        result.returnData ??
-        entryRaw.output,
-      children: undefined,
-    };
-
-    nodes.set(id, node);
-
-    const entryEvents = ensureArray(
-      entryRaw.events ?? entryRaw.logs ?? entryRaw.event_logs
-    );
-    entryEvents.forEach((evt: any) => {
-      events.push({
-        name: evt?.name ?? evt?.event,
-        signature: evt?.signature,
-        address: evt?.address ?? node.to,
-        decoded: evt?.args ?? evt?.decoded,
-        data: evt,
-      });
+    opcodeTrace.push({
+      id: entry.id ?? opcodeDetail.id ?? index,
+      frame_id: entry.frame_id ?? opcodeDetail.frame_id,
+      pc: opcodeDetail.pc ?? entry.pc ?? 0,
+      opcode: opcodeDetail.opcode ?? entry.opcode ?? 0,
+      gas_remaining: opcodeDetail.gas_remaining ?? opcodeDetail.gasRemaining,
+      gas_used: opcodeDetail.gas_used ?? opcodeDetail.gasUsed ?? opcodeDetail.gas_cost ?? opcodeDetail.gasCost,
+      target_address: entry.target_address ?? opcodeDetail.target_address ?? opcodeDetail.targetAddress ?? entry.targetAddress,
+      bytecode_address: entry.bytecode_address ?? opcodeDetail.bytecode_address ?? opcodeDetail.bytecodeAddress ?? entry.bytecodeAddress,
+      stack_top: stackArray.length ? stackArray[stackArray.length - 1] : undefined,
+      stack_depth: stackArray.length ? stackArray.length : undefined,
+      storage_read: storageRead,
+      storage_write: storageWrite,
     });
-
-    const transferValue =
-      entryRaw.value ?? entryRaw.transfer_value ?? entryRaw.amount;
-    const valueBigNumber = parseTraceValue(transferValue);
-    if (valueBigNumber && !valueBigNumber.isZero()) {
-      recordEthTransfer(fromAddress, valueBigNumber, "out", toAddress);
-      recordEthTransfer(toAddress, valueBigNumber, "in", fromAddress);
-    }
   });
 
-  traceEntries.forEach((entryRaw: any) => {
-    if (!entryRaw || typeof entryRaw !== "object") {
-      return;
-    }
-    const id = Number(entryRaw.id ?? entryRaw.trace_id ?? entryRaw.index);
-    const node = nodes.get(id);
-    if (!node) {
-      return;
-    }
-    const parentIdRaw =
-      entryRaw.parent_id ??
-      entryRaw.parentId ??
-      entryRaw.parent_index ??
-      entryRaw.parent;
-    if (parentIdRaw === null || parentIdRaw === undefined) {
-      return;
-    }
-    const parentId = Number(parentIdRaw);
-    if (!Number.isFinite(parentId)) {
-      return;
-    }
-    const bucket = childrenBucket.get(parentId) ?? ([] as InternalNode[]);
-    bucket.push(node);
-    childrenBucket.set(parentId, bucket);
-  });
-
-  const descendantIds = new Set<number>();
-  childrenBucket.forEach((children, parentId) => {
-    const parentNode = nodes.get(parentId);
-    if (parentNode) {
-      parentNode.__children = children;
-    }
-    children.forEach((child) => descendantIds.add(child.__internalId));
-  });
-
-  const stripInternalNode = (node: InternalNode): SimulationCallNode => {
-    const {
-      __internalId: _internal,
-      __children = [],
-      children: _ignoredChildren,
-      ...rest
-    } = node;
-    const normalizedChildren = __children.map((child) => stripInternalNode(child));
-    return {
-      ...rest,
-      children: normalizedChildren.length ? normalizedChildren : undefined,
-    };
-  };
-
-  const roots: SimulationCallNode[] = [];
-  nodes.forEach((node) => {
-    if (!descendantIds.has(node.__internalId)) {
-      roots.push(stripInternalNode(node));
-    }
-  });
-
-  return { callTree: roots, events, assetChanges };
+  return opcodeTrace;
 };
+
+// ---- public helpers ---------------------------------------------------
 
 export const flattenCallTreeEntries = (
   nodes: SimulationCallNode[]
@@ -398,35 +142,46 @@ export const flattenCallTreeEntries = (
 export const getCallNodeError = (node?: SimulationCallNode | null) =>
   node?.error ?? null;
 
+// ---- main extraction --------------------------------------------------
+
 export const extractSimulationArtifacts = (
-  result: SimulationResult
+  result: SimulationResult,
+  options: ExtractSimulationArtifactsOptions = {}
 ): SimulationArtifacts => {
+  const includeRawPayload = options.includeRawPayload === true;
   const artifacts: SimulationArtifacts = {
     callTree: [],
     events: [],
     assetChanges: [],
     storageDiffs: [],
     snapshots: [],
+    opcodeTrace: [],
     rawReturnData: null,
     rawPayload: null,
   };
 
   const rawTrace = result.rawTrace;
+  const traceLiteRows = ensureArray((result as any)?.traceLite?.rows);
   if (rawTrace === null || rawTrace === undefined) {
+    if (traceLiteRows.length > 0) {
+      artifacts.opcodeTrace = buildOpcodeTraceFromTraceLiteRows(traceLiteRows);
+    }
     return artifacts;
   }
 
   if (typeof rawTrace === "string") {
-    artifacts.rawPayload = rawTrace;
+    artifacts.rawPayload = includeRawPayload ? rawTrace : null;
     artifacts.rawReturnData = normalizeHex(rawTrace);
     return artifacts;
   }
 
   if (Array.isArray(rawTrace)) {
-    try {
-      artifacts.rawPayload = JSON.stringify(rawTrace, null, 2);
-    } catch {
-      artifacts.rawPayload = null;
+    if (includeRawPayload) {
+      try {
+        artifacts.rawPayload = JSON.stringify(rawTrace, null, 2);
+      } catch {
+        artifacts.rawPayload = null;
+      }
     }
     const converted = convertEdbTraceToArtifacts(rawTrace);
     artifacts.callTree = converted.callTree;
@@ -440,21 +195,27 @@ export const extractSimulationArtifacts = (
   }
 
   const traceObj = rawTrace as Record<string, any>;
-  try {
-    artifacts.rawPayload = JSON.stringify(traceObj, null, 2);
-  } catch {
-    artifacts.rawPayload = null;
+  if (includeRawPayload) {
+    try {
+      artifacts.rawPayload = JSON.stringify(traceObj, null, 2);
+    } catch {
+      artifacts.rawPayload = null;
+    }
   }
 
-  // Handle nested inner structure (EDB can have inner.inner)
-  let innerTraceEntries = ensureArray(traceObj.inner);
-  if (innerTraceEntries.length > 0) {
-    // Check if there's another level of nesting (inner.inner)
-    const firstInner = innerTraceEntries[0];
-    if (firstInner && typeof firstInner === 'object' && firstInner.inner) {
-      innerTraceEntries = ensureArray(firstInner.inner);
-    }
+  // Handle nested inner structure (EDB has inner.inner)
+  let innerTraceEntries: any[] = [];
 
+  // First check if there's a double-nested structure: rawTrace.inner.inner
+  if (traceObj.inner && typeof traceObj.inner === 'object' && traceObj.inner.inner) {
+    innerTraceEntries = ensureArray(traceObj.inner.inner);
+  }
+  // Otherwise check if rawTrace.inner is directly an array
+  else if (traceObj.inner) {
+    innerTraceEntries = ensureArray(traceObj.inner);
+  }
+
+  if (innerTraceEntries.length > 0) {
     const converted = convertEdbTraceToArtifacts(innerTraceEntries);
     artifacts.callTree = converted.callTree;
     artifacts.events = converted.events;
@@ -485,7 +246,8 @@ export const extractSimulationArtifacts = (
     artifacts.events = eventCandidates.map((event: any) => ({
       name: event?.name || event?.event,
       signature: event?.signature,
-      address: event?.address,
+      // NOTE: event.contract could be a name, not address - only use actual address fields
+      address: event?.address || event?.data?.address || event?.logInfo?.address,
       decoded: event?.args ?? event?.decoded,
       data: event,
     }));
@@ -498,8 +260,16 @@ export const extractSimulationArtifacts = (
     artifacts.assetChanges = [...serverAssetChanges, ...artifacts.assetChanges];
   }
 
+  // Extract lightweight opcode trace first to avoid duplicating heavy snapshot payloads.
+  const opcodeTraceEntries = ensureArray(traceObj.opcodeTrace);
+  if (opcodeTraceEntries.length > 0) {
+    artifacts.opcodeTrace = opcodeTraceEntries as LightweightOpcodeEntry[];
+  } else if (traceLiteRows.length > 0) {
+    artifacts.opcodeTrace = buildOpcodeTraceFromTraceLiteRows(traceLiteRows);
+  }
+
   const snapshotEntries = ensureArray(traceObj.snapshots);
-  if (snapshotEntries.length > 0) {
+  if (artifacts.opcodeTrace.length === 0 && snapshotEntries.length > 0) {
     artifacts.snapshots = snapshotEntries
       .map((entry: any) => {
         if (!entry || typeof entry !== "object") {
@@ -512,6 +282,8 @@ export const extractSimulationArtifacts = (
           const stackArray = ensureArray(opcodeDetail.stack).map((item) =>
             typeof item === "string" ? item : JSON.stringify(item)
           );
+          const storageRead = opcodeDetail.storage_read ?? opcodeDetail.storageRead ?? null;
+          const storageWrite = opcodeDetail.storage_write ?? opcodeDetail.storageWrite ?? null;
           return {
             id: entry.id ?? opcodeDetail.id,
             frameId: entry.frame_id ?? opcodeDetail.frame_id,
@@ -533,6 +305,10 @@ export const extractSimulationArtifacts = (
               opcodeDetail.call_data ??
               opcodeDetail.callData ??
               null,
+            gasRemaining: opcodeDetail.gas_remaining ?? opcodeDetail.gasRemaining ?? null,
+            gasCost: opcodeDetail.gas_cost ?? opcodeDetail.gasCost ?? null,
+            storageRead,
+            storageWrite,
           };
         }
         if (hookDetail) {
@@ -561,25 +337,115 @@ export const extractSimulationArtifacts = (
         return null;
       })
       .filter(Boolean) as SimulationSnapshotEntry[];
+    artifacts.opcodeTrace = buildOpcodeTraceFromSnapshots(traceObj);
   }
 
-  const storageCandidates = ensureArray(traceObj.storageDiffs)
-    .concat(ensureArray(traceObj.stateDiffs))
-    .concat(ensureArray(traceObj.storageChanges));
-  artifacts.storageDiffs = storageCandidates.map((entry: any) => ({
-    address: entry?.address,
-    slot: entry?.slot ?? entry?.key,
-    key: entry?.key,
-    before: entry?.before ?? entry?.previous,
-    after: entry?.after ?? entry?.current ?? entry?.value,
-    value: entry?.value,
-  }));
+  // Handle storage diffs - can be object {address: {slot: value}} or array
+  const storageDiffsRaw = traceObj.storageDiffs ?? traceObj.stateDiffs ?? traceObj.storageChanges;
 
-  artifacts.rawReturnData =
+  if (storageDiffsRaw && typeof storageDiffsRaw === 'object' && !Array.isArray(storageDiffsRaw)) {
+    // EDB format: { "0xAddress": { "0xSlot": "0xValue" } }
+    artifacts.storageDiffs = [];
+    Object.entries(storageDiffsRaw).forEach(([address, slots]) => {
+      if (slots && typeof slots === 'object') {
+        Object.entries(slots as Record<string, any>).forEach(([slot, value]) => {
+          artifacts.storageDiffs.push({
+            address,
+            slot,
+            key: slot,
+            before: undefined,
+            after: typeof value === 'string' ? value : JSON.stringify(value),
+            value: typeof value === 'string' ? value : JSON.stringify(value),
+          });
+        });
+      }
+    });
+  } else {
+    // Array format: [{ address, slot, before, after }]
+    const storageCandidates = ensureArray(storageDiffsRaw);
+    artifacts.storageDiffs = storageCandidates.map((entry: any) => ({
+      address: entry?.address,
+      slot: entry?.slot ?? entry?.key,
+      key: entry?.key,
+      before: entry?.before ?? entry?.previous,
+      after: entry?.after ?? entry?.current ?? entry?.value,
+      value: entry?.value,
+    }));
+  }
+
+  // Supplement storageDiffs with SSTORE operations from external contracts
+  if (snapshotEntries.length > 0) {
+    const existingAddresses = new Set(
+      artifacts.storageDiffs
+        .map((d) => d.address?.toLowerCase())
+        .filter(Boolean)
+    );
+
+    const additionalDiffs: Map<string, SimulationStorageDiffEntry> = new Map();
+
+    snapshotEntries.forEach((entry: any) => {
+      if (!entry || typeof entry !== 'object') return;
+
+      const detail = entry.detail ?? entry.Detail ?? entry;
+      const opcodeDetail = detail?.Opcode ?? detail?.opcode;
+      if (!opcodeDetail) return;
+
+      const opcode = opcodeDetail.opcode;
+      if (opcode !== 85 && opcode !== 0x55) return;
+
+      const targetAddress = entry.target_address ?? opcodeDetail.target_address;
+      if (!targetAddress) return;
+
+      if (existingAddresses.has(targetAddress.toLowerCase())) return;
+
+      const stack = ensureArray(opcodeDetail.stack);
+      if (stack.length < 2) return;
+
+      const slot = String(stack[stack.length - 1]);
+      const value = String(stack[stack.length - 2]);
+
+      const key = `${targetAddress.toLowerCase()}:${slot.toLowerCase()}`;
+      const existing = additionalDiffs.get(key);
+
+      additionalDiffs.set(key, {
+        address: targetAddress,
+        slot,
+        key: slot,
+        before: existing?.before,
+        after: value,
+        value,
+      });
+    });
+
+    if (additionalDiffs.size > 0) {
+      artifacts.storageDiffs = [
+        ...artifacts.storageDiffs,
+        ...Array.from(additionalDiffs.values()),
+      ];
+    }
+  }
+
+  // Extract return data
+  let extractedReturnData: string | null =
     normalizeHex(traceObj.returnData) ??
     normalizeHex(traceObj.output) ??
     normalizeHex(traceObj.return_value) ??
     null;
+
+  if (!extractedReturnData && innerTraceEntries.length > 0) {
+    const rootEntry = innerTraceEntries[0];
+    const result = rootEntry?.result;
+    extractedReturnData =
+      normalizeHex(result?.Success?.output) ??
+      normalizeHex(result?.output) ??
+      null;
+  }
+
+  if (!extractedReturnData && artifacts.callTree.length > 0) {
+    extractedReturnData = normalizeHex(artifacts.callTree[0].output) ?? null;
+  }
+
+  artifacts.rawReturnData = extractedReturnData;
 
   return artifacts;
 };

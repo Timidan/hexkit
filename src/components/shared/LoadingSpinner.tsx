@@ -6,19 +6,31 @@ export interface LoadingSpinnerProps {
   variant?: 'primary' | 'secondary' | 'accent';
   text?: string;
   className?: string;
+  /** Render as a full-viewport centered preloader (use for Suspense page fallbacks) */
+  fullPage?: boolean;
 }
 
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 'md',
   variant = 'primary',
   text,
-  className = ''
+  className = '',
+  fullPage = false,
 }) => {
   const baseClasses = [
     'shared-loading-spinner',
     `shared-loading-spinner-${size}`,
     `shared-loading-spinner-${variant}`,
   ].join(' ');
+
+  if (fullPage) {
+    return (
+      <div className="shared-preloader" role="status" aria-live="polite">
+        <div className="shared-preloader__ring" aria-hidden="true" />
+        {text && <span className="shared-preloader__text">{text}</span>}
+      </div>
+    );
+  }
 
   if (text) {
     return (

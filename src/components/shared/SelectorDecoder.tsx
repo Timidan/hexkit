@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, Hash, Database, AlertCircle } from 'lucide-react';
 import {
   lookupFunctionSignatures,
@@ -33,13 +33,9 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
   const [decodedResults, setDecodedResults] = useState<DecodedSelector[]>([]);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
-  useEffect(() => {
-    if (selectors.length > 0) {
-      decodeSelectors();
-    }
-  }, [selectors]);
+  const selectorsKey = useMemo(() => JSON.stringify(selectors), [selectors]);
 
-  const decodeSelectors = async () => {
+  const decodeSelectors = useCallback(async () => {
     if (selectors.length === 0) return;
 
     setIsDecoding(true);
@@ -65,7 +61,13 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
     } finally {
       setIsDecoding(false);
     }
-  };
+  }, [onDecoded, onError, selectors]);
+
+  useEffect(() => {
+    if (selectors.length > 0) {
+      decodeSelectors();
+    }
+  }, [selectorsKey, decodeSelectors]);
 
   const decodeSingleSelector = async (selector: string): Promise<DecodedSelector | null> => {
     // Ensure selector is properly formatted
@@ -135,7 +137,7 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
           marginBottom: '16px'
         }}>
           <Search size={16} className="animate-spin" />
-          <span style={{ fontSize: '14px', color: '#64b5f6' }}>
+          <span style={{ fontSize: '15px', color: '#64b5f6' }}>
             Decoding selectors... ({progress.current}/{progress.total})
           </span>
         </div>
@@ -153,7 +155,7 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
             alignItems: 'center',
             gap: '8px',
             marginBottom: '12px',
-            fontSize: '14px',
+            fontSize: '15px',
             fontWeight: '600',
             color: '#fff'
           }}>
@@ -170,7 +172,7 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
                 padding: '8px 12px',
                 background: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '6px',
-                fontSize: '12px'
+                fontSize: '13px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Hash size={12} style={{ color: '#888' }} />
@@ -195,7 +197,7 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  fontSize: '10px',
+                  fontSize: '11px',
                   color: result.confidence === 'high' ? '#22c55e' : 
                         result.confidence === 'medium' ? '#f59e0b' : '#ef4444'
                 }}>

@@ -4,9 +4,10 @@ import {
   getDiamondFacetAddresses,
   type DiamondFacet,
 } from "../utils/diamondFacetFetcher";
-import { universalApiKeyManager } from "../utils/universalApiKeys";
+import { networkConfigManager } from "../config/networkConfig";
 import type { Chain } from "../types";
 import { UIIcons } from "./icons/IconMap";
+import { Button } from "./ui/button";
 
 interface InlineFacetLoaderProps {
   chain: Chain;
@@ -80,8 +81,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   const loadFacets = useCallback(async () => {
     const requestId = Date.now();
     requestIdRef.current = requestId;
-    const etherscanApiKey =
-      universalApiKeyManager.getAPIKey("ETHERSCAN") || undefined;
+    const etherscanApiKey = networkConfigManager.getEtherscanApiKey();
 
     try {
       setIsLoading(true);
@@ -223,7 +223,6 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     ) {
       void loadFacets();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chain.id, diamondAddress]);
 
   if (hideUI) {
@@ -260,9 +259,9 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           }
 
           .facet-loader-load-btn {
-            background-color: #6366f1;
+            background-color: transparent;
             color: #ffffff;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 6px;
             padding: 8px 16px;
             fontSize: 14px;
@@ -272,8 +271,9 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           }
 
           .facet-loader-load-btn:hover {
-            background-color: #5b5bd6;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.15);
           }
         `}
       </style>
@@ -297,7 +297,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         <h4
           style={{
             color: "#ffffff",
-            fontSize: "16px",
+            fontSize: "17px",
             fontWeight: "600",
             margin: 0,
           }}
@@ -307,21 +307,25 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
 
         <div style={{ display: "flex", gap: "8px" }}>
           {facetDetails.length > 0 && (
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => setShowDetails((prev) => !prev)}
               className="facet-loader-show-details-btn"
             >
               {showDetails ? "Hide details" : "Show details"}
-            </button>
+            </Button>
           )}
 
           {!isLoading && facets.length === 0 && (
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={loadFacets}
               className="facet-loader-load-btn"
             >
               Load Facets
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -330,7 +334,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         <div
           style={{
             color: "#ef4444",
-            fontSize: "14px",
+            fontSize: "15px",
             marginBottom: "16px",
             padding: "8px 12px",
             backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -355,7 +359,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
             <div style={{ flexGrow: 1 }}>
               <div style={{
                 color: "#94a3b8",
-                fontSize: "13px",
+                fontSize: "14px",
                 marginBottom: "8px",
                 display: "flex",
                 alignItems: "center",
@@ -416,7 +420,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       gap: "6px",
                       padding: "4px 8px",
                       borderRadius: "0px",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       background: "rgba(34,197,94,0.15)",
                       color: "#4ade80",
                     }}
@@ -436,7 +440,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       gap: "6px",
                       padding: "4px 8px",
                       borderRadius: "0px",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       background: "rgba(96,165,250,0.18)",
                       color: "#60a5fa",
                     }}
@@ -457,7 +461,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       gap: "6px",
                       padding: "4px 8px",
                       borderRadius: "0px",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       background: "rgba(148,163,184,0.12)",
                       color: "#cbd5f5",
                     }}
@@ -469,7 +473,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
             </div>
 
             <span
-              style={{ color: "#ffffff", fontSize: "14px", fontWeight: "500" }}
+              style={{ color: "#ffffff", fontSize: "15px", fontWeight: "500" }}
             >
               Completed {progress.current} / {progress.total}
             </span>
@@ -497,7 +501,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  fontSize: "12px",
+                  fontSize: "13px",
                   color: detailStatusColors[detail.status],
                   marginBottom: "6px",
                   fontFamily: "monospace",
@@ -518,7 +522,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                 <span style={{ flexGrow: 1 }}>
                   {detail.address || "Pending"}
                 </span>
-                <span style={{ color: "#9ca3af", fontSize: "11px" }}>
+                <span style={{ color: "#9ca3af", fontSize: "12px" }}>
                   {detailStatusLabels[detail.status]}
                 </span>
               </div>

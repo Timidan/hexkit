@@ -1,14 +1,41 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "path";
+
+/**
+ * Injects the EDB bridge origin into the CSP connect-src at build time.
+ * Set VITE_SIMULATOR_BRIDGE_URL in your Vercel env vars and the CSP
+ * automatically allows connections to that origin.
+ */
+function injectBridgeCsp(): Plugin {
+  return {
+    name: "inject-bridge-csp",
+    transformIndexHtml(html) {
+      const bridgeUrl = process.env.VITE_SIMULATOR_BRIDGE_URL;
+      if (!bridgeUrl || bridgeUrl === "disabled") return html;
+      try {
+        const origin = new URL(bridgeUrl).origin;
+        return html.replace(
+          /(connect-src\s[^"]*?)(;)/,
+          `$1 ${origin} wss://${new URL(bridgeUrl).host}$2`,
+        );
+      } catch {
+        return html;
+      }
+    },
+  };
+}
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+export default defineConfig(() => {
   return {
     plugins: [
       react({
         include: "**/*.{jsx,tsx}",
       }),
+      tailwindcss(),
+      injectBridgeCsp(),
     ],
     esbuild: {
       logOverride: { "this-is-undefined-in-esm": "silent" },
@@ -16,15 +43,27 @@ export default defineConfig(({ mode }) => {
     define: {
       global: "globalThis",
       "process.env": JSON.stringify({}),
-      "import.meta.env.API_KEY": JSON.stringify(env.API_KEY),
-      "import.meta.env.VITE_API_KEY": JSON.stringify(env.VITE_API_KEY),
     },
     optimizeDeps: {
       include: ["ethers", "buffer"],
     },
+    build: {
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ["react", "react-dom", "react-router-dom"],
+            wagmi: ["wagmi", "@wagmi/core", "@wagmi/connectors"],
+            walletconnect: ["@walletconnect/ethereum-provider", "@reown/appkit", "@reown/appkit-controllers"],
+            ethers: ["ethers"],
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         buffer: "buffer",
+        "@": path.resolve(__dirname, "./src"),
       },
     },
     server: {
@@ -39,118 +78,120 @@ export default defineConfig(({ mode }) => {
         ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
       },
       proxy: {
-        // Proxy for Sourcify API
+        // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
+        "/api/sourcify/repository": {
+          target: "https://repo.sourcify.dev",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/sourcify\/repository/, ""),
+        },
+        // Proxy for Sourcify Server API
+        "/api/sourcify/server": {
+          target: "https://sourcify.dev",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/sourcify\/server/, "/server"),
+        },
+        // Legacy Sourcify proxy (fallback for other paths)
         "/api/sourcify": {
           target: "https://sourcify.dev",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/sourcify/, ""),
-          configure: (proxy) => {
-            proxy.on("error", (err) => {
-              console.log("proxy error", err);
-            });
-            proxy.on("proxyReq", (_proxyReq, req) => {
-              console.log(
-                "Sending Request to the Target:",
-                req.method,
-                req.url
-              );
-            });
-            proxy.on("proxyRes", (proxyRes, req) => {
-              console.log(
-                "Received Response from the Target:",
-                proxyRes.statusCode,
-                req.url
-              );
-            });
-          },
         },
-        // Proxy for Blockscout APIs
+        // Proxy for Blockscout APIs - Ethereum mainnet
+        "/api/eth-blockscout": {
+          target: "https://eth.blockscout.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/eth-blockscout/, ""),
+        },
+        // Base Blockscout (also default for many chains)
         "/api/blockscout": {
           target: "https://base.blockscout.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/blockscout/, ""),
         },
         "/api/polygon-blockscout": {
           target: "https://polygon.blockscout.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/polygon-blockscout/, ""),
         },
         "/api/arbitrum-blockscout": {
           target: "https://arbitrum.blockscout.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/arbitrum-blockscout/, ""),
         },
         "/api/base-sepolia-blockscout": {
           target: "https://base-sepolia.blockscout.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) =>
             path.replace(/^\/api\/base-sepolia-blockscout/, ""),
         },
         "/api/lisk-sepolia-blockscout": {
           target: "https://sepolia-blockscout.lisk.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/lisk-sepolia-blockscout/, ""),
         },
         // Proxy for Etherscan APIs
         "/api/basescan": {
           target: "https://api.basescan.org",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/basescan/, ""),
         },
         "/api/base-sepolia-basescan": {
           target: "https://api-sepolia.basescan.org",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/base-sepolia-basescan/, ""),
         },
         "/api/etherscan": {
           target: "https://api.etherscan.io",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/etherscan/, ""),
         },
         "/api/sepolia-etherscan": {
           target: "https://api-sepolia.etherscan.io",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/sepolia-etherscan/, ""),
         },
         "/api/holesky-etherscan": {
           target: "https://api-holesky.etherscan.io",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/holesky-etherscan/, ""),
         },
         "/api/polygonscan": {
           target: "https://api.polygonscan.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/polygonscan/, ""),
         },
         "/api/amoy-polygonscan": {
           target: "https://api-amoy.polygonscan.com",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/amoy-polygonscan/, ""),
         },
         "/api/arbiscan": {
           target: "https://api.arbiscan.io",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/arbiscan/, ""),
         },
         // Proxy for Sourcify repo
         "/api/repo": {
           target: "https://repo.sourcify.dev",
           changeOrigin: true,
-          secure: false,
+          secure: true,
           rewrite: (path) => path.replace(/^\/api\/repo/, ""),
         },
       },

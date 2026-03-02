@@ -21,13 +21,13 @@
 }
 
 .preview-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #888;
   font-weight: 500;
 }
 
 .preview-value {
-  font-size: 12px;
+  font-size: 13px;
   color: #4fc3f7;
   background: rgba(79, 195, 247, 0.1);
   padding: 2px 6px;
@@ -40,7 +40,7 @@
 }
 
 .array-count-badge {
-  font-size: 11px;
+  font-size: 12px;
   color: #666;
   background: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
@@ -89,7 +89,7 @@
 
 /* Symbol icon styling */
 .compact-icon-btn {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
   font-weight: bold;
   font-family: monospace;
@@ -155,7 +155,7 @@
   color: #fff;
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   z-index: 1000;
   margin-bottom: 4px;
@@ -211,7 +211,7 @@
 }
 
 .compact-input-label {
-  font-size: 11px;
+  font-size: 12px;
   color: #888;
   font-weight: 500;
   min-width: 24px;
@@ -221,7 +221,7 @@
 .compact-input {
   flex: 1;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: 13px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid #555;
   border-radius: 3px;
@@ -257,7 +257,7 @@
 }
 
 .compact-remove-item-btn {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
   font-weight: bold;
   font-family: monospace;
@@ -275,7 +275,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  font-size: 10px;
+  font-size: 11px;
   color: #dc3545;
   background: rgba(220, 53, 69, 0.1);
   padding: 2px 4px;
@@ -317,7 +317,7 @@
 }
 
 .sub-array-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #ccc;
   font-weight: 500;
 }

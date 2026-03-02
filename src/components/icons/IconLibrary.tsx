@@ -211,6 +211,90 @@ export const PlayIcon: React.FC<IconProps> = ({ width = 24, height = 24, color =
   </svg>
 );
 
+/** Animated play icon — the triangle draws itself then fills in on hover. */
+export const AnimatedPlayIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-play-icon ${className}`} style={style}>
+    <polygon
+      points="6,3 20,12 6,21"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      fill="currentColor"
+      className="animated-play-triangle"
+    />
+  </svg>
+);
+
+/** Animated zap (lightning) icon — bolt draws itself on hover. */
+export const AnimatedZapIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-zap-icon ${className}`} style={style}>
+    <polygon
+      points="13,2 3,14 12,14 11,22 21,10 12,10"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      fill="currentColor"
+      className="animated-zap-bolt"
+    />
+  </svg>
+);
+
+/** Animated hash icon — each stroke draws itself on hover with stagger. */
+export const AnimatedHashIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-hash-icon ${className}`} style={style}>
+    <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-hash-h" />
+    <line x1="4" y1="15" x2="20" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-hash-h" />
+    <line x1="10" y1="3" x2="8" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-hash-v" />
+    <line x1="16" y1="3" x2="14" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-hash-v" />
+  </svg>
+);
+
+/** Animated file-text icon — outline draws, then inner lines stagger in. */
+export const AnimatedFileTextIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-filetext-icon ${className}`} style={style}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-ft-outline" />
+    <polyline points="14,2 14,8 20,8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-ft-fold" />
+    <line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-ft-line" />
+    <line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-ft-line" />
+    <line x1="8" y1="9" x2="10" y2="9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-ft-line" />
+  </svg>
+);
+
+/** Animated open-book icon — covers draw on, then a page flips from right to left. */
+export const AnimatedBookFlipIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-book-icon ${className}`} style={style}>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-book-cover" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-book-cover" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="animated-book-page" />
+  </svg>
+);
+
+/** Animated pen-writing icon — pen draws on, wobbles as if writing, trail line appears. */
+export const AnimatedPenWriteIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-penwrite-icon ${className}`} style={style}>
+    <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-pw-pen" />
+    <path d="M15 5l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-pw-cross" />
+    <line x1="2" y1="22" x2="15" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-pw-trail" />
+  </svg>
+);
+
+/** Animated link icon — two arcs draw on hover with stagger. */
+export const AnimatedLinkIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-link-icon ${className}`} style={style}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-link-arc1" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animated-link-arc2" />
+  </svg>
+);
+
+/** Animated clock icon — circle draws on, then hour + minute hands sweep around the clock. */
+export const AnimatedClockIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
+  <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={`animated-clock-icon ${className}`} style={style}>
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" className="animated-clock-face" />
+    <line x1="12" y1="12" x2="12" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-clock-hour" />
+    <line x1="12" y1="12" x2="15" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="animated-clock-minute" />
+  </svg>
+);
+
 export const RefreshIcon: React.FC<IconProps> = ({ width = 24, height = 24, color = 'currentColor', className = '', style = {} }) => (
   <svg viewBox="0 0 24 24" fill="none" width={width} height={height} color={color} className={className} style={style}>
     <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

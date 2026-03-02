@@ -1,0 +1,340 @@
+/* ── State Tab: Diff Cards ── */
+
+.state-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.state-header h2 { margin: 0; }
+
+.state-count-badge {
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #9a9aac;
+  font-weight: 500;
+}
+
+.state-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Contract group (details/summary) ── */
+.state-contract-group {
+  background: transparent;
+  border: 1px solid var(--sim-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.state-contract-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  padding-left: 17px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--sim-border, rgba(255, 255, 255, 0.08));
+  border-left: 3px solid transparent;
+  list-style: none;
+  user-select: none;
+  transition: background 0.15s;
+}
+.state-contract-summary::-webkit-details-marker { display: none; }
+.state-contract-summary:hover { background: rgba(255, 255, 255, 0.04); }
+.state-contract-group[open] > .state-contract-summary {
+  border-left-color: #3b82f6;
+}
+
+.state-summary-arrow {
+  color: #4b5563;
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+.state-contract-group[open] > .state-contract-summary .state-summary-arrow {
+  transform: rotate(90deg);
+}
+
+.state-contract-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #f6f6fb;
+}
+
+.state-contract-addr {
+  font-size: 0.72rem;
+  color: #4b5563;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+}
+
+.state-token-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+.state-token-badge.erc20 {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.state-token-badge.erc721 {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+.state-token-badge.erc1155 {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+.state-change-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+/* ── Diff cards body ── */
+.state-cards-body { padding: 4px; }
+
+.state-diff-card {
+  margin: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--sim-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.state-diff-card:hover { border-color: rgba(255, 255, 255, 0.14); }
+.state-diff-card:last-child { margin-bottom: 8px; }
+
+/* Card top bar — slot */
+.state-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--sim-border, rgba(255, 255, 255, 0.08));
+}
+
+.state-slot-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4b5563;
+  flex-shrink: 0;
+}
+
+.state-slot-val {
+  font-size: 0.72rem;
+  color: #6b7280;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Card diff row — before → after */
+.state-diff-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  padding: 10px 12px;
+  gap: 12px;
+}
+
+.state-val-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.state-val-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.state-hex {
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.state-hex.before-val { color: #9a9aac; }
+.state-hex.after-val  { color: #e4e4eb; }
+
+/* Highlighted diff chars */
+.state-hex .dim     { opacity: 0.3; }
+.state-hex .hi-red  { color: #f87171; background: rgba(248, 113, 113, 0.1); border-radius: 2px; padding: 0 1px; }
+.state-hex .hi-green { color: #4ade80; background: rgba(74, 222, 128, 0.1); border-radius: 2px; padding: 0 1px; }
+
+.state-arrow-col {
+  display: flex;
+  align-items: center;
+  padding-top: 18px;
+  color: #3b3c46;
+  font-size: 1.1rem;
+}
+
+/* ── Empty state ── */
+.state-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--sim-text-muted, #9a9aac);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--sim-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+}
+.state-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+/* ── Decoded variable metadata ── */
+.state-var-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px 6px;
+  flex-wrap: wrap;
+}
+
+.state-var-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #c4b5fd;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+}
+
+.state-type-chip {
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+}
+
+.state-confidence-badge {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.state-confidence-badge.exact {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+.state-confidence-badge.derived {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+}
+.state-confidence-badge.heuristic {
+  color: #9a9aac;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Decoded value row (shown below raw hex) */
+.state-decoded-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  padding: 4px 12px 8px;
+  gap: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.04);
+}
+
+.state-decoded-val {
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.state-decoded-val.before-val { color: #9a9aac; }
+.state-decoded-val.after-val  { color: #e4e4eb; }
+
+.state-decoded-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4b5563;
+}
+
+/* Packed slot: multiple decoded fields */
+.state-packed-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 12px 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.04);
+}
+
+.state-packed-field {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) 1fr auto 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+}
+
+.state-packed-name {
+  color: #c4b5fd;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.state-packed-before { color: #9a9aac; }
+.state-packed-after { color: #e4e4eb; }
+.state-packed-arrow { color: #3b3c46; }
+
+/* Layout status badge */
+.state-layout-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+.state-layout-badge.loading {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.08);
+}
+.state-layout-badge.loaded {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.06);
+}
+
+@keyframes state-spin {
+  to { transform: rotate(360deg); }
+}
+.state-layout-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(96, 165, 250, 0.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: state-spin 0.8s linear infinite;
+}

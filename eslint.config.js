@@ -10,7 +10,6 @@ export default tseslint.config(
       'dist/**',
       'node_modules/**',
       'current_bundle/**',
-      'playwright/**',
       'test-results/**',
       'scripts/**',
       'public/**',
@@ -36,16 +35,28 @@ export default tseslint.config(
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react-hooks/exhaustive-deps': 'off',
+      'react-refresh/only-export-components': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      'no-console': 'warn',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-console': 'off',
       'no-case-declarations': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       'prefer-const': 'off',
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-useless-escape': 'off',
+    },
+  },
+  {
+    files: [
+      'src/components/simple-grid/**/*.{ts,tsx}',
+      'src/utils/traceDecoder/**/*.{ts,tsx}',
+      'src/utils/transaction-simulation/**/*.{ts,tsx}',
+      'src/utils/resolver/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   }
 );

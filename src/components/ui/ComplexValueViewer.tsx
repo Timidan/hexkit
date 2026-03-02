@@ -9,13 +9,38 @@ import React, {
 } from 'react';
 
 import '../../styles/ComplexValueViewer.css';
-import InlineCopyButton from './InlineCopyButton';
-import InlineActionButton from './InlineActionButton';
+import {
+  ChevronRight,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  Wallet,
+  Hash,
+  Binary,
+  ToggleLeft,
+  Braces,
+  List,
+  FileText,
+  CircleDot,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { CopyButton } from './copy-button';
+import { Button } from './button';
+import { ScrollArea } from './scroll-area';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from './collapsible';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from './hover-card';
 import {
   buildSummary,
   collapsedPreview,
   createNodeFromValue,
-  determineValueKind,
   DEFAULT_OPTIONS,
   formatDisplayValue,
   serializeNode,
@@ -25,7 +50,6 @@ import {
   type NormalizedViewerOptions,
   type ViewerOptions,
 } from '../../utils/complexValueBuilder';
-import { CollapseAllIcon, ExpandAllIcon, ChevronRightIcon, ChevronDownIcon } from '../icons/IconLibrary';
 
 interface ComplexValueViewerProps {
   value?: any;
@@ -45,6 +69,50 @@ type GlobalAction = {
 const VIRTUALIZATION_THRESHOLD = 24;
 const DEFAULT_ROW_HEIGHT = 48;
 const VIRTUAL_OVERSCAN = 6;
+
+// Unified styling — neutral warm-gray badges, white text, dark bg
+const BADGE_STYLE = {
+  color: 'text-zinc-300',
+  bgColor: 'bg-zinc-700/60',
+  borderColor: 'border-zinc-600/50',
+} as const;
+
+const typeConfig: Record<string, {
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}> = {
+  address:  { icon: Wallet,    ...BADGE_STYLE },
+  uint256:  { icon: Hash,      ...BADGE_STYLE },
+  uint:     { icon: Hash,      ...BADGE_STYLE },
+  int256:   { icon: Hash,      ...BADGE_STYLE },
+  bytes:    { icon: Binary,    ...BADGE_STYLE },
+  bytes32:  { icon: Binary,    ...BADGE_STYLE },
+  bool:     { icon: ToggleLeft,...BADGE_STYLE },
+  tuple:    { icon: Braces,    ...BADGE_STYLE },
+  array:    { icon: List,      ...BADGE_STYLE },
+  string:   { icon: FileText,  ...BADGE_STYLE },
+  default:  { icon: CircleDot, ...BADGE_STYLE },
+};
+
+// Get type configuration based on Solidity type
+const getTypeConfig = (type?: string) => {
+  if (!type) return typeConfig.default;
+
+  const normalizedType = type.toLowerCase();
+
+  if (normalizedType === 'address') return typeConfig.address;
+  if (normalizedType.startsWith('uint')) return typeConfig.uint256;
+  if (normalizedType.startsWith('int')) return typeConfig.int256;
+  if (normalizedType === 'bytes' || normalizedType.startsWith('bytes')) return typeConfig.bytes;
+  if (normalizedType === 'bool') return typeConfig.bool;
+  if (normalizedType === 'string') return typeConfig.string;
+  if (normalizedType.startsWith('tuple')) return typeConfig.tuple;
+  if (normalizedType.includes('[]') || normalizedType.includes('[')) return typeConfig.array;
+
+  return typeConfig.default;
+};
 
 const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   value,
@@ -71,10 +139,7 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   }, [nodeProp, resolvedMetadata, value]);
 
   const [globalAction, setGlobalAction] = useState<GlobalAction | null>(null);
-  const classes = ['complex-value-viewer'];
-  if (className) {
-    classes.push(className);
-  }
+  const [isAllExpanded, setIsAllExpanded] = useState(false);
 
   const collapseConfig = useMemo<NormalizedViewerOptions>(() => {
     return {
@@ -91,36 +156,56 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   }, [options]);
 
   return (
-    <div className={classes.join(' ')}>
+    <div
+      className={cn(
+        'cv-container relative overflow-hidden',
+        'rounded-lg border border-neutral-800/60 bg-transparent',
+        'font-mono text-sm text-white',
+        className
+      )}
+    >
+      {/* Subtle grid background pattern */}
+      <div className="absolute inset-0 cv-grid-bg opacity-[0.02] pointer-events-none" />
+
+      {/* Header with controls */}
       {showControls && node.children && node.children.length > 0 && (
-        <div className="cv-collapse-all" role="group" aria-label="Tree controls">
-          <InlineActionButton
-            ariaLabel="Collapse all nodes"
-            tooltip="Collapse all nodes"
-            icon={<CollapseAllIcon width={18} height={18} />}
-            size={32}
-            onClick={() =>
-              setGlobalAction({ type: 'collapse', timestamp: Date.now() })
-            }
-          />
-          <InlineActionButton
-            ariaLabel="Expand all nodes"
-            tooltip="Expand all nodes"
-            icon={<ExpandAllIcon width={18} height={18} />}
-            size={32}
-            onClick={() =>
-              setGlobalAction({ type: 'expand', timestamp: Date.now() })
-            }
-          />
+        <div className="relative flex items-center justify-between px-3 py-2 border-b border-neutral-800/60 bg-transparent">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
+            Decoded Parameters
+          </span>
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-6 w-6 text-slate-500 hover:text-slate-300 hover:bg-neutral-800/60"
+                onClick={() => {
+                  const next = isAllExpanded ? 'collapse' : 'expand';
+                  setIsAllExpanded(!isAllExpanded);
+                  setGlobalAction({ type: next, timestamp: Date.now() });
+                }}
+              >
+                {isAllExpanded
+                  ? <ChevronsDownUp className="h-3.5 w-3.5" />
+                  : <ChevronsUpDown className="h-3.5 w-3.5" />}
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent side="bottom" className="text-xs">
+              {isAllExpanded ? 'Collapse all' : 'Expand all'}
+            </HoverCardContent>
+          </HoverCard>
         </div>
       )}
 
-      <NodeRenderer
-        node={node}
-        depth={0}
-        options={collapseConfig}
-        globalAction={globalAction}
-      />
+      {/* Content area */}
+      <div className="relative p-2">
+        <NodeRenderer
+          node={node}
+          depth={0}
+          options={collapseConfig}
+          globalAction={globalAction}
+        />
+      </div>
     </div>
   );
 };
@@ -131,7 +216,6 @@ interface NodeRendererProps {
   options: NormalizedViewerOptions;
   globalAction: GlobalAction | null;
 }
-
 
 const NodeRendererComponent: React.FC<NodeRendererProps> = ({
   node,
@@ -147,6 +231,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
   );
 
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
+  const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     setCollapsed(defaultCollapsed);
@@ -192,78 +277,183 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
     ? formatDisplayValue(node.value, node.type)
     : preview;
 
-  const valueKind = determineValueKind(node.value ?? displayValue, node.type);
+  const typeStyle = getTypeConfig(node.type);
+  const TypeIcon = typeStyle.icon;
 
   const shouldVirtualize =
     !collapsed && node.children && node.children.length > VIRTUALIZATION_THRESHOLD;
 
-  return (
+  const isRoot = depth === 0;
+
+  const nodeContent = (
     <div
-      className="cv-node"
-      data-depth={depth}
-      data-collapsible={isCollapsible ? 'true' : 'false'}
-      data-collapsed={collapsed && isCollapsible ? 'true' : 'false'}
+      className={cn(
+        'cv-node group relative rounded-md px-2 py-1.5',
+        isCollapsible && 'cursor-pointer'
+      )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="cv-node-header">
-        <ToggleButton
-          hidden={!isCollapsible}
-          collapsed={collapsed}
-          onToggle={() =>
-            startTransition(() => setCollapsed((prev) => !prev))
-          }
-        />
-
-        <div className="cv-key-stack">
-          <div className="cv-key">{node.label}</div>
-          {node.type && <div className="cv-meta">{node.type}</div>}
-          {summary && summary.length > 0 && (
-            <div className="cv-summary">{summary}</div>
+      {/* Depth indicator line */}
+      {!isRoot && (
+        <div
+          className={cn(
+            'absolute left-0 top-3 w-0.5 h-3 rounded-full',
+            'transition-all duration-150',
+            'bg-zinc-500/30',
+            isHovered && 'h-5'
           )}
-        </div>
+        />
+      )}
 
-        {displayValue && (
-          <div className="cv-value" data-kind={valueKind}>
-            {displayValue}
-          </div>
+      {/* Single flowing row: [toggle] [label] [badge] [summary] [data...wraps] [copy] */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        {/* Toggle button — always stays on first line */}
+        {isCollapsible ? (
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                'h-5 w-5 p-0 shrink-0 text-slate-500 hover:text-slate-300',
+                'transition-transform duration-200',
+                !collapsed && 'text-slate-400'
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {collapsed ? (
+                <ChevronRight className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+        ) : (
+          <span className="w-5 h-5 inline-flex items-center justify-center shrink-0">
+            <span className="w-1 h-1 rounded-full bg-zinc-500/30" />
+          </span>
         )}
 
+        {/* Label */}
+        <span
+          className={cn(
+            'font-medium text-[13px] tracking-tight shrink-0 whitespace-nowrap',
+            isRoot ? 'text-slate-200' : 'text-white',
+            'transition-colors duration-150',
+            isHovered && 'text-white'
+          )}
+        >
+          {node.label}
+        </span>
+
+        {/* Type badge with icon */}
+        {node.type && (
+          <span
+            className={cn(
+              'cv-type-badge inline-flex items-center gap-1 px-1.5 py-0.5 rounded shrink-0 whitespace-nowrap',
+              'text-[10px] font-medium uppercase tracking-wider',
+              'border transition-all duration-150',
+              'bg-zinc-700/60 border-zinc-600/50 text-zinc-300'
+            )}
+          >
+            <TypeIcon className="h-2.5 w-2.5" />
+            <span>{node.type}</span>
+          </span>
+        )}
+
+        {/* Summary count */}
+        {summary && summary.length > 0 && (
+          <span className="text-[10px] text-slate-400 tabular-nums shrink-0 whitespace-nowrap">
+            ({summary})
+          </span>
+        )}
+
+        {/* Value — allowed to wrap to next line */}
+        {displayValue && (
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <span
+                className={cn(
+                  'cv-value font-mono text-xs tabular-nums',
+                  'break-all',
+                  'transition-colors duration-150',
+                  'text-white/80'
+                )}
+              >
+                {displayValue}
+              </span>
+            </HoverCardTrigger>
+            {displayValue.length > 80 && (
+              <HoverCardContent
+                side="left"
+                className="max-w-md font-mono text-xs break-all"
+              >
+                {displayValue}
+              </HoverCardContent>
+            )}
+          </HoverCard>
+        )}
+
+        {/* Copy button */}
         {hasCopyCapability && (
-          <div className="cv-copy-button-wrapper">
-            <InlineCopyButton
-              value={simpleCopyValue}
-              getValue={simpleCopyValue ? undefined : getSerializedCopyValue}
-              ariaLabel={`Copy ${node.label}`}
-              iconSize={16}
-              size={32}
-            />
-          </div>
+          <CopyButton
+            value={simpleCopyValue}
+            getValue={simpleCopyValue ? undefined : getSerializedCopyValue}
+            ariaLabel={`Copy ${node.label}`}
+            iconSize={12}
+            className={cn(
+              'h-5 w-5 text-slate-600 shrink-0',
+              'opacity-0 group-hover:opacity-100',
+              'transition-opacity duration-150',
+              'hover:text-slate-300 hover:bg-slate-700/50'
+            )}
+          />
         )}
       </div>
+    </div>
+  );
 
-      {isCollapsible && !collapsed && node.children && (
-        shouldVirtualize ? (
-          <VirtualizedChildList
-            nodes={node.children}
-            depth={depth + 1}
-            options={options}
-            globalAction={globalAction}
-          />
-        ) : (
-          <div className="cv-children cv-children--plain">
-            {node.children.map((child, index) => (
-              <div key={`${child.label ?? 'child'}-${index}`} className="cv-child">
+  if (!isCollapsible) {
+    return <div className="mb-0.5">{nodeContent}</div>;
+  }
+
+  return (
+    <Collapsible
+      open={!collapsed}
+      onOpenChange={(open) => startTransition(() => setCollapsed(!open))}
+      className="mb-0.5"
+    >
+      {nodeContent}
+
+      <CollapsibleContent>
+        <div className={cn(
+          'cv-children ml-4 mt-0.5 pl-3',
+          'border-l border-neutral-800/60',
+          'transition-all duration-200'
+        )}>
+          {shouldVirtualize ? (
+            <VirtualizedChildList
+              nodes={node.children!}
+              depth={depth + 1}
+              options={options}
+              globalAction={globalAction}
+            />
+          ) : (
+            <div className="space-y-0.5">
+              {node.children!.map((child, index) => (
                 <NodeRenderer
+                  key={`${child.label ?? 'child'}-${index}`}
                   node={child}
                   depth={depth + 1}
                   options={options}
                   globalAction={globalAction}
                 />
-              </div>
-            ))}
-          </div>
-        )
-      )}
-    </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
 
@@ -370,18 +560,19 @@ function VirtualizedChildList({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="cv-children cv-children--virtual"
-      onScroll={handleScroll}
-    >
+    <ScrollArea className="max-h-[60vh]">
       <div
-        className="cv-virtual-spacer"
-        style={{ paddingTop, paddingBottom }}
+        ref={containerRef}
+        className="overflow-y-auto"
+        onScroll={handleScroll}
       >
-        {rows}
+        <div style={{ paddingTop, paddingBottom }}>
+          <div className="space-y-0.5">
+            {rows}
+          </div>
+        </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -419,7 +610,7 @@ function VirtualizedRow({
   }, [onMeasure]);
 
   return (
-    <div ref={rowRef} className="cv-child">
+    <div ref={rowRef}>
       <NodeRenderer
         node={node}
         depth={depth}
@@ -429,37 +620,5 @@ function VirtualizedRow({
     </div>
   );
 }
-
-interface ToggleButtonProps {
-  hidden?: boolean;
-  collapsed: boolean;
-  onToggle: () => void;
-}
-
-const ToggleButton: React.FC<ToggleButtonProps> = ({
-  hidden,
-  collapsed,
-  onToggle,
-}) => {
-  if (hidden) {
-    return <span className="cv-toggle-spacer" aria-hidden="true" />;
-  }
-
-  return (
-    <InlineActionButton
-      className="cv-toggle-button"
-      ariaLabel={collapsed ? 'Expand section' : 'Collapse section'}
-      tooltip={collapsed ? 'Expand' : 'Collapse'}
-      icon={collapsed ? <ChevronRightIcon width={16} height={16} /> : <ChevronDownIcon width={16} height={16} />}
-      onClick={(event) => {
-        event.preventDefault();
-        onToggle();
-      }}
-      stopPropagation
-      isActive={!collapsed}
-      size={30}
-    />
-  );
-};
 
 export default ComplexValueViewer;

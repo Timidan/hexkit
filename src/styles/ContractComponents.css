@@ -29,16 +29,95 @@
 .contract-endpoint-row .decoder-address-field {
   flex: 1;
   gap: var(--space-2);
-  padding-right: var(--space-2);
+  padding-right: 0;
 }
 
-.contract-endpoint-field__inline-action {
-  background: rgba(56, 189, 248, 0.12) !important;
-  border: 1px solid rgba(56, 189, 248, 0.35) !important;
-  color: rgba(191, 219, 254, 0.95) !important;
-  border-radius: 10px !important;
-  min-width: 68px;
-  justify-content: center;
+/* Integrated Address Input Shadow & Glow */
+.contract-address-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.contract-address-input-wrapper input {
+  background: rgba(10, 10, 10, 0.4) !important;
+  border: 1px solid rgba(82, 82, 91, 0.4) !important;
+  border-radius: 12px !important;
+  color: #fff !important;
+  font-family: var(--font-mono) !important;
+  font-size: 15px !important;
+  padding-left: 16px !important;
+  transition: all 0.3s ease !important;
+}
+
+.contract-address-input-wrapper input:focus {
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1) !important;
+  background: rgba(10, 10, 10, 0.6) !important;
+}
+
+/* Integrated Controls Container */
+.contract-input-controls {
+  pointer-events: none;
+}
+
+.contract-input-controls > * {
+  pointer-events: auto;
+}
+
+/* Clear button - subtle X */
+.contract-input-clear {
+  background: transparent !important;
+  border: none !important;
+  color: #71717a !important;
+  padding: 4px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.contract-input-clear:hover {
+  color: #d4d4d8 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Control Separator */
+.contract-input-separator {
+  height: 24px;
+  width: 1px;
+  background: rgba(82, 82, 91, 0.3);
+  margin: 0 8px;
+}
+
+/* Integrated Fetch - Minimal Text Style */
+.contract-input-fetch {
+  background: transparent !important;
+  border: none !important;
+  color: #e5e5e5 !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.contract-input-fetch:hover:not(:disabled) {
+  color: #c4b5fd !important;
+  background: rgba(229, 229, 229, 0.1) !important;
+  box-shadow: 0 0 12px rgba(229, 229, 229, 0.15) !important;
+}
+
+.contract-input-fetch:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.contract-input-fetch:disabled {
+  opacity: 0.2;
+  filter: grayscale(1);
+  cursor: not-allowed;
 }
 
 .contract-info-display {
@@ -110,7 +189,7 @@
   align-items: flex-start;
   justify-content: center;
   color: #cbd5f5;
-  font-size: 14px;
+  font-size: 15px;
   text-transform: uppercase;
   letter-spacing: 0.28em;
   transition: transform 0.18s ease, border 0.18s ease, box-shadow 0.18s ease;
@@ -151,7 +230,7 @@
   margin-top: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 12px;
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(148, 163, 184, 0.3);
   padding: 6px 12px;
@@ -253,7 +332,7 @@
   justify-content: space-between;
   text-transform: uppercase;
   letter-spacing: 0.32em;
-  font-size: 11px;
+  font-size: 12px;
   color: rgba(226, 232, 240, 0.7);
   margin-bottom: 18px;
 }
@@ -302,7 +381,7 @@
 }
 
 .contract-summary-card__name {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 600;
   color: #f8fafc;
 }
@@ -311,7 +390,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -320,7 +399,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: rgba(203, 213, 225, 0.85);
   font-family: var(--font-mono, "IBM Plex Mono", monospace);
 }
@@ -359,7 +438,7 @@
 .contract-summary-card__token {
   display: flex;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
   color: rgba(148, 163, 184, 0.85);
 }
 
@@ -382,7 +461,7 @@
 
 .contract-summary-card__stat span {
   letter-spacing: 0.24em;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   display: inline-flex;
   align-items: center;
@@ -391,7 +470,7 @@
 }
 
 .contract-summary-card__stat strong {
-  font-size: 28px;
+  font-size: 29px;
   font-weight: 600;
   color: #f8fafc;
   line-height: 1;
@@ -414,7 +493,7 @@
   border: 1px dashed rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.55);
   color: rgba(148, 163, 184, 0.9);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .contract-connection-grid {
@@ -430,7 +509,7 @@
 }
 
 .contract-connection-label {
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.24em;
   color: rgba(203, 213, 225, 0.8);
@@ -449,7 +528,7 @@
   border-radius: 12px;
   padding: 14px 16px;
   color: #f8fafc;
-  font-size: 14px;
+  font-size: 15px;
   font-family: var(--font-mono, "IBM Plex Mono", monospace);
 }
 
@@ -481,13 +560,13 @@
 }
 
 .contract-search-progress__title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #f8fafc;
 }
 
 .contract-search-progress__message {
-  font-size: 12px;
+  font-size: 13px;
   color: rgba(148, 163, 184, 0.85);
 }
 
@@ -498,7 +577,7 @@
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.35);
   color: #fecaca;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .contract-function-list {
@@ -517,7 +596,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   transition: transform 0.15s ease, border 0.15s ease, box-shadow 0.15s ease;
 }
@@ -538,7 +617,7 @@
 }
 
 .contract-function-item__descriptor {
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.24em;
   color: rgba(203, 213, 225, 0.7);

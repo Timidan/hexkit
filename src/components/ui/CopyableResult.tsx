@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
+import DOMPurify from 'dompurify';
 
 import '../../styles/SharedComponents.css';
-import InlineCopyButton, { type InlineCopyState } from './InlineCopyButton';
+import { CopyButton } from './copy-button';
 
 type Tone = 'default' | 'success' | 'error' | 'info' | 'warning';
 
@@ -34,8 +35,6 @@ const CopyableResult: React.FC<CopyableResultProps> = ({
   monospace = true,
   children,
 }) => {
-  const [copyState, setCopyState] = useState<InlineCopyState>('idle');
-
   const resolvedCopyText = useMemo(() => {
     if (copyText) return copyText;
     if (plainText) return plainText;
@@ -56,30 +55,11 @@ const CopyableResult: React.FC<CopyableResultProps> = ({
       <div className="copyable-result-header">
         <div className="copyable-result-title">{title}</div>
         {resolvedCopyText && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <InlineCopyButton
-              value={resolvedCopyText}
-              ariaLabel="Copy result content"
-              onStateChange={setCopyState}
-              iconSize={16}
-            />
-            <span
-              className={`copy-feedback-text ${
-                copyState === 'copied'
-                  ? 'is-success'
-                  : copyState === 'error'
-                  ? 'is-error'
-                  : ''
-              }`}
-              aria-live="polite"
-            >
-              {copyState === 'copied'
-                ? 'Copied'
-                : copyState === 'error'
-                ? 'Copy failed'
-                : ''}
-            </span>
-          </div>
+          <CopyButton
+            value={resolvedCopyText}
+            ariaLabel="Copy result content"
+            iconSize={16}
+          />
         )}
       </div>
 
@@ -89,7 +69,7 @@ const CopyableResult: React.FC<CopyableResultProps> = ({
         ) : htmlContent ? (
           <div
             className="copyable-result-html"
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(htmlContent) }}
           />
         ) : (
           <div>{plainText}</div>

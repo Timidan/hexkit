@@ -1,0 +1,176 @@
+/**
+ * Debug Window Styles
+ *
+ * Full-page overlay for the EDB debugger, IDE-style debug layout.
+ * Layout: Execution Tree (left) | Source Code + State Panel (right, stacked vertically)
+ */
+
+.debug-window {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.debug-window--loading {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.debug-window__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+}
+
+.debug-window__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.debug-window__contract {
+  font-weight: 400;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+  margin-left: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border);
+}
+
+.debug-window__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.debug-window__snapshot-info {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+}
+
+/* Main content wrapper */
+.debug-window__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.debug-window__content--center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+/* Main Content - 2 panel layout: Execution Tree | Right Area */
+.debug-window__main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left Panel - Execution Tree */
+.debug-window__execution {
+  height: 100%;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+}
+
+.debug-window__execution-tree {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Right Area - Source Code + State Panel stacked vertically */
+.debug-window__right-area {
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Vertical resizable panels container */
+.debug-window__vertical-panels {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Source area container (source + toolbar) */
+.debug-window__source-area {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Source Code Panel - Takes most of the space */
+.debug-window__source {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Bottom State/Details Panel */
+.debug-window__state-panel {
+  height: 100%;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  overflow: hidden;
+}
+
+/* Toolbar - Bottom of right area */
+.debug-window__toolbar {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* Resizable panel handle styling */
+[data-group][aria-orientation="horizontal"] > [data-separator] {
+  width: 4px;
+  background: transparent;
+  transition: background 0.15s ease;
+  cursor: col-resize;
+}
+
+[data-group][aria-orientation="horizontal"] > [data-separator]:hover,
+[data-group][aria-orientation="horizontal"] > [data-separator][data-active] {
+  background: var(--accent);
+}
+
+[data-group][aria-orientation="vertical"] > [data-separator] {
+  width: 100% !important;
+  height: 4px !important;
+  background: transparent;
+  transition: background 0.15s ease;
+  cursor: row-resize;
+}
+
+[data-group][aria-orientation="vertical"] > [data-separator]:hover,
+[data-group][aria-orientation="vertical"] > [data-separator][data-active] {
+  background: var(--accent);
+}
+
+/* Note: Dialog z-index is set inline in dialog.tsx (9998/9999) to ensure
+   dialogs appear above all other overlays in the app */

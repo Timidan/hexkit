@@ -1,104 +1,41 @@
 import type { Chain } from "../types";
-import { resolveRpcUrl } from "./env";
 
-const MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: [
-    "VITE_ETHEREUM_RPC_URL",
-    "ETHEREUM_RPC_URL",
-    "VITE_MAINNET_RPC_URL",
-    "MAINNET_RPC_URL",
-  ],
-  fallback: "https://ethereum.publicnode.com",
-  alchemyTemplate: (apiKey) => `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
-});
+/**
+ * Public RPC fallback URLs for each chain.
+ *
+ * IMPORTANT: These are FALLBACK URLs only. User-configured RPC providers
+ * (Alchemy, Infura, Custom) are resolved through networkConfigManager.
+ *
+ * Components should use:
+ *   networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl)
+ * to get the correct RPC URL that respects user settings.
+ */
 
-const SEPOLIA_RPC_URL = resolveRpcUrl({
-  envKeys: [
-    "VITE_ETHEREUM_SEPOLIA_RPC_URL",
-    "ETHEREUM_SEPOLIA_RPC_URL",
-    "VITE_SEPOLIA_RPC_URL",
-    "SEPOLIA_RPC_URL",
-  ],
-  fallback: "https://rpc.sepolia.ethpandaops.io",
-  alchemyTemplate: (apiKey) => `https://eth-sepolia.g.alchemy.com/v2/${apiKey}`,
-});
-
-const BASE_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_BASE_RPC_URL", "BASE_RPC_URL"],
-  fallback: "https://mainnet.base.org",
-  alchemyTemplate: (apiKey) => `https://base-mainnet.g.alchemy.com/v2/${apiKey}`,
-});
-
-const BASE_SEPOLIA_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_BASE_SEPOLIA_RPC_URL", "BASE_SEPOLIA_RPC_URL"],
-  fallback: "https://sepolia.base.org",
-  alchemyTemplate: (apiKey) => `https://base-sepolia.g.alchemy.com/v2/${apiKey}`,
-});
-
-const POLYGON_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_POLYGON_RPC_URL", "POLYGON_RPC_URL"],
-  fallback: "https://polygon-rpc.com",
-  alchemyTemplate: (apiKey) =>
-    `https://polygon-mainnet.g.alchemy.com/v2/${apiKey}`,
-});
-
-const HOLESKY_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_HOLESKY_RPC_URL", "HOLESKY_RPC_URL"],
-  fallback: "https://ethereum-holesky.publicnode.com",
-});
-
-const LISK_SEPOLIA_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_LISK_SEPOLIA_RPC_URL", "LISK_SEPOLIA_RPC_URL"],
-  fallback: "https://rpc.sepolia-api.lisk.com",
-});
-
-const POLYGON_AMOY_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_POLYGON_AMOY_RPC_URL", "POLYGON_AMOY_RPC_URL"],
-  fallback: "https://rpc-amoy.polygon.technology",
-});
-
-const ARBITRUM_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_ARBITRUM_RPC_URL", "ARBITRUM_RPC_URL"],
-  fallback: "https://arb1.arbitrum.io/rpc",
-  alchemyTemplate: (apiKey) => `https://arb-mainnet.g.alchemy.com/v2/${apiKey}`,
-});
-
-const ARBITRUM_SEPOLIA_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_ARBITRUM_SEPOLIA_RPC_URL", "ARBITRUM_SEPOLIA_RPC_URL"],
-  fallback: "https://sepolia-rollup.arbitrum.io/rpc",
-});
-
-const OPTIMISM_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_OPTIMISM_RPC_URL", "OPTIMISM_RPC_URL"],
-  fallback: "https://mainnet.optimism.io",
-  alchemyTemplate: (apiKey) => `https://opt-mainnet.g.alchemy.com/v2/${apiKey}`,
-});
-
-const OPTIMISM_SEPOLIA_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_OPTIMISM_SEPOLIA_RPC_URL", "OPTIMISM_SEPOLIA_RPC_URL"],
-  fallback: "https://sepolia.optimism.io",
-});
-
-const BSC_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_BSC_RPC_URL", "BSC_RPC_URL"],
-  fallback: "https://bsc-dataseed.binance.org/",
-});
-
-const BSC_TESTNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_BSC_TESTNET_RPC_URL", "BSC_TESTNET_RPC_URL"],
-  fallback: "https://bsc-testnet.public.blastapi.io",
-});
-
-const AVALANCHE_MAINNET_RPC_URL = resolveRpcUrl({
-  envKeys: ["VITE_AVALANCHE_RPC_URL", "AVALANCHE_RPC_URL"],
-  fallback: "https://api.avax.network/ext/bc/C/rpc",
-});
+// Public RPC fallbacks (used only when user hasn't configured a provider
+// OR when user's provider doesn't support the chain)
+const PUBLIC_RPC_URLS = {
+  1: "https://ethereum.publicnode.com",
+  11155111: "https://rpc.sepolia.ethpandaops.io",
+  8453: "https://mainnet.base.org",
+  84532: "https://sepolia.base.org",
+  137: "https://polygon-rpc.com",
+  17000: "https://ethereum-holesky.publicnode.com",
+  4202: "https://rpc.sepolia-api.lisk.com",
+  80002: "https://rpc-amoy.polygon.technology",
+  42161: "https://arb1.arbitrum.io/rpc",
+  421614: "https://sepolia-rollup.arbitrum.io/rpc",
+  10: "https://mainnet.optimism.io",
+  11155420: "https://sepolia.optimism.io",
+  56: "https://bsc-dataseed.binance.org/",
+  97: "https://bsc-testnet.public.blastapi.io",
+  43114: "https://api.avax.network/ext/bc/C/rpc",
+} as const;
 
 export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 1,
     name: "Ethereum",
-    rpcUrl: MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[1],
     explorerUrl: "https://etherscan.io",
     blockExplorer: "https://etherscan.io",
     apiUrl: "https://api.etherscan.io/api",
@@ -123,7 +60,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 11155111,
     name: "Ethereum Sepolia",
-    rpcUrl: SEPOLIA_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[11155111],
     explorerUrl: "https://sepolia.etherscan.io",
     blockExplorer: "https://sepolia.etherscan.io",
     apiUrl: "https://api-sepolia.etherscan.io/api",
@@ -148,7 +85,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 8453,
     name: "Base",
-    rpcUrl: BASE_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[8453],
     explorerUrl: "https://basescan.org",
     blockExplorer: "https://basescan.org",
     apiUrl: "https://api.basescan.org/api",
@@ -173,7 +110,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 84532,
     name: "Base Sepolia",
-    rpcUrl: BASE_SEPOLIA_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[84532],
     explorerUrl: "https://sepolia.basescan.org",
     blockExplorer: "https://sepolia.basescan.org",
     apiUrl: "https://api-sepolia.basescan.org/api",
@@ -198,7 +135,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 17000,
     name: "Holesky",
-    rpcUrl: HOLESKY_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[17000],
     explorerUrl: "https://holesky.etherscan.io",
     blockExplorer: "https://holesky.etherscan.io",
     apiUrl: "https://api-holesky.etherscan.io/api",
@@ -218,7 +155,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 4202,
     name: "Lisk Sepolia",
-    rpcUrl: LISK_SEPOLIA_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[4202],
     explorerUrl: "https://sepolia-blockscout.lisk.com",
     blockExplorer: "https://sepolia-blockscout.lisk.com",
     apiUrl: "https://sepolia-blockscout.lisk.com/api",
@@ -238,7 +175,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 137,
     name: "Polygon",
-    rpcUrl: POLYGON_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[137],
     explorerUrl: "https://polygonscan.com",
     blockExplorer: "https://polygonscan.com",
     apiUrl: "https://api.polygonscan.com/api",
@@ -263,7 +200,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 80002,
     name: "Polygon Amoy",
-    rpcUrl: POLYGON_AMOY_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[80002],
     explorerUrl: "https://amoy.polygonscan.com",
     blockExplorer: "https://amoy.polygonscan.com",
     apiUrl: "https://api-amoy.polygonscan.com/api",
@@ -283,7 +220,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 42161,
     name: "Arbitrum",
-    rpcUrl: ARBITRUM_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[42161],
     explorerUrl: "https://arbiscan.io",
     blockExplorer: "https://arbiscan.io",
     apiUrl: "https://api.arbiscan.io/api",
@@ -308,7 +245,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 421614,
     name: "Arbitrum Sepolia",
-    rpcUrl: ARBITRUM_SEPOLIA_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[421614],
     explorerUrl: "https://sepolia.arbiscan.io",
     blockExplorer: "https://sepolia.arbiscan.io",
     apiUrl: "https://api-sepolia.arbiscan.io/api",
@@ -328,7 +265,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 10,
     name: "Optimism",
-    rpcUrl: OPTIMISM_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[10],
     explorerUrl: "https://optimistic.etherscan.io",
     blockExplorer: "https://optimistic.etherscan.io",
     apiUrl: "https://api-optimistic.etherscan.io/api",
@@ -348,7 +285,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 11155420,
     name: "Optimism Sepolia",
-    rpcUrl: OPTIMISM_SEPOLIA_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[11155420],
     explorerUrl: "https://sepolia-optimism.etherscan.io",
     blockExplorer: "https://sepolia-optimism.etherscan.io",
     apiUrl: "https://api-sepolia-optimism.etherscan.io/api",
@@ -368,7 +305,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 56,
     name: "BSC",
-    rpcUrl: BSC_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[56],
     explorerUrl: "https://bscscan.com",
     blockExplorer: "https://bscscan.com",
     apiUrl: "https://api.bscscan.com/api",
@@ -388,7 +325,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 97,
     name: "BNB Testnet",
-    rpcUrl: BSC_TESTNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[97],
     explorerUrl: "https://testnet.bscscan.com",
     blockExplorer: "https://testnet.bscscan.com",
     apiUrl: "https://api-testnet.bscscan.com/api",
@@ -408,7 +345,7 @@ export const SUPPORTED_CHAINS: Chain[] = [
   {
     id: 43114,
     name: "Avalanche",
-    rpcUrl: AVALANCHE_MAINNET_RPC_URL,
+    rpcUrl: PUBLIC_RPC_URLS[43114],
     explorerUrl: "https://snowtrace.io",
     blockExplorer: "https://snowtrace.io",
     apiUrl: "https://api.snowtrace.io/api",
@@ -431,22 +368,6 @@ export const getChainById = (id: number): Chain | undefined => {
   return SUPPORTED_CHAINS.find((chain) => chain.id === id);
 };
 
-export const getChainByName = (name: string): Chain | undefined => {
-  return SUPPORTED_CHAINS.find((chain) => chain.name.toLowerCase() === name.toLowerCase());
-};
-
-export const getChainByRpcUrl = (rpcUrl: string): Chain | undefined => {
-  return SUPPORTED_CHAINS.find((chain) => chain.rpcUrl === rpcUrl);
-};
-
-export const getAllChainIds = (): number[] => {
-  return SUPPORTED_CHAINS.map((chain) => chain.id);
-};
-
-export const getAllChainNames = (): string[] => {
-  return SUPPORTED_CHAINS.map((chain) => chain.name);
-};
-
 export const getExplorerUrl = (chainId: number, type: "tx" | "address" | "block", hash: string): string => {
   const chain = getChainById(chainId);
   if (!chain) return "";
@@ -464,12 +385,3 @@ export const getExplorerUrl = (chainId: number, type: "tx" | "address" | "block"
   }
 };
 
-export const getApiUrl = (chainId: number): string => {
-  const chain = getChainById(chainId);
-  return chain?.apiUrl || "";
-};
-
-export const getRpcUrl = (chainId: number): string => {
-  const chain = getChainById(chainId);
-  return chain?.rpcUrl || "";
-};

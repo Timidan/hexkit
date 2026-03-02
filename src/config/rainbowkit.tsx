@@ -25,11 +25,13 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 import React from 'react';
+import { useNetworkConfig } from "../contexts/NetworkConfigContext";
 
-// Get API key from environment
-const API_KEY = import.meta.env.API_KEY || import.meta.env.VITE_API_KEY || '';
+// Get API key from environment (VITE_ prefix required for Vite exposure)
+const API_KEY = import.meta.env.VITE_API_KEY || '';
 
-console.log('[RainbowKit] API Key status:', API_KEY ? `${API_KEY.slice(0, 8)}...` : 'No API key found');
+// Only log in development mode to avoid leaking config status
+if (!API_KEY && import.meta.env.DEV) console.warn('[RainbowKit] No API key found — using public RPC fallbacks');
 
 // Wagmi v2 compatible configuration without WalletConnect dependency
 const liskSepolia = {
@@ -72,61 +74,113 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: 'Web3 Toolkit',
-    projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || 'demo', // Minimal fallback
+    projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '', // Requires real project ID from env
   }
 );
 
-// Configure transports with proper RPC URLs
-const config = createConfig({
-  connectors,
-  chains,
-  transports: {
-    [mainnet.id]: http(API_KEY ? `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://ethereum.publicnode.com'),
-    [polygon.id]: http(API_KEY ? `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://polygon-rpc.com'),
-    [arbitrum.id]: http(API_KEY ? `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://arb1.arbitrum.io/rpc'),
-    [optimism.id]: http(API_KEY ? `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.optimism.io'),
-    [base.id]: http(API_KEY ? `https://base-mainnet.g.alchemy.com/v2/${API_KEY}` : 'https://mainnet.base.org'),
-    [liskSepolia.id]: http('https://rpc.sepolia-api.lisk.com'),
-  },
-});
-
 const queryClient = new QueryClient();
 
-// Custom theme matching the Web3 Toolkit design system (claude-UI-rules.md)
+// Custom theme matching the Web3 Toolkit design system (black & white)
 const web3ToolkitTheme: Theme = darkTheme({
-  accentColor: '#6366f1', // Neon purple
-  accentColorForeground: '#f6f6fb', // Bright text
+  accentColor: '#ffffff', // White accent
+  accentColorForeground: '#0a0a0a', // Dark text on white
   borderRadius: 'medium',
   fontStack: 'system',
   overlayBlur: 'small',
 });
 
-export { config, queryClient, RainbowKitProvider, WagmiProvider, QueryClientProvider, web3ToolkitTheme };
+export { queryClient, RainbowKitProvider, WagmiProvider, QueryClientProvider, web3ToolkitTheme };
+
+const fallbackRpcFor = (chain: Chain) => {
+  // When no env API key, return '' so resolveRpcUrl falls through to our
+  // curated PUBLIC_RPC_FALLBACKS (which are in the CSP whitelist).
+  // Wagmi's built-in chain defaults (e.g. eth.merkle.io) are NOT in the CSP.
+  if (!API_KEY) return '';
+  switch (chain.id) {
+    case mainnet.id:
+      return `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}`;
+    case polygon.id:
+      return `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`;
+    case arbitrum.id:
+      return `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`;
+    case optimism.id:
+      return `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}`;
+    case base.id:
+      return `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`;
+    default:
+      return '';
+  }
+};
+
+export const RpcAwareWagmiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { resolveRpcUrl, configVersion } = useNetworkConfig();
+
+  const config = React.useMemo(() => {
+    // Resolve RPC URLs — use explicit URL or undefined to let viem use chain defaults.
+    // IMPORTANT: only pass undefined when we have no URL at all; never let empty strings
+    // silently fall through to viem's built-in chain defaults (which may not be in our CSP).
+    const rpc = (chainId: number) => {
+      const resolved = resolveRpcUrl(chainId, fallbackRpcFor({ id: chainId } as Chain)).url;
+      return resolved ? resolved : undefined;
+    };
+    const resolvedTransports: Record<number, ReturnType<typeof http>> = {
+      [mainnet.id]: http(rpc(mainnet.id)),
+      [polygon.id]: http(rpc(polygon.id)),
+      [arbitrum.id]: http(rpc(arbitrum.id)),
+      [optimism.id]: http(rpc(optimism.id)),
+      [base.id]: http(rpc(base.id)),
+      [liskSepolia.id]: http(rpc(liskSepolia.id)),
+    };
+
+    return createConfig({
+      connectors,
+      chains,
+      transports: resolvedTransports,
+    });
+  }, [configVersion, resolveRpcUrl]);
+
+  return <WagmiProvider config={config as any}>{children}</WagmiProvider>;
+};
 
 // Export a hook to apply theme colors as CSS variables
 export function useApplyRainbowKitTheme() {
   React.useEffect(() => {
     // Apply theme colors as CSS variables
     const root = document.documentElement;
-    const themeColors = web3ToolkitTheme.colors;
-    const themeShadows = web3ToolkitTheme.shadows;
-    const themeRadii = web3ToolkitTheme.radii;
-    
+    // RainbowKit Theme structure varies by version - safely access properties
+    const themeObj = web3ToolkitTheme as Record<string, unknown>;
+
+    // Try to extract colors, shadows, radii from various possible structures
+    const themeColors = (themeObj.colors ?? (themeObj as any).darkMode?.colors ?? {}) as Record<string, string>;
+    const themeShadows = (themeObj.shadows ?? (themeObj as any).darkMode?.shadows ?? {}) as Record<string, string>;
+    const themeRadii = (themeObj.radii ?? (themeObj as any).darkMode?.radii ?? {}) as Record<string, string>;
+
     // Apply colors
-    Object.entries(themeColors).forEach(([key, value]) => {
-      root.style.setProperty(`--rk-colors-${key}`, value);
-    });
-    
+    if (themeColors && typeof themeColors === 'object') {
+      Object.entries(themeColors).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          root.style.setProperty(`--rk-colors-${key}`, value);
+        }
+      });
+    }
+
     // Apply shadows
-    Object.entries(themeShadows).forEach(([key, value]) => {
-      root.style.setProperty(`--rk-shadows-${key}`, value);
-    });
-    
+    if (themeShadows && typeof themeShadows === 'object') {
+      Object.entries(themeShadows).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          root.style.setProperty(`--rk-shadows-${key}`, value);
+        }
+      });
+    }
+
     // Apply radii
-    Object.entries(themeRadii).forEach(([key, value]) => {
-      root.style.setProperty(`--rk-radii-${key}`, value);
-    });
-    
-    console.log('[RainbowKit Theme Applied] CSS variables set from theme object');
+    if (themeRadii && typeof themeRadii === 'object') {
+      Object.entries(themeRadii).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          root.style.setProperty(`--rk-radii-${key}`, value);
+        }
+      });
+    }
+
   }, []);
 }

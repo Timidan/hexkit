@@ -1,0 +1,142 @@
+/* ── Debug Pill Button ───────────────────────────────── */
+.debug-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, hsl(var(--border)));
+  background: transparent;
+  color: var(--text-secondary, hsl(var(--muted-foreground)));
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 90px;
+}
+
+.debug-pill:hover:not(:disabled):not(.debug-pill--preparing) {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.debug-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Background fill layer */
+.debug-pill__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: rgba(59, 130, 246, 0.12);
+  border-radius: 7px;
+  z-index: 0;
+  transition: width 0.5s ease-out;
+}
+
+/* Content layer sits above fill */
+.debug-pill__content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Preparing state ─────────────────────────────────── */
+.debug-pill--preparing {
+  border-color: rgba(59, 130, 246, 0.4);
+  color: hsl(217, 91%, 80%);
+  min-width: 260px;
+  cursor: default;
+}
+.debug-pill--preparing .debug-pill__fill {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* ── Ready state ─────────────────────────────────────── */
+.debug-pill--ready {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+  min-width: 170px;
+}
+.debug-pill--ready:hover {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+/* ── Failed state ────────────────────────────────────── */
+.debug-pill--failed {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  animation: debug-pill-shake 0.4s ease-in-out;
+}
+
+/* ── Debugging (stop) state ──────────────────────────── */
+.debug-pill--debugging {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+.debug-pill--debugging:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+/* ── Inner elements ──────────────────────────────────── */
+.debug-pill__stage {
+  font-size: 12px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.debug-pill__pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #60a5fa;
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+  text-align: right;
+}
+
+.debug-pill__cancel {
+  font-size: 14px;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+.debug-pill__cancel:hover {
+  color: hsl(var(--foreground));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Animations ──────────────────────────────────────── */
+@keyframes debug-pill-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes debug-pill-spin {
+  to { transform: rotate(360deg); }
+}
+
+.debug-pill__spinner {
+  animation: debug-pill-spin 1s linear infinite;
+}

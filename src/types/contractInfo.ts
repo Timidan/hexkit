@@ -8,7 +8,7 @@ export interface ContractInfoResult {
   chain: Chain;
   contractName?: string;
   abi?: string;
-  source?: 'sourcify' | 'blockscout' | 'etherscan' | 'blockscout-bytecode';
+  source?: 'sourcify' | 'blockscout' | 'etherscan' | 'blockscout-bytecode' | 'blockscout-ebd' | 'whatsabi';
   explorerName?: string;
   verified?: boolean;
   // Optional tokenType for legacy UI; current detection happens elsewhere

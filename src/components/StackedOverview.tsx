@@ -29,6 +29,11 @@ const arrayElementType = (type?: string): string => {
   return base || 'unknown';
 };
 
+const isArrayType = (type?: string): boolean => {
+  if (!type) return false;
+  return type.endsWith('[]') || /\[\d+\]$/.test(type);
+};
+
 const mergeTypeStructure = (
   type: string,
   existing?: ParsedSolidityParameter[] | null
@@ -90,10 +95,10 @@ const getFieldValue = (entry: any, index: number, component?: ParsedSolidityPara
   }
 
   if (entry && typeof entry === 'object') {
-    if (component?.name && entry.hasOwnProperty(component.name)) {
+    if (component?.name && Object.prototype.hasOwnProperty.call(entry, component.name)) {
       return entry[component.name];
     }
-    if (entry.hasOwnProperty(index)) {
+    if (Object.prototype.hasOwnProperty.call(entry, index)) {
       return entry[index];
     }
   }
@@ -106,6 +111,20 @@ const renderTupleBody = (
   components: ParsedSolidityParameter[] | null | undefined,
   baseKey: string
 ): React.ReactNode => {
+  // Handle primitive values (strings, numbers, booleans, bigints)
+  if (entry === null || entry === undefined || typeof entry !== 'object') {
+    return (
+      <div className="stacked-kv-list">
+        <div className="stacked-kv-item" key={`${baseKey}-value`}>
+          <span className="stacked-kv-label">
+            <span>Value</span>
+          </span>
+          <p className="stacked-kv-value">{formatValue(entry)}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!components || components.length === 0) {
     return (
       <div className="stacked-kv-list">
@@ -188,10 +207,9 @@ const StackedOverview: React.FC<StackedOverviewProps> = ({ parameterData }) => {
                 : displayType;
               const chips: SummaryChip[] = [];
 
+              // Only show chip for generated/generic parameter names
               if (isGeneric) {
-                chips.push({ text: 'Generated label', tone: 'warning' });
-              } else {
-                chips.push({ text: 'Parameter', tone: 'default' });
+                chips.push({ text: 'Generated', tone: 'warning' });
               }
 
               return (
@@ -219,7 +237,15 @@ const StackedOverview: React.FC<StackedOverviewProps> = ({ parameterData }) => {
 
                   <div className="stacked-card-body">
                     {Array.isArray(param.value) ? (
-                      isStructuredArray ? (
+                      // Type "tuple" (not "tuple[]") with array value = single tuple's fields
+                      isTupleType(displayType) && !isArrayType(displayType) ? (
+                        renderTupleBody(
+                          param.value,
+                          components ?? undefined,
+                          `${param.name}-tuple`
+                        )
+                      ) : isStructuredArray ? (
+                        // Type "tuple[]" or actual structured array = multiple tuples
                         param.value.map((entry, entryIndex) => (
                           <details
                             key={`${param.name}-${entryIndex}`}
@@ -240,6 +266,7 @@ const StackedOverview: React.FC<StackedOverviewProps> = ({ parameterData }) => {
                           </details>
                         ))
                       ) : (
+                        // Simple array of primitives
                         <div className="stacked-kv-list">
                           {param.value.map((entry, entryIndex) => (
                             <div
@@ -275,15 +302,7 @@ const StackedOverview: React.FC<StackedOverviewProps> = ({ parameterData }) => {
                         </div>
                       )
                     ) : (
-                      <div className="stacked-kv-list">
-                        <div className="stacked-kv-item">
-                          <span className="stacked-kv-label">
-                            <span>Value</span>
-                            <span className="stacked-type-chip">{param.type}</span>
-                          </span>
-                          <p className="stacked-kv-value">{formatValue(param.value)}</p>
-                        </div>
-                      </div>
+                      <p className="stacked-kv-value" style={{ padding: '8px 12px' }}>{formatValue(param.value)}</p>
                     )}
                   </div>
                 </article>

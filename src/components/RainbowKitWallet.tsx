@@ -1,6 +1,7 @@
 import React from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { WalletMinimal } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface RainbowKitWalletProps {
   className?: string;
@@ -40,22 +41,17 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
         const content = (() => {
           if (!connected) {
             return (
-              <span
-                role="button"
-                tabIndex={0}
-                className="wallet-icon-inline wallet-icon-inline--disconnected"
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
+                className="rainbowkit-connect-btn wallet-icon-inline wallet-icon-inline--disconnected"
                 onClick={openConnectModal}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openConnectModal();
-                  }
-                }}
                 aria-label="Connect wallet"
                 title="Connect wallet"
               >
                 <WalletMinimal size={18} />
-              </span>
+              </Button>
             );
           }
 
@@ -70,22 +66,17 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
 
           if (chain.unsupported) {
             return (
-              <span
-                role="button"
-                tabIndex={0}
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
                 className="wallet-icon-inline wallet-icon-inline--unsupported"
                 onClick={openChainModal}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openChainModal();
-                  }
-                }}
                 aria-label="Switch network"
                 title={`Unsupported network · ${currentChainName}. Click to switch.`}
               >
                 <WalletMinimal size={18} />
-              </span>
+              </Button>
             );
           }
 
@@ -95,22 +86,17 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
                 <span className="wallet-inline-address">{truncatedAddress}</span>
                 <span className="wallet-inline-network">{currentChainName}</span>
               </div>
-              <span
-                role="button"
-                tabIndex={0}
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
                 className="wallet-icon-inline wallet-icon-inline--connected"
                 onClick={openAccountModal}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openAccountModal();
-                  }
-                }}
                 aria-label={`Wallet connected · ${displayLabel}`}
                 title={`Wallet connected · ${displayLabel}${balanceLabel}`}
               >
                 <WalletMinimal size={18} />
-              </span>
+              </Button>
             </>
           );
         })();

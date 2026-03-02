@@ -1,8 +1,8 @@
 import React from 'react';
-import { XCircleIcon, AlertTriangleIcon, RefreshIcon } from '../icons/IconLibrary';
-import Button from './Button';
-import Card from './Card';
-import '../../styles/SharedComponents.css';
+import { CircleX, TriangleAlert, RefreshCw } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
+import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 export interface ErrorDisplayProps {
   error: string | Error;
@@ -22,116 +22,28 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   className = ''
 }) => {
   const errorMessage = error instanceof Error ? error.message : error;
+  const Icon = variant === 'banner' ? TriangleAlert : CircleX;
 
-  const InlineError = () => (
-    <div className={`shared-error-inline ${className}`}>
-      <XCircleIcon className="shared-error-icon" />
-      <div className="shared-error-content">
-        <p className="shared-error-title">{title}</p>
-        <p className="shared-error-message">{errorMessage}</p>
+  return (
+    <Alert variant="destructive" className={cn(className)}>
+      <Icon className="h-4 w-4" />
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>
+        <p>{errorMessage}</p>
         {showRetry && onRetry && (
           <Button
-            variant="ghost"
+            variant={variant === 'inline' ? 'ghost' : 'destructive'}
             size="sm"
             onClick={onRetry}
-            icon={<RefreshIcon width={12} height={12} />}
-            style={{ 
-              marginTop: 'var(--space-2)', 
-              color: 'var(--error)', 
-              borderColor: 'rgba(255, 0, 64, 0.3)' 
-            }}
+            className="mt-2"
           >
-            Retry
+            <RefreshCw className="h-3 w-3" />
+            {variant === 'card' ? 'Try Again' : 'Retry'}
           </Button>
         )}
-      </div>
-    </div>
+      </AlertDescription>
+    </Alert>
   );
-
-  const CardError = () => (
-    <Card 
-      variant="default" 
-      className={className}
-      style={{ 
-        borderColor: 'rgba(255, 0, 64, 0.3)', 
-        background: 'rgba(255, 0, 64, 0.05)' 
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-        <XCircleIcon style={{ 
-          width: '1.5rem', 
-          height: '1.5rem', 
-          color: 'var(--error)', 
-          flexShrink: 0, 
-          marginTop: 'var(--space-1)' 
-        }} />
-        <div style={{ flex: 1 }}>
-          <h4 style={{ 
-            fontSize: 'var(--text-base)', 
-            fontWeight: 'var(--font-weight-semibold)', 
-            color: 'var(--error)', 
-            marginBottom: 'var(--space-2)' 
-          }}>
-            {title}
-          </h4>
-          <p style={{ 
-            fontSize: 'var(--text-sm)', 
-            color: 'var(--text-secondary)', 
-            marginBottom: 'var(--space-4)' 
-          }}>
-            {errorMessage}
-          </p>
-          {showRetry && onRetry && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={onRetry}
-              icon={<RefreshIcon width={16} height={16} />}
-              style={{ background: 'var(--error)' }}
-            >
-              Try Again
-            </Button>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-
-  const BannerError = () => (
-    <div className={`shared-error-banner ${className}`}>
-      <div className="shared-error-banner-content">
-        <AlertTriangleIcon className="shared-error-banner-icon" />
-        <div className="shared-error-banner-text">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <h4 className="shared-error-banner-title">{title}</h4>
-              <p className="shared-error-banner-message">{errorMessage}</p>
-            </div>
-            {showRetry && onRetry && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={onRetry}
-                icon={<RefreshIcon width={16} height={16} />}
-                style={{ background: 'var(--error)' }}
-              >
-                Retry
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  switch (variant) {
-    case 'card':
-      return <CardError />;
-    case 'banner':
-      return <BannerError />;
-    default:
-      return <InlineError />;
-  }
 };
 
 export default ErrorDisplay;

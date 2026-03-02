@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { XCloseIcon, GemIcon, ExternalLinkIcon, CopyIcon } from './icons/IconLibrary';
-import { Search, AlertTriangle } from 'lucide-react';
+import { Search, AlertTriangle, ExternalLink, Gem, Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNotifications } from './NotificationManager';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
 import SelectorDecoder, { type DecodedSelector } from './shared/SelectorDecoder';
 import { ethers } from 'ethers';
-import { SUPPORTED_CHAINS } from '../utils/chains';
-import { userRpcManager } from '../utils/userRpc';
 import type { Chain } from '../types';
-import InlineCopyButton from './ui/InlineCopyButton';
+import { CopyButton } from './ui/copy-button';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { useNetworkConfig } from '../contexts/NetworkConfigContext';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
+import { cn } from '@/lib/utils';
 
 interface DiamondContractPopupProps {
   isOpen: boolean;
@@ -39,14 +47,15 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   blockExplorerUrl,
   chain
 }) => {
+  const { resolveRpcUrl } = useNetworkConfig();
   const { showSuccess, showError } = useNotifications();
   const [selectedFacetIndex, setSelectedFacetIndex] = useState<number>(0);
   const [expandedABI, setExpandedABI] = useState<boolean>(false);
+  const [expandedFunctions, setExpandedFunctions] = useState<boolean>(false);
   const [facetSelectors, setFacetSelectors] = useState<{[facetAddress: string]: string[]}>({});
   const [isLoadingSelectors, setIsLoadingSelectors] = useState<{[facetAddress: string]: boolean}>({});
   const [decodedSelectors, setDecodedSelectors] = useState<{[facetAddress: string]: DecodedSelector[]}>({});
 
-  // Reset selected facet when popup opens
   useEffect(() => {
     if (isOpen) {
       setSelectedFacetIndex(0);
@@ -55,17 +64,16 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
     }
   }, [isOpen, facets]);
 
-  // Load function selectors for unverified facets
   const loadUnverifiedFacetSelectors = async () => {
     if (!chain) return;
-    
+
     const unverifiedFacets = facets.filter(facet => !facet.isVerified);
-    
+
     for (const facet of unverifiedFacets) {
-      if (facetSelectors[facet.address]) continue; // Already loaded
-      
+      if (facetSelectors[facet.address]) continue;
+
       setIsLoadingSelectors(prev => ({ ...prev, [facet.address]: true }));
-      
+
       try {
         const selectors = await fetchFacetFunctionSelectors(contractAddress, facet.address, chain);
         setFacetSelectors(prev => ({ ...prev, [facet.address]: selectors }));
@@ -77,18 +85,16 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
     }
   };
 
-  // Fetch function selectors for a specific facet using diamond's facetFunctionSelectors
   const fetchFacetFunctionSelectors = async (diamondAddress: string, facetAddress: string, chain: Chain): Promise<string[]> => {
-    const rpcUrl = userRpcManager.getEffectiveRpcUrl(chain, chain.rpcUrl).url;
+    const rpcUrl = resolveRpcUrl(chain.id, chain.rpcUrl).url;
     const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-    
-    // Diamond contract ABI for facetFunctionSelectors function
+
     const diamondABI = [
       "function facetFunctionSelectors(address facet) external view returns (bytes4[] memory)"
     ];
-    
+
     const diamondContract = new ethers.Contract(diamondAddress, diamondABI, provider);
-    
+
     try {
       const selectors: string[] = await diamondContract.facetFunctionSelectors(facetAddress);
       return selectors.map((selector: string) => selector.toLowerCase());
@@ -106,39 +112,32 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
     }
   };
 
-  // Handle decoded selectors for a facet
   const handleSelectorDecoded = (facetAddress: string, decodedResults: DecodedSelector[]) => {
     setDecodedSelectors(prev => ({ ...prev, [facetAddress]: decodedResults }));
   };
 
-  if (!isOpen) return null;
-
   const selectedFacet = facets[selectedFacetIndex];
 
   const calculateFunctionSelector = (functionSignature: string): string => {
-    // Use ethers to calculate the proper function selector
     try {
       const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(functionSignature));
-      return hash.slice(0, 10); // First 4 bytes (8 hex chars + 0x)
+      return hash.slice(0, 10);
     } catch (error) {
-      // Fallback: simple hash-like calculation if ethers is not available
       let hash = 0;
       for (let i = 0; i < functionSignature.length; i++) {
         const char = functionSignature.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
+        hash = hash & hash;
       }
       return `0x${(Math.abs(hash) >>> 0).toString(16).slice(0, 8).padStart(8, '0')}`;
     }
   };
 
   const getFacetFunctions = (facet: DiamondFacet): FacetFunction[] => {
-    // For verified facets, use ABI-based approach
     if (facet.isVerified && facet.abi && facet.abi.length > 0) {
       const functions: FacetFunction[] = [];
       facet.abi.forEach((item: any) => {
         if (item.type === 'function') {
-          // Calculate proper selector for the function
           const inputTypes = item.inputs?.map((input: any) => input.type).join(',') || '';
           const signature = `${item.name}(${inputTypes})`;
           const selector = calculateFunctionSelector(signature);
@@ -156,16 +155,14 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
       return functions;
     }
 
-    // For unverified facets, try to use decoded selectors from facetFunctionSelectors()
     if (!facet.isVerified) {
       const rawSelectors = facetSelectors[facet.address] || [];
       const decodedResults = decodedSelectors[facet.address] || [];
-      
+
       if (rawSelectors.length > 0) {
-        // Create functions from decoded selectors or raw selectors
         return rawSelectors.map((selector: string) => {
           const decoded = decodedResults.find(d => d.selector.toLowerCase() === selector.toLowerCase());
-          
+
           return {
             name: decoded?.signature || `Unknown Function (${selector})`,
             selector: selector,
@@ -176,16 +173,15 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
       }
     }
 
-    // Fallback: try legacy functions structure
     if (!facet.abi || facet.abi.length === 0) {
       const allFunctions: FacetFunction[] = [];
-      
+
       if (facet.functions?.read) {
         facet.functions.read.forEach((func: any) => {
           const functionName = func.name || 'unknownFunction';
           const inputTypes = func.inputs?.map((input: any) => input.type).join(',') || '';
           const signature = `${functionName}(${inputTypes})`;
-          
+
           allFunctions.push({
             name: functionName,
             selector: calculateFunctionSelector(signature),
@@ -194,13 +190,13 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
           });
         });
       }
-      
+
       if (facet.functions?.write) {
         facet.functions.write.forEach((func: any) => {
           const functionName = func.name || 'unknownFunction';
           const inputTypes = func.inputs?.map((input: any) => input.type).join(',') || '';
           const signature = `${functionName}(${inputTypes})`;
-          
+
           allFunctions.push({
             name: functionName,
             selector: calculateFunctionSelector(signature),
@@ -209,11 +205,10 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
           });
         });
       }
-      
+
       if (allFunctions.length > 0) return allFunctions;
     }
 
-    // Final fallback
     return [{
       name: 'No Functions Available',
       selector: '0x00000000',
@@ -222,251 +217,102 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   };
 
   return (
-    <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px'
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div 
-        style={{
-          backgroundColor: '#1a1b23',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          width: '100%',
-          maxWidth: '900px',
-          maxHeight: '90vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)'
-        }}
-      >
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <div style={{
-          padding: '20px 24px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <GemIcon width={24} height={24} style={{ color: '#3b82f6' }} />
-            <div>
-              <h2 style={{ 
-                margin: 0, 
-                color: 'white', 
-                fontSize: '20px', 
-                fontWeight: '600' 
-              }}>
-                Diamond Contract Details
-              </h2>
-              <div style={{ 
-                fontSize: '14px', 
-                color: '#9ca3af', 
-                fontFamily: 'monospace',
-                marginTop: '4px'
-              }}>
-                {contractAddress}
-                <span style={{ marginLeft: '8px' }}>
-                  <InlineCopyButton
+        <DialogHeader className="p-5 pb-4 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Gem className="h-6 w-6 text-blue-500" />
+              <div>
+                <DialogTitle className="text-lg">Diamond Contract Details</DialogTitle>
+                <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground font-mono">
+                  {contractAddress}
+                  <CopyButton
                     value={contractAddress}
                     ariaLabel="Copy contract address"
                     iconSize={14}
-                    size={32}
                     onCopySuccess={() => showSuccess('Copied!', 'Contract address copied to clipboard')}
                     onCopyError={() => showError('Copy Failed', 'Failed to copy to clipboard')}
                   />
-                </span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+
             {blockExplorerUrl && (
               <a
                 href={`${blockExplorerUrl}/address/${contractAddress}`}
                 target="_blank"
                 rel="noreferrer"
-                style={{
-                  color: '#6b7280',
-                  textDecoration: 'none',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  transition: 'color 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#3b82f6'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+                className="p-2 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
               >
-                <ExternalLinkIcon width={18} height={18} />
+                <ExternalLink className="h-4 w-4" />
               </a>
             )}
-            <button
-              onClick={onClose}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#6b7280',
-                padding: '8px',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.color = '#ef4444';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = '#6b7280';
-              }}
-            >
-              <XCloseIcon width={20} height={20} />
-            </button>
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Content */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div className="flex flex-1 overflow-hidden min-h-[500px]">
           {/* Facet List Sidebar */}
-          <div style={{
-            width: '300px',
-            borderRight: '1px solid rgba(255, 255, 255, 0.1)',
-            overflow: 'auto',
-            backgroundColor: '#0f1015'
-          }}>
-            <div style={{ padding: '16px' }}>
-              <h3 style={{ 
-                margin: '0 0 12px 0', 
-                color: 'white', 
-                fontSize: '16px', 
-                fontWeight: '600' 
-              }}>
-                Facets ({facets.length})
-              </h3>
-              
-              {facets.map((facet, index) => (
-                <div
-                  key={index}
-                  onClick={() => setSelectedFacetIndex(index)}
-                  style={{
-                    padding: '12px',
-                    marginBottom: '8px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: selectedFacetIndex === index 
-                      ? 'rgba(59, 130, 246, 0.1)' 
-                      : 'rgba(255, 255, 255, 0.02)',
-                    borderColor: selectedFacetIndex === index 
-                      ? 'rgba(59, 130, 246, 0.3)' 
-                      : 'rgba(255, 255, 255, 0.1)',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (selectedFacetIndex !== index) {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (selectedFacetIndex !== index) {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
-                    }
-                  }}
-                >
-                  <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: '500', 
-                    color: 'white',
-                    marginBottom: '4px'
-                  }}>
-                    {facet.name || 'Unknown Facet'}
-                  </div>
-                  
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#9ca3af', 
-                    fontFamily: 'monospace',
-                    marginBottom: '4px'
-                  }}>
-                    {facet.address.slice(0, 10)}...{facet.address.slice(-8)}
-                  </div>
-                  
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#6b7280'
-                  }}>
-                    {getFacetFunctions(facet).length} functions
-                  </div>
-                  
-                  <div style={{ 
-                    fontSize: '11px', 
-                    color: facet.isVerified ? '#10b981' : '#f59e0b',
-                    marginTop: '4px'
-                  }}>
-                    {facet.isVerified ? ' Verified' : ' Unverified'}
-                  </div>
-                </div>
-              ))}
+          <div className="w-[280px] border-r border-border bg-muted/30 overflow-auto">
+            <div className="p-4">
+              <h3 className="text-sm font-semibold mb-3">Facets ({facets.length})</h3>
+
+              <div className="space-y-2">
+                {facets.map((facet, index) => (
+                  <button
+                    type="button"
+                    key={index}
+                    onClick={() => setSelectedFacetIndex(index)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border transition-all cursor-pointer",
+                      selectedFacetIndex === index
+                        ? "border-blue-500/30 bg-blue-500/10"
+                        : "border-border hover:border-border hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="text-sm font-medium truncate">
+                      {facet.name || 'Unknown Facet'}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono mt-1">
+                      {facet.address.slice(0, 10)}...{facet.address.slice(-8)}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-muted-foreground">
+                        {getFacetFunctions(facet).length} functions
+                      </span>
+                      <Badge variant={facet.isVerified ? "success" : "warning"} size="sm">
+                        {facet.isVerified ? 'Verified' : 'Unverified'}
+                      </Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Facet Details */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+          <div className="flex-1 overflow-auto p-5">
             {selectedFacet && (
-              <>
+              <div className="space-y-6">
                 {/* Facet Header */}
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <h3 style={{ 
-                      margin: 0, 
-                      color: 'white', 
-                      fontSize: '18px', 
-                      fontWeight: '600' 
-                    }}>
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-semibold">
                       {selectedFacet.name || 'Unknown Facet'}
                     </h3>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      color: selectedFacet.isVerified ? '#10b981' : '#f59e0b',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: selectedFacet.isVerified 
-                        ? 'rgba(16, 185, 129, 0.1)' 
-                        : 'rgba(245, 158, 11, 0.1)'
-                    }}>
+                    <Badge variant={selectedFacet.isVerified ? "success" : "warning"} size="sm">
                       {selectedFacet.isVerified ? 'Verified' : 'Unverified'}
-                    </span>
+                    </Badge>
                   </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    color: '#9ca3af',
-                    fontSize: '14px',
-                    fontFamily: 'monospace'
-                  }}>
+
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground font-mono">
                     {selectedFacet.address}
-                    <InlineCopyButton
+                    <CopyButton
                       value={selectedFacet.address}
                       ariaLabel="Copy facet address"
                       iconSize={14}
-                      size={32}
                       onCopySuccess={() => showSuccess('Copied!', 'Facet address copied to clipboard')}
                       onCopyError={() => showError('Copy Failed', 'Failed to copy to clipboard')}
                     />
@@ -474,38 +320,42 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                 </div>
 
                 {/* Functions */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ 
-                    margin: '0 0 12px 0', 
-                    color: 'white', 
-                    fontSize: '16px', 
-                    fontWeight: '600' 
-                  }}>
-                    Functions ({getFacetFunctions(selectedFacet).length})
-                  </h4>
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold">
+                      Functions ({getFacetFunctions(selectedFacet).length})
+                    </h4>
 
-                  {/* Show loading indicator for unverified facets */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExpandedFunctions(!expandedFunctions)}
+                    >
+                      {expandedFunctions ? (
+                        <>
+                          <ChevronUp className="h-3 w-3 mr-1" />
+                          Collapse
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3 w-3 mr-1" />
+                          Expand
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
                   {!selectedFacet.isVerified && isLoadingSelectors[selectedFacet.address] && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px',
-                      background: 'rgba(33, 150, 243, 0.1)',
-                      border: '1px solid rgba(33, 150, 243, 0.3)',
-                      borderRadius: '8px',
-                      marginBottom: '16px'
-                    }}>
-                      <Search size={16} className="animate-spin" />
-                      <span style={{ fontSize: '14px', color: '#64b5f6' }}>
+                    <Alert className="mb-4 bg-blue-500/10 border-blue-500/30">
+                      <Search className="h-4 w-4 animate-spin" />
+                      <AlertDescription className="text-blue-400">
                         Loading function selectors...
-                      </span>
-                    </div>
+                      </AlertDescription>
+                    </Alert>
                   )}
 
-                  {/* Selector Decoder for unverified facets */}
-                  {!selectedFacet.isVerified && facetSelectors[selectedFacet.address] && facetSelectors[selectedFacet.address].length > 0 && (
-                    <div style={{ marginBottom: '16px' }}>
+                  {!selectedFacet.isVerified && facetSelectors[selectedFacet.address]?.length > 0 && (
+                    <div className="mb-4">
                       <SelectorDecoder
                         selectors={facetSelectors[selectedFacet.address]}
                         onDecoded={(results) => handleSelectorDecoded(selectedFacet.address, results)}
@@ -516,82 +366,47 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                     </div>
                   )}
 
-                  {/* Unverified facet note */}
                   {!selectedFacet.isVerified && (
-                    <div style={{
-                      padding: '12px',
-                      background: 'rgba(245, 158, 11, 0.1)',
-                      border: '1px solid rgba(245, 158, 11, 0.3)',
-                      borderRadius: '8px',
-                      marginBottom: '16px'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '12px',
-                        color: '#f59e0b'
-                      }}>
-                        <AlertTriangle size={14} />
-                        <span>Unverified Facet - Function names resolved using signature database</span>
-                      </div>
-                    </div>
+                    <Alert className="mb-4 bg-amber-500/10 border-amber-500/30">
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      <AlertDescription className="text-amber-400">
+                        Unverified Facet - Function names resolved using signature database
+                      </AlertDescription>
+                    </Alert>
                   )}
-                  
-                  <div style={{ 
-                    backgroundColor: '#0f1015',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)'
-                  }}>
+
+                  <div
+                    className={cn(
+                      "rounded-lg border border-border bg-muted/30 overflow-auto transition-all",
+                      expandedFunctions ? "max-h-[400px]" : "max-h-0 border-0"
+                    )}
+                  >
                     {getFacetFunctions(selectedFacet).map((func, index) => (
                       <div
                         key={index}
-                        style={{
-                          padding: '12px 16px',
-                          borderBottom: index < getFacetFunctions(selectedFacet).length - 1 
-                            ? '1px solid rgba(255, 255, 255, 0.05)' 
-                            : 'none'
-                        }}
+                        className={cn(
+                          "px-4 py-3",
+                          index < getFacetFunctions(selectedFacet).length - 1 && "border-b border-border"
+                        )}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{ 
-                            color: 'white', 
-                            fontSize: '14px', 
-                            fontWeight: '500' 
-                          }}>
-                            {func.name}
-                          </span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium">{func.name}</span>
                           {func.stateMutability && (
-                            <span style={{ 
-                              fontSize: '11px', 
-                              color: func.stateMutability === 'view' || func.stateMutability === 'pure' 
-                                ? '#3b82f6' 
-                                : '#ef4444',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              backgroundColor: func.stateMutability === 'view' || func.stateMutability === 'pure'
-                                ? 'rgba(59, 130, 246, 0.1)'
-                                : 'rgba(239, 68, 68, 0.1)'
-                            }}>
+                            <Badge
+                              variant={func.stateMutability === 'view' || func.stateMutability === 'pure' ? 'info' : 'error'}
+                              size="sm"
+                            >
                               {func.stateMutability}
-                            </span>
+                            </Badge>
                           )}
                         </div>
-                        
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '8px',
-                          color: '#9ca3af',
-                          fontSize: '12px',
-                          fontFamily: 'monospace'
-                        }}>
+
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
                           {func.selector}
-                          <InlineCopyButton
+                          <CopyButton
                             value={func.selector}
                             ariaLabel={`Copy selector for ${func.name}`}
                             iconSize={12}
-                            size={28}
                             onCopySuccess={() => showSuccess('Copied!', 'Function selector copied to clipboard')}
                             onCopyError={() => showError('Copy Failed', 'Failed to copy selector')}
                           />
@@ -604,89 +419,57 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                 {/* ABI Section */}
                 {selectedFacet.abi && selectedFacet.abi.length > 0 && (
                   <div>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between',
-                      marginBottom: '12px'
-                    }}>
-                      <h4 style={{ 
-                        margin: 0, 
-                        color: 'white', 
-                        fontSize: '16px', 
-                        fontWeight: '600' 
-                      }}>
-                        ABI
-                      </h4>
-                      
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold">ABI</h4>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setExpandedABI(!expandedABI)}
-                          style={{
-                            padding: '6px 12px',
-                            background: 'rgba(59, 130, 246, 0.1)',
-                            border: '1px solid rgba(59, 130, 246, 0.3)',
-                            borderRadius: '6px',
-                            color: '#3b82f6',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
                         >
-                          {expandedABI ? 'Collapse' : 'Expand'}
-                        </button>
-                        
-                        <button
+                          {expandedABI ? (
+                            <>
+                              <ChevronUp className="h-3 w-3 mr-1" />
+                              Collapse
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3 mr-1" />
+                              Expand
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleCopyWithToast(JSON.stringify(selectedFacet.abi, null, 2), 'Facet ABI')}
-                          style={{
-                            padding: '6px 12px',
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            borderRadius: '6px',
-                            color: '#10b981',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'all 0.2s ease'
-                          }}
                         >
-                          <CopyIcon width={12} height={12} />
+                          <Copy className="h-3 w-3 mr-1" />
                           Copy ABI
-                        </button>
+                        </Button>
                       </div>
                     </div>
-                    
-                    <div style={{ 
-                      backgroundColor: '#0f1015',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      maxHeight: expandedABI ? '400px' : '120px',
-                      overflow: 'auto',
-                      transition: 'max-height 0.3s ease'
-                    }}>
-                      <pre style={{
-                        margin: 0,
-                        padding: '16px',
-                        color: '#e2e8f0',
-                        fontSize: '12px',
-                        fontFamily: 'Monaco, "Roboto Mono", monospace',
-                        lineHeight: '1.4',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all'
-                      }}>
+
+                    <div
+                      className={cn(
+                        "rounded-lg border border-border bg-muted/30 overflow-auto transition-all",
+                        expandedABI ? "max-h-[400px]" : "max-h-[120px]"
+                      )}
+                    >
+                      <pre className="p-4 text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all">
                         {JSON.stringify(selectedFacet.abi, null, 2)}
                       </pre>
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

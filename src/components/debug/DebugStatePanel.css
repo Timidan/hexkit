@@ -1,0 +1,82 @@
+/**
+ * Debug State Panel Styles
+ *
+ * JSON-like syntax highlighting for state display
+ */
+
+.debug-state {
+  height: 100%;
+  background: var(--card);
+}
+
+.debug-state--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debug-state__content {
+  margin: 0;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* JSON syntax highlighting */
+.debug-state__key {
+  color: #9cdcfe; /* Light blue for keys */
+}
+
+.debug-state__string {
+  color: #ce9178; /* Orange for strings */
+}
+
+.debug-state__hex {
+  color: #d7ba7d; /* Yellow for hex values */
+}
+
+.debug-state__number {
+  color: #b5cea8; /* Green for numbers */
+}
+
+.debug-state__boolean {
+  color: #569cd6; /* Blue for booleans */
+}
+
+.debug-state__null,
+.debug-state__undefined {
+  color: #808080; /* Gray for null/undefined */
+  font-style: italic;
+}
+
+.debug-state__bracket {
+  color: var(--foreground);
+}
+
+.debug-state__colon {
+  color: var(--muted-foreground);
+}
+
+/* Dark mode adjustments */
+:root[data-theme="light"] .debug-state__key {
+  color: #0451a5;
+}
+
+:root[data-theme="light"] .debug-state__string {
+  color: #a31515;
+}
+
+:root[data-theme="light"] .debug-state__hex {
+  color: #795e26;
+}
+
+:root[data-theme="light"] .debug-state__number {
+  color: #098658;
+}
+
+:root[data-theme="light"] .debug-state__boolean {
+  color: #0000ff;
+}

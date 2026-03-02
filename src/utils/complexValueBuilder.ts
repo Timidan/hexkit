@@ -43,8 +43,6 @@ const DEFAULT_METADATA: ComplexValueMetadata = {
   components: [],
 };
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-
 export const DEFAULT_OPTIONS: NormalizedViewerOptions = {
   collapse: {
     root: true,
@@ -409,60 +407,3 @@ function isBigNumberLike(value: any): boolean {
   );
 }
 
-function formatAddress(value: string): string {
-  return value;
-}
-
-// Utility helpers for demo/testing
-export function buildDemoNode(): ComplexValueNode {
-  return createNodeFromValue(
-    {
-      owner: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
-      stakes: [
-        { amount: '1200000000000000000', lockUntil: 1729104000 },
-        { amount: '450000000000000000', lockUntil: 1729748800 },
-      ],
-      weights: [14, 12, 8],
-      flags: { canWithdraw: true, isPaused: false },
-      metadata: { label: 'Aavegotchi Vault', version: 'v2' },
-    },
-    {
-      label: 'Position',
-      type: 'tuple',
-      components: [
-        { name: 'owner', type: 'address' },
-        {
-          name: 'stakes',
-          type: 'tuple[]',
-          components: [
-            {
-              name: 'stake',
-              type: 'tuple',
-              components: [
-                { name: 'amount', type: 'uint256' },
-                { name: 'lockUntil', type: 'uint64' },
-              ],
-            },
-          ],
-        },
-        { name: 'weights', type: 'uint32[3]' },
-        {
-          name: 'flags',
-          type: 'tuple',
-          components: [
-            { name: 'canWithdraw', type: 'bool' },
-            { name: 'isPaused', type: 'bool' },
-          ],
-        },
-        {
-          name: 'metadata',
-          type: 'tuple',
-          components: [
-            { name: 'label', type: 'string' },
-            { name: 'version', type: 'string' },
-          ],
-        },
-      ],
-    }
-  );
-}

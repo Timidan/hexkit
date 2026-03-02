@@ -1,0 +1,25 @@
+/* ─── Breakpoint Glyph (glyph margin) ─── */
+.debug-breakpoint-glyph {
+  background-color: #ef4444; /* red-500 */
+  border-radius: 50%;
+  width: 10px !important;
+  height: 10px !important;
+  margin-left: 5px;
+  margin-top: 5px;
+  cursor: pointer;
+}
+
+/* ─── Current Line Highlighting (debugger) ─── */
+.debug-current-line {
+  background-color: rgba(234, 179, 8, 0.15) !important; /* yellow-500 at 15% */
+  border-left: 2px solid #eab308 !important; /* yellow-500 */
+}
+
+.debug-current-line-gutter {
+  background-color: rgba(234, 179, 8, 0.3) !important;
+}
+
+/* ─── Glyph margin hover hint ─── */
+.monaco-editor .glyph-margin:hover {
+  cursor: pointer;
+}

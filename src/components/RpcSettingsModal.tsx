@@ -1,12 +1,24 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  userRpcManager,
+  networkConfigManager,
   type RpcProviderMode,
   isValidRpcUrl,
-} from "../utils/userRpc";
+} from "../config/networkConfig";
 import type { Chain } from "../types";
-import SegmentedControl from "./shared/SegmentedControl";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Badge } from "./ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface RpcSettingsModalProps {
   isOpen: boolean;
@@ -17,229 +29,92 @@ interface RpcSettingsModalProps {
 
 type FormState = {
   mode: RpcProviderMode;
-  alchemyKey: string;
-  infuraKey: string;
-  genericUrl: string;
-  etherscanKey: string;
+  alchemyApiKey: string;
+  infuraProjectId: string;
+  customRpcUrl: string;
+  etherscanApiKey: string;
 };
 
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
-type SecretField = "alchemy" | "infura" | "etherscan";
-
-const EyeIcon: React.FC<{ isRevealed: boolean }> = ({ isRevealed }) =>
-  isRevealed ? (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      focusable="false"
-      role="img"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M1.5 10c2.2-4 5.3-6 8.5-6s6.3 2 8.5 6c-2.2 4-5.3 6-8.5 6s-6.3-2-8.5-6Z" />
-      <circle cx="10" cy="10" r="2.5" />
-    </svg>
-  ) : (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      focusable="false"
-      role="img"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M4 4.2c-1.4 1-2.6 2.4-3.5 3.8 2.2 4 5.3 6 8.5 6 1 0 2-.15 2.9-.44" />
-      <path d="M7.5 7.5a3 3 0 0 0 4 4" />
-      <path d="M18.5 10c-.9-1.6-2.1-3-3.6-4.1" />
-      <path d="M2 2l16 16" />
-    </svg>
-  );
-
-const CloseIcon: React.FC = () => (
-  <svg
-    viewBox="0 0 20 20"
-    aria-hidden="true"
-    focusable="false"
-    role="img"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M5 5l10 10" />
-    <path d="M15 5l-10 10" />
-  </svg>
-);
-
-const PROVIDER_DESCRIPTIONS: Record<RpcProviderMode, string> = {
-  DEFAULT:
-    "Use the application defaults (environment variables or bundled public RPC).",
-  ALCHEMY:
-    "Use Alchemy endpoints for all supported networks. Requires your personal API key.",
-  INFURA:
-    "Use Infura endpoints for supported networks. Requires your project ID.",
-  GENERIC: "Use a custom RPC URL for every network (advanced).",
-};
-
-const PROVIDER_TITLES: Record<RpcProviderMode, string> = {
-  DEFAULT: "Default",
-  ALCHEMY: "Alchemy",
-  INFURA: "Infura",
-  GENERIC: "Custom RPC",
-};
-
-const SUPPORTED_BY_ALCHEMY = [
-  "Ethereum Mainnet",
-  "Ethereum Sepolia",
-  "Base Mainnet / Sepolia",
-  "Polygon Mainnet / Amoy",
-  "Arbitrum Mainnet / Sepolia",
-  "Optimism Mainnet / Sepolia",
-  "Avalanche Mainnet",
-];
-
-const SUPPORTED_BY_INFURA = [
-  "Ethereum Mainnet / Sepolia",
-  "Base Mainnet / Sepolia",
-  "Polygon Mainnet / Amoy",
-  "Arbitrum Mainnet / Sepolia",
-  "Optimism Mainnet / Sepolia",
-  "Avalanche Mainnet",
-];
 
 const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
   isOpen,
   onClose,
   onSaved,
-  currentChain,
 }) => {
   const [formState, setFormState] = useState<FormState>({
     mode: "DEFAULT",
-    alchemyKey: "",
-    infuraKey: "",
-    genericUrl: "",
-    etherscanKey: "",
+    alchemyApiKey: "",
+    infuraProjectId: "",
+    customRpcUrl: "",
+    etherscanApiKey: "",
   });
-  const [errors, setErrors] = useState<{ [P in RpcProviderMode]?: string }>({});
+  const [errors, setErrors] = useState<Partial<Record<RpcProviderMode, string>>>({});
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
-  const [secretVisibility, setSecretVisibility] = useState<Record<SecretField, boolean>>({
-    alchemy: false,
-    infura: false,
-    etherscan: false,
-  });
-  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [showAlchemyKey, setShowAlchemyKey] = useState(false);
+  const [showInfuraKey, setShowInfuraKey] = useState(false);
+  const [showEtherscanKey, setShowEtherscanKey] = useState(false);
   const autoSaveTimer = useRef<number | null>(null);
   const initialSyncRef = useRef(true);
 
   useEffect(() => {
     if (!isOpen) return;
-    const settings = userRpcManager.getSettings();
+    const config = networkConfigManager.getConfig();
     setFormState({
-      mode: settings.mode ?? "DEFAULT",
-      alchemyKey: settings.alchemyKey ?? "",
-      infuraKey: settings.infuraKey ?? "",
-      genericUrl: settings.genericUrl ?? "",
-      etherscanKey: settings.etherscanKey ?? "",
+      mode: config.rpcMode ?? "DEFAULT",
+      alchemyApiKey: config.alchemyApiKey ?? "",
+      infuraProjectId: config.infuraProjectId ?? "",
+      customRpcUrl: config.customRpcUrl ?? "",
+      etherscanApiKey: config.etherscanApiKey ?? "",
     });
-    setSecretVisibility({
-      alchemy: false,
-      infura: false,
-      etherscan: false,
-    });
+    setShowAlchemyKey(false);
+    setShowInfuraKey(false);
+    setShowEtherscanKey(false);
     setErrors({});
     setAutoSaveState("saved");
     initialSyncRef.current = true;
   }, [isOpen]);
 
+  // Flush pending save when modal unmounts / closes (Radix Dialog unmounts content on close,
+  // so the flush MUST be in a cleanup function — effect bodies don't run on unmount)
+  const formStateRef = useRef(formState);
+  formStateRef.current = formState;
   useEffect(() => {
     if (!isOpen) return;
-
-    const handlePointer = (event: MouseEvent | TouchEvent) => {
-      if (!panelRef.current) return;
-      if (!panelRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("touchstart", handlePointer);
-    document.addEventListener("keydown", handleKeyDown);
-
+    // Cleanup runs when isOpen flips false OR component unmounts (Dialog close)
     return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("touchstart", handlePointer);
-      document.removeEventListener("keydown", handleKeyDown);
+      if (autoSaveTimer.current) {
+        window.clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = null;
+        const fs = formStateRef.current;
+        networkConfigManager.saveConfig({
+          rpcMode: fs.mode,
+          alchemyApiKey: fs.alchemyApiKey.trim(),
+          infuraProjectId: fs.infuraProjectId.trim(),
+          customRpcUrl: fs.customRpcUrl.trim(),
+          etherscanApiKey: fs.etherscanApiKey.trim(),
+        });
+      }
     };
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (!isOpen && autoSaveTimer.current) {
-      window.clearTimeout(autoSaveTimer.current);
-    }
   }, [isOpen]);
-
-  const handleModeChange = (mode: RpcProviderMode) => {
-    setFormState((prev) => ({ ...prev, mode }));
-  };
-
-  const handleKeyActivate = (
-    event: React.KeyboardEvent<HTMLElement>,
-    action: () => void,
-  ) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      action();
-    }
-  };
-
-  const toggleSecretVisibility = (field: SecretField) => {
-    setSecretVisibility((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
-  };
 
   const computeErrors = (state: FormState) => {
     const nextErrors: typeof errors = {};
-    if (state.mode === "ALCHEMY" && !state.alchemyKey.trim()) {
-      nextErrors.ALCHEMY = "Alchemy API key required.";
+    if (state.mode === "ALCHEMY" && !state.alchemyApiKey.trim()) {
+      nextErrors.ALCHEMY = "API key required";
     }
-    if (state.mode === "INFURA" && !state.infuraKey.trim()) {
-      nextErrors.INFURA = "Infura project ID required.";
+    if (state.mode === "INFURA" && !state.infuraProjectId.trim()) {
+      nextErrors.INFURA = "Project ID required";
     }
-    if (state.mode === "GENERIC") {
-      if (!state.genericUrl.trim()) {
-        nextErrors.GENERIC = "Custom RPC URL required.";
-      } else if (!isValidRpcUrl(state.genericUrl)) {
-        nextErrors.GENERIC = "Enter a valid HTTP(s) RPC URL.";
+    if (state.mode === "CUSTOM") {
+      if (!state.customRpcUrl.trim()) {
+        nextErrors.CUSTOM = "RPC URL required";
+      } else if (!isValidRpcUrl(state.customRpcUrl)) {
+        nextErrors.CUSTOM = "Enter a valid HTTP(s) URL";
       }
     }
     return nextErrors;
   };
-
-  const providerHint = useMemo(() => {
-    if (!currentChain) {
-      return null;
-    }
-
-    if (formState.mode === "GENERIC") {
-      return `Custom RPC will be expected to serve chain ID ${currentChain.id} (${currentChain.name}).`;
-    }
-
-    if (formState.mode === "ALCHEMY") {
-      return `Alchemy supports: ${SUPPORTED_BY_ALCHEMY.join(", ")}`;
-    }
-
-    if (formState.mode === "INFURA") {
-      return `Infura supports: ${SUPPORTED_BY_INFURA.join(", ")}`;
-    }
-
-    return null;
-  }, [currentChain, formState.mode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -259,12 +134,13 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     setAutoSaveState("saving");
 
     autoSaveTimer.current = window.setTimeout(() => {
-      userRpcManager.saveSettings({
-        mode: formState.mode,
-        alchemyKey: formState.alchemyKey.trim(),
-        infuraKey: formState.infuraKey.trim(),
-        genericUrl: formState.genericUrl.trim(),
-        etherscanKey: formState.etherscanKey.trim(),
+      autoSaveTimer.current = null; // Mark as fired so flush cleanup doesn't redundantly save
+      networkConfigManager.saveConfig({
+        rpcMode: formState.mode,
+        alchemyApiKey: formState.alchemyApiKey.trim(),
+        infuraProjectId: formState.infuraProjectId.trim(),
+        customRpcUrl: formState.customRpcUrl.trim(),
+        etherscanApiKey: formState.etherscanApiKey.trim(),
       });
       const hasErrors = Object.keys(nextErrors).length > 0;
       setAutoSaveState(hasErrors ? "error" : "saved");
@@ -278,289 +154,174 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     };
   }, [formState, isOpen, onSaved]);
 
-  const providerSegments = useMemo(
-    () => [
-      {
-        value: "DEFAULT" as RpcProviderMode,
-        label: (
-          <span className="rpc-segment-label">
-            <strong>Default</strong>
-            <small>Toolkit defaults</small>
-          </span>
-        ),
-      },
-      {
-        value: "ALCHEMY" as RpcProviderMode,
-        label: (
-          <span className="rpc-segment-label">
-            <strong>Alchemy</strong>
-            <small>API key required</small>
-          </span>
-        ),
-      },
-      {
-        value: "INFURA" as RpcProviderMode,
-        label: (
-          <span className="rpc-segment-label">
-            <strong>Infura</strong>
-            <small>Project ID required</small>
-          </span>
-        ),
-      },
-      {
-        value: "GENERIC" as RpcProviderMode,
-        label: (
-          <span className="rpc-segment-label">
-            <strong>Custom RPC</strong>
-            <small>Advanced</small>
-          </span>
-        ),
-      },
-    ],
-    []
-  );
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>RPC Provider Settings</DialogTitle>
+          <DialogDescription>
+            Configure your RPC provider. Settings are stored locally.
+          </DialogDescription>
+        </DialogHeader>
 
-  if (!isOpen) return null;
-
-  return createPortal(
-    <div
-      ref={panelRef}
-      className="rpc-settings-popover"
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="rpc-settings-title"
-    >
-      <div className="rpc-settings-header">
-        <div>
-          <p className="rpc-settings-eyebrow">Connection</p>
-          <h3 id="rpc-settings-title">RPC Provider Settings</h3>
-        </div>
-        <div className="rpc-settings-actions">
-          <span className={`rpc-autosave rpc-autosave--${autoSaveState}`}>
-            {autoSaveState === "saving" && "Saving..."}
-            {autoSaveState === "saved" && "Saved"}
-            {autoSaveState === "error" && "Check required fields"}
-            {autoSaveState === "idle" && "Ready"}
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
-            className="inline-copy-icon rpc-popover-close"
-            onClick={onClose}
-            onKeyDown={(event) => handleKeyActivate(event, onClose)}
-            aria-label="Close RPC settings"
-            style={{ "--inline-copy-hit-padding": "6px" } as React.CSSProperties}
+        <div className="space-y-3">
+          {/* Provider Tabs */}
+          <Tabs
+            value={formState.mode}
+            onValueChange={(value) => setFormState((prev) => ({ ...prev, mode: value as RpcProviderMode }))}
           >
-            <CloseIcon />
-          </span>
-        </div>
-      </div>
-
-      <p className="rpc-settings-description">
-        Configure which RPC provider the toolkit should use. Your preferences are cached
-        locally and never leave this browser.
-      </p>
-
-      <div className="rpc-settings-card">
-        <SegmentedControl
-          className="rpc-provider-control"
-          ariaLabel="RPC provider selector"
-          value={formState.mode}
-          onChange={(value) => handleModeChange(value as RpcProviderMode)}
-          options={providerSegments}
-        />
-        <div className="rpc-provider-details">
-          <h4>{PROVIDER_TITLES[formState.mode]}</h4>
-          <p>{PROVIDER_DESCRIPTIONS[formState.mode]}</p>
-          {providerHint && <div className="rpc-provider-hint">{providerHint}</div>}
-        </div>
-      </div>
-
-      {formState.mode === "ALCHEMY" && (
-        <div className="rpc-input-card">
-          <label htmlFor="rpc-alchemy-key">Alchemy API Key</label>
-          <div className="rpc-input-field">
-            <input
-              id="rpc-alchemy-key"
-              type={secretVisibility.alchemy ? "text" : "password"}
-              autoComplete="new-password"
-              spellCheck={false}
-              value={formState.alchemyKey}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  alchemyKey: e.target.value,
-                }))
-              }
-              placeholder="Paste your Alchemy API key..."
-            />
-            {formState.alchemyKey && (
-              <span
-                role="button"
-                tabIndex={0}
-                className="inline-copy-icon rpc-input-toggle"
-                onClick={() => toggleSecretVisibility("alchemy")}
-                onKeyDown={(event) =>
-                  handleKeyActivate(event, () => toggleSecretVisibility("alchemy"))
-                }
-                aria-pressed={secretVisibility.alchemy}
-                aria-label={`${secretVisibility.alchemy ? "Hide" : "Show"} Alchemy API key`}
-                style={{ "--inline-copy-hit-padding": "4px" } as React.CSSProperties}
+            <TabsList className="w-full">
+              <TabsTrigger
+                value="DEFAULT"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
-                <EyeIcon isRevealed={secretVisibility.alchemy} />
-              </span>
+                Default
+              </TabsTrigger>
+              <TabsTrigger
+                value="ALCHEMY"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Alchemy
+              </TabsTrigger>
+              <TabsTrigger
+                value="INFURA"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Infura
+              </TabsTrigger>
+              <TabsTrigger
+                value="CUSTOM"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                Custom
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* Provider Config - constant height */}
+          <div className="space-y-2">
+            <Label htmlFor="provider-input" className={cn(formState.mode === "DEFAULT" && "text-muted-foreground")}>
+              {formState.mode === "DEFAULT" && "No configuration needed"}
+              {formState.mode === "ALCHEMY" && "Alchemy API Key"}
+              {formState.mode === "INFURA" && "Infura Project ID"}
+              {formState.mode === "CUSTOM" && "Custom RPC URL"}
+            </Label>
+            <div className="flex gap-2">
+              {formState.mode === "DEFAULT" ? (
+                <Input
+                  disabled
+                  placeholder="Using public RPC endpoints"
+                  className="flex-1"
+                />
+              ) : formState.mode === "ALCHEMY" ? (
+                <Input
+                  id="provider-input"
+                  type={showAlchemyKey ? "text" : "password"}
+                  value={formState.alchemyApiKey}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, alchemyApiKey: e.target.value }))}
+                  placeholder="Enter API key..."
+                  className={cn("flex-1", errors.ALCHEMY && "border-destructive")}
+                />
+              ) : formState.mode === "INFURA" ? (
+                <Input
+                  id="provider-input"
+                  type={showInfuraKey ? "text" : "password"}
+                  value={formState.infuraProjectId}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, infuraProjectId: e.target.value }))}
+                  placeholder="Enter project ID..."
+                  className={cn("flex-1", errors.INFURA && "border-destructive")}
+                />
+              ) : (
+                <Input
+                  id="provider-input"
+                  type="url"
+                  value={formState.customRpcUrl}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, customRpcUrl: e.target.value }))}
+                  placeholder="https://your-node.example.com"
+                  className={cn("flex-1", errors.CUSTOM && "border-destructive")}
+                />
+              )}
+              {formState.mode !== "DEFAULT" && formState.mode !== "CUSTOM" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (formState.mode === "ALCHEMY") setShowAlchemyKey(!showAlchemyKey);
+                    if (formState.mode === "INFURA") setShowInfuraKey(!showInfuraKey);
+                  }}
+                >
+                  {(formState.mode === "ALCHEMY" ? showAlchemyKey : showInfuraKey)
+                    ? <EyeOff className="h-4 w-4" />
+                    : <Eye className="h-4 w-4" />}
+                </Button>
+              )}
+            </div>
+            {(errors.ALCHEMY || errors.INFURA || errors.CUSTOM) && (
+              <p className="text-xs text-destructive">
+                {errors.ALCHEMY || errors.INFURA || errors.CUSTOM}
+              </p>
             )}
           </div>
-          {errors.ALCHEMY ? (
-            <small className="form-error">{errors.ALCHEMY}</small>
-          ) : (
-            <small className="form-hint">Saved locally and encrypted at rest.</small>
-          )}
-          <div className="rpc-support">
-            <span>Supported networks</span>
-            <div className="rpc-support-grid">
-              {SUPPORTED_BY_ALCHEMY.map((network) => (
-                <span key={network} className="rpc-support-chip">
-                  {network}
-                </span>
-              ))}
+
+          {/* Etherscan API Key */}
+          <div className="space-y-2 pt-3 border-t">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="etherscan-key">Etherscan API Key</Label>
+              <Badge variant="outline" className="text-[10px]">Optional</Badge>
             </div>
+            <div className="flex gap-2">
+              <Input
+                id="etherscan-key"
+                type={showEtherscanKey ? "text" : "password"}
+                value={formState.etherscanApiKey}
+                onChange={(e) => setFormState((prev) => ({ ...prev, etherscanApiKey: e.target.value }))}
+                placeholder="Enter API key..."
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setShowEtherscanKey(!showEtherscanKey)}
+              >
+                {showEtherscanKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              For fetching verified ABIs. Works across all EVM networks.
+            </p>
           </div>
         </div>
-      )}
 
-      {formState.mode === "INFURA" && (
-        <div className="rpc-input-card">
-          <label htmlFor="rpc-infura-key">Infura Project ID</label>
-          <div className="rpc-input-field">
-            <input
-              id="rpc-infura-key"
-              type={secretVisibility.infura ? "text" : "password"}
-              autoComplete="new-password"
-              spellCheck={false}
-              value={formState.infuraKey}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  infuraKey: e.target.value,
-                }))
-              }
-              placeholder="Paste your Infura project ID..."
-            />
-            {formState.infuraKey && (
-              <span
-                role="button"
-                tabIndex={0}
-                className="inline-copy-icon rpc-input-toggle"
-                onClick={() => toggleSecretVisibility("infura")}
-                onKeyDown={(event) =>
-                  handleKeyActivate(event, () => toggleSecretVisibility("infura"))
-                }
-                aria-pressed={secretVisibility.infura}
-                aria-label={`${secretVisibility.infura ? "Hide" : "Show"} Infura project ID`}
-                style={{ "--inline-copy-hit-padding": "4px" } as React.CSSProperties}
-              >
-                <EyeIcon isRevealed={secretVisibility.infura} />
-              </span>
+        {/* Footer with status */}
+        <div className="flex items-center justify-between pt-3 border-t">
+          <div className="flex items-center gap-1.5 text-xs">
+            {autoSaveState === "saving" && (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground">Saving...</span>
+              </>
+            )}
+            {autoSaveState === "saved" && (
+              <>
+                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                <span className="text-emerald-500">Saved</span>
+              </>
+            )}
+            {autoSaveState === "error" && (
+              <>
+                <AlertCircle className="h-3 w-3 text-destructive" />
+                <span className="text-destructive">Check fields</span>
+              </>
             )}
           </div>
-          {errors.INFURA ? (
-            <small className="form-error">{errors.INFURA}</small>
-          ) : (
-            <small className="form-hint">Stored only in your browser cache.</small>
-          )}
-          <div className="rpc-support">
-            <span>Supported networks</span>
-            <div className="rpc-support-grid">
-              {SUPPORTED_BY_INFURA.map((network) => (
-                <span key={network} className="rpc-support-chip">
-                  {network}
-                </span>
-              ))}
-            </div>
-          </div>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Done
+          </Button>
         </div>
-      )}
-
-      {formState.mode === "GENERIC" && (
-        <div className="rpc-input-card">
-          <label htmlFor="rpc-generic-url">Custom RPC URL</label>
-          <div className="rpc-input-field rpc-input-field--no-toggle">
-            <input
-              id="rpc-generic-url"
-              type="text"
-              value={formState.genericUrl}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  genericUrl: e.target.value,
-                }))
-              }
-              placeholder="https://your-node.example.com"
-            />
-          </div>
-          {errors.GENERIC ? (
-            <small className="form-error">{errors.GENERIC}</small>
-          ) : (
-            <small className="form-hint">
-              Ensure the endpoint supports trace, impersonation, and archive data.
-            </small>
-          )}
-        </div>
-      )}
-
-      {formState.mode === "DEFAULT" && (
-        <div className="rpc-input-card">
-          <p>
-            Toolkit defaults rely on environment variables and bundled public RPCs. No action
-            is required, but you can override with a provider at any time.
-          </p>
-        </div>
-      )}
-
-      {/* Etherscan API Key - works with all modes for contract verification */}
-      <div className="rpc-input-card" style={{ borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: "16px", paddingTop: "16px" }}>
-        <label htmlFor="rpc-etherscan-key">
-          Etherscan API Key <span style={{ fontSize: "12px", fontWeight: "normal", color: "#9ca3af" }}>(Optional)</span>
-        </label>
-        <div className="rpc-input-field">
-          <input
-            id="rpc-etherscan-key"
-            type={secretVisibility.etherscan ? "text" : "password"}
-            autoComplete="new-password"
-            spellCheck={false}
-            value={formState.etherscanKey}
-            onChange={(e) =>
-              setFormState((prev) => ({
-                ...prev,
-                etherscanKey: e.target.value,
-              }))
-            }
-            placeholder="Paste your Etherscan API key..."
-          />
-          {formState.etherscanKey && (
-            <span
-              role="button"
-              tabIndex={0}
-              className="inline-copy-icon rpc-input-toggle"
-              onClick={() => toggleSecretVisibility("etherscan")}
-              onKeyDown={(event) =>
-                handleKeyActivate(event, () => toggleSecretVisibility("etherscan"))
-              }
-              aria-pressed={secretVisibility.etherscan}
-              aria-label={`${secretVisibility.etherscan ? "Hide" : "Show"} Etherscan API key`}
-              style={{ "--inline-copy-hit-padding": "4px" } as React.CSSProperties}
-            >
-              <EyeIcon isRevealed={secretVisibility.etherscan} />
-            </span>
-          )}
-        </div>
-        <small className="form-hint">
-          Used for fetching verified contract ABIs from Etherscan and other EVM explorers. One key works for all EVM networks. Stored only in your browser cache.
-        </small>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 };
 

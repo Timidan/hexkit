@@ -13,17 +13,19 @@ const readEnv = (keys: string[], fallback = "") => {
   return fallback;
 };
 
-export const getAlchemyApiKey = () => readEnv(["API_KEY", "VITE_API_KEY"]);
+export const getAlchemyApiKey = () => readEnv(["VITE_API_KEY"]);
+
+export const getEtherscanApiKey = () => readEnv(["VITE_ETHERSCAN_API_KEY"]);
 
 export const getBlockscoutBytecodeDbUrl = () =>
   readEnv(
-    ["VITE_BLOCKSCOUT_BYTECODE_DB_URL", "BLOCKSCOUT_BYTECODE_DB_URL"],
+    ["VITE_BLOCKSCOUT_BYTECODE_DB_URL"],
     "https://eth-bytecode-db.services.blockscout.com"
   );
 
 export const getSimulatorBridgeUrl = () => {
   const value = readEnv(
-    ["VITE_SIMULATOR_BRIDGE_URL", "SIMULATOR_BRIDGE_URL"],
+    ["VITE_SIMULATOR_BRIDGE_URL"],
     "http://127.0.0.1:5789"
   );
 

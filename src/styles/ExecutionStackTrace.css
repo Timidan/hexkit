@@ -1,0 +1,1887 @@
+/* ============================================
+   EXECUTION STACK TRACE COMPONENT
+   ============================================ */
+
+.exec-stack-trace {
+  --tst-bg: transparent;
+  --tst-border: rgba(255, 255, 255, 0.08);
+  --tst-text: #e5e5e5;
+  --tst-text-muted: #6b6b7b;
+  --tst-accent: #a069ff;
+
+  width: 100%;
+  max-width: 100%;
+  overflow-x: visible;
+  color: var(--tst-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ============================================
+   SECTION TITLES
+   ============================================ */
+
+.exec-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tst-text-muted);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* Collapsible section header */
+.exec-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 6px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.exec-section-header:hover {
+  color: var(--tst-text);
+}
+
+.exec-section-header:hover .exec-section-title {
+  color: var(--tst-text-muted);
+}
+
+.exec-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tst-text-muted);
+  transition: color 0.2s;
+}
+
+.exec-section-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.exec-section-header:hover .exec-section-toggle {
+  color: var(--tst-text-muted);
+}
+
+/* ============================================
+   INPUT/OUTPUT SECTION
+   ============================================ */
+
+.exec-io-section {
+  margin-bottom: 12px;
+}
+
+.exec-io-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.exec-io-panel {
+  background: transparent;
+  border: 1px solid var(--tst-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.exec-io-header {
+  padding: 8px 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--tst-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tst-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exec-io-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exec-io-view-toggle {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.exec-io-view-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tst-text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.exec-io-view-btn:hover {
+  color: var(--tst-text);
+}
+
+.exec-io-view-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--tst-text);
+}
+
+.exec-io-raw {
+  padding: 0;
+}
+
+.exec-io-raw code {
+  display: block;
+  color: var(--tst-text-muted);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Copy button - works with shadcn CopyButton */
+.exec-io-copy-btn {
+  background: transparent !important;
+  border: none !important;
+  color: var(--tst-text-muted) !important;
+  cursor: pointer;
+  padding: 4px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+  height: auto !important;
+  width: auto !important;
+}
+
+.exec-io-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--tst-text) !important;
+}
+
+.exec-io-copy-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.exec-io-content {
+  padding: 12px;
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+    "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--tst-text);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.exec-io-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--tst-text-muted);
+  background: transparent;
+  border: 1px solid var(--tst-border);
+  border-radius: 4px;
+  font-size: 15px;
+}
+
+.exec-io-empty p {
+  margin: 0;
+}
+
+/* ============================================
+   TREE DISPLAY
+   ============================================ */
+
+.exec-io-tree-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.exec-io-caret {
+  color: #6a6a7a;
+  min-width: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exec-io-caret svg {
+  display: block;
+}
+
+.exec-io-bracket {
+  color: #9a9aac;
+  font-weight: 400;
+}
+
+.exec-io-tree-content {
+  margin: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--tst-border);
+  margin-left: 6px;
+  margin-top: 4px;
+}
+
+.exec-io-tree-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  line-height: 1.8;
+}
+
+.exec-io-key {
+  color: #d4d4d4;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.exec-io-colon {
+  color: #6a6a7a;
+  flex-shrink: 0;
+}
+
+.exec-io-value {
+  color: #a78bfa;
+  word-break: break-all;
+  flex: 1;
+}
+
+/* For string values */
+.exec-io-value:has(> .exec-io-string) {
+  color: #10b981;
+}
+
+/* For numeric values */
+.exec-io-value:has(> .exec-io-number) {
+  color: #f59e0b;
+}
+
+/* For address values */
+.exec-io-value:has(> .exec-io-address) {
+  color: #d4d4d4;
+}
+
+/* Function signature styling */
+.exec-io-function-name {
+  margin-bottom: 4px;
+}
+
+.exec-io-function-sig {
+  color: #10b981;
+  font-style: italic;
+}
+
+/* Type annotation styling (for signature-decoded params) */
+.exec-io-type {
+  color: var(--tst-text-muted, #6b7280);
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+/* Loading state styling */
+.exec-io-loading {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.exec-io-loading .exec-io-value {
+  color: var(--tst-text-muted, #6b7280);
+}
+
+/* For write functions with no return value */
+.exec-io-no-output {
+  color: var(--tst-text-muted, #6b7280);
+  font-style: italic;
+}
+
+/* ============================================
+   TRACE SECTION
+   ============================================ */
+
+.exec-trace-section {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+/* Card container — the outer trace section that wraps toolbar + trace list.
+   Gives the trace its own contained look with margins (not flush with page edges). */
+.exec-stack-trace > .exec-trace-section {
+  background: #0a0a0f;
+  border: 1px solid var(--tst-border);
+  border-radius: 10px;
+}
+
+.exec-trace-header {
+  padding: 0 0 12px 0;
+  border-bottom: none;
+}
+
+/* ============================================
+   TOOLBAR
+   ============================================ */
+
+.exec-trace-toolbar {
+  position: sticky;
+  top: 93px; /* Below sticky header (~53px) + sticky tabs (~40px) */
+  z-index: 98;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #0a0a0f;
+  border-bottom: 1px solid var(--tst-border);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.exec-trace-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Search input - works with shadcn Input */
+.exec-search-input {
+  background: transparent !important;
+  border: 1px solid var(--tst-border) !important;
+  border-radius: 4px !important;
+  padding: 6px 12px !important;
+  font-size: 14px !important;
+  color: var(--tst-text) !important;
+  outline: none;
+  width: 180px;
+  height: auto !important;
+  transition: border-color 0.2s;
+}
+
+.exec-search-input:focus {
+  border-color: var(--tst-accent) !important;
+  box-shadow: none !important;
+  ring: none !important;
+}
+
+.exec-search-input:focus-visible {
+  outline: none !important;
+  ring: none !important;
+}
+
+.exec-search-input::placeholder {
+  color: var(--tst-text-muted);
+}
+
+.exec-dropdown-btn {
+  background: transparent;
+  border: 1px solid var(--tst-border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--tst-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exec-dropdown-btn:hover {
+  border-color: var(--tst-text-muted);
+  color: var(--tst-text);
+}
+
+/* "All" button - subtle style */
+.exec-all-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #d4d4d4;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exec-all-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.exec-dropdown-caret {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Search category dropdown */
+.exec-search-category-wrapper {
+  position: relative;
+}
+
+.exec-all-btn--active {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  color: #a5b4fc !important;
+}
+
+.exec-search-category-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 140px;
+  background: #1e1f26;
+  border: 1px solid var(--tst-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.exec-search-category-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  font-size: 14px;
+  color: var(--tst-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.exec-search-category-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tst-text);
+}
+
+.exec-search-category-item.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  font-weight: 500;
+}
+
+/* ============================================
+   CUSTOM CHECKBOXES
+   ============================================ */
+
+.exec-trace-filters {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Filter checkbox container - works with shadcn Checkbox */
+.exec-filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Style shadcn Checkbox */
+.exec-filter-checkbox button[role="checkbox"] {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #4a5fff !important;
+  border-radius: 3px;
+  background: transparent !important;
+  transition: all 0.2s;
+}
+
+.exec-filter-checkbox button[role="checkbox"][data-state="checked"] {
+  background: #4a5fff !important;
+  border-color: #4a5fff !important;
+}
+
+.exec-filter-checkbox:hover button[role="checkbox"] {
+  border-color: #6a7fff !important;
+}
+
+.exec-filter-checkbox:hover button[role="checkbox"][data-state="checked"] {
+  background: #6a7fff !important;
+  border-color: #6a7fff !important;
+}
+
+/* Checkbox label using shadcn Label */
+.exec-checkbox-label {
+  font-size: 14px;
+  color: var(--tst-text-muted);
+  font-weight: 500;
+  transition: color 0.2s;
+  cursor: pointer;
+}
+
+.exec-filter-checkbox:has(button[data-state="checked"])
+  .exec-checkbox-label {
+  color: var(--tst-text);
+}
+
+.exec-filter-checkbox:hover .exec-checkbox-label {
+  color: var(--tst-text);
+}
+
+/* Revert button */
+.exec-revert-btn {
+  background: transparent;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  color: #ef4444;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.exec-revert-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ff5555;
+  color: #ff5555;
+}
+
+/* ============================================
+   TRACE LIST
+   ============================================ */
+
+.exec-trace-list {
+  background: transparent;
+}
+
+/* Non-virtualized trace rows container */
+.exec-trace-rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  position: relative;
+  z-index: 1; /* Above the rails overlay so text is visible */
+}
+
+/* Wrapper for trace row */
+.exec-trace-rows > div {
+  width: 100%;
+  min-width: max-content;
+}
+
+.exec-trace-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--tst-text-muted);
+  font-size: 15px;
+  background: transparent;
+}
+
+/* ============================================
+   TRACE ROWS - compact layout
+   ============================================ */
+
+.exec-trace-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  padding: 2px 8px;
+  /* Row dividers removed for cleaner look */
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  font-size: 13px;
+  line-height: 1.3;
+  position: relative;
+  height: 22px;
+  min-height: 22px;
+  gap: 0;
+  background: #0a0a0a; /* Match app base bg */
+  white-space: nowrap;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+/* In virtualized mode, enforce fixed height */
+.exec-trace-row--virtualized {
+  height: 22px;
+}
+
+.exec-trace-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.exec-trace-row:hover {
+  background: #12121a; /* Solid hover background */
+}
+
+.exec-trace-row:hover::before {
+  background: rgba(74, 95, 255, 0.4);
+}
+
+/* Current step highlight - solid backgrounds for sticky columns */
+.exec-trace-row--current {
+  background: #1e2045;
+  border-left-color: #4a5fff;
+}
+
+.exec-trace-row--current:hover {
+  background: #252570;
+}
+
+/* Error state - solid backgrounds for sticky columns */
+.exec-trace-row--error {
+  background: #2a1818;
+  border-left-color: #ef4444;
+}
+
+.exec-trace-row--error:hover {
+  background: #351f1f;
+}
+
+/* Step number - hidden by default, used for reference */
+.exec-trace-row__step {
+  display: none;
+}
+
+.exec-trace-row--current .exec-trace-row__step {
+  color: #4a5fff;
+  font-weight: 700;
+}
+
+.exec-trace-row--error .exec-trace-row__step {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* Content - layout with fixed + flexible columns */
+.exec-trace-row__content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 14px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* FIXED COLUMNS - Sticky container wrapping both opcode and gas columns */
+
+/* Sticky wrapper containing both opcode badge and gas count */
+.exec-sticky-columns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #0a0a0a;
+  padding-left: 4px;
+  padding-right: 8px;
+  flex-shrink: 0;
+  box-shadow: 4px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Row state backgrounds for sticky container */
+.exec-trace-row:hover .exec-sticky-columns {
+  background: #12121a;
+}
+
+.exec-trace-row--current .exec-sticky-columns {
+  background: #1e2045;
+}
+
+.exec-trace-row--error .exec-sticky-columns {
+  background: #2a1818;
+}
+
+/* Opcode badge - inside sticky container */
+.exec-trace-opcode-badge {
+  flex-shrink: 0;
+}
+
+/* Gas count - inside sticky container */
+.exec-trace-step-count {
+  flex-shrink: 0;
+}
+
+/* Depth indent - Column 3 (variable width based on depth) */
+/* Comes BEFORE chevron */
+.exec-trace-depth-indent {
+  flex-shrink: 0;
+  margin-right: 0;
+}
+
+/* Chevron - Column 4 (fixed width) */
+/* Details wrapper - Column 5 (flexible content area) */
+.exec-trace-details {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+/* ============================================
+   TRACE ROW ELEMENTS
+   ============================================ */
+
+/* Chevron for collapsible parent frames - no background for cleaner rail alignment */
+.exec-trace-chevron {
+  color: #6b7280;
+  min-width: 14px;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 3px;
+  margin-right: 4px;
+}
+
+.exec-trace-chevron svg {
+  display: block;
+}
+
+.exec-trace-chevron.clickable {
+  cursor: pointer;
+  color: #c9cddd;
+  transition: color 0.15s ease;
+}
+
+.exec-trace-chevron.clickable:hover {
+  color: #c9fdb5;
+}
+
+.exec-trace-depth {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 12px;
+  margin-right: 4px;
+  display: inline-block;
+}
+
+/* ============================================
+   TREE HIERARCHY LINES
+   Clean, detached vertical rails - no horizontal connectors
+   ============================================ */
+
+/* ============================================
+   CONTINUOUS DEPTH RAILS - NEW APPROACH
+   Single overlay with continuous lines spanning multiple rows
+   ============================================ */
+
+/* Container for rows + rails overlay.
+   overflow-y:hidden kills the vertical scrollbar. No content is clipped
+   because the container has no height constraint — it grows to fit rows.
+   (CSS spec: when overflow-x is auto, browser promotes overflow-y:visible → auto,
+    so we must use hidden instead.) */
+.exec-trace-rows-container {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Section wrapper for split rendering (when code preview is shown) */
+.exec-trace-section {
+  position: relative;
+  width: 100%;
+}
+
+/* Rails overlay - positioned behind rows */
+.exec-rails-overlay {
+  position: absolute;
+  top: 0;
+  pointer-events: none; /* Don't block clicks on rows */
+  z-index: 2; /* Above row backgrounds but below sticky columns (z-index: 3) */
+}
+
+/* Individual continuous rail - a single vertical line spanning multiple rows */
+.exec-continuous-rail {
+  position: absolute;
+  width: 1px;
+  background: rgba(100, 116, 139, 0.8); /* More visible gray */
+  border-radius: 1px;
+}
+
+/* Spacer in content flow - reserves space for depth indentation */
+.exec-trace-depth-spacer {
+  display: inline-block;
+  flex-shrink: 0;
+  height: 22px; /* Match ROW_HEIGHT for SVG lines to render at 100% height */
+  position: relative;
+}
+
+.exec-trace-entry-indicator {
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+.exec-trace-sender {
+  color: #60a5fa;
+  font-size: 12px;
+}
+
+.exec-trace-receiver {
+  color: #d4d4d4;
+  font-size: 12px;
+}
+
+.exec-trace-arrow {
+  color: #9ca3af;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 6px;
+}
+
+/* DELEGATECALL delegation pattern styles */
+.exec-trace-delegate-wrapper {
+  color: #fbbf24; /* Yellow to match DELEGATECALL badge */
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.exec-trace-delegate-arrow {
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.exec-trace-proxy-name {
+  color: #60a5fa; /* Blue for the proxy/storage context */
+  font-weight: 500;
+}
+
+.exec-trace-delegate-target {
+  color: #34d399; /* Green for the executing contract */
+  font-weight: 600;
+}
+
+.exec-trace-separator {
+  color: #6b7280;
+}
+
+.exec-trace-function {
+  color: #e879f9; /* Bright fuchsia for function names */
+  font-weight: 500;
+  font-size: 12px;
+  background: transparent;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.exec-trace-selector {
+  color: #6b7280;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* Function args display - show full values */
+.exec-trace-args {
+  color: #e5e7eb;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  white-space: nowrap;
+}
+
+.exec-trace-output {
+  color: #10b981;
+  font-weight: 600;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+.exec-trace-value {
+  color: #a78bfa;
+  font-size: 12px;
+}
+
+.exec-trace-return {
+  color: #10b981;
+  font-weight: 500;
+  font-size: 12px;
+  background: transparent;
+  padding: 0;
+}
+
+.exec-trace-contract {
+  color: #d4d4d4;
+}
+
+.exec-trace-data {
+  color: #9a9aac;
+  font-size: 13px;
+}
+
+.exec-trace-pc {
+  color: #6a6a7a;
+  font-size: 12px;
+}
+
+.exec-trace-slot {
+  color: #f6f6fb;
+  font-size: 13px;
+}
+
+/* ============================================
+   BADGES - Fixed-width
+   ============================================ */
+
+.exec-trace-opcode-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  width: 72px;
+  max-width: 72px;
+  height: 18px;
+  background: #1f2037; /* Solid dark indigo for sticky columns */
+  color: #e5e5e5;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Destination indicator for JUMP•D */
+.opcode-dest-indicator {
+  color: #22c55e;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+/* Storage operation badge styling - solid backgrounds for sticky columns */
+.exec-trace-opcode-badge.storage-op {
+  background: #2c1f3f;
+  color: #a855f7;
+}
+
+/* Opcode coloring - BRIGHT distinct colors for visibility */
+
+/* JUMP/JUMPI - control flow (bright blue) */
+.exec-trace-opcode-badge.op-jump {
+  background: #1e3a5f;
+  color: #60a5fa;
+}
+
+/* SLOAD - storage read (sky blue - cool/passive) */
+.exec-trace-opcode-badge.op-sload {
+  background: #0c4a6e;
+  color: #38bdf8;
+}
+
+/* SSTORE - storage write (bright orange - warm/active) */
+.exec-trace-opcode-badge.op-sstore {
+  background: #431407;
+  color: #fb923c;
+}
+
+/* LOG - events (pink - already distinct) */
+.exec-trace-opcode-badge.op-log {
+  background: #4a1942;
+  color: #f472b6;
+}
+
+/* CALL - external calls (brighter indigo) */
+.exec-trace-opcode-badge.op-call {
+  background: #312e81;
+  color: #e5e5e5;
+}
+
+/* RETURN - success (bright emerald) */
+.exec-trace-opcode-badge.op-return {
+  background: #064e3b;
+  color: #34d399;
+}
+
+/* REVERT - error (bright red) */
+.exec-trace-opcode-badge.op-revert {
+  background: #450a0a;
+  color: #f87171;
+}
+
+/* STOP - neutral termination (lighter gray) */
+.exec-trace-opcode-badge.op-stop {
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+/* STATICCALL - read-only external call (brighter teal) */
+.exec-trace-opcode-badge.op-staticcall {
+  background: #134e4a;
+  color: #2dd4bf;
+}
+
+/* DELEGATECALL - context-switching (bright yellow - warning-like) */
+.exec-trace-opcode-badge.op-delegatecall {
+  background: #422006;
+  color: #fbbf24;
+}
+
+/* CALLCODE - deprecated (yellow-orange) */
+.exec-trace-opcode-badge.op-callcode {
+  background: #3f3f14;
+  color: #facc15;
+}
+
+/* CREATE - contract creation (lime) */
+.exec-trace-opcode-badge.op-create {
+  background: #1a2e05;
+  color: #a3e635;
+}
+
+/* CREATE2 - deterministic creation (lime variant) */
+.exec-trace-opcode-badge.op-create2 {
+  background: #14532d;
+  color: #4ade80;
+}
+
+/* SELFDESTRUCT - destruction (brighter danger red) */
+.exec-trace-opcode-badge.op-selfdestruct {
+  background: #7f1d1d;
+  color: #ef4444;
+}
+
+/* Memory operations - MLOAD/MSTORE (brighter slate) */
+.exec-trace-opcode-badge.op-memory {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+/* Hash operations - SHA3/KECCAK256 (bright violet) */
+.exec-trace-opcode-badge.op-hash {
+  background: #3b0764;
+  color: #c084fc;
+}
+
+/* Gas count display - badge style */
+/* IMPORTANT: Fixed width to ensure consistent sticky column width for rail alignment */
+.exec-trace-step-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  height: 18px;
+  background: #20212a; /* Solid dark gray for sticky columns */
+  color: #9ca3af;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================
+   DATA TYPE COLORING - for better differentiation
+   ============================================ */
+
+/* Address values (0x...) */
+.exec-data-address {
+  color: #d4d4d4;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* Numeric values */
+.exec-data-number {
+  color: #a78bfa;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* Boolean values */
+.exec-data-bool-true {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.exec-data-bool-false {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Bytes/hex data */
+.exec-data-bytes {
+  color: #9ca3af;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* String values */
+.exec-data-string {
+  color: #34d399;
+}
+
+/* Storage slot keys */
+.exec-storage-slot {
+  color: #8b5cf6;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* Storage values */
+.exec-storage-value {
+  color: #f59e0b;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+
+/* Storage writes: before -> after */
+.exec-storage-before {
+  color: #ef4444;
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.exec-storage-after {
+  color: #10b981;
+}
+
+/* Function parameters */
+.exec-param-name {
+  color: #60a5fa;
+  font-style: italic;
+}
+
+.exec-param-value {
+  color: #e5e7eb;
+}
+
+/* Error messages */
+.exec-error-msg {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* Gas values */
+.exec-gas-value {
+  color: #fbbf24;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+}
+.exec-trace-storage-details {
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 12px;
+  color: #d4d4d4;
+  margin-left: 4px;
+  flex: 1;
+  white-space: nowrap;
+}
+
+.exec-trace-event-badge {
+  background: rgba(34, 211, 238, 0.15);
+  color: #d4d4d4;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.exec-trace-storage-badge {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.exec-trace-event-name {
+  color: #f6f6fb;
+  font-weight: 500;
+}
+
+/* Rows with source get a subtle hover effect */
+.exec-trace-row.has-source {
+  cursor: pointer;
+}
+
+.exec-trace-row.has-source:hover {
+  background: #1a1f2e; /* Solid - subtle blue tint */
+}
+
+/* Entry frame (first JUMPDEST) styling */
+.exec-trace-row.entry-frame {
+  border-left-color: #6ab0f3;
+}
+
+/* ============================================
+   INLINE SOURCE PANEL (sticky within horizontal scroll)
+   Renders between expanded trace row and next row.
+   Uses position:sticky so it stays pinned to the left
+   while trace rows scroll horizontally.
+   ============================================ */
+
+.exec-inline-source {
+  position: sticky;
+  left: 0;
+  width: 100%;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  background: #0d0d12;
+  border-top: 1px solid var(--tst-border, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--tst-border, rgba(255, 255, 255, 0.08));
+  box-sizing: border-box;
+}
+
+/* ============================================
+   SOURCE SNIPPET
+   ============================================ */
+
+.exec-snippet-box {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", monospace;
+  font-size: 13px;
+  width: 100%;
+}
+
+.exec-snippet-line {
+  display: flex;
+  padding: 1px 8px 1px 8px;
+  line-height: 1.4;
+  white-space: pre;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(42, 43, 48, 0.2);
+  border-left: 3px solid transparent;
+}
+
+.exec-snippet-line.highlight {
+  background: rgba(255, 255, 255, 0.12);
+  border-left-color: #ffffff;
+}
+
+.exec-snippet-ln {
+  display: inline-block;
+  width: 36px;
+  min-width: 36px;
+  color: #4b5563;
+  text-align: right;
+  margin-right: 16px;
+  user-select: none;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.exec-snippet-line.highlight .exec-snippet-ln {
+  color: #e5e5e5;
+  font-weight: 600;
+}
+
+.exec-snippet-text {
+  color: #9ca3af;
+  flex: 1;
+}
+
+.exec-snippet-line.highlight .exec-snippet-text {
+  color: #e5e7eb;
+}
+
+/* Monaco colorize output — let token colors through */
+.exec-snippet-colorized {
+  color: inherit;
+}
+
+.exec-snippet-colorized span {
+  /* Monaco colorize generates inline styles; ensure they win over
+     the parent's default gray, but on the highlight line keep the
+     brighter base so un-styled tokens are still readable. */
+  font-family: inherit;
+}
+
+/* On the highlighted line, un-styled text stays bright */
+.exec-snippet-line.highlight .exec-snippet-colorized {
+  color: #e5e7eb;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .exec-io-container {
+    grid-template-columns: 1fr;
+  }
+
+  .exec-trace-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .exec-trace-search {
+    width: 100%;
+  }
+
+  .exec-search-input {
+    flex: 1;
+  }
+
+  .exec-trace-filters {
+    justify-content: center;
+  }
+
+  .exec-trace-row {
+    flex-wrap: wrap;
+  }
+
+  .exec-trace-row__step {
+    min-width: 50px;
+    padding-right: 12px;
+  }
+}
+
+/* ============================================
+   LOG OPCODE EVENT DISPLAY
+   ============================================ */
+
+/* Event name - highlighted pink */
+.exec-trace-event-name {
+  color: #f472b6;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* Event args container - inline, no wrap, show full values */
+.exec-trace-event-args {
+  color: #e5e7eb;
+  font-size: 12px;
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.exec-trace-event-args--expandable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 3px;
+  transition: background-color 0.15s;
+}
+
+.exec-trace-event-args--expandable:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.exec-trace-return--expandable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 3px;
+  transition: background-color 0.15s;
+}
+
+.exec-trace-return--expandable:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Argument name - indigo accent for keys */
+.exec-trace-arg-name {
+  color: #d4d4d4;
+  font-weight: 500;
+}
+
+/* Equals sign */
+.exec-trace-arg-equals {
+  color: #6b7280;
+}
+
+/* Argument value - purple/violet for values */
+.exec-trace-arg-value {
+  color: #a78bfa;
+  word-break: break-all;
+}
+
+/* Separator between args */
+.exec-trace-arg-separator {
+  color: #6b7280;
+}
+
+/* Truncated indicator */
+.exec-trace-truncated {
+  color: #f97316;
+  font-size: 11px;
+  font-style: italic;
+  margin-left: 4px;
+}
+
+/* Raw log data when not decoded - show full values */
+.exec-trace-log-raw {
+  color: #9ca3af;
+  font-size: 12px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* ============================================
+   STORAGE OPERATION DISPLAY (SLOAD/SSTORE)
+   ============================================ */
+
+/* Contract name for storage ops */
+.exec-trace-contract-name {
+  color: #d4d4d4;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+/* Storage brackets [slot = value] */
+.exec-trace-storage-bracket {
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Storage slot address */
+.exec-trace-storage-slot {
+  color: #a78bfa;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 13px;
+}
+
+/* Storage equals sign */
+.exec-trace-storage-equals {
+  color: #9ca3af;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Storage value (for SLOAD) */
+.exec-trace-storage-value {
+  color: #10b981;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 13px;
+}
+
+/* Storage before value (for SSTORE) */
+.exec-trace-storage-before {
+  color: #f97316;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 13px;
+}
+
+/* Storage arrow (for SSTORE before -> after) */
+.exec-trace-storage-arrow {
+  color: #9ca3af;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+/* Storage after value (for SSTORE) */
+.exec-trace-storage-after {
+  color: #10b981;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 13px;
+}
+
+/* =========================================
+   Cross-Reference Highlighting
+   When hovering over an address/value, all
+   matching references are highlighted
+   ========================================= */
+
+/* Base style for highlightable values */
+.highlightable-value {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: 0 -2px;
+}
+
+/* Hover state for the hovered element - triggers highlighting */
+.highlightable-value:hover {
+  /* No fill - just triggers cross-reference highlighting */
+}
+
+/* Highlighted state - applied to ALL matching values when one is hovered */
+.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.6);
+}
+
+/* Address-specific highlighting - indigo theme */
+.exec-trace-address.highlightable-value.highlighted,
+.exec-trace-contract-name.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+/* Storage value highlighting - purple theme */
+.exec-trace-storage-slot.highlightable-value.highlighted,
+.exec-trace-storage-value.highlightable-value.highlighted,
+.exec-trace-storage-before.highlightable-value.highlighted,
+.exec-trace-storage-after.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.6);
+}
+
+/* Event argument value highlighting - green theme */
+.exec-trace-arg-value.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6);
+}
+
+/* Resolved name styling - when address is resolved to contract name */
+.exec-trace-arg-value.resolved-name {
+  color: #60a5fa;
+  font-weight: 500;
+  font-style: normal;
+}
+
+/* Resolved names get teal highlight when highlighted */
+.exec-trace-arg-value.resolved-name.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.6);
+}
+
+/* Address text styling inside highlightable */
+.exec-trace-address {
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  color: inherit;
+}
+
+/* Storage slot cross-reference highlighting - yellow theme */
+.exec-trace-storage-slot.highlightable-value.highlighted {
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.6);
+}
+
+/* ============================================
+   EVENT COMPACT DISPLAY & MODAL
+   ============================================ */
+
+.exec-trace-event-compact {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.exec-trace-event-compact:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.exec-trace-event-compact--static {
+  cursor: default;
+}
+
+.exec-trace-event-compact--static:hover {
+  background: transparent;
+}
+
+.exec-trace-more-args {
+  color: #6b7280;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.exec-trace-expand-hint {
+  margin-left: 6px;
+  font-size: 13px;
+  opacity: 0.5;
+  color: #d4d4d4;
+}
+
+.exec-trace-event-compact:hover .exec-trace-expand-hint {
+  opacity: 1;
+}
+
+/* Event Popover - Minimal JSON style */
+.exec-event-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.exec-event-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  max-width: 500px;
+  max-height: 70vh;
+  min-width: 300px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 10000;
+}
+
+.exec-event-popover--modal {
+  width: min(900px, 92vw);
+  max-width: 92vw;
+  max-height: 82vh;
+}
+
+.exec-event-popover-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.exec-event-popover-title {
+  margin-right: auto;
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 70%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exec-event-popover-close {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 19px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.exec-event-popover-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.exec-event-json {
+  margin: 0;
+  padding: 16px;
+  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e5e5e5;
+  overflow: auto;
+  max-height: calc(70vh - 50px);
+  background: transparent;
+}
+
+/* JSON syntax highlighting */
+.exec-event-json {
+  color: #9ca3af;
+}
+
+/* Keys in purple/blue */
+.exec-event-json::first-line {
+  color: #e5e5e5;
+}
+
+/* ============================================
+   STORAGE POINTER BADGE
+   ============================================ */
+
+.storage-pointer-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  border-radius: 4px;
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.storage-pointer-badge:hover {
+  background: rgba(167, 139, 250, 0.25);
+  border-color: rgba(167, 139, 250, 0.5);
+  color: #c4b5fd;
+}
+
+/* Plain address (no Sender/Receiver badge) */
+.exec-trace-address-plain {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* ============================================
+   NO SOURCE NOTICE (for unverified contracts)
+   ============================================ */
+
+.exec-no-source-notice {
+  background: rgba(75, 85, 99, 0.3);
+  border: 1px solid rgba(107, 114, 128, 0.4);
+  border-radius: 8px;
+  padding: 24px 32px;
+  margin: 12px 24px;
+  text-align: center;
+}
+
+.exec-no-source-header {
+  font-size: 17px;
+  font-weight: 600;
+  color: #e5e5e5;
+  margin-bottom: 12px;
+}
+
+.exec-no-source-address {
+  font-size: 14px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  font-family: "SF Mono", Monaco, "Courier New", monospace;
+}
+
+.exec-no-source-message {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.exec-no-source-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.exec-no-source-button {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid rgba(107, 114, 128, 0.5);
+  background: rgba(55, 65, 81, 0.5);
+  color: #9ca3af;
+  cursor: not-allowed;
+  transition: all 0.2s ease;
+}
+
+.exec-no-source-button:not(:disabled):hover {
+  background: rgba(75, 85, 99, 0.6);
+  border-color: rgba(147, 197, 253, 0.5);
+  color: #d1d5db;
+}
+
+/* ============================================
+   DEBUG BUTTON (hover reveal)
+   ============================================ */
+
+.exec-trace-debug-btn {
+  opacity: 0;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--tst-accent, #a069ff);
+  transition: opacity 0.15s ease, color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.exec-trace-row:hover .exec-trace-debug-btn {
+  opacity: 1;
+}
+
+.exec-trace-debug-btn:hover {
+  color: #c4a6ff;
+}
+
+/* ============================================
+   ASSET MOVEMENTS ACCORDION
+   ============================================ */
+
+.exec-asset-movements-accordion {
+  margin-bottom: 16px;
+}
+
+.exec-asset-movements-accordion [data-slot="accordion-item"] {
+  border: 1px solid var(--sim-border, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.exec-asset-movements-accordion [data-slot="accordion-trigger"] {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sim-text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 10px 14px;
+  gap: 8px;
+}
+
+.exec-accordion-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sim-text-muted, #94a3b8);
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.exec-asset-movements-accordion [data-slot="accordion-content"] {
+  padding: 0;
+}

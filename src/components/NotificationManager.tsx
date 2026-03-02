@@ -1,8 +1,20 @@
-import React, { useState, useCallback, createContext, useContext } from 'react';
-import InPageNotification, { type NotificationProps } from './InPageNotification';
+import React, { useCallback, createContext, useContext } from 'react';
+import { toast } from 'sonner';
+import { Toaster } from './ui/sonner';
+
+interface NotificationOptions {
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+  duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
 
 interface NotificationContextType {
-  showNotification: (notification: Omit<NotificationProps, 'id'>) => void;
+  showNotification: (notification: NotificationOptions) => void;
   showSuccess: (title: string, message: string, duration?: number) => void;
   showError: (title: string, message: string, duration?: number) => void;
   showWarning: (title: string, message: string, duration?: number) => void;
@@ -19,42 +31,46 @@ export const useNotifications = () => {
   return context;
 };
 
+// Re-export toast for direct usage (e.g. toast.promise, toast.loading)
+export { toast };
+
+const toastByType = {
+  success: toast.success,
+  error: toast.error,
+  warning: toast.warning,
+  info: toast.info,
+} as const;
+
 interface NotificationProviderProps {
   children: React.ReactNode;
 }
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
-  const [notifications, setNotifications] = useState<NotificationProps[]>([]);
-
-  const showNotification = useCallback((notification: Omit<NotificationProps, 'id'>) => {
-    const id = `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newNotification: NotificationProps = {
-      ...notification,
-      id,
-      duration: notification.duration ?? 5000 // Default 5 seconds
-    };
-
-    setNotifications(prev => [...prev, newNotification]);
+  const showNotification = useCallback((notification: NotificationOptions) => {
+    const fn = toastByType[notification.type] ?? toast;
+    fn(notification.title, {
+      description: notification.message,
+      duration: notification.duration,
+      action: notification.action
+        ? { label: notification.action.label, onClick: notification.action.onClick }
+        : undefined,
+    });
   }, []);
 
   const showSuccess = useCallback((title: string, message: string, duration = 5000) => {
-    showNotification({ type: 'success', title, message, duration });
-  }, [showNotification]);
+    toast.success(title, { description: message, duration });
+  }, []);
 
   const showError = useCallback((title: string, message: string, duration = 8000) => {
-    showNotification({ type: 'error', title, message, duration });
-  }, [showNotification]);
+    toast.error(title, { description: message, duration });
+  }, []);
 
   const showWarning = useCallback((title: string, message: string, duration = 6000) => {
-    showNotification({ type: 'warning', title, message, duration });
-  }, [showNotification]);
+    toast.warning(title, { description: message, duration });
+  }, []);
 
   const showInfo = useCallback((title: string, message: string, duration = 5000) => {
-    showNotification({ type: 'info', title, message, duration });
-  }, [showNotification]);
-
-  const dismissNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(notification => notification.id !== id));
+    toast.info(title, { description: message, duration });
   }, []);
 
   const value: NotificationContextType = {
@@ -62,30 +78,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     showSuccess,
     showError,
     showWarning,
-    showInfo
+    showInfo,
   };
 
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      
-      {/* Render notifications */}
-      <div style={{ position: 'fixed', top: 0, right: 0, zIndex: 10000 }}>
-        {notifications.map((notification, index) => (
-          <div
-            key={notification.id}
-            style={{
-              marginBottom: '12px',
-              transform: `translateY(${index * 80}px)`
-            }}
-          >
-            <InPageNotification
-              notification={notification}
-              onDismiss={dismissNotification}
-            />
-          </div>
-        ))}
-      </div>
+      <Toaster />
     </NotificationContext.Provider>
   );
 };

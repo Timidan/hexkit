@@ -115,54 +115,91 @@ export async function detectTokenType(
     }
   }
 
-  // Step 2: ERC165 detection (highest confidence)
+  // Step 2: ERC165 detection (highest confidence) - FAST PATH
   const erc165Result = await detectViaERC165(provider, address);
   if (erc165Result.type !== "unknown") {
-    type = erc165Result.type;
-    method = erc165Result.method;
-    confidence = erc165Result.confidence;
+    // ERC165 is highly reliable - return immediately, fetch metadata in parallel (non-blocking)
+    const result: TokenDetectionResult = {
+      type: erc165Result.type,
+      isDiamond,
+      method: erc165Result.method,
+      confidence: erc165Result.confidence,
+    };
+
+    // Fetch metadata in parallel (non-blocking) - update result if available quickly
+    fetchTokenMetadataFast(provider, address, erc165Result.type).then(metadata => {
+      if (metadata.name) result.name = metadata.name;
+      if (metadata.symbol) result.symbol = metadata.symbol;
+      if (metadata.decimals !== undefined) result.decimals = metadata.decimals;
+    }).catch(() => {/* ignore metadata errors */});
+
+    return result;
   }
 
-  // Step 3: Metadata probing (medium confidence) - This catches USDT and similar tokens
-  if (type === "unknown") {
-    const metadataResult = await detectViaMetadataProbing(provider, address);
-    if (metadataResult.type !== "unknown") {
-      type = metadataResult.type;
-      method = metadataResult.method;
-      confidence = metadataResult.confidence;
+  // Step 3: For Diamonds, check facet selectors next (before metadata probing)
+  // This is faster than metadata probing for diamond contracts
+  if (isDiamond) {
+    const diamondResult = await detectViaDiamondSelectors(provider, address);
+    if (diamondResult.type !== "unknown") {
+      const metadata = await fetchTokenMetadata(provider, address, diamondResult.type);
+      const result: TokenDetectionResult = {
+        type: diamondResult.type,
+        isDiamond,
+        method: diamondResult.method,
+        name: metadata.name,
+        symbol: metadata.symbol,
+        decimals: metadata.decimals,
+        confidence: diamondResult.confidence,
+      };
+      return result;
     }
   }
 
-  // Step 4: Function signature analysis (lower confidence)
-  if (type === "unknown") {
-    let signatureResult = await detectViaFunctionSignatures(provider, address);
-    if (signatureResult.type !== "unknown") {
-      // Prefer ERC20 over ERC1155 if both heuristics could match
-      if (signatureResult.type === "ERC1155") {
-        // Double-check: if ERC20 metadata exists, prefer ERC20
-        const md = await fetchTokenMetadata(provider, address, "ERC20");
-        if (md.name || md.symbol || md.decimals !== undefined) {
-          signatureResult = {
-            type: "ERC20",
-            method: "metadata-erc20-override",
-            confidence: 65,
-          };
-        }
+  // Step 4: Metadata probing (medium confidence) - This catches USDT and similar tokens
+  const metadataResult = await detectViaMetadataProbing(provider, address);
+  if (metadataResult.type !== "unknown") {
+    // Metadata probing already tried to get name/symbol, fetch again for consistency
+    const metadata = await fetchTokenMetadata(provider, address, metadataResult.type);
+    const result: TokenDetectionResult = {
+      type: metadataResult.type,
+      isDiamond,
+      method: metadataResult.method,
+      name: metadata.name,
+      symbol: metadata.symbol,
+      decimals: metadata.decimals,
+      confidence: metadataResult.confidence,
+    };
+    return result;
+  }
+
+  // Step 5: Function signature analysis (lower confidence) - Last resort
+  let signatureResult = await detectViaFunctionSignatures(provider, address);
+  if (signatureResult.type !== "unknown") {
+    // Prefer ERC20 over ERC1155 if both heuristics could match
+    if (signatureResult.type === "ERC1155") {
+      const md = await fetchTokenMetadata(provider, address, "ERC20");
+      if (md.name || md.symbol || md.decimals !== undefined) {
+        signatureResult = {
+          type: "ERC20",
+          method: "metadata-erc20-override",
+          confidence: 65,
+        };
       }
-      type = signatureResult.type;
-      method = signatureResult.method;
-      confidence = signatureResult.confidence;
     }
+    const metadata = await fetchTokenMetadata(provider, address, signatureResult.type);
+    const result: TokenDetectionResult = {
+      type: signatureResult.type,
+      isDiamond,
+      method: signatureResult.method,
+      name: metadata.name,
+      symbol: metadata.symbol,
+      decimals: metadata.decimals,
+      confidence: signatureResult.confidence,
+    };
+    return result;
   }
 
-  // Fetch metadata only if we detected a token type
-  if (type !== "unknown") {
-    const metadata = await fetchTokenMetadata(provider, address, type);
-    name = metadata.name;
-    symbol = metadata.symbol;
-    decimals = metadata.decimals;
-  }
-
+  // No token type detected
   return { type, isDiamond, method, name, symbol, decimals, confidence };
 }
 
@@ -232,6 +269,7 @@ async function detectViaMetadataProbing(
   confidence: number;
 }> {
   try {
+    // Standard ABI for ERC20 metadata
     const metadataABI = [
       {
         inputs: [],
@@ -262,22 +300,63 @@ async function detectViaMetadataProbing(
         type: "function",
       },
     ];
+
+    // Some older contracts (like USDT) use uint256 for decimals instead of uint8
+    const altDecimalsABI = [
+      {
+        inputs: [],
+        name: "decimals",
+        outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+        stateMutability: "view",
+        type: "function",
+      },
+    ];
+
     const contract = new ethers.Contract(address, metadataABI, provider);
 
     // Try to get name and symbol
     const name = await contract.name().catch(() => null);
     const symbol = await contract.symbol().catch(() => null);
-    const decimals = await contract.decimals().catch(() => null);
+
+    // Try standard decimals first, then alternate ABI for older contracts like USDT
+    let decimals = await contract.decimals().catch(() => null);
+    if (decimals === null) {
+      // Try with uint256 return type (USDT compatibility)
+      const altContract = new ethers.Contract(address, altDecimalsABI, provider);
+      decimals = await altContract.decimals().catch(() => null);
+    }
+
     const totalSupply = await contract.totalSupply().catch(() => null);
 
     // If we have name and symbol, it's likely a token
     if (name && symbol) {
-      // If it has decimals and totalSupply, it's likely ERC20
-      if (decimals !== null && totalSupply !== null) {
+      // If it has decimals OR totalSupply, it's almost certainly ERC20
+      // ERC721 tokens don't have decimals() or totalSupply() that returns a fungible balance
+      if (decimals !== null || totalSupply !== null) {
         return { type: "ERC20", method: "metadata-erc20", confidence: 70 };
       }
-      // If it has name/symbol but no decimals, it could be ERC721
-      return { type: "ERC721", method: "metadata-erc721", confidence: 60 };
+
+      // No decimals or totalSupply - check for ownerOf to confirm ERC721 before defaulting
+      // This prevents misclassifying ERC20 tokens as ERC721
+      try {
+        const erc721CheckABI = [
+          {
+            inputs: [{ internalType: "uint256", name: "tokenId", type: "uint256" }],
+            name: "ownerOf",
+            outputs: [{ internalType: "address", name: "", type: "address" }],
+            stateMutability: "view",
+            type: "function",
+          },
+        ];
+        const erc721Contract = new ethers.Contract(address, erc721CheckABI, provider);
+        // Try calling ownerOf with tokenId 1 - will throw if not ERC721
+        await erc721Contract.ownerOf(1);
+        return { type: "ERC721", method: "metadata-erc721-confirmed", confidence: 70 };
+      } catch {
+        // ownerOf failed - likely not ERC721, but we have name/symbol
+        // Default to ERC20 as it's more common for tokens with name/symbol but no decimals
+        return { type: "ERC20", method: "metadata-erc20-fallback", confidence: 50 };
+      }
     }
 
     return { type: "unknown", method: "metadata-no-match", confidence: 0 };
@@ -396,8 +475,152 @@ async function detectViaFunctionSignatures(
 }
 
 /**
+ * Method 4: Diamond facet selector analysis
+ * Scans all facet selectors to infer token type
+ */
+async function detectViaDiamondSelectors(
+  provider: ethers.providers.Provider,
+  address: string
+): Promise<{
+  type: DetectedTokenType;
+  method: string;
+  confidence: number;
+}> {
+  try {
+    // Diamond Loupe ABI for getting facet selectors
+    const loupeABI = [
+      {
+        inputs: [],
+        name: "facetAddresses",
+        outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+        stateMutability: "view",
+        type: "function",
+      },
+      {
+        inputs: [{ internalType: "address", name: "_facet", type: "address" }],
+        name: "facetFunctionSelectors",
+        outputs: [{ internalType: "bytes4[]", name: "", type: "bytes4[]" }],
+        stateMutability: "view",
+        type: "function",
+      },
+    ];
+
+    const contract = new ethers.Contract(address, loupeABI, provider);
+    const facetAddresses: string[] = await contract.facetAddresses();
+
+    // Collect all selectors from all facets
+    const allSelectors: string[] = [];
+    for (const facetAddr of facetAddresses) {
+      try {
+        const selectors = await contract.facetFunctionSelectors(facetAddr);
+        if (Array.isArray(selectors)) {
+          allSelectors.push(...selectors.map((s: string) => s.toLowerCase()));
+        }
+      } catch {
+        // Skip this facet
+      }
+    }
+
+    const selectorSet = new Set(allSelectors);
+    const has = (sig: string) => selectorSet.has(sig.toLowerCase());
+
+    // Common function selectors
+    // ERC20 selectors
+    const hasERC20 =
+      has("0x70a08231") || // balanceOf(address)
+      has("0xa9059cbb") || // transfer(address,uint256)
+      has("0xdd62ed3e"); // allowance(address,address)
+
+    // ERC721 selectors - require BOTH ownerOf and transferFrom
+    const hasERC721 =
+      has("0x6352211e") && // ownerOf(uint256)
+      has("0x23b872dd"); // transferFrom(address,address,uint256)
+
+    // ERC1155 selectors
+    const hasERC1155 =
+      has("0xf242432a") || // safeTransferFrom(address,address,uint256,uint256,bytes)
+      has("0x2eb2c2d6") || // safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)
+      has("0xe985e9c5"); // isApprovedForAll(address,address)
+
+    // Detection priority: ERC721 > ERC1155 > ERC20
+    // ERC721 is more specific (requires both ownerOf AND transferFrom)
+    if (hasERC721) {
+      return { type: "ERC721", method: "diamond-selectors-erc721", confidence: 90 };
+    }
+    if (hasERC1155) {
+      return { type: "ERC1155", method: "diamond-selectors-erc1155", confidence: 90 };
+    }
+    if (hasERC20) {
+      return { type: "ERC20", method: "diamond-selectors-erc20", confidence: 80 };
+    }
+
+    return { type: "unknown", method: "diamond-selectors-no-match", confidence: 0 };
+  } catch {
+    return { type: "unknown", method: "diamond-selectors-error", confidence: 0 };
+  }
+}
+
+/**
  * Fetch token metadata based on detected type
  */
+/**
+ * Fast parallel metadata fetcher - all calls run simultaneously with 3s timeout
+ */
+async function fetchTokenMetadataFast(
+  provider: ethers.providers.Provider,
+  address: string,
+  type: DetectedTokenType
+): Promise<{
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+}> {
+  const metadataABI = [
+    {
+      inputs: [],
+      name: "name",
+      outputs: [{ internalType: "string", name: "", type: "string" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [],
+      name: "symbol",
+      outputs: [{ internalType: "string", name: "", type: "string" }],
+      stateMutability: "view",
+      type: "function",
+    },
+    {
+      inputs: [],
+      name: "decimals",
+      outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+      stateMutability: "view",
+      type: "function",
+    },
+  ];
+  const contract = new ethers.Contract(address, metadataABI, provider);
+
+  const timeout = <T>(ms: number): Promise<T | undefined> =>
+    new Promise((resolve) => setTimeout(() => resolve(undefined), ms));
+
+  // Run all calls in parallel with 3s timeout each
+  const [nameResult, symbolResult, decimalsResult] = await Promise.allSettled([
+    Promise.race([contract.name(), timeout<string>(3000)]),
+    Promise.race([contract.symbol(), timeout<string>(3000)]),
+    type === "ERC20"
+      ? Promise.race([contract.decimals(), timeout<number>(3000)])
+      : Promise.resolve(undefined),
+  ]);
+
+  return {
+    name: nameResult.status === "fulfilled" ? nameResult.value : undefined,
+    symbol: symbolResult.status === "fulfilled" ? symbolResult.value : undefined,
+    decimals: decimalsResult.status === "fulfilled" && decimalsResult.value !== undefined
+      ? Number(decimalsResult.value)
+      : undefined,
+  };
+}
+
 async function fetchTokenMetadata(
   provider: ethers.providers.Provider,
   address: string,

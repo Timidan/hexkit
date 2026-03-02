@@ -1,105 +1,54 @@
+/**
+ * Multi-Source ABI Fetcher (Compatibility Layer)
+ *
+ * This module now delegates to the new optimized resolver system.
+ * All existing imports continue to work without changes.
+ *
+ * @deprecated Use `contractResolver` from `./resolver` directly for new code.
+ */
+
 import { ethers } from "ethers";
-import { fetchFromWhatsABI, type WhatsABIResult } from "./whatsabiFetcher";
-import {
-  fetchContractInfoComprehensive,
-  type ContractInfoResult,
-} from "./comprehensiveContractFetcher";
 import type {
   Chain,
   ExtendedABIFetchResult,
   ExtendedABITokenInfo,
   ExplorerSource,
 } from "../types";
+import {
+  contractResolver,
+  searchAcrossChains,
+  type ResolveResult,
+} from "./resolver";
 
 const isValidAddress = (address: string) =>
   address?.startsWith("0x") && address.length === 42;
 
-const providerCache = new Map<number, ethers.providers.JsonRpcProvider>();
-const contractExistenceCache = new Map<string, boolean>();
+/**
+ * Convert new ResolveResult to legacy ExtendedABIFetchResult format
+ */
+const toExtendedResult = (result: ResolveResult): ExtendedABIFetchResult => {
+  const tokenInfo: ExtendedABITokenInfo | undefined = result.tokenInfo
+    ? {
+        name: result.tokenInfo.name,
+        symbol: result.tokenInfo.symbol,
+        decimals: result.tokenInfo.decimals?.toString(),
+        totalSupply: result.tokenInfo.totalSupply,
+      }
+    : undefined;
 
-const formatTokenInfo = (
-  tokenInfo?: ContractInfoResult["tokenInfo"]
-): ExtendedABITokenInfo | undefined => {
-  if (!tokenInfo) return undefined;
-  const { name, symbol, decimals, totalSupply } = tokenInfo;
   return {
-    name,
-    symbol,
-    decimals: decimals !== undefined ? String(decimals) : undefined,
-    totalSupply,
+    success: !!result.abi,
+    abi: result.abi ? JSON.stringify(result.abi) : undefined,
+    error: result.error,
+    source: result.source || undefined,
+    explorerName: result.source
+      ? result.source.charAt(0).toUpperCase() + result.source.slice(1)
+      : undefined,
+    contractName: result.name || undefined,
+    tokenInfo,
+    confidence: result.confidence,
   };
 };
-
-const toExtendedResult = (
-  result: Partial<ContractInfoResult>,
-  fallback: { source: string; explorerName: string }
-): ExtendedABIFetchResult => ({
-  success: Boolean(result.success && result.abi),
-  abi: result.abi,
-  error: result.error,
-  source: result.source ?? fallback.source,
-  explorerName: result.explorerName ?? fallback.explorerName,
-  contractName: result.contractName,
-  tokenInfo: formatTokenInfo(result.tokenInfo),
-});
-
-const fromWhatsAbi = (result: WhatsABIResult): ExtendedABIFetchResult => ({
-  success: result.success,
-  abi: result.abi,
-  error: result.error,
-  source: result.source,
-  explorerName: result.explorerName,
-  contractName: result.contractName,
-  confidence: result.confidence,
-  selectors: result.selectors,
-  proxyType: result.proxyType,
-  implementations: result.implementations,
-});
-
-const ensureContractExists = async (
-  contractAddress: string,
-  chain: Chain,
-  provider?: ethers.providers.Provider
-) => {
-  const cacheKey = `${chain.id}:${contractAddress.toLowerCase()}`;
-  if (contractExistenceCache.get(cacheKey) === true) {
-    return;
-  }
-
-  const signer =
-    provider ||
-    (() => {
-      if (!providerCache.has(chain.id)) {
-        providerCache.set(
-          chain.id,
-          new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
-            name: chain.name,
-            chainId: chain.id,
-          })
-        );
-      }
-      return providerCache.get(chain.id)!;
-    })();
-
-  const bytecode = await signer.getCode(contractAddress);
-  if (!bytecode || bytecode === "0x") {
-    throw new Error(
-      `No contract deployed at ${contractAddress} on ${chain.name}`
-    );
-  }
-
-  contractExistenceCache.set(cacheKey, true);
-};
-
-const summarizeAttempts = (attempts: ExtendedABIFetchResult[]) =>
-  attempts
-    .map((attempt) => {
-      if (attempt.success) {
-        return `${attempt.explorerName || attempt.source}: success`;
-      }
-      return `${attempt.explorerName || attempt.source}: ${attempt.error}`;
-    })
-    .join("; ");
 
 export interface FetchABIMultiSourceOptions {
   etherscanApiKey?: string;
@@ -108,13 +57,24 @@ export interface FetchABIMultiSourceOptions {
   preferredSources?: ExplorerSource[];
 }
 
+/**
+ * Fetch contract ABI from multiple sources.
+ *
+ * This function now uses the optimized resolver which:
+ * - Races all sources in parallel
+ * - Has built-in request deduplication
+ * - Uses two-layer caching (memory + IndexedDB)
+ *
+ * @deprecated Use `contractResolver.resolve()` from `./resolver` for new code.
+ */
 export const fetchContractABIMultiSource = async (
   contractAddress: string,
   chain: Chain,
   options: FetchABIMultiSourceOptions = {}
 ): Promise<ExtendedABIFetchResult> => {
-  const { etherscanApiKey, blockscoutApiKey, provider, preferredSources } =
-    options;
+  const { etherscanApiKey, blockscoutApiKey, preferredSources } = options;
+
+  // Validate address
   if (!isValidAddress(contractAddress)) {
     return {
       success: false,
@@ -123,87 +83,61 @@ export const fetchContractABIMultiSource = async (
   }
 
   try {
-    await ensureContractExists(contractAddress, chain, provider);
-  } catch (error: any) {
+    // Use the new optimized resolver
+    const result = await contractResolver.resolve(contractAddress, chain, {
+      etherscanApiKey,
+      blockscoutApiKey,
+      preferredSources,
+    });
+
+    return toExtendedResult(result);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      error: error.message || String(error),
+      error: errorMessage,
     };
   }
-
-  const attempts: ExtendedABIFetchResult[] = [];
-
-  try {
-    const comprehensive = await fetchContractInfoComprehensive(
-      contractAddress,
-      chain,
-      undefined,
-      {
-        etherscanApiKey,
-        blockscoutApiKey,
-        preferredSources,
-      }
-    );
-    const comprehensiveResult = toExtendedResult(comprehensive, {
-      source: "aggregator",
-      explorerName: "Multi-Source Aggregator",
-    });
-    attempts.push(comprehensiveResult);
-    if (comprehensiveResult.success) {
-      return comprehensiveResult;
-    }
-  } catch (error: any) {
-    attempts.push({
-      success: false,
-      source: "aggregator",
-      explorerName: "Multi-Source Aggregator",
-      error: String(error),
-    });
-  }
-
-  try {
-    const whatsabiResult = fromWhatsAbi(
-      await fetchFromWhatsABI(contractAddress, chain, provider)
-    );
-    attempts.push(whatsabiResult);
-    if (whatsabiResult.success) {
-      return whatsabiResult;
-    }
-  } catch (error: any) {
-    attempts.push({
-      success: false,
-      source: "whatsabi",
-      explorerName: "WhatsABI",
-      error: String(error),
-    });
-  }
-
-  return {
-    success: false,
-    error: `ABI not found on ${chain.name}. Attempts: ${summarizeAttempts(
-      attempts
-    )}`,
-  };
 };
 
+/**
+ * Search for a contract across all supported networks.
+ *
+ * This function now uses parallel search which is much faster than
+ * the previous sequential implementation.
+ *
+ * @deprecated Use `searchAcrossChains()` from `./resolver` for new code.
+ */
 export const searchContractAcrossNetworks = async (
   contractAddress: string,
   etherscanApiKey?: string
 ): Promise<Array<{ chain: Chain; result: ExtendedABIFetchResult }>> => {
+  // Import chains dynamically to avoid circular deps
   const { SUPPORTED_CHAINS } = await import("./chains");
-  const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
 
-  const lookups = SUPPORTED_CHAINS.map(async (chain) => {
-    const result = await fetchContractABIMultiSource(contractAddress, chain, {
-      etherscanApiKey,
-    });
-    return { chain, result };
+  // Use new parallel search
+  const searchResult = await searchAcrossChains(contractAddress, SUPPORTED_CHAINS, {
+    etherscanApiKey,
   });
 
-  const settled = await Promise.allSettled(lookups);
-  for (const entry of settled) {
-    if (entry.status === "fulfilled") {
-      results.push(entry.value);
+  const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
+
+  for (const chain of SUPPORTED_CHAINS) {
+    const resolveResult = searchResult.results.get(chain.id);
+
+    if (resolveResult) {
+      results.push({
+        chain,
+        result: toExtendedResult(resolveResult),
+      });
+    } else {
+      results.push({
+        chain,
+        result: {
+          success: false,
+          error: searchResult.errors.get(chain.id) || "Not found",
+        },
+      });
     }
   }
 

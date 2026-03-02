@@ -1,13 +1,17 @@
 import React, { useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, X, CheckCircle2 } from "lucide-react";
 import { ethers } from "ethers";
-import { Button, ErrorDisplay, Badge } from "../shared";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { ErrorDisplay } from "../shared";
 import NetworkSelector, {
   EXTENDED_NETWORKS,
   type ExtendedChain,
 } from "../shared/NetworkSelector";
 import type { Chain } from "../../types";
-import "../../styles/ContractComponents.css";
+import "@/styles/ContractComponents.css";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_NATIVE_CURRENCY = {
   name: "Ether",
@@ -68,7 +72,10 @@ export interface ContractAddressInputProps {
     | "blockscout"
     | "etherscan"
     | "blockscout-bytecode"
+    | "blockscout-ebd"
+    | "whatsabi"
     | "manual"
+    | "restored"
     | null;
   tokenInfo?: {
     symbol?: string;
@@ -76,6 +83,10 @@ export interface ContractAddressInputProps {
     decimals?: number;
   } | null;
   className?: string;
+  /** Custom icon to replace the default Search icon on the fetch button */
+  fetchIcon?: React.ReactNode;
+  /** Custom title/aria-label for the fetch button */
+  fetchLabel?: string;
 }
 
 const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
@@ -87,10 +98,9 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   isLoading = false,
   error,
   onFetchABI,
-  contractName,
-  abiSource,
-  tokenInfo,
   className = "",
+  fetchIcon,
+  fetchLabel,
 }) => {
   const extendedNetworks = useMemo<ExtendedChain[]>(
     () => supportedChains.map(mapChainToExtended),
@@ -109,30 +119,52 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   const isValidAddress =
     trimmedAddress && ethers.utils.isAddress(trimmedAddress);
 
-  const formatAbiSource = (
-    source: NonNullable<ContractAddressInputProps["abiSource"]>
-  ) => {
-    if (source === "blockscout-bytecode") {
-      return "blockscout-ebytecode";
-    }
-    return source;
-  };
-
   return (
-    <div className={`contract-address-input-container ${className}`}>
-      <label className="contract-endpoint-label">Contract Address</label>
-      <div className="contract-endpoint-row">
-        <div className="decoder-address-wrapper has-selector">
-          <div className="decoder-address-field decoder-address-field--contract">
-            <input
-              className="decoder-address-field__input"
-              type="text"
-              value={contractAddress}
-              onChange={(event) => onAddressChange(event.target.value)}
-              placeholder="0x..."
-            />
+    <div className={cn("flex flex-col gap-3", className)}>
+      <Label 
+        htmlFor="contract-address-input"
+        className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1"
+      >
+        Contract Address
+      </Label>
+      
+      <div className="relative group">
+        <div className="relative flex items-center">
+          <Input
+            id="contract-address-input"
+            name="contractAddress"
+            autoComplete="off"
+            spellCheck={false}
+            value={contractAddress}
+            onChange={(event) => onAddressChange(event.target.value)}
+            placeholder="0x0000…0000"
+            className={cn(
+              "h-12 pl-4 pr-[120px] font-mono text-sm tracking-tight transition-all duration-300",
+              "bg-transparent! border-slate-800/50 hover:border-slate-700/60 focus:ring-0 focus:border-white/50",
+              isValidAddress && "border-white/30 bg-white/[0.02]"
+            )}
+          />
+
+          {/* Controls Container */}
+          <div className="absolute right-1.5 flex items-center h-9 gap-1 px-1">
+            {/* Clear Button - minimal, just icon */}
+            {contractAddress && (
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
+                onClick={() => onAddressChange("")}
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                title="Clear address"
+                aria-label="Clear address"
+              >
+                <X size={14} />
+              </Button>
+            )}
+
+            {/* Network Selector */}
             <NetworkSelector
-              className="decoder-address-field__selector"
+              className="scale-90 opacity-90 hover:opacity-100 transition-opacity"
               selectedNetwork={selectedExtendedNetwork}
               onNetworkChange={(network) =>
                 onNetworkChange(
@@ -146,25 +178,45 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               size="sm"
               variant="input"
             />
+
+            {/* Search Button - minimal icon */}
             {onFetchABI && (
               <Button
                 type="button"
-                variant="secondary"
-                size="sm"
-                className="contract-endpoint-field__inline-action"
+                variant="icon-borderless"
+                size="icon-inline"
                 onClick={onFetchABI}
-                icon={<Search size={12} />}
-                loading={isLoading}
                 disabled={!isValidAddress || isLoading}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  "text-foreground/70 hover:text-foreground hover:bg-muted",
+                  fetchIcon
+                    ? "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                    : "disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                )}
+                title={fetchLabel || "Fetch ABI"}
+                aria-label={fetchLabel || "Fetch ABI"}
               >
-                {isLoading ? "..." : "Fetch"}
+                {fetchIcon ? (
+                  fetchIcon
+                ) : isLoading ? (
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                ) : (
+                  <Search size={16} />
+                )}
               </Button>
             )}
           </div>
         </div>
       </div>
 
-      {error && <ErrorDisplay error={error} variant="inline" />}
+      {error && (
+        <ErrorDisplay 
+          error={error} 
+          variant="inline" 
+          className="mt-1.5 opacity-90 animate-in fade-in slide-in-from-top-1 duration-200" 
+        />
+      )}
     </div>
   );
 };

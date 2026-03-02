@@ -1,0 +1,537 @@
+/**
+ * SimulationHistory.css - Styles for simulation history page
+ * Dark theme design
+ */
+
+.sim-history-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0d0e12 0%, #131419 50%, #0d0e12 100%);
+  color: #f6f6fb;
+  padding: 24px 32px;
+}
+
+/* Header */
+.sim-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.sim-history-title-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sim-history-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: #f6f6fb;
+}
+
+.sim-history-count {
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  font-size: 0.8625rem;
+  color: #ffffff;
+}
+
+.sim-history-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Buttons */
+.sim-history-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 0.9125rem;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sim-history-btn-icon {
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+.sim-history-btn-primary {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+}
+
+.sim-history-btn-primary:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  transform: translateY(-1px);
+}
+
+.sim-history-btn-ghost {
+  background: transparent;
+  color: #9a9aac;
+  border: 1px solid #2a2b30;
+}
+
+.sim-history-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f6f6fb;
+}
+
+.sim-history-btn-ghost.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+.sim-history-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.sim-history-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.sim-history-btn-danger-text {
+  color: #ef4444;
+}
+
+.sim-history-btn-danger-text:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Toolbar */
+.sim-history-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(22, 23, 26, 0.6);
+  border: 1px solid #2a2b30;
+  border-radius: 8px;
+}
+
+.sim-history-toolbar-left,
+.sim-history-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Filters */
+.sim-history-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: rgba(22, 23, 26, 0.4);
+  border: 1px solid #2a2b30;
+  border-radius: 8px;
+}
+
+.sim-history-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-history-filter-group label {
+  font-size: 0.7625rem;
+  color: #9a9aac;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sim-history-filter-group select {
+  padding: 8px 12px;
+  background: #1a1b1f;
+  border: 1px solid #2a2b30;
+  border-radius: 6px;
+  color: #f6f6fb;
+  font-size: 0.9125rem;
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.sim-history-filter-group select:focus {
+  outline: none;
+  border-color: #ffffff;
+}
+
+/* Loading / Error / Empty states */
+.sim-history-loading,
+.sim-history-error,
+.sim-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.sim-history-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #2a2b30;
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.sim-history-error {
+  color: #ef4444;
+}
+
+.sim-history-error-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.sim-history-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.sim-history-empty h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.sim-history-empty p {
+  margin: 0 0 24px;
+  color: #9a9aac;
+}
+
+/* Table */
+.sim-history-table-container {
+  background: rgba(22, 23, 26, 0.6);
+  border: 1px solid #2a2b30;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sim-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9125rem;
+}
+
+.sim-history-table thead {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.sim-history-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #9a9aac;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #2a2b30;
+}
+
+.sim-history-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(42, 43, 48, 0.5);
+  vertical-align: middle;
+}
+
+.sim-history-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 48px 800px;
+}
+
+.sim-history-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sim-history-table tbody tr.selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sim-history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sim-history-th-checkbox,
+.sim-history-td-checkbox {
+  width: 40px;
+  text-align: center;
+}
+
+.sim-history-th-checkbox input,
+.sim-history-td-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #ffffff;
+}
+
+.sim-history-th-actions {
+  width: 120px;
+  text-align: right;
+}
+
+.sim-history-td-actions {
+  text-align: right;
+}
+
+/* Status badge */
+.sim-history-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.sim-history-status-icon {
+  font-size: 0.9625rem;
+}
+
+/* Network badge */
+.sim-history-network-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ID */
+.sim-history-td-id {
+  max-width: 140px;
+}
+
+.sim-history-id {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+  font-size: 0.8625rem;
+  color: #9a9aac;
+}
+
+/* Address */
+.sim-history-address {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+  font-size: 0.8625rem;
+  color: #d4d4d4;
+}
+
+/* To cell with contract name */
+.sim-history-to-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sim-history-contract-name {
+  font-size: 0.8125rem;
+  color: #9a9aac;
+}
+
+/* Function */
+.sim-history-function {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+  font-size: 0.8625rem;
+  color: #a78bfa;
+}
+
+/* Block & Time */
+.sim-history-td-block,
+.sim-history-td-time {
+  color: #9a9aac;
+  font-size: 0.8625rem;
+  white-space: nowrap;
+}
+
+/* Action buttons - icon only, no borders/backgrounds */
+.sim-history-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0 2px;
+  background: none;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sim-history-action-btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+}
+
+.sim-history-action-btn:hover {
+  color: #f6f6fb;
+}
+
+.sim-history-action-btn:focus {
+  outline: none;
+}
+
+.sim-history-action-btn-danger:hover {
+  color: #ef4444;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .sim-history-table {
+    font-size: 0.8625rem;
+  }
+  
+  .sim-history-table th,
+  .sim-history-table td {
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .sim-history-page {
+    padding: 16px;
+  }
+
+  .sim-history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .sim-history-filters {
+    flex-wrap: wrap;
+  }
+}
+
+/* Pagination */
+.sim-history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  margin-top: 16px;
+  border-top: 1px solid #2a2b30;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sim-history-pagination-info {
+  font-size: 0.9125rem;
+  color: #6b7280;
+}
+
+.sim-history-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sim-history-pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #3a3b40;
+  border-radius: 6px;
+  background: transparent;
+  color: #f6f6fb;
+  font-size: 0.9125rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sim-history-pagination-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #4a4b50;
+}
+
+.sim-history-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sim-history-pagination-pages {
+  font-size: 0.9125rem;
+  color: #9ca3af;
+  padding: 0 8px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.sim-history-pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9125rem;
+  color: #9ca3af;
+}
+
+.sim-history-pagination-size select {
+  padding: 6px 10px;
+  border: 1px solid #3a3b40;
+  border-radius: 6px;
+  background: #1a1b20;
+  color: #f6f6fb;
+  font-size: 0.9125rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.sim-history-pagination-size select:hover {
+  border-color: #4a4b50;
+}
+
+.sim-history-pagination-size select:focus {
+  border-color: #6366f1;
+}
+
+@media (max-width: 700px) {
+  .sim-history-pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .sim-history-pagination-controls {
+    justify-content: center;
+  }
+
+  .sim-history-pagination-info,
+  .sim-history-pagination-size {
+    justify-content: center;
+  }
+}

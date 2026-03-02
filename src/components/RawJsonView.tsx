@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback, useState } from 'react';
 import type { ParameterDisplayEntry } from './StackedOverview';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { Button } from './ui/button';
 import '../styles/RawJsonView.css';
 
 interface RawJsonViewProps {
@@ -84,8 +85,10 @@ const RawJsonView: React.FC<RawJsonViewProps> = ({ parameters }) => {
   return (
     <section className="raw-json-panel" aria-label="Decoded parameters in raw JSON form">
       <div className="raw-json-toolbar">
-        <button
+        <Button
           type="button"
+          variant="icon-borderless"
+          size="icon-inline"
           className="inline-copy-icon raw-json-copy-button"
           aria-label="Copy JSON"
           data-state={copyState === 'idle' ? undefined : copyState}
@@ -95,7 +98,7 @@ const RawJsonView: React.FC<RawJsonViewProps> = ({ parameters }) => {
             <rect x="9" y="9" width="10" height="10" rx="2" ry="2" />
             <path d="M5 15c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <pre className="raw-json-pre">

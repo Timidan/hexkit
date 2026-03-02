@@ -1,293 +1,211 @@
 /* ============================================
    RAINBOWKIT CUSTOM STYLING
-   Following claude-UI-rules.md design patterns
+   Uses CSS custom properties and minimal !important
    ============================================ */
 
-/* RainbowKit uses CSS custom properties and specific class names.
-   We override these to match our design system with inline SVG patterns. */
+/* CSS Custom Properties for RainbowKit theming */
+:root {
+  --rk-accent: oklch(0.585 0.233 264);
+  --rk-accent-light: oklch(0.700 0.180 264);
+  --rk-bg-modal: oklch(0.145 0 0);
+  --rk-bg-card: oklch(0.175 0 0);
+  --rk-bg-elevated: oklch(0.200 0 0);
+  --rk-text-primary: oklch(0.985 0 0);
+  --rk-text-secondary: oklch(0.650 0 0);
+  --rk-border: oklch(0.269 0 0);
+  --rk-border-hover: oklch(0.400 0.100 264);
+}
 
 /* ============================================
    MODAL BACKDROP & CONTAINER
    ============================================ */
 
-/* Modal backdrop - overlay */
 div[data-rk][style*="position: fixed"] {
-  background: radial-gradient(circle at center, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.96)) !important;
-  backdrop-filter: blur(20px) !important;
+  background: oklch(0.10 0 0 / 0.90) !important;
+  backdrop-filter: blur(12px) !important;
 }
 
-/* Modal container card */
 div[data-rk] div[role="dialog"] {
-  background: linear-gradient(180deg, rgba(15, 16, 20, 0.98), rgba(10, 12, 16, 0.98)) !important;
-  backdrop-filter: blur(30px) !important;
-  border: 1px solid rgba(99, 102, 241, 0.15) !important;
-  border-radius: 20px !important;
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  background: var(--rk-bg-modal) !important;
+  border: 1px solid var(--rk-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 16px 48px oklch(0 0 0 / 0.5) !important;
 }
 
 /* ============================================
-   CLOSE BUTTON (Inline SVG Pattern)
-   Following claude-UI-rules.md Inline SVG Controls
+   CLOSE BUTTON
    ============================================ */
 
-/* Close button - kill all button chrome */
 [data-rk] button[aria-label="Close"],
-[data-rk] button[aria-label*="close" i],
-[data-rk] button[aria-label*="Close"],
-[data-rk] [role="dialog"] button[aria-label="Close"],
-[data-rk] div[role="dialog"] > div > button,
-[data-rk] .ju367vb6,
-div[data-rk] button[aria-label="Close"],
-button[data-rk][aria-label="Close"] {
-  /* Kill all button chrome - complete removal */
-  background: none !important;
-  background-color: transparent !important;
-  background-image: none !important;
+[data-rk] div[role="dialog"] > div > button:first-child {
+  background: transparent !important;
   border: none !important;
-  border-image: none !important;
   box-shadow: none !important;
-  filter: none !important;
-  backdrop-filter: none !important;
-  mix-blend-mode: normal !important;
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-
-  /* Layout - let SVG dictate size */
   padding: 8px !important;
-  margin: 0 !important;
-  width: auto !important;
-  height: auto !important;
-  min-width: auto !important;
-  min-height: auto !important;
-
-  /* Interactive styling */
+  color: var(--rk-text-secondary) !important;
   cursor: pointer !important;
-  color: rgba(154, 154, 172, 0.8) !important;
-  transition: color 0.15s ease, opacity 0.15s ease, transform 0.1s ease !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  flex-shrink: 0 !important;
+  transition: color 0.15s, transform 0.1s !important;
   opacity: 0.8 !important;
 }
 
-/* Strip pseudo-elements */
-[data-rk] button[aria-label="Close"]::before,
-[data-rk] button[aria-label="Close"]::after {
-  content: none !important;
-  display: none !important;
-}
-
-/* Hover state */
 [data-rk] button[aria-label="Close"]:hover {
-  color: rgba(246, 246, 251, 1) !important;
+  color: var(--rk-text-primary) !important;
   opacity: 1 !important;
   transform: scale(1.1) !important;
 }
 
-/* Active state */
 [data-rk] button[aria-label="Close"]:active {
-  color: #6366f1 !important;
+  color: var(--rk-accent) !important;
   transform: scale(0.95) !important;
 }
 
-/* Focus state for keyboard navigation */
-[data-rk] button[aria-label="Close"]:focus-visible {
-  outline: 2px solid #6366f1 !important;
-  outline-offset: 2px !important;
+/* ============================================
+   WALLET BUTTONS & LIST ITEMS (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] button[role="menuitem"],
+[data-rk] [role="menu"] button[role="menuitem"] {
+  background: var(--rk-bg-elevated) !important;
+  border: 1px solid var(--rk-border) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s !important;
+}
+
+[data-rk] [role="dialog"] button[role="menuitem"]:hover,
+[data-rk] [role="menu"] button[role="menuitem"]:hover {
+  background: oklch(0.250 0.050 264) !important;
+  border-color: var(--rk-border-hover) !important;
+  transform: translateY(-2px) !important;
+}
+
+[data-rk] [role="dialog"] button[role="menuitem"]:active,
+[data-rk] [role="menu"] button[role="menuitem"]:active {
+  transform: translateY(0) !important;
 }
 
 /* ============================================
-   WALLET BUTTONS & LIST ITEMS
+   PRIMARY BUTTONS (scoped to wallet dialogs only)
    ============================================ */
 
-/* Wallet option buttons - glass morphism */
-[data-rk] button[role="menuitem"],
-[data-rk] .ju367v5w {
-  background: rgba(30, 35, 50, 0.4) !important;
-  backdrop-filter: blur(10px) !important;
-  border: 1px solid rgba(99, 102, 241, 0.2) !important;
-  border-radius: 14px !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  padding: 16px 18px !important;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-}
-
-[data-rk] button[role="menuitem"]:hover,
-[data-rk] .ju367v5w:hover {
-  background: rgba(99, 102, 241, 0.15) !important;
-  border-color: rgba(99, 102, 241, 0.5) !important;
-  transform: translateY(-3px) scale(1.02) !important;
-  box-shadow:
-    0 12px 28px rgba(99, 102, 241, 0.25),
-    0 0 0 1px rgba(99, 102, 241, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-}
-
-[data-rk] button[role="menuitem"]:active,
-[data-rk] .ju367v5w:active {
-  transform: translateY(-1px) scale(0.99) !important;
-  box-shadow:
-    0 6px 16px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-}
-
-/* ============================================
-   PRIMARY BUTTONS (Connect, Get Wallet, etc)
-   ============================================ */
-
-[data-rk] button[class*="ju367v"][class*="accent"],
-[data-rk] a[class*="ju367v"][class*="accent"] {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-  border: 1px solid rgba(99, 102, 241, 0.5) !important;
-  border-radius: 14px !important;
-  padding: 14px 28px !important;
+[data-rk] [role="dialog"] button[class*="accent"],
+[data-rk] [role="dialog"] a[class*="accent"],
+[data-rk] [role="menu"] button[class*="accent"],
+[data-rk] [role="menu"] a[class*="accent"] {
+  background: var(--rk-accent) !important;
+  border: 1px solid oklch(0.500 0.200 264) !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
   font-weight: 600 !important;
+  color: white !important;
+  box-shadow: 0 4px 12px oklch(0.585 0.233 264 / 0.25) !important;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s !important;
+  text-decoration: none !important;
+}
+
+[data-rk] [role="dialog"] button[class*="accent"]:hover,
+[data-rk] [role="dialog"] a[class*="accent"]:hover,
+[data-rk] [role="menu"] button[class*="accent"]:hover,
+[data-rk] [role="menu"] a[class*="accent"]:hover {
+  background: var(--rk-accent-light) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 20px oklch(0.585 0.233 264 / 0.35) !important;
+}
+
+[data-rk] [role="dialog"] button[class*="accent"]:active,
+[data-rk] [role="dialog"] a[class*="accent"]:active,
+[data-rk] [role="menu"] button[class*="accent"]:active,
+[data-rk] [role="menu"] a[class*="accent"]:active {
+  transform: translateY(0) !important;
+}
+
+/* Secondary links (scoped to wallet dialogs only) */
+[data-rk] [role="dialog"] a:not([class*="accent"]),
+[data-rk] [role="menu"] a:not([class*="accent"]) {
+  color: var(--rk-accent-light) !important;
+  text-decoration: none !important;
+  transition: color 0.2s !important;
+}
+
+[data-rk] [role="dialog"] a:not([class*="accent"]):hover,
+[data-rk] [role="menu"] a:not([class*="accent"]):hover {
+  color: var(--rk-text-primary) !important;
+}
+
+/* ============================================
+   TEXT & TYPOGRAPHY (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] h1,
+[data-rk] [role="dialog"] h2 {
+  color: var(--rk-text-primary) !important;
+  font-weight: 600 !important;
+  font-size: 21px !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-rk] [role="dialog"] p {
+  color: var(--rk-text-secondary) !important;
   font-size: 15px !important;
-  color: #ffffff !important;
-  box-shadow:
-    0 10px 20px rgba(99, 102, 241, 0.35),
-    0 0 30px rgba(99, 102, 241, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  text-decoration: none !important;
-}
-
-[data-rk] button[class*="ju367v"][class*="accent"]:hover,
-[data-rk] a[class*="ju367v"][class*="accent"]:hover {
-  transform: translateY(-3px) !important;
-  box-shadow:
-    0 16px 32px rgba(99, 102, 241, 0.45),
-    0 0 40px rgba(99, 102, 241, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
-}
-
-[data-rk] button[class*="ju367v"][class*="accent"]:active,
-[data-rk] a[class*="ju367v"][class*="accent"]:active {
-  transform: translateY(-1px) !important;
-  box-shadow:
-    0 8px 16px rgba(99, 102, 241, 0.3),
-    0 0 20px rgba(99, 102, 241, 0.15) !important;
-}
-
-/* Secondary/text buttons (Learn More, etc) */
-[data-rk] a[class*="ju367v"]:not([class*="accent"]) {
-  background: transparent !important;
-  border: none !important;
-  color: #a5b4fc !important;
-  padding: 12px 20px !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-  transition: all 0.2s ease !important;
-  text-decoration: none !important;
-}
-
-[data-rk] a[class*="ju367v"]:not([class*="accent"]):hover {
-  color: #c7d2fe !important;
-  background: rgba(99, 102, 241, 0.1) !important;
-  border-radius: 10px !important;
-}
-
-/* ============================================
-   TEXT & TYPOGRAPHY
-   ============================================ */
-
-/* Modal title */
-[data-rk] h1,
-[data-rk] h2,
-[data-rk] .ju367v1u {
-  color: #f6f6fb !important;
-  font-weight: 700 !important;
-  font-size: 24px !important;
-  letter-spacing: -0.02em !important;
-  margin: 0 0 8px 0 !important;
-}
-
-/* Subtitle and descriptive text */
-[data-rk] p,
-[data-rk] .ju367v2d {
-  color: #9a9aac !important;
-  font-size: 14px !important;
   line-height: 1.5 !important;
-  margin: 0 0 20px 0 !important;
 }
 
-/* Section labels (Installed, Recommended, etc) */
-[data-rk] [data-testid="rk-wallet-option-group-label"],
-[data-rk] h3 {
-  color: #6b7280 !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
+[data-rk] [role="dialog"] h3 {
+  color: var(--rk-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.1em !important;
-  margin: 20px 0 12px 0 !important;
-  opacity: 0.8 !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Wallet button text */
+[data-rk] [role="dialog"] button[role="menuitem"] span,
+[data-rk] [role="menu"] button[role="menuitem"] span {
+  color: var(--rk-text-primary) !important;
+  font-weight: 500 !important;
 }
 
 /* ============================================
    WALLET ICONS
    ============================================ */
 
-[data-rk] img[alt*="Wallet"],
-[data-rk] .ju367v46 {
-  width: 52px !important;
-  height: 52px !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-}
-
-/* Wallet button text */
-[data-rk] button[role="menuitem"] span {
-  color: #f6f6fb !important;
-  font-weight: 500 !important;
-  font-size: 15px !important;
+[data-rk] img[alt*="Wallet"] {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 10px !important;
 }
 
 /* ============================================
-   SECTIONS & HEADERS
+   SCROLLBARS (scoped to wallet dialogs only)
    ============================================ */
 
-[data-rk] .ju367v82 {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-  padding-bottom: 16px !important;
+[data-rk] [role="dialog"] ::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-thumb {
+  background: var(--rk-border);
+  border-radius: 3px;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--rk-border-hover);
 }
 
 /* ============================================
-   SCROLLBARS
+   FOCUS STATES (Accessibility - scoped to wallet dialogs only)
    ============================================ */
 
-[data-rk] *::-webkit-scrollbar {
-  width: 8px;
-}
-
-[data-rk] *::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 4px;
-}
-
-[data-rk] *::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 4px;
-  transition: background 0.2s;
-}
-
-[data-rk] *::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
-}
-
-/* ============================================
-   LOADING STATES
-   ============================================ */
-
-[data-rk] .ju367vd8 {
-  color: #6366f1 !important;
+[data-rk] [role="dialog"] button:focus-visible,
+[data-rk] [role="dialog"] a:focus-visible,
+[data-rk] [role="menu"] button:focus-visible,
+[data-rk] [role="menu"] a:focus-visible {
+  outline: 2px solid var(--rk-accent) !important;
+  outline-offset: 2px !important;
 }
 
 /* ============================================
@@ -295,32 +213,24 @@ button[data-rk][aria-label="Close"] {
    ============================================ */
 
 @media (max-width: 640px) {
-  [data-rk] [role="dialog"] {
-    border-radius: 12px 12px 0 0 !important;
+  [data-rk] div[role="dialog"] {
+    border-radius: 16px 16px 0 0 !important;
   }
 
-  [data-rk] button[role="menuitem"] {
+  [data-rk] [role="dialog"] button[role="menuitem"],
+  [data-rk] [role="menu"] button[role="menuitem"] {
     padding: 12px 14px !important;
   }
 }
 
 /* ============================================
-   FOCUS STATES (Accessibility)
-   ============================================ */
-
-[data-rk] button:focus-visible {
-  outline: 2px solid #6366f1 !important;
-  outline-offset: 2px !important;
-}
-
-/* ============================================
-   REDUCED MOTION SUPPORT
+   REDUCED MOTION SUPPORT (scoped to wallet dialogs only)
    ============================================ */
 
 @media (prefers-reduced-motion: reduce) {
-  [data-rk] * {
+  [data-rk] [role="dialog"] *,
+  [data-rk] [role="menu"] * {
     transition: none !important;
     animation: none !important;
   }
 }
-

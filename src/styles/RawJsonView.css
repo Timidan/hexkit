@@ -32,7 +32,7 @@
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: var(--bg-secondary);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.9125rem;
   line-height: 1.68;
   color: rgba(229, 231, 235, 0.92);
   white-space: pre-wrap;
