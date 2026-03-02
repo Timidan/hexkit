@@ -191,3 +191,34 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+
+/* ========== RESPONSIVE UTILITIES ========== */
+
+/* Touch targets for coarse pointer devices (phones, tablets) */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Safe area insets for notched devices */
+.topbar {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Reduced motion — disable spring animations */
+@media (prefers-reduced-motion: reduce) {
+  .capsule-indicator,
+  .capsule-sub-indicator {
+    transition: none !important;
+  }
+}
+
+/* Responsive overflow container */
+.responsive-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
