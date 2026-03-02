@@ -336,7 +336,14 @@ class SimulationHistoryService {
    * Generate a unique ID for a simulation
    */
   private generateId(): string {
-    return crypto.randomUUID();
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const seg = (len: number) => {
+      let s = "";
+      const arr = crypto.getRandomValues(new Uint8Array(len));
+      for (const b of arr) s += chars[b % chars.length];
+      return s;
+    };
+    return `${seg(8)}-${seg(7)}`;
   }
 
   /**
