@@ -1,0 +1,142 @@
+/**
+ * Stack Trace Panel Styles
+ */
+
+.stack-trace {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.stack-trace--collapsed {
+  height: auto;
+}
+
+/* Header */
+.stack-trace__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  flex-shrink: 0;
+}
+
+.stack-trace__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.stack-trace__count {
+  font-size: 0.6875rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+}
+
+.stack-trace__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stack-trace__toggle,
+.stack-trace__close {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  color: var(--muted-foreground);
+}
+
+.stack-trace__toggle:hover,
+.stack-trace__close:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+/* Content area */
+.stack-trace__content {
+  flex: 1;
+  min-height: 0;
+  max-height: 200px;
+}
+
+.stack-trace__empty {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.stack-trace__frames {
+  padding: 0.25rem;
+}
+
+/* Stack frame row */
+.stack-trace__frame {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background-color 0.1s;
+}
+
+.stack-trace__frame:hover {
+  background: var(--accent);
+}
+
+.stack-trace__frame--current {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+.stack-trace__frame--current:hover {
+  background: rgba(234, 179, 8, 0.15);
+}
+
+.stack-trace__frame-content {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-trace__function {
+  color: #d6d3d1;
+  font-weight: 500;
+}
+
+.stack-trace__in {
+  color: var(--muted-foreground);
+}
+
+.stack-trace__file {
+  color: var(--cyan-400, #22d3ee);
+  font-family: var(--font-mono);
+}
+
+.stack-trace__current-badge {
+  font-size: 0.6875rem;
+  height: 1rem;
+  padding: 0 0.375rem;
+  background: rgba(234, 179, 8, 0.2);
+  color: rgb(234, 179, 8);
+  border: none;
+  flex-shrink: 0;
+}

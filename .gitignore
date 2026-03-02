@@ -16,6 +16,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
 
 # Editor directories and files
 .vscode/*
@@ -29,7 +30,8 @@ dist-ssr
 *.sw?
 .env
 CURSOR.md
-scripts
+#scripts
+!scripts/testnet-probe.js
 IMPLEMENTATION_OVERRIDES.md
 REFACTORING_DOCUMENTATION.md
 src/assets/jsx
@@ -42,6 +44,8 @@ debug-formatter.html
 # Documentation and test files
 *.md
 !README.md
+!wcodex_work.md
 *test*
 *Test*
 *TEST*
+/tmp

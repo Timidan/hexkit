@@ -1,6 +1,10 @@
 import { whatsabi } from '@shazow/whatsabi';
 import { ethers } from 'ethers';
 import type { Chain } from '../types';
+import { networkConfigManager } from '../config/networkConfig';
+
+const resolveRpcUrl = (chain: Chain) =>
+  networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl).url;
 
 // Extended result interface for WhatsABI integration
 export interface WhatsABIResult {
@@ -25,25 +29,17 @@ export async function fetchFromWhatsABI(
   provider?: ethers.providers.Provider
 ): Promise<WhatsABIResult> {
   try {
-    console.log(`🔍 WhatsABI: Analyzing contract ${contractAddress} on ${chain.name}...`);
-    
     // Create provider if not provided
     let whatsabiProvider = provider;
     if (!whatsabiProvider) {
       const network = { name: chain.name, chainId: chain.id };
-      whatsabiProvider = new ethers.providers.JsonRpcProvider(chain.rpcUrl, network);
+      whatsabiProvider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), network);
     }
 
     // Use WhatsABI autoload for comprehensive analysis
     const result = await whatsabi.autoload(contractAddress, {
       provider: whatsabiProvider,
       followProxies: true, // Important for diamond detection
-      onProgress: (phase: string) => {
-        console.log(`  📊 WhatsABI phase: ${phase}`);
-      },
-      onError: (phase: string, context: any) => {
-        console.warn(`  ⚠️ WhatsABI error in ${phase}:`, context);
-      }
     });
 
     if (!result) {
@@ -56,13 +52,9 @@ export async function fetchFromWhatsABI(
       };
     }
 
-    console.log(`✅ WhatsABI analysis complete for ${contractAddress}`);
-    console.log(`  📊 Found ${result.abi?.length || 0} ABI items`);
-    
     // CRITICAL: Verify contract actually exists before proceeding
     const bytecode = await whatsabiProvider.getCode(contractAddress);
     if (!bytecode || bytecode === '0x') {
-      console.log(`❌ No contract found at ${contractAddress} on ${chain.name}`);
       return {
         success: false,
         error: `No contract deployed at address on ${chain.name}`,
@@ -77,15 +69,11 @@ export async function fetchFromWhatsABI(
     let implementations: string[] = [];
     
     if (result.proxies && result.proxies.length > 0) {
-      console.log(`  🔗 Proxy detected: ${result.proxies.length} implementations`);
-      
       // Extract proxy information
       const firstProxy = result.proxies[0];
       if (firstProxy) {
         proxyType = (firstProxy as any).type;
         implementations = result.proxies.map(p => (p as any).address).filter(Boolean);
-        console.log(`  💎 Proxy type: ${proxyType}`);
-        console.log(`  🎯 Implementations: ${implementations.join(', ')}`);
       }
     }
 
@@ -94,10 +82,9 @@ export async function fetchFromWhatsABI(
     try {
       if (bytecode && bytecode !== '0x') {
         selectors = whatsabi.selectorsFromBytecode(bytecode);
-        console.log(`  🔧 Extracted ${selectors.length} function selectors`);
       }
-    } catch (error) {
-      console.warn(`  ⚠️ Failed to extract selectors:`, error);
+    } catch {
+      // Selector extraction is best-effort
     }
 
     // Determine confidence level
@@ -129,13 +116,9 @@ export async function fetchFromWhatsABI(
     };
 
   } catch (error: any) {
-    console.error('❌ WhatsABI analysis failed:', error);
-
     // Fallback: try basic bytecode analysis
     try {
-      console.log('🔄 Attempting fallback bytecode analysis...');
-      
-      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
+      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), {
         name: chain.name,
         chainId: chain.id
       });
@@ -144,9 +127,7 @@ export async function fetchFromWhatsABI(
       if (bytecode && bytecode !== '0x') {
         const selectors = whatsabi.selectorsFromBytecode(bytecode);
         const basicAbi = whatsabi.abiFromBytecode(bytecode);
-        
-        console.log(`✅ Fallback extracted ${selectors.length} selectors, ${basicAbi.length} ABI items`);
-        
+
         return {
           success: true,
           abi: JSON.stringify(basicAbi),
@@ -157,8 +138,8 @@ export async function fetchFromWhatsABI(
           selectors,
         };
       }
-    } catch (fallbackError) {
-      console.error('❌ Fallback analysis also failed:', fallbackError);
+    } catch {
+      // Fallback analysis also failed
     }
 
     return {
@@ -186,9 +167,7 @@ export async function analyzeContractWithWhatsABI(
   abi?: any[];
 }> {
   try {
-    console.log(`🔍 WhatsABI: Deep analysis of ${contractAddress}...`);
-    
-    const whatsabiProvider = provider || new ethers.providers.JsonRpcProvider(chain.rpcUrl, {
+    const whatsabiProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), {
       name: chain.name,
       chainId: chain.id
     });
@@ -204,7 +183,6 @@ export async function analyzeContractWithWhatsABI(
 
     // Extract selectors
     const selectors = whatsabi.selectorsFromBytecode(bytecode);
-    console.log(`  🔧 Found ${selectors.length} function selectors`);
 
     // Try full WhatsABI analysis
     const result = await whatsabi.autoload(contractAddress, {
@@ -223,7 +201,6 @@ export async function analyzeContractWithWhatsABI(
       implementations = result.proxies.map(p => (p as any).address).filter(Boolean);
       
       isDiamond = proxyType === 'DiamondProxy';
-      console.log(`  💎 Proxy analysis: ${proxyType} (Diamond: ${isDiamond})`);
     }
 
     return {
@@ -234,12 +211,10 @@ export async function analyzeContractWithWhatsABI(
       abi: result.abi,
     };
 
-  } catch (error) {
-    console.error('❌ WhatsABI deep analysis failed:', error);
-    
+  } catch {
     // Fallback to basic selector extraction
     try {
-      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(chain.rpcUrl);
+      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain));
       const bytecode = await fallbackProvider.getCode(contractAddress);
       const selectors = bytecode !== '0x' ? whatsabi.selectorsFromBytecode(bytecode) : [];
       
@@ -247,7 +222,7 @@ export async function analyzeContractWithWhatsABI(
         isDiamond: false,
         selectors,
       };
-    } catch (fallbackError) {
+    } catch {
       return {
         isDiamond: false,
         selectors: [],
@@ -259,95 +234,218 @@ export async function analyzeContractWithWhatsABI(
 /**
  * Create function stubs from selectors with signature lookup
  */
+export interface SelectorFunctionStub {
+  signature: string;
+  selector: string;
+  abi: any;
+  confidence: 'inferred' | 'extracted';
+}
+
+const WRITE_KEYWORDS = [
+  'set',
+  'add',
+  'remove',
+  'update',
+  'create',
+  'mint',
+  'burn',
+  'transfer',
+  'approve',
+  'deposit',
+  'withdraw',
+  'claim',
+  'execute',
+  'upgrade',
+  'init',
+  'initialize',
+  'configure',
+  'register',
+  'enable',
+  'disable',
+  'pause',
+  'unpause',
+  'refund',
+  'sweep',
+  'distribute',
+];
+
+const READ_KEYWORDS = [
+  'get',
+  'is',
+  'has',
+  'can',
+  'supports',
+  'balance',
+  'owner',
+  'symbol',
+  'name',
+  'decimals',
+  'allowance',
+  'total',
+  'token',
+  'uri',
+  'max',
+  'min',
+  'fee',
+  'price',
+  'rate',
+  'pending',
+  'current',
+  'version',
+  'supply',
+  'available',
+  'index',
+  'list',
+  'info',
+  'details',
+];
+
+function inferStateMutability(fragment: ethers.utils.FunctionFragment): 'view' | 'nonpayable' {
+  const name = fragment.name?.toLowerCase() || '';
+  const hasOutputs = Array.isArray(fragment.outputs) ? fragment.outputs.length > 0 : false;
+
+  if (WRITE_KEYWORDS.some((keyword) => name.startsWith(keyword))) {
+    return 'nonpayable';
+  }
+
+  if (READ_KEYWORDS.some((keyword) => name.startsWith(keyword))) {
+    return 'view';
+  }
+
+  if (!hasOutputs) {
+    return 'nonpayable';
+  }
+
+  return 'view';
+}
+
 export async function createFunctionStubsFromSelectors(
   selectors: string[],
   facetAddress: string,
   facetName: string
-): Promise<any[]> {
-  const functions: any[] = [];
-  
-  console.log(`🔧 Creating function stubs for ${facetName} with ${selectors.length} selectors`);
-  
+): Promise<SelectorFunctionStub[]> {
+  const stubs: SelectorFunctionStub[] = [];
+
   // Try to resolve signatures using WhatsABI's signature lookup
   try {
     const signatureLookup = new whatsabi.loaders.OpenChainSignatureLookup();
-    
+
     for (const selector of selectors) {
       try {
-        // Try to get function signature
         const signatures = await signatureLookup.loadFunctions(selector);
-        
+
         if (signatures && signatures.length > 0) {
-          // Use first (most common) signature
-          const signature = signatures[0];
-          const functionName = signature.split('(')[0];
-          
-          // Create basic ABI entry
-          functions.push({
-            name: functionName,
-            type: 'function',
-            inputs: [], // Would need parsing to get exact inputs
-            outputs: [],
-            stateMutability: 'nonpayable', // Default assumption
-            selector,
-            facetAddress,
-            facetName,
-            isWhatsABI: true,
-            confidence: 'inferred'
-          });
-          
-          console.log(`  ✅ Resolved ${selector} → ${signature}`);
-        } else {
-          // Fallback: create generic function stub
-          functions.push({
-            name: `function_${selector.slice(2, 10)}`,
-            type: 'function',
-            inputs: [],
-            outputs: [],
-            stateMutability: 'nonpayable',
-            selector,
-            facetAddress,
-            facetName,
-            isWhatsABI: true,
-            confidence: 'extracted'
-          });
+          const rawSignature = signatures[0] as string | { name?: string };
+          const signature =
+            typeof rawSignature === 'string'
+              ? rawSignature
+              : rawSignature?.name || '';
+
+          if (!signature) {
+            throw new Error('Unable to resolve signature string');
+          }
+
+          try {
+            const fragment = ethers.utils.FunctionFragment.from(signature);
+            const abiJson = fragment.format(ethers.utils.FormatTypes.json);
+            const abiEntry = JSON.parse(abiJson);
+            const inferredState = inferStateMutability(fragment);
+
+            abiEntry.stateMutability = inferredState;
+            abiEntry.constant = inferredState === 'view';
+            abiEntry.payable = false;
+
+            stubs.push({
+              signature,
+              selector,
+              abi: {
+                ...abiEntry,
+                selector,
+                facetAddress,
+                facetName,
+                inferred: true,
+                confidence: 'inferred',
+              },
+              confidence: 'inferred',
+            });
+
+            continue;
+          } catch {
+            // Failed to parse signature, fall through to generic stub
+          }
         }
-      } catch (error) {
-        // Create basic stub if signature lookup fails
-        functions.push({
-          name: `function_${selector.slice(2, 10)}`,
-          type: 'function',
-          inputs: [],
-          outputs: [],
-          stateMutability: 'nonpayable',
+
+        // If no signatures or parsing failed, fall back to generic stub
+        const fallbackName = `function_${selector.slice(2, 10)}`;
+        const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+        const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+        fallbackAbi.stateMutability = 'nonpayable';
+        fallbackAbi.constant = false;
+        fallbackAbi.payable = false;
+
+        stubs.push({
+          signature: fallbackName,
           selector,
-          facetAddress,
-          facetName,
-          isWhatsABI: true,
-          confidence: 'extracted'
+          abi: {
+            ...fallbackAbi,
+            selector,
+            facetAddress,
+            facetName,
+            inferred: true,
+            confidence: 'extracted',
+          },
+          confidence: 'extracted',
+        });
+      } catch {
+
+        const fallbackName = `function_${selector.slice(2, 10)}`;
+        const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+        const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+        fallbackAbi.stateMutability = 'nonpayable';
+        fallbackAbi.constant = false;
+        fallbackAbi.payable = false;
+
+        stubs.push({
+          signature: fallbackName,
+          selector,
+          abi: {
+            ...fallbackAbi,
+            selector,
+            facetAddress,
+            facetName,
+            inferred: true,
+            confidence: 'extracted',
+          },
+          confidence: 'extracted',
         });
       }
     }
-  } catch (error) {
-    console.warn('⚠️ Signature lookup failed, using basic stubs:', error);
-    
-    // Fallback: create basic function stubs
+  } catch {
+    // Signature lookup failed, using basic stubs
+
     for (const selector of selectors) {
-      functions.push({
-        name: `function_${selector.slice(2, 10)}`,
-        type: 'function',
-        inputs: [],
-        outputs: [],
-        stateMutability: 'nonpayable',
+      const fallbackName = `function_${selector.slice(2, 10)}`;
+      const fragment = ethers.utils.FunctionFragment.from(`${fallbackName}()`);
+      const fallbackAbi = JSON.parse(fragment.format(ethers.utils.FormatTypes.json));
+      fallbackAbi.stateMutability = 'nonpayable';
+      fallbackAbi.constant = false;
+      fallbackAbi.payable = false;
+
+      stubs.push({
+        signature: fallbackName,
         selector,
-        facetAddress,
-        facetName,
-        isWhatsABI: true,
-        confidence: 'extracted'
+        abi: {
+          ...fallbackAbi,
+          selector,
+          facetAddress,
+          facetName,
+          inferred: true,
+          confidence: 'extracted',
+        },
+        confidence: 'extracted',
       });
     }
   }
-  
-  console.log(`✅ Created ${functions.length} function stubs for ${facetName}`);
-  return functions;
+
+  return stubs;
 }

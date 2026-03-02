@@ -1,10 +1,13 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   fetchDiamondFacets,
   getDiamondFacetAddresses,
   type DiamondFacet,
 } from "../utils/diamondFacetFetcher";
+import { networkConfigManager } from "../config/networkConfig";
 import type { Chain } from "../types";
+import { UIIcons } from "./icons/IconMap";
+import { Button } from "./ui/button";
 
 interface InlineFacetLoaderProps {
   chain: Chain;
@@ -16,6 +19,7 @@ interface InlineFacetLoaderProps {
     total: number;
     currentFacet: string;
     status: "fetching" | "success" | "error";
+    index: number;
   }) => void;
   onLoadingChange?: (isLoading: boolean) => void;
 }
@@ -25,6 +29,15 @@ interface FacetProgress {
   total: number;
   currentFacet: string;
   status: "fetching" | "success" | "error";
+  index: number;
+}
+
+type FacetDetailStatus = "pending" | "fetching" | "success" | "error";
+
+interface FacetDetailEntry {
+  index: number;
+  address: string;
+  status: FacetDetailStatus;
 }
 
 export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
@@ -41,21 +54,65 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     total: 0,
     currentFacet: "",
     status: "fetching",
+    index: 0,
   });
+  const [facetDetails, setFacetDetails] = useState<FacetDetailEntry[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
   const [facets, setFacets] = useState<DiamondFacet[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef<number>(0);
+
+  const detailStatusColors: Record<FacetDetailStatus, string> = {
+    pending: "#6b7280",
+    fetching: "#38bdf8",
+    success: "#22c55e",
+    error: "#ef4444",
+  };
+
+  const detailStatusLabels: Record<FacetDetailStatus, string> = {
+    pending: "Pending",
+    fetching: "Loading",
+    success: "Ready",
+    error: "Error",
+  };
+  const abbreviate = (address: string) =>
+    address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
 
   const loadFacets = useCallback(async () => {
+    const requestId = Date.now();
+    requestIdRef.current = requestId;
+    const etherscanApiKey = networkConfigManager.getEtherscanApiKey();
+
     try {
       setIsLoading(true);
       onLoadingChange?.(true);
       setError(null);
       setFacets([]);
+      setShowDetails(false);
+      setFacetDetails([]);
 
-      // Get facet addresses
       const facetAddresses = await getDiamondFacetAddresses(
         chain,
         diamondAddress
+      );
+
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
+      setProgress({
+        current: 0,
+        total: facetAddresses.length,
+        currentFacet: "",
+        status: "fetching",
+        index: 0,
+      });
+      setFacetDetails(
+        facetAddresses.map((address, idx) => ({
+          index: idx + 1,
+          address,
+          status: "pending" as FacetDetailStatus,
+        }))
       );
 
       if (facetAddresses.length === 0) {
@@ -65,21 +122,69 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         return;
       }
 
-      // Fetch facet ABIs with progress tracking
       const loadedFacets = await fetchDiamondFacets(
         chain,
+        diamondAddress,
         facetAddresses,
         (p) => {
+          if (requestIdRef.current !== requestId) {
+            return;
+          }
           setProgress(p);
+          setFacetDetails((prev) => {
+            let next = prev;
+            if (prev.length === 0 || prev.length !== p.total) {
+              next = Array.from({ length: p.total }, (_, idx) => ({
+                index: idx + 1,
+                address:
+                  idx + 1 === p.index && p.currentFacet
+                    ? p.currentFacet
+                    : prev[idx]?.address || "",
+                status: "pending" as FacetDetailStatus,
+              }));
+            } else {
+              next = prev.map((entry) => ({ ...entry }));
+            }
+
+            const idx = p.index - 1;
+            if (idx >= 0 && idx < next.length) {
+              const status: FacetDetailStatus =
+                p.status === "fetching" ? "fetching" : p.status;
+              next[idx] = {
+                ...next[idx],
+                address: p.currentFacet || next[idx].address,
+                status,
+              };
+            }
+
+            for (let i = 0; i < p.current && i < next.length; i += 1) {
+              if (
+                next[i].status === "pending" ||
+                next[i].status === "fetching"
+              ) {
+                next[i] = { ...next[i], status: "success" };
+              }
+            }
+
+            return next;
+          });
           onProgressChange?.(p);
-        }
+        },
+        { etherscanApiKey }
       );
+
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
 
       setFacets(loadedFacets);
       onFacetsLoaded(loadedFacets);
       setIsLoading(false);
       onLoadingChange?.(false);
     } catch (error) {
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
       console.error("Diamond facet loading failed:", error);
       setError(
         `Failed to load facets: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -95,8 +200,18 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     onLoadingChange,
   ]);
 
-  const progressPercentage =
-    progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+  const completedFacets = facetDetails.filter(
+    (detail) => detail.status === "success"
+  );
+  const displayedCompleted = completedFacets.slice(-3);
+  const currentFacetEntry =
+    facetDetails.find((detail) => detail.status === "fetching") ||
+    (progress.index > 0 && progress.index - 1 < facetDetails.length
+      ? facetDetails[progress.index - 1]
+      : undefined);
+  const upcomingFacets = facetDetails
+    .filter((detail) => detail.status === "pending")
+    .slice(0, 2);
 
   // Auto-load facets when component mounts or inputs change
   useEffect(() => {
@@ -108,7 +223,6 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
     ) {
       void loadFacets();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chain.id, diamondAddress]);
 
   if (hideUI) {
@@ -116,15 +230,62 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
   }
 
   return (
-    <div
-      style={{
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-        borderRadius: "8px",
-        padding: "16px",
-        margin: "16px 0",
-        backgroundColor: "rgba(255, 255, 255, 0.02)",
-      }}
-    >
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+
+          .facet-loader-show-details-btn {
+            background-color: transparent;
+            color: #a855f7;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            border-radius: 6px;
+            padding: 6px 12px;
+            fontSize: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+
+          .facet-loader-show-details-btn:hover {
+            background-color: rgba(168, 85, 247, 0.1);
+            border-color: rgba(168, 85, 247, 0.6);
+          }
+
+          .facet-loader-load-btn {
+            background-color: transparent;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            padding: 8px 16px;
+            fontSize: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+          }
+
+          .facet-loader-load-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 2px 8px rgba(255, 255, 255, 0.15);
+          }
+        `}
+      </style>
+      <div
+        style={{
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: "8px",
+          padding: "16px",
+          margin: "16px 0",
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
+        }}
+      >
       <div
         style={{
           display: "flex",
@@ -136,7 +297,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
         <h4
           style={{
             color: "#ffffff",
-            fontSize: "16px",
+            fontSize: "17px",
             fontWeight: "600",
             margin: 0,
           }}
@@ -144,36 +305,36 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           Diamond Facets
         </h4>
 
-        {!isLoading && facets.length === 0 && (
-          <button
-            onClick={loadFacets}
-            style={{
-              backgroundColor: "#6366f1",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "6px",
-              padding: "8px 16px",
-              fontSize: "14px",
-              cursor: "pointer",
-              transition: "background-color 0.2s ease",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = "#5b5bd6";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = "#6366f1";
-            }}
-          >
-            Load Facets
-          </button>
-        )}
+        <div style={{ display: "flex", gap: "8px" }}>
+          {facetDetails.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowDetails((prev) => !prev)}
+              className="facet-loader-show-details-btn"
+            >
+              {showDetails ? "Hide details" : "Show details"}
+            </Button>
+          )}
+
+          {!isLoading && facets.length === 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={loadFacets}
+              className="facet-loader-load-btn"
+            >
+              Load Facets
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
         <div
           style={{
             color: "#ef4444",
-            fontSize: "14px",
+            fontSize: "15px",
             marginBottom: "16px",
             padding: "8px 12px",
             backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -192,52 +353,184 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "8px",
+              gap: "14px",
             }}
           >
-            <span style={{ color: "#9ca3af", fontSize: "14px" }}>
-              Loading facets...
-            </span>
+            <div style={{ flexGrow: 1 }}>
+              <div style={{
+                color: "#94a3b8",
+                fontSize: "14px",
+                marginBottom: "8px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  style={{
+                    animation: "spin 1s linear infinite"
+                  }}
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="#38bdf8"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="31.4 31.4"
+                    strokeDashoffset="0"
+                    opacity="0.25"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="#38bdf8"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="31.4 31.4"
+                    strokeDashoffset="23.55"
+                  />
+                </svg>
+                <span>
+                  Processing facet
+                  <strong style={{ color: "#38bdf8", marginLeft: "6px" }}>
+                    {progress.index}/{progress.total}
+                  </strong>
+                  {progress.currentFacet && (
+                    <span style={{ marginLeft: "6px", color: "#cbd5f5" }}>
+                      ({abbreviate(progress.currentFacet)})
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {displayedCompleted.map((detail) => (
+                  <span
+                    key={`done-${detail.index}`}
+                    className="facet-pill"
+                    data-status="done"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 8px",
+                      borderRadius: "0px",
+                      fontSize: "13px",
+                      background: "rgba(34,197,94,0.15)",
+                      color: "#4ade80",
+                    }}
+                  >
+                     {abbreviate(detail.address)}
+                  </span>
+                ))}
+
+                {currentFacetEntry && (
+                  <span
+                    key={`current-${currentFacetEntry.index}`}
+                    className="facet-pill"
+                    data-status="current"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 8px",
+                      borderRadius: "0px",
+                      fontSize: "13px",
+                      background: "rgba(96,165,250,0.18)",
+                      color: "#60a5fa",
+                    }}
+                  >
+                    <span aria-hidden="true">{UIIcons.loading}</span>
+                    {abbreviate(currentFacetEntry.address)}
+                  </span>
+                )}
+
+                {upcomingFacets.map((detail) => (
+                  <span
+                    key={`upcoming-${detail.index}`}
+                    className="facet-pill"
+                    data-status="upcoming"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 8px",
+                      borderRadius: "0px",
+                      fontSize: "13px",
+                      background: "rgba(148,163,184,0.12)",
+                      color: "#cbd5f5",
+                    }}
+                  >
+                    → {abbreviate(detail.address)}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             <span
-              style={{ color: "#ffffff", fontSize: "14px", fontWeight: "500" }}
+              style={{ color: "#ffffff", fontSize: "15px", fontWeight: "500" }}
             >
-              {progress.current} / {progress.total}
+              Completed {progress.current} / {progress.total}
             </span>
-          </div>
-
-          <div
-            style={{
-              width: "100%",
-              height: "6px",
-              backgroundColor: "rgba(255, 255, 255, 0.1)",
-              borderRadius: "3px",
-              overflow: "hidden",
-              marginBottom: "8px",
-            }}
-          >
-            <div
-              style={{
-                width: `${Math.min(100, Math.max(0, progressPercentage))}%`,
-                height: "100%",
-                backgroundColor: "#6366f1",
-                borderRadius: "3px",
-                transition: "width 0.3s ease",
-              }}
-            />
-          </div>
-
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#9ca3af",
-              fontFamily: "monospace",
-              wordBreak: "break-all",
-            }}
-          >
-            {progress.currentFacet}
           </div>
         </div>
       )}
-    </div>
+
+      {showDetails && facetDetails.length > 0 && (
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "12px",
+            backgroundColor: "rgba(255, 255, 255, 0.03)",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            maxHeight: "180px",
+            overflowY: "auto",
+          }}
+        >
+          {facetDetails.map((detail) => {
+            return (
+              <div
+                key={detail.index}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "13px",
+                  color: detailStatusColors[detail.status],
+                  marginBottom: "6px",
+                  fontFamily: "monospace",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    backgroundColor: detailStatusColors[detail.status],
+                  }}
+                />
+                <span style={{ flexShrink: 0, minWidth: "82px" }}>
+                  Facet {detail.index}:
+                </span>
+                <span style={{ flexGrow: 1 }}>
+                  {detail.address || "Pending"}
+                </span>
+                <span style={{ color: "#9ca3af", fontSize: "12px" }}>
+                  {detailStatusLabels[detail.status]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      </div>
+    </>
   );
 };

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/CompactArrayStyles.css';
 import { PlusIcon, XCloseIcon } from './icons/IconLibrary';
+import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface ABIInput {
   name: string;
@@ -33,6 +35,13 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   const [isValid, setIsValid] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [arrayItems, setArrayItems] = useState<ArrayItem[]>([]);
+
+  // Sync currentValue when value prop changes (for restoration)
+  useEffect(() => {
+    if (value !== undefined && value !== null && value !== '' && value !== currentValue) {
+      setCurrentValue(value);
+    }
+  }, [value, inputDefinition.name]);
 
   // Initialize array items for array types (both dynamic and fixed-size)
   useEffect(() => {
@@ -103,21 +112,16 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   }, [inputDefinition]);
 
   const handleValueChange = useCallback((newValue: any) => {
-    console.log(`🎯 [HandleValueChange] ${inputDefinition.name} (${inputDefinition.type})`);
-    console.log(`🎯 [HandleValueChange] NewValue:`, newValue, typeof newValue);
-    
     setCurrentValue(newValue);
     const validation = validateValue(newValue);
-    console.log(`🎯 [HandleValueChange] Validation:`, validation);
-    
+
     setIsValid(validation.isValid);
     setErrorMessage(validation.error);
-    
+
     if (onChange) {
-      console.log(`🎯 [HandleValueChange] Calling onChange with:`, newValue, validation.isValid);
       onChange(newValue, validation.isValid);
     }
-  }, [validateValue, onChange, inputDefinition.name, inputDefinition.type]);
+  }, [validateValue, onChange]);
 
   const handleBasicInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const rawValue = event.target.value;
@@ -126,31 +130,16 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   };
 
   const handleArrayItemChange = (itemId: string, newValue: any) => {
-    console.log(`🔍 [ArrayItemChange] Starting for ${inputDefinition.name}[${itemId}]`);
-    console.log(`🔍 [ArrayItemChange] Input type: ${inputDefinition.type}`);
-    console.log(`🔍 [ArrayItemChange] Received newValue:`, newValue, typeof newValue);
-    
-    // Parse the value for the base type to ensure proper type conversion
     const baseType = inputDefinition.type.replace('[]', '');
-    console.log(`🔍 [ArrayItemChange] BaseType: ${baseType}`);
-    
     const parsedValue = typeof newValue === 'string' ? parseValueForType(newValue, baseType) : newValue;
-    console.log(`🔍 [ArrayItemChange] ParsedValue:`, parsedValue, typeof parsedValue);
-    
-    const updatedItems = arrayItems.map(item => 
+
+    const updatedItems = arrayItems.map(item =>
       item.id === itemId ? { ...item, value: parsedValue } : item
     );
-    console.log(`🔍 [ArrayItemChange] Updated items:`, updatedItems);
-    
+
     setArrayItems(updatedItems);
-    
+
     const arrayValue = updatedItems.map(item => item.value);
-    console.log(`🔍 [ArrayItemChange] Final array value:`, arrayValue);
-    console.log(`🔍 [ArrayItemChange] Array value types:`, arrayValue.map(v => typeof v));
-    console.log(`🔍 [ArrayItemChange] CRITICAL: Is this an array?`, Array.isArray(arrayValue));
-    console.log(`🔍 [ArrayItemChange] CRITICAL: Array length:`, arrayValue.length);
-    console.log(`🔍 [ArrayItemChange] CRITICAL: JSON stringify:`, JSON.stringify(arrayValue));
-    
     handleValueChange(arrayValue);
   };
 
@@ -207,21 +196,43 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
       borderRadius: '6px',
       padding: '8px 12px',
       color: '#fff',
-      fontSize: '14px',
+      fontSize: '15px',
       fontFamily: 'inherit'
     };
 
+    // Use value prop directly to make input controlled
+    // Fall back to currentValue for internal state updates
+    const displayValue = value !== undefined && value !== null && value !== '' 
+      ? value 
+      : currentValue;
+
     if (type === 'bool') {
       return (
-        <select
-          style={inputStyle}
-          value={currentValue?.toString() || ''}
-          onChange={handleBasicInputChange}
+        <Select
+          value={displayValue?.toString() || ''}
+          onValueChange={(v) => {
+            const syntheticEvent = { target: { value: v } } as React.ChangeEvent<HTMLSelectElement>;
+            handleBasicInputChange(syntheticEvent as any);
+          }}
         >
-          <option value="">Select...</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
+          <SelectTrigger
+            className="w-full font-inherit"
+            style={{
+              background: '#1a1a2e',
+              border: `1px solid ${isValid ? '#333' : '#ef4444'}`,
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: '#fff',
+              fontSize: '15px',
+            }}
+          >
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">true</SelectItem>
+            <SelectItem value="false">false</SelectItem>
+          </SelectContent>
+        </Select>
       );
     } else {
       const placeholder = getPlaceholderForType(type);
@@ -230,7 +241,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
           type="text"
           style={inputStyle}
           placeholder={placeholder}
-          value={currentValue?.toString() || ''}
+          value={displayValue?.toString() || ''}
           onChange={handleBasicInputChange}
         />
       );
@@ -271,7 +282,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
           }}>
             <span style={{
               color: '#9ca3af',
-              fontSize: '12px',
+              fontSize: '13px',
               width: '30px',
               textAlign: 'center'
             }}>
@@ -290,18 +301,13 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
                 parentPath={`${parentPath}.${inputDefinition.name}`}
               />
             </div>
-            <button
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#dc3545'
-              }}
-              onClick={() => removeArrayItem(item.id)}
+            <Button
+              variant="icon-ghost"
+              size="icon-inline"
+              className="compact-array-remove"
+              aria-label={`Remove item ${index}`}
+              title="Remove item"
+              onClick={(e) => { e.stopPropagation(); removeArrayItem(item.id); }}
               disabled={(() => {
                 const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
                 const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
@@ -309,7 +315,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
               })()}
             >
               <XCloseIcon width={16} height={16} />
-            </button>
+            </Button>
           </div>
         ))}
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
@@ -318,44 +324,30 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
             const maxSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : Infinity;
             return arrayItems.length < maxSize;
           })() && (
-            <button
-              onClick={addArrayItem}
+            <Button
+              variant="icon-ghost"
+              size="icon-inline"
+              aria-label="Add item"
               title="Add item"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#28a745'
-              }}
+              onClick={addArrayItem}
             >
-              <PlusIcon width={20} height={20} />
-            </button>
+              <PlusIcon width={18} height={18} />
+            </Button>
           )}
           {(() => {
             const fixedSizeMatch = inputDefinition.type.match(/\[(\d+)\]$/);
             const minSize = fixedSizeMatch ? parseInt(fixedSizeMatch[1]) : 1;
             return arrayItems.length > minSize;
           })() && (
-            <button
-              onClick={() => removeArrayItem(arrayItems[arrayItems.length - 1].id)}
+            <Button
+              variant="icon-ghost"
+              size="icon-inline"
+              aria-label="Remove last item"
               title="Remove last item"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#dc3545'
-              }}
+              onClick={() => removeArrayItem(arrayItems[arrayItems.length - 1].id)}
             >
-              <XCloseIcon width={20} height={20} />
-            </button>
+              <XCloseIcon width={18} height={18} />
+            </Button>
           )}
         </div>
       </div>
@@ -365,7 +357,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
   const renderStructInput = () => {
     if (!inputDefinition.components) {
       return (
-        <div style={{ color: '#ef4444', fontSize: '12px' }}>
+        <div style={{ color: '#ef4444', fontSize: '13px' }}>
           Struct definition missing components
         </div>
       );
@@ -420,7 +412,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
       <label style={{
         display: 'block',
         color: '#9ca3af',
-        fontSize: '14px',
+        fontSize: '15px',
         fontWeight: 500,
         marginBottom: '5px'
       }}>
@@ -428,7 +420,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
         <span style={{
           color: '#06b6d4',
           fontFamily: 'Monaco, Menlo, monospace',
-          fontSize: '12px'
+          fontSize: '13px'
         }}>
           ({inputDefinition.type})
         </span>
@@ -439,7 +431,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
       {!isValid && errorMessage && (
         <div style={{
           color: '#ef4444',
-          fontSize: '12px',
+          fontSize: '13px',
           marginTop: '5px'
         }}>
           {errorMessage}

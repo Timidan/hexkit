@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { ABIInput } from '../components/ContractInputComponent';
 
 interface InputState {
@@ -11,84 +11,127 @@ interface UseContractInputsOptions {
   onValuesChange?: (values: Record<string, any>, allValid: boolean) => void;
   onCalldataGenerated?: (calldata: string) => void;
   selectedFunction?: any; // ethers.utils.FunctionFragment
+  initialValues?: Record<string, any>; // Initial values for restoration
 }
 
-export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated, selectedFunction }: UseContractInputsOptions) {
+export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated, selectedFunction, initialValues }: UseContractInputsOptions) {
+  // Track if we've applied initial values to prevent infinite loops
+  const appliedInitialValuesRef = useRef<string | null>(null);
+  // Bumped by forceReapply() to make the effect re-run even when the function
+  // name hasn't changed (e.g. re-simulation of the same function).
+  const [applyTrigger, setApplyTrigger] = useState(0);
+
   const [inputStates, setInputStates] = useState<Record<string, InputState>>(() => {
     const initialStates: Record<string, InputState> = {};
     inputs.forEach(input => {
+      // Use initial value if provided, otherwise use default
+      const initialValue = initialValues?.[input.name] ?? initialValues?.[`${selectedFunction?.name}_${inputs.indexOf(input)}`];
       initialStates[input.name] = {
-        value: getDefaultValueForType(input.type),
+        value: initialValue !== undefined ? initialValue : getDefaultValueForType(input.type),
         isValid: true
       };
     });
     return initialStates;
   });
 
-  const handleInputChange = useCallback((inputName: string, value: any, isValid: boolean) => {
-    console.log(`🌟 [Hook] handleInputChange: ${inputName}`);
-    console.log(`🌟 [Hook] Received value:`, value, typeof value);
-    console.log(`🌟 [Hook] CRITICAL: Is received value an array?`, Array.isArray(value));
-    if (Array.isArray(value)) {
-      console.log(`🌟 [Hook] CRITICAL: Array length:`, value.length);
-      console.log(`🌟 [Hook] CRITICAL: Array contents:`, JSON.stringify(value));
+  // Re-initialize when selected function changes (not when initialValues change to avoid loops)
+  // Also re-runs when forceReapply() bumps applyTrigger.
+  useEffect(() => {
+    // Create a stable key for the current function to track if we need to re-apply
+    const functionKey = selectedFunction?.name || '';
+
+    // Only apply initial values if:
+    // 1. We have a new function (different from what we last applied)
+    // 2. We have initial values to apply
+    if (functionKey && functionKey !== appliedInitialValuesRef.current && initialValues && Object.keys(initialValues).length > 0) {
+      appliedInitialValuesRef.current = functionKey;
+
+      setInputStates(() => {
+        const newStates: Record<string, InputState> = {};
+        inputs.forEach(input => {
+          // Try direct name match or indexed name match
+          const value = initialValues[input.name] ?? initialValues[`${selectedFunction?.name}_${inputs.indexOf(input)}`];
+          newStates[input.name] = {
+            value: value !== undefined ? value : getDefaultValueForType(input.type),
+            isValid: true
+          };
+        });
+        return newStates;
+      });
+    } else if (!functionKey) {
+      // Reset tracking when no function is selected
+      appliedInitialValuesRef.current = null;
     }
-    console.log(`🌟 [Hook] Is valid:`, isValid);
-    
+  }, [selectedFunction?.name, inputs, applyTrigger]);
+
+  // Store callbacks in refs to avoid dependency issues
+  const onValuesChangeRef = useRef(onValuesChange);
+  const onCalldataGeneratedRef = useRef(onCalldataGenerated);
+  const selectedFunctionRef = useRef(selectedFunction);
+  const inputsRef = useRef(inputs);
+
+  // Keep refs updated
+  useEffect(() => {
+    onValuesChangeRef.current = onValuesChange;
+    onCalldataGeneratedRef.current = onCalldataGenerated;
+    selectedFunctionRef.current = selectedFunction;
+    inputsRef.current = inputs;
+  });
+
+  const handleInputChange = useCallback((inputName: string, value: any, isValid: boolean) => {
     setInputStates(prev => {
       const newStates = {
         ...prev,
         [inputName]: { value, isValid }
       };
-      
-      console.log(`🌟 [Hook] New input states:`, newStates);
-      
+
       // Extract current values and validity
       const currentValues: Record<string, any> = {};
       let allValid = true;
-      
+
       Object.entries(newStates).forEach(([name, state]) => {
         currentValues[name] = state.value;
         if (!state.isValid) {
           allValid = false;
         }
       });
-      
-      console.log(`🌟 [Hook] Current values:`, currentValues);
-      console.log(`🌟 [Hook] All valid:`, allValid);
-      
-      // Notify parent of changes
-      if (onValuesChange) {
-        onValuesChange(currentValues, allValid);
-      }
-      
-      // Generate calldata if function is available
-      if (onCalldataGenerated && selectedFunction && allValid) {
-        try {
-          // Import ethers dynamically to avoid issues
-          import('ethers').then(({ ethers }) => {
-            const formattedArgs = inputs.map(input => {
-              const state = newStates[input.name];
-              if (!state) return formatValueForContract(getDefaultValueForType(input.type), input.type);
-              return formatValueForContract(state.value, input.type);
-            });
-            
-            const iface = new ethers.utils.Interface([selectedFunction]);
-            const calldata = iface.encodeFunctionData(selectedFunction.name, formattedArgs);
-            onCalldataGenerated(calldata);
-          }).catch(error => {
-            console.error('Failed to generate calldata:', error);
-            onCalldataGenerated("0x");
-          });
-        } catch (error) {
-          console.error('Failed to generate calldata:', error);
-          onCalldataGenerated("0x");
+
+      // Schedule callback outside of state setter to avoid issues
+      setTimeout(() => {
+        // Notify parent of changes
+        if (onValuesChangeRef.current) {
+          onValuesChangeRef.current(currentValues, allValid);
         }
-      }
-      
+
+        // Generate calldata if function is available
+        const func = selectedFunctionRef.current;
+        const currentInputs = inputsRef.current;
+        if (onCalldataGeneratedRef.current && func && allValid) {
+          try {
+            import('ethers').then(({ ethers }) => {
+              const formattedArgs = currentInputs.map(input => {
+                const state = newStates[input.name];
+                if (!state) return formatValueForContract(getDefaultValueForType(input.type), input.type);
+                return formatValueForContract(state.value, input.type);
+              });
+
+              const iface = new ethers.utils.Interface([func]);
+              const calldata = iface.encodeFunctionData(func.name, formattedArgs);
+              onCalldataGeneratedRef.current?.(calldata);
+            }).catch(error => {
+              console.error('Failed to generate calldata:', error);
+              onCalldataGeneratedRef.current?.("0x");
+            });
+          } catch (error) {
+            console.error('Failed to generate calldata:', error);
+            onCalldataGeneratedRef.current?.("0x");
+          }
+        }
+      }, 0);
+
       return newStates;
     });
-  }, [onValuesChange]);
+  }, []);
 
   const getCurrentValues = useCallback((): Record<string, any> => {
     const values: Record<string, any> = {};
@@ -99,29 +142,13 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
   }, [inputStates]);
 
   const getFormattedArgs = useCallback((): any[] => {
-    console.log(`🚀 [Hook] getFormattedArgs called`);
-    console.log(`🚀 [Hook] Input states:`, inputStates);
-    console.log(`🚀 [Hook] CRITICAL: All input state keys:`, Object.keys(inputStates));
-    
     const formattedArgs = inputs.map(input => {
       const state = inputStates[input.name];
-      console.log(`🚀 [Hook] Processing ${input.name} (${input.type})`);
-      console.log(`🚀 [Hook] State:`, state);
-      console.log(`🚀 [Hook] CRITICAL: State value type:`, typeof state?.value);
-      console.log(`🚀 [Hook] CRITICAL: State value isArray:`, Array.isArray(state?.value));
-      
       if (!state) {
-        const defaultValue = getDefaultValueForType(input.type);
-        console.log(`🚀 [Hook] No state, using default:`, defaultValue);
-        return defaultValue;
+        return getDefaultValueForType(input.type);
       }
-      
-      const formatted = formatValueForContract(state.value, input.type);
-      console.log(`🚀 [Hook] Formatted value:`, formatted, typeof formatted);
-      return formatted;
+      return formatValueForContract(state.value, input.type);
     });
-    
-    console.log(`🚀 [Hook] Final formatted args:`, formattedArgs);
     return formattedArgs;
   }, [inputs, inputStates]);
 
@@ -143,7 +170,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
   const setInputValues = useCallback((values: Record<string, any>) => {
     setInputStates(prev => {
       const newStates = { ...prev };
-      
+
       Object.entries(values).forEach(([name, value]) => {
         if (newStates[name]) {
           newStates[name] = {
@@ -152,9 +179,16 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
           };
         }
       });
-      
+
       return newStates;
     });
+  }, []);
+
+  /** Clear the dedup guard and bump the trigger so the apply-initial-values
+   *  effect re-runs even when the function name hasn't changed (re-simulation). */
+  const forceReapply = useCallback(() => {
+    appliedInitialValuesRef.current = null;
+    setApplyTrigger(t => t + 1);
   }, []);
 
   return {
@@ -164,7 +198,8 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
     getFormattedArgs,
     isAllValid,
     resetInputs,
-    setInputValues
+    setInputValues,
+    forceReapply
   };
 }
 
@@ -185,8 +220,6 @@ function getDefaultValueForType(type: string): any {
 }
 
 function formatValueForContract(value: any, type: string): any {
-  console.log(`🔧 [formatValueForContract] Processing: ${type}, value:`, value, typeof value);
-  
   if (value === null || value === undefined || value === '') {
     if (type.includes('uint') || type.includes('int')) {
       return 0;
@@ -200,20 +233,14 @@ function formatValueForContract(value: any, type: string): any {
   }
   
   if (type.endsWith('[]')) {
-    console.log(`🔧 [formatValueForContract] Array processing: isArray=${Array.isArray(value)}`);
-    console.log(`🔧 [formatValueForContract] CRITICAL: Original array value:`, JSON.stringify(value));
     if (!Array.isArray(value)) {
-      console.log(`🔧 [formatValueForContract] CRITICAL: Value is not array, returning empty array`);
       return [];
     }
     const baseType = type.replace('[]', '');
-    console.log(`🔧 [formatValueForContract] CRITICAL: Base type:`, baseType);
     const result = value.map(item => formatValueForContract(item, baseType));
-    console.log(`🔧 [formatValueForContract] CRITICAL: Final array result:`, JSON.stringify(result));
     return result;
   } else if (type.includes('uint') || type.includes('int')) {
     const num = typeof value === 'number' ? value : parseInt(value.toString(), 10);
-    console.log(`🔧 [formatValueForContract] Integer conversion: ${value} -> ${num}`);
     return isNaN(num) ? 0 : num;
   } else if (type === 'bool') {
     if (typeof value === 'boolean') return value;

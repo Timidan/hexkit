@@ -1,0 +1,70 @@
+.cdiff-container {
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cdiff-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.cdiff-panel-label {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  padding: 4px 16px;
+  background: hsl(var(--muted) / 0.3);
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+}
+
+.cdiff-panel-label:first-child {
+  border-right: 1px solid hsl(var(--border) / 0.3);
+}
+
+.cdiff-panel {
+  padding: 16px;
+  background: hsl(var(--background));
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.cdiff-panel:nth-child(3) {
+  border-right: 1px solid hsl(var(--border) / 0.3);
+}
+
+/* Same chars — normal white */
+.cdiff-same {
+  color: hsl(var(--foreground));
+}
+
+/* Different chars — visible but distinct from white */
+.cdiff-diff {
+  color: #ef4444;
+}
+
+/* Footer legend */
+.cdiff-footer {
+  padding: 8px 12px;
+  background: hsl(var(--muted) / 0.3);
+  border-top: 1px solid hsl(var(--border) / 0.3);
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  gap: 16px;
+}
+
+.cdiff-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.cdiff-swatch-diff { background: #ef4444; }
+.cdiff-swatch-same { background: #ffffff; }

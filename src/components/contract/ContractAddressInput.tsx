@@ -1,23 +1,60 @@
-import React, { useState } from 'react';
-import { Search, Loader2 } from 'lucide-react';
-import { Input, Button, LoadingSpinner, ErrorDisplay, Badge } from '../shared';
-import ChainIcon, { type ChainKey } from '../icons/ChainIcon';
-import type { Chain } from '../../types';
-import '../../styles/ContractComponents.css';
+import React, { useMemo } from "react";
+import { Search, X, CheckCircle2 } from "lucide-react";
+import { ethers } from "ethers";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { ErrorDisplay } from "../shared";
+import NetworkSelector, {
+  EXTENDED_NETWORKS,
+  type ExtendedChain,
+} from "../shared/NetworkSelector";
+import type { Chain } from "../../types";
+import "@/styles/ContractComponents.css";
+import { cn } from "@/lib/utils";
 
-// Map chain names to ChainKey
-const getChainKey = (chain: Chain): ChainKey => {
-  switch (chain.id) {
-    case 1: return 'ETH';
-    case 8453: return 'BASE';
-    case 84532: return 'BASE';
-    case 137: return 'POLY';
-    case 42161: return 'ARB';
-    case 10: return 'OP';
-    case 56: return 'BSC';
-    case 100: return 'GNO';
-    default: return 'ETH';
+const DEFAULT_NATIVE_CURRENCY = {
+  name: "Ether",
+  symbol: "ETH",
+  decimals: 18,
+};
+
+const mapChainToExtended = (chain: Chain): ExtendedChain => {
+  const match = EXTENDED_NETWORKS.find((network) => network.id === chain.id);
+  if (match) {
+    return match;
   }
+
+  return {
+    id: chain.id,
+    name: chain.name,
+    rpcUrl: chain.rpcUrl,
+    blockExplorer: chain.blockExplorer || chain.explorerUrl,
+    isTestnet: false,
+    category: "mainnet",
+  };
+};
+
+const mapExtendedToChain = (
+  extended: ExtendedChain,
+  fallbackChains: Chain[],
+  current?: Chain | null
+): Chain => {
+  const matched = fallbackChains.find((chain) => chain.id === extended.id);
+  if (matched) {
+    return matched;
+  }
+
+  return {
+    id: extended.id,
+    name: extended.name,
+    rpcUrl: extended.rpcUrl ?? current?.rpcUrl ?? "",
+    explorerUrl: extended.blockExplorer ?? current?.explorerUrl ?? "",
+    blockExplorer: extended.blockExplorer ?? current?.blockExplorer ?? "",
+    apiUrl: current?.apiUrl ?? "",
+    explorers: current?.explorers ?? [],
+    nativeCurrency: current?.nativeCurrency ?? DEFAULT_NATIVE_CURRENCY,
+  };
 };
 
 export interface ContractAddressInputProps {
@@ -31,11 +68,14 @@ export interface ContractAddressInputProps {
   onFetchABI?: () => void;
   contractName?: string;
   abiSource?:
-    | 'sourcify'
-    | 'blockscout'
-    | 'etherscan'
-    | 'blockscout-bytecode'
-    | 'manual'
+    | "sourcify"
+    | "blockscout"
+    | "etherscan"
+    | "blockscout-bytecode"
+    | "blockscout-ebd"
+    | "whatsabi"
+    | "manual"
+    | "restored"
     | null;
   tokenInfo?: {
     symbol?: string;
@@ -43,6 +83,10 @@ export interface ContractAddressInputProps {
     decimals?: number;
   } | null;
   className?: string;
+  /** Custom icon to replace the default Search icon on the fetch button */
+  fetchIcon?: React.ReactNode;
+  /** Custom title/aria-label for the fetch button */
+  fetchLabel?: string;
 }
 
 const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
@@ -54,155 +98,124 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   isLoading = false,
   error,
   onFetchABI,
-  contractName,
-  abiSource,
-  tokenInfo,
-  className = ''
+  className = "",
+  fetchIcon,
+  fetchLabel,
 }) => {
-  const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
+  const extendedNetworks = useMemo<ExtendedChain[]>(
+    () => supportedChains.map(mapChainToExtended),
+    [supportedChains]
+  );
 
-  const formatAbiSource = (source: NonNullable<ContractAddressInputProps['abiSource']>) => {
-    if (source === 'blockscout-bytecode') {
-      return 'blockscout-ebytecode';
-    }
-    return source;
-  };
+  const selectedExtendedNetwork = useMemo<ExtendedChain | null>(() => {
+    if (!selectedNetwork) return null;
+    return (
+      extendedNetworks.find((network) => network.id === selectedNetwork.id) ??
+      mapChainToExtended(selectedNetwork)
+    );
+  }, [extendedNetworks, selectedNetwork]);
 
-  const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onAddressChange(e.target.value);
-  };
-
-  const isValidAddress = contractAddress && contractAddress.length === 42 && contractAddress.startsWith('0x');
+  const trimmedAddress = contractAddress?.trim() || "";
+  const isValidAddress =
+    trimmedAddress && ethers.utils.isAddress(trimmedAddress);
 
   return (
-    <div className={`contract-address-input-container ${className}`}>
-      {/* Network Selector */}
-      <div>
-        <label className="contract-network-label">
-          Network
-        </label>
-        <div className="contract-network-dropdown">
-          <button
-            onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
-            className="contract-network-button"
-          >
-            <div className="contract-network-content">
-              {selectedNetwork && (
-                <ChainIcon 
-                  chain={getChainKey(selectedNetwork)} 
-                  size={20}
-                />
-              )}
-              <span className="contract-network-text">
-                {selectedNetwork?.name || 'Select Network'}
-              </span>
-            </div>
-            <svg className="contract-network-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+    <div className={cn("flex flex-col gap-3", className)}>
+      <Label 
+        htmlFor="contract-address-input"
+        className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1"
+      >
+        Contract Address
+      </Label>
+      
+      <div className="relative group">
+        <div className="relative flex items-center">
+          <Input
+            id="contract-address-input"
+            name="contractAddress"
+            autoComplete="off"
+            spellCheck={false}
+            value={contractAddress}
+            onChange={(event) => onAddressChange(event.target.value)}
+            placeholder="0x0000…0000"
+            className={cn(
+              "h-12 pl-4 pr-[120px] font-mono text-sm tracking-tight transition-all duration-300",
+              "bg-transparent! border-slate-800/50 hover:border-slate-700/60 focus:ring-0 focus:border-white/50",
+              isValidAddress && "border-white/30 bg-white/[0.02]"
+            )}
+          />
 
-          {showNetworkDropdown && (
-            <div className="contract-network-dropdown-menu">
-              {supportedChains.map((chain) => (
-                <button
-                  key={chain.id}
-                  onClick={() => {
-                    onNetworkChange(chain);
-                    setShowNetworkDropdown(false);
-                  }}
-                  className="contract-network-option"
-                >
-                  <ChainIcon 
-                    chain={getChainKey(chain)} 
-                    size={20}
-                  />
-                  <span>{chain.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Contract Address Input */}
-      <div>
-        <Input
-          label="Contract Address"
-          value={contractAddress}
-          onChange={handleAddressChange}
-          placeholder="0x..."
-          error={error || undefined}
-          rightIcon={
-            onFetchABI && isValidAddress ? (
-              <button
-                onClick={onFetchABI}
-                disabled={isLoading}
-                style={{ 
-                  padding: 'var(--space-1)', 
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  transition: 'background var(--transition-normal)'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isLoading) {
-                    e.currentTarget.style.background = 'var(--bg-tertiary)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
+          {/* Controls Container */}
+          <div className="absolute right-1.5 flex items-center h-9 gap-1 px-1">
+            {/* Clear Button - minimal, just icon */}
+            {contractAddress && (
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
+                onClick={() => onAddressChange("")}
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                title="Clear address"
+                aria-label="Clear address"
               >
-                {isLoading ? (
-                  <LoadingSpinner size="sm" />
+                <X size={14} />
+              </Button>
+            )}
+
+            {/* Network Selector */}
+            <NetworkSelector
+              className="scale-90 opacity-90 hover:opacity-100 transition-opacity"
+              selectedNetwork={selectedExtendedNetwork}
+              onNetworkChange={(network) =>
+                onNetworkChange(
+                  mapExtendedToChain(network, supportedChains, selectedNetwork)
+                )
+              }
+              networks={extendedNetworks}
+              showTestnets={extendedNetworks.some(
+                (network) => network.isTestnet
+              )}
+              size="sm"
+              variant="input"
+            />
+
+            {/* Search Button - minimal icon */}
+            {onFetchABI && (
+              <Button
+                type="button"
+                variant="icon-borderless"
+                size="icon-inline"
+                onClick={onFetchABI}
+                disabled={!isValidAddress || isLoading}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  "text-foreground/70 hover:text-foreground hover:bg-muted",
+                  fetchIcon
+                    ? "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                    : "disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                )}
+                title={fetchLabel || "Fetch ABI"}
+                aria-label={fetchLabel || "Fetch ABI"}
+              >
+                {fetchIcon ? (
+                  fetchIcon
+                ) : isLoading ? (
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                 ) : (
                   <Search size={16} />
                 )}
-              </button>
-            ) : undefined
-          }
-        />
-      </div>
-
-      {/* Contract Info Display */}
-      {contractName && (
-        <div className="contract-info-display">
-          <div className="contract-info-row">
-            <span className="contract-info-label">Contract:</span>
-            <span className="contract-info-value">{contractName}</span>
-            {abiSource && (
-              <Badge variant="info" size="sm">
-                {formatAbiSource(abiSource)}
-              </Badge>
+              </Button>
             )}
           </div>
-          
-          {tokenInfo && (
-            <div className="contract-token-info">
-              {tokenInfo.name && (
-                <span className="contract-token-item">
-                  Name: <span className="contract-token-value">{tokenInfo.name}</span>
-                </span>
-              )}
-              {tokenInfo.symbol && (
-                <span className="contract-token-item">
-                  Symbol: <span className="contract-token-value">{tokenInfo.symbol}</span>
-                </span>
-              )}
-              {tokenInfo.decimals !== undefined && (
-                <span className="contract-token-item">
-                  Decimals: <span className="contract-token-value">{tokenInfo.decimals}</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
-      )}
+      </div>
 
       {error && (
-        <ErrorDisplay error={error} variant="inline" />
+        <ErrorDisplay 
+          error={error} 
+          variant="inline" 
+          className="mt-1.5 opacity-90 animate-in fade-in slide-in-from-top-1 duration-200" 
+        />
       )}
     </div>
   );

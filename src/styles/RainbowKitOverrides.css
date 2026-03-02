@@ -1,0 +1,236 @@
+/* ============================================
+   RAINBOWKIT CUSTOM STYLING
+   Uses CSS custom properties and minimal !important
+   ============================================ */
+
+/* CSS Custom Properties for RainbowKit theming */
+:root {
+  --rk-accent: oklch(0.585 0.233 264);
+  --rk-accent-light: oklch(0.700 0.180 264);
+  --rk-bg-modal: oklch(0.145 0 0);
+  --rk-bg-card: oklch(0.175 0 0);
+  --rk-bg-elevated: oklch(0.200 0 0);
+  --rk-text-primary: oklch(0.985 0 0);
+  --rk-text-secondary: oklch(0.650 0 0);
+  --rk-border: oklch(0.269 0 0);
+  --rk-border-hover: oklch(0.400 0.100 264);
+}
+
+/* ============================================
+   MODAL BACKDROP & CONTAINER
+   ============================================ */
+
+div[data-rk][style*="position: fixed"] {
+  background: oklch(0.10 0 0 / 0.90) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+div[data-rk] div[role="dialog"] {
+  background: var(--rk-bg-modal) !important;
+  border: 1px solid var(--rk-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 16px 48px oklch(0 0 0 / 0.5) !important;
+}
+
+/* ============================================
+   CLOSE BUTTON
+   ============================================ */
+
+[data-rk] button[aria-label="Close"],
+[data-rk] div[role="dialog"] > div > button:first-child {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px !important;
+  color: var(--rk-text-secondary) !important;
+  cursor: pointer !important;
+  transition: color 0.15s, transform 0.1s !important;
+  opacity: 0.8 !important;
+}
+
+[data-rk] button[aria-label="Close"]:hover {
+  color: var(--rk-text-primary) !important;
+  opacity: 1 !important;
+  transform: scale(1.1) !important;
+}
+
+[data-rk] button[aria-label="Close"]:active {
+  color: var(--rk-accent) !important;
+  transform: scale(0.95) !important;
+}
+
+/* ============================================
+   WALLET BUTTONS & LIST ITEMS (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] button[role="menuitem"],
+[data-rk] [role="menu"] button[role="menuitem"] {
+  background: var(--rk-bg-elevated) !important;
+  border: 1px solid var(--rk-border) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s !important;
+}
+
+[data-rk] [role="dialog"] button[role="menuitem"]:hover,
+[data-rk] [role="menu"] button[role="menuitem"]:hover {
+  background: oklch(0.250 0.050 264) !important;
+  border-color: var(--rk-border-hover) !important;
+  transform: translateY(-2px) !important;
+}
+
+[data-rk] [role="dialog"] button[role="menuitem"]:active,
+[data-rk] [role="menu"] button[role="menuitem"]:active {
+  transform: translateY(0) !important;
+}
+
+/* ============================================
+   PRIMARY BUTTONS (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] button[class*="accent"],
+[data-rk] [role="dialog"] a[class*="accent"],
+[data-rk] [role="menu"] button[class*="accent"],
+[data-rk] [role="menu"] a[class*="accent"] {
+  background: var(--rk-accent) !important;
+  border: 1px solid oklch(0.500 0.200 264) !important;
+  border-radius: 12px !important;
+  padding: 12px 24px !important;
+  font-weight: 600 !important;
+  color: white !important;
+  box-shadow: 0 4px 12px oklch(0.585 0.233 264 / 0.25) !important;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s !important;
+  text-decoration: none !important;
+}
+
+[data-rk] [role="dialog"] button[class*="accent"]:hover,
+[data-rk] [role="dialog"] a[class*="accent"]:hover,
+[data-rk] [role="menu"] button[class*="accent"]:hover,
+[data-rk] [role="menu"] a[class*="accent"]:hover {
+  background: var(--rk-accent-light) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 20px oklch(0.585 0.233 264 / 0.35) !important;
+}
+
+[data-rk] [role="dialog"] button[class*="accent"]:active,
+[data-rk] [role="dialog"] a[class*="accent"]:active,
+[data-rk] [role="menu"] button[class*="accent"]:active,
+[data-rk] [role="menu"] a[class*="accent"]:active {
+  transform: translateY(0) !important;
+}
+
+/* Secondary links (scoped to wallet dialogs only) */
+[data-rk] [role="dialog"] a:not([class*="accent"]),
+[data-rk] [role="menu"] a:not([class*="accent"]) {
+  color: var(--rk-accent-light) !important;
+  text-decoration: none !important;
+  transition: color 0.2s !important;
+}
+
+[data-rk] [role="dialog"] a:not([class*="accent"]):hover,
+[data-rk] [role="menu"] a:not([class*="accent"]):hover {
+  color: var(--rk-text-primary) !important;
+}
+
+/* ============================================
+   TEXT & TYPOGRAPHY (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] h1,
+[data-rk] [role="dialog"] h2 {
+  color: var(--rk-text-primary) !important;
+  font-weight: 600 !important;
+  font-size: 21px !important;
+  letter-spacing: -0.01em !important;
+}
+
+[data-rk] [role="dialog"] p {
+  color: var(--rk-text-secondary) !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+[data-rk] [role="dialog"] h3 {
+  color: var(--rk-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Wallet button text */
+[data-rk] [role="dialog"] button[role="menuitem"] span,
+[data-rk] [role="menu"] button[role="menuitem"] span {
+  color: var(--rk-text-primary) !important;
+  font-weight: 500 !important;
+}
+
+/* ============================================
+   WALLET ICONS
+   ============================================ */
+
+[data-rk] img[alt*="Wallet"] {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 10px !important;
+}
+
+/* ============================================
+   SCROLLBARS (scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-thumb {
+  background: var(--rk-border);
+  border-radius: 3px;
+}
+
+[data-rk] [role="dialog"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--rk-border-hover);
+}
+
+/* ============================================
+   FOCUS STATES (Accessibility - scoped to wallet dialogs only)
+   ============================================ */
+
+[data-rk] [role="dialog"] button:focus-visible,
+[data-rk] [role="dialog"] a:focus-visible,
+[data-rk] [role="menu"] button:focus-visible,
+[data-rk] [role="menu"] a:focus-visible {
+  outline: 2px solid var(--rk-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+
+@media (max-width: 640px) {
+  [data-rk] div[role="dialog"] {
+    border-radius: 16px 16px 0 0 !important;
+  }
+
+  [data-rk] [role="dialog"] button[role="menuitem"],
+  [data-rk] [role="menu"] button[role="menuitem"] {
+    padding: 12px 14px !important;
+  }
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT (scoped to wallet dialogs only)
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-rk] [role="dialog"] *,
+  [data-rk] [role="menu"] * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

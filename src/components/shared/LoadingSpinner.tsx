@@ -1,5 +1,4 @@
 import React from 'react';
-import { Loader2Icon } from '../icons/IconLibrary';
 import '../../styles/SharedComponents.css';
 
 export interface LoadingSpinnerProps {
@@ -7,31 +6,53 @@ export interface LoadingSpinnerProps {
   variant?: 'primary' | 'secondary' | 'accent';
   text?: string;
   className?: string;
+  /** Render as a full-viewport centered preloader (use for Suspense page fallbacks) */
+  fullPage?: boolean;
 }
 
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 'md',
   variant = 'primary',
   text,
-  className = ''
+  className = '',
+  fullPage = false,
 }) => {
-  const spinnerClasses = [
+  const baseClasses = [
     'shared-loading-spinner',
     `shared-loading-spinner-${size}`,
     `shared-loading-spinner-${variant}`,
-    className
-  ].filter(Boolean).join(' ');
+  ].join(' ');
+
+  if (fullPage) {
+    return (
+      <div className="shared-preloader" role="status" aria-live="polite">
+        <div className="shared-preloader__ring" aria-hidden="true" />
+        {text && <span className="shared-preloader__text">{text}</span>}
+      </div>
+    );
+  }
 
   if (text) {
     return (
-      <div className="shared-loading-with-text">
-        <Loader2Icon className={spinnerClasses} />
+      <div
+        className={`shared-loading-with-text ${className}`.trim()}
+        role="status"
+        aria-live="polite"
+      >
+        <span className={baseClasses} aria-hidden="true" />
         <span className="shared-loading-text">{text}</span>
       </div>
     );
   }
 
-  return <Loader2Icon className={spinnerClasses} />;
+  return (
+    <span
+      className={`${baseClasses} ${className}`.trim()}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    />
+  );
 };
 
 export default LoadingSpinner;

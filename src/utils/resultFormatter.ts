@@ -61,10 +61,6 @@ export class ContractResultFormatter {
       
       // Handle named tuple fields if we have function output info
       if (functionOutput && functionOutput.components && functionOutput.components.length > 0) {
-        console.log(`🎯 [FormatTuple] COMPACT NAMED TUPLE: ${functionOutput.components.length} components, forceExpanded: ${forceExpanded}`);
-        console.log(`🎯 [FormatTuple] Components:`, functionOutput.components);
-        console.log(`🎯 [FormatTuple] Value:`, value);
-        
         functionOutput.components.forEach((component: any, index: number) => {
           const fieldName = component.name || `field_${index}`;
           let fieldValue;
@@ -73,13 +69,9 @@ export class ContractResultFormatter {
           } else {
             fieldValue = value[fieldName];
           }
-          
-          console.log(`🎯 [FormatTuple] Field ${fieldName}[${index}]:`, fieldValue);
-          console.log(`🎯 [FormatTuple] Component structure for ${fieldName}:`, component);
-          
+
           // For arrays within tuples, use expanded formatting to show structure
           if (Array.isArray(fieldValue) && component.components) {
-            console.log(`🎯 [FormatTuple] ${fieldName} is array of tuples, using expanded format`);
             const arrayStructure = {
               type: 'tuple[]',
               arrayChildren: {
@@ -131,10 +123,6 @@ export class ContractResultFormatter {
 
       // Handle named tuple fields if we have function output info
       if (functionOutput && functionOutput.components && functionOutput.components.length > 0) {
-        console.log(`🎯 [FormatTuple] EXPANDED NAMED TUPLE: ${functionOutput.components.length} components`);
-        console.log(`🎯 [FormatTuple] Components:`, functionOutput.components);
-        console.log(`🎯 [FormatTuple] Value:`, value);
-        
         functionOutput.components.forEach((component: any, index: number) => {
           const fieldName = component.name || `field_${index}`;
           let fieldValue;
@@ -144,9 +132,6 @@ export class ContractResultFormatter {
             fieldValue = value[fieldName];
           }
           const fieldType = component.type;
-          
-          console.log(`🎯 [FormatTuple] EXPANDED Field ${fieldName}[${index}] (${fieldType}):`, fieldValue);
-          console.log(`🎯 [FormatTuple] Component structure for ${fieldName}:`, component);
           
           const formatted = this.formatValue(fieldValue, component, depth + 1);
           
@@ -195,30 +180,6 @@ export class ContractResultFormatter {
       
       return { html, text };
     }
-  }
-
-  private static applyColorStyling(line: string, fieldName: string): string {
-    // Apply field name color
-    const styledFieldName = `<span class="field-name">${fieldName}</span>`;
-    line = line.replace(fieldName, styledFieldName);
-    
-    // Apply colors to values based on patterns
-    // Address pattern
-    line = line.replace(/(0x[a-fA-F0-9]{40})/g, '<span class="address-value">$1</span>');
-    
-    // Array pattern - use word-wrap friendly styling
-    line = line.replace(/(\[[^\]]+\])/g, '<span class="array-value word-wrap-array">$1</span>');
-    
-    // Number patterns (but not in addresses or arrays)
-    line = line.replace(/(?<![\w\[])\b(\d+)\b(?![\w\]])/g, '<span class="number-value">$1</span>');
-    
-    // Boolean values
-    line = line.replace(/\b(true|false)\b/g, '<span class="bool-value $1">$1</span>');
-    
-    // Hex values (non-address)
-    line = line.replace(/(?<!0x[a-fA-F0-9]*)(0x[a-fA-F0-9]{1,39}|0x[a-fA-F0-9]{41,})/g, '<span class="bytes-value">$1</span>');
-    
-    return line;
   }
 
   private static formatValueForCleanWithTooltip(value: any): { display: string; tooltip: string | null } {
@@ -325,110 +286,6 @@ export class ContractResultFormatter {
     return line;
   }
 
-  private static formatValueForClean(value: any): string {
-    if (ethers.BigNumber.isBigNumber(value)) {
-      return this.formatBigNumber(value);
-    }
-    if (typeof value === 'string' && value.match(/^0x[a-fA-F0-9]{40}$/)) {
-      return value;
-    }
-    if (typeof value === 'string' && value.startsWith('0x')) {
-      return value;
-    }
-    if (Array.isArray(value)) {
-      const formattedItems = value.map(v => {
-        if (typeof v === 'string' && v.match(/^0x[a-fA-F0-9]{40}$/)) {
-          return v;
-        }
-        if (typeof v === 'string' && v.startsWith('0x')) {
-          return v;
-        }
-        if (ethers.BigNumber.isBigNumber(v)) {
-          return this.formatBigNumber(v);
-        }
-        return String(v);
-      });
-      
-      // Show full array with word-wrap friendly format
-      const arrayContent = formattedItems.join(', ');
-      return `[${arrayContent}]`;
-    }
-    if (typeof value === 'boolean') {
-      return String(value);
-    }
-    if (typeof value === 'string') {
-      return value === '' ? '' : value; // Handle empty strings properly
-    }
-    return String(value);
-  }
-
-  private static formatValueForJson(value: any): string {
-    if (ethers.BigNumber.isBigNumber(value)) {
-      return `<span class="number-value">"${this.formatBigNumber(value)}"</span>`;
-    }
-    if (typeof value === 'string' && value.match(/^0x[a-fA-F0-9]{40}$/)) {
-      return `<span class="address-value">"${value}"</span>`;
-    }
-    if (typeof value === 'string' && value.startsWith('0x')) {
-      return `<span class="bytes-value">"${value}"</span>`;
-    }
-    if (Array.isArray(value)) {
-      // Show all array values inline with proper colors
-      const formattedItems = value.map(v => {
-        if (typeof v === 'string' && v.match(/^0x[a-fA-F0-9]{40}$/)) {
-          return `<span class="address-value">${v}</span>`;
-        }
-        if (typeof v === 'string' && v.startsWith('0x')) {
-          return `<span class="bytes-value">${v}</span>`;
-        }
-        if (ethers.BigNumber.isBigNumber(v)) {
-          return `<span class="number-value">${this.formatBigNumber(v)}</span>`;
-        }
-        if (typeof v === 'boolean') {
-          return `<span class="bool-value ${v}">${v}</span>`;
-        }
-        if (typeof v === 'string') {
-          return `<span class="string-value">${v}</span>`;
-        }
-        return `<span class="number-value">${v}</span>`;
-      });
-      return `<span class="array-bracket">[</span>${formattedItems.join('<span class="array-separator">, </span>')}<span class="array-bracket">]</span>`;
-    }
-    if (typeof value === 'boolean') {
-      return `<span class="bool-value ${value}">${value}</span>`;
-    }
-    if (typeof value === 'string') {
-      return `<span class="string-value">"${value}"</span>`;
-    }
-    return `<span class="number-value">${value}</span>`;
-  }
-
-  private static formatSimpleValue(value: any): string {
-    if (ethers.BigNumber.isBigNumber(value)) {
-      return `"${this.formatBigNumber(value)}"`;
-    }
-    if (typeof value === 'string' && value.match(/^0x[a-fA-F0-9]{40}$/)) {
-      return `"${value}"`;
-    }
-    if (typeof value === 'string' && value.startsWith('0x')) {
-      return `"${value}"`;
-    }
-    if (Array.isArray(value)) {
-      // Show all array values inline
-      return `[${value.map(v => {
-        if (typeof v === 'string') return v;
-        return String(v);
-      }).join(', ')}]`;
-    }
-    if (typeof value === 'boolean') {
-      return String(value);
-    }
-    if (typeof value === 'string') {
-      return `"${value}"`;
-    }
-    return String(value);
-  }
-
   private static formatArray(
     value: any[], 
     functionOutput?: any, 
@@ -441,8 +298,6 @@ export class ContractResultFormatter {
     const isArrayOfTuples = functionOutput && 
       (functionOutput.type === 'tuple[]' || 
        (functionOutput.arrayChildren && functionOutput.arrayChildren.components));
-    
-    console.log(`🎨 [FormatArray] isArrayOfTuples: ${isArrayOfTuples}, functionOutput:`, functionOutput);
     
     if (isArrayOfTuples) {
       // Format array of tuples/structs with proper JSON-like structure
@@ -562,7 +417,6 @@ export class ContractResultFormatter {
               components: functionOutput.components
             }
           };
-          console.log(`🎨 [FormatValue] Detected array of tuples, creating structure:`, arrayStructure);
           return this.formatArray(value, arrayStructure, depth);
         }
         return this.formatArray(value, functionOutput, depth);
@@ -584,16 +438,10 @@ export class ContractResultFormatter {
   ): FormattedResult {
     const outputs = functionObj?.outputs || [];
     
-    console.log(`🎨 [Formatter] Outputs length: ${outputs.length}, Result is array: ${Array.isArray(result)}`);
-    
     // Single output
     if (outputs.length === 1) {
-      console.log(`🎯 [Formatter] Single output detected: ${outputs[0]?.type}`);
-      console.log(`🎯 [Formatter] Single output components:`, outputs[0]?.components);
-      
       // If the single output is a tuple with components, format it as a tuple
       if (outputs[0]?.type === 'tuple' && outputs[0]?.components) {
-        console.log(`🎯 [Formatter] Single output is a complex tuple, formatting as tuple`);
         const formatted = this.formatTuple(result, outputs[0]);
         return {
           displayValue: formatted.text,
@@ -605,7 +453,6 @@ export class ContractResultFormatter {
       
       // If the single output is an array of tuples, format it as an array
       if (outputs[0]?.type === 'tuple[]' && outputs[0]?.components) {
-        console.log(`🎯 [Formatter] Single output is array of tuples, formatting as structured array`);
         // Create array structure with tuple components
         const arrayOutput = {
           type: 'tuple[]',
@@ -635,7 +482,6 @@ export class ContractResultFormatter {
 
     // Multiple outputs (tuple)
     if (outputs.length > 1 && Array.isArray(result)) {
-      console.log(`🎯 [Formatter] Creating tuple with ${outputs.length} components`);
       const tupleOutput = {
         components: outputs.map((output: any, index: number) => ({
           name: output.name || `output_${index}`,
@@ -665,7 +511,7 @@ export class ContractResultFormatter {
     return `
       .result-container {
         font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-        font-size: 12px;
+        font-size: 14px;
         line-height: 1.4;
         color: #e2e8f0;
         background: #1a1a1a;
@@ -717,7 +563,7 @@ export class ContractResultFormatter {
       
       .field-type {
         color: #9ca3af;
-        font-size: 10px;
+        font-size: 12px;
         font-style: italic;
         display: inline;
         white-space: nowrap;
@@ -821,7 +667,7 @@ export class ContractResultFormatter {
       
       .tuple-json-style {
         font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-        font-size: 12px;
+        font-size: 14px;
         line-height: 1.4;
         color: #e2e8f0;
       }
@@ -879,7 +725,7 @@ export class ContractResultFormatter {
       .item-header, .item-footer {
         color: #6b7280;
         font-weight: bold;
-        font-size: 14px;
+        font-size: 16px;
       }
       
       .item-content {

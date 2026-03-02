@@ -1,998 +1,146 @@
-import axios from "axios";
-import { fetchFromWhatsABI, type WhatsABIResult } from "./whatsabiFetcher";
-import type { Chain, ABIFetchResult, ExplorerAPI } from "../types";
+/**
+ * Multi-Source ABI Fetcher (Compatibility Layer)
+ *
+ * This module now delegates to the new optimized resolver system.
+ * All existing imports continue to work without changes.
+ *
+ * @deprecated Use `contractResolver` from `./resolver` directly for new code.
+ */
 
-// Extended result with comprehensive token/contract information
-interface ExtendedABIFetchResult extends ABIFetchResult {
-  source?: string;
-  explorerName?: string;
-  contractName?: string;
-  compilerVersion?: string;
-  sourceCode?: string;
-  contractType?: string;
-  tokenInfo?: {
-    name?: string;
-    symbol?: string;
-    decimals?: string;
-    totalSupply?: string;
-    tokenType?: string;
-    divisor?: string;
-  };
-}
+import { ethers } from "ethers";
+import type {
+  Chain,
+  ExtendedABIFetchResult,
+  ExtendedABITokenInfo,
+  ExplorerSource,
+} from "../types";
+import {
+  contractResolver,
+  searchAcrossChains,
+  type ResolveResult,
+} from "./resolver";
 
-interface EtherscanResponse {
-  status: string;
-  message: string;
-  result: string;
-}
+const isValidAddress = (address: string) =>
+  address?.startsWith("0x") && address.length === 42;
 
-interface BlockscoutResponse {
-  message: string;
-  result?: string;
-  status?: string;
-}
-
-interface EtherscanSourceResponse {
-  status: string;
-  message: string;
-  result: Array<{
-    ContractName: string;
-    CompilerVersion: string;
-    SourceCode: string;
-  }>;
-}
-
-interface EtherscanTokenInfoResponse {
-  status: string;
-  message: string;
-  result: {
-    contractAddress: string;
-    tokenName: string;
-    symbol: string;
-    divisor: string;
-    tokenType: string;
-    totalSupply: string;
-  };
-}
-
-interface BlockscoutTokenResponse {
-  message: string;
-  result?: {
-    name: string;
-    symbol: string;
-    decimals: string;
-    totalSupply: string;
-    type: string;
-  };
-}
-
-// Sourcify API response interfaces
-interface SourcifyContractResponse {
-  matchId?: string;
-  creationMatch?: string;
-  runtimeMatch?: string;
-  verifiedAt?: string;
-  match?: string;
-  chainId?: string;
-  address?: string;
-  compilation?: {
-    compiler?: {
-      version?: string;
-    };
-    name?: string;
-    target?: string;
-    language?: string;
-  };
-  metadata?: {
-    output?: {
-      abi?: any[];
-    };
-    settings?: {
-      compilationTarget?: Record<string, string>;
-    };
-  };
-  sources?: Record<string, any>;
-  deployment?: {
-    transactionHash?: string;
-    blockNumber?: string;
-  };
-}
-
-// Fetch ABI from Sourcify API (highest priority)
-const fetchFromSourcify = async (
-  contractAddress: string,
-  chainId: number
-): Promise<ExtendedABIFetchResult> => {
-  try {
-    console.log(
-      `Fetching ABI from Sourcify: ${contractAddress} on chain ${chainId}`
-    );
-
-    // Use Sourcify APIv2 contract lookup endpoint
-    const url = `https://sourcify.dev/server/v2/contract/${chainId}/${contractAddress}`;
-
-    const response = await axios.get<SourcifyContractResponse>(url, {
-      timeout: 15000,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (
-      response.data &&
-      (response.data.creationMatch || response.data.runtimeMatch)
-    ) {
-      // Check if contract is verified (has match)
-      const matchType =
-        response.data.creationMatch || response.data.runtimeMatch;
-
-      if (
-        matchType === "exact_match" ||
-        matchType === "match" ||
-        matchType === "partial_match"
-      ) {
-        // Always fetch metadata.json file for exact matches (it contains the ABI and contract name)
-        try {
-          const metadataUrl = `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`;
-          console.log(
-            `🔍 [Sourcify] Match type: ${matchType}, fetching metadata from: ${metadataUrl}`
-          );
-
-          const metadataResponse = await axios.get(metadataUrl, {
-            timeout: 10000,
-            maxRedirects: 5, // Follow redirects
-            headers: {
-              Accept: "application/json",
-            },
-          });
-
-          if (!metadataResponse.data) {
-            console.log("🔍 [Sourcify] No metadata data received");
-          } else if (!metadataResponse.data.output) {
-            console.log("🔍 [Sourcify] No output field in metadata");
-            console.log(
-              "🔍 [Sourcify] Available fields:",
-              Object.keys(metadataResponse.data)
-            );
-          } else if (!metadataResponse.data.output.abi) {
-            console.log("🔍 [Sourcify] No ABI in output field");
-            console.log(
-              "🔍 [Sourcify] Output fields:",
-              Object.keys(metadataResponse.data.output)
-            );
-          } else if (
-            metadataResponse.data &&
-            metadataResponse.data.output &&
-            metadataResponse.data.output.abi
-          ) {
-            const abi = JSON.stringify(metadataResponse.data.output.abi);
-            console.log(
-              `🔍 [Sourcify] Metadata received, ABI length: ${metadataResponse.data.output.abi.length}`
-            );
-            console.log(
-              `🔍 [Sourcify] Has settings.compilationTarget: ${!!metadataResponse.data.settings?.compilationTarget}`
-            );
-
-            // Extract contract name from compilation target
-            let contractName: string | undefined;
-            const compilationTarget =
-              metadataResponse.data.settings?.compilationTarget;
-            if (compilationTarget) {
-              const targetKeys = Object.keys(compilationTarget);
-              console.log(`🔍 [Sourcify] Compilation target keys:`, targetKeys);
-              console.log(
-                `🔍 [Sourcify] Compilation target values:`,
-                Object.values(compilationTarget)
-              );
-              if (targetKeys.length > 0) {
-                contractName = compilationTarget[targetKeys[0]];
-                console.log(
-                  `🔍 [Sourcify] Extracted contract name: ${contractName}`
-                );
-              }
-            } else {
-              console.log(
-                `🔍 [Sourcify] No compilationTarget found in metadata`
-              );
-            }
-
-            return {
-              success: true,
-              abi: abi,
-              source: "sourcify",
-              explorerName: "Sourcify",
-              contractName: contractName,
-              compilerVersion:
-                metadataResponse.data.compiler?.version ||
-                metadataResponse.data.compilation?.compiler?.version,
-              sourceCode: "Available",
-            };
-          }
-        } catch (metadataError: any) {
-          console.error(
-            "🔍 [Sourcify] Failed to fetch metadata.json:",
-            metadataError
-          );
-          console.error("🔍 [Sourcify] Error details:", {
-            message: (metadataError as any).message,
-            response: (metadataError as any).response?.data,
-            status: (metadataError as any).response?.status,
-            url: `https://repo.sourcify.dev/contracts/full_match/${chainId}/${contractAddress}/metadata.json`,
-          });
-
-          // Fallback: try partial_match endpoint if full_match failed
-          if (matchType === "exact_match") {
-            try {
-              const partialMetadataUrl = `https://repo.sourcify.dev/contracts/partial_match/${chainId}/${contractAddress}/metadata.json`;
-              console.log(
-                `🔍 [Sourcify] Trying partial match metadata: ${partialMetadataUrl}`
-              );
-
-              const partialResponse = await axios.get(partialMetadataUrl, {
-                timeout: 10000,
-                maxRedirects: 5,
-                headers: {
-                  Accept: "application/json",
-                },
-              });
-
-              if (
-                partialResponse.data &&
-                partialResponse.data.output &&
-                partialResponse.data.output.abi
-              ) {
-                const abi = JSON.stringify(partialResponse.data.output.abi);
-
-                let contractName: string | undefined;
-                const compilationTarget =
-                  partialResponse.data.settings?.compilationTarget;
-                if (compilationTarget) {
-                  const targetKeys = Object.keys(compilationTarget);
-                  if (targetKeys.length > 0) {
-                    contractName = compilationTarget[targetKeys[0]];
-                  }
-                }
-
-                return {
-                  success: true,
-                  abi: abi,
-                  source: "sourcify",
-                  explorerName: "Sourcify",
-                  contractName: contractName,
-                  compilerVersion: partialResponse.data.compiler?.version,
-                  sourceCode: "Available",
-                };
-              }
-            } catch (partialError) {
-              console.warn("Partial match metadata also failed:", partialError);
-            }
-          }
-        }
+/**
+ * Convert new ResolveResult to legacy ExtendedABIFetchResult format
+ */
+const toExtendedResult = (result: ResolveResult): ExtendedABIFetchResult => {
+  const tokenInfo: ExtendedABITokenInfo | undefined = result.tokenInfo
+    ? {
+        name: result.tokenInfo.name,
+        symbol: result.tokenInfo.symbol,
+        decimals: result.tokenInfo.decimals?.toString(),
+        totalSupply: result.tokenInfo.totalSupply,
       }
+    : undefined;
 
-      return {
-        success: false,
-        error: `Contract found on Sourcify but no ABI available (match: ${matchType})`,
-        source: "sourcify",
-        explorerName: "Sourcify",
-      };
-    }
-
-    return {
-      success: false,
-      error: "Contract not verified on Sourcify",
-      source: "sourcify",
-      explorerName: "Sourcify",
-    };
-  } catch (error: any) {
-    console.error("Error fetching from Sourcify:", error);
-
-    if (error.response?.status === 404) {
-      return {
-        success: false,
-        error: "Contract not found on Sourcify",
-        source: "sourcify",
-        explorerName: "Sourcify",
-      };
-    }
-
-    if (error.code === "ECONNABORTED") {
-      return {
-        success: false,
-        error: "Sourcify request timeout",
-        source: "sourcify",
-        explorerName: "Sourcify",
-      };
-    }
-
-    if (error.response?.status === 429) {
-      return {
-        success: false,
-        error: "Sourcify rate limit exceeded",
-        source: "sourcify",
-        explorerName: "Sourcify",
-      };
-    }
-
-    return {
-      success: false,
-      error: `Sourcify connection error: ${error.message}`,
-      source: "sourcify",
-      explorerName: "Sourcify",
-    };
-  }
+  return {
+    success: !!result.abi,
+    abi: result.abi ? JSON.stringify(result.abi) : undefined,
+    error: result.error,
+    source: result.source || undefined,
+    explorerName: result.source
+      ? result.source.charAt(0).toUpperCase() + result.source.slice(1)
+      : undefined,
+    contractName: result.name || undefined,
+    tokenInfo,
+    confidence: result.confidence,
+  };
 };
 
-// Fetch contract source information from Etherscan-style API
-const fetchContractSourceInfo = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string,
-  apiKey?: string
-): Promise<{
-  contractName?: string;
-  compilerVersion?: string;
-  sourceCode?: string;
-}> => {
-  try {
-    const url = `${apiUrl}?module=contract&action=getsourcecode&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
+export interface FetchABIMultiSourceOptions {
+  etherscanApiKey?: string;
+  blockscoutApiKey?: string;
+  provider?: ethers.providers.Provider;
+  preferredSources?: ExplorerSource[];
+}
 
-    const response = await axios.get<EtherscanSourceResponse>(url, {
-      timeout: 10000,
-    });
-
-    if (
-      response.data.status === "1" &&
-      response.data.result &&
-      response.data.result.length > 0
-    ) {
-      const sourceInfo = response.data.result[0];
-      return {
-        contractName: sourceInfo.ContractName || undefined,
-        compilerVersion: sourceInfo.CompilerVersion || undefined,
-        sourceCode: sourceInfo.SourceCode
-          ? sourceInfo.SourceCode.slice(0, 100) + "..."
-          : undefined, // Truncate for memory
-      };
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch source info from ${explorerName}:`, error);
-  }
-
-  return {};
-};
-
-// Fetch token information from Etherscan token API
-const fetchTokenInfoFromEtherscan = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string,
-  apiKey?: string
-): Promise<{
-  name?: string;
-  symbol?: string;
-  decimals?: string;
-  totalSupply?: string;
-  tokenType?: string;
-  divisor?: string;
-}> => {
-  try {
-    const url = `${apiUrl}?module=token&action=tokeninfo&contractaddress=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
-
-    const response = await axios.get<EtherscanTokenInfoResponse>(url, {
-      timeout: 10000,
-    });
-
-    if (response.data.status === "1" && response.data.result) {
-      const tokenData = response.data.result;
-      return {
-        name: tokenData.tokenName || undefined,
-        symbol: tokenData.symbol || undefined,
-        decimals: tokenData.divisor || undefined,
-        totalSupply: tokenData.totalSupply || undefined,
-        tokenType: tokenData.tokenType || undefined,
-        divisor: tokenData.divisor || undefined,
-      };
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch token info from ${explorerName}:`, error);
-  }
-
-  return {};
-};
-
-// Fetch contract source information from Blockscout API
-const fetchContractSourceInfoFromBlockscout = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string
-): Promise<{ contractName?: string; compilerVersion?: string }> => {
-  try {
-    // Try multiple endpoints to get contract source info from Blockscout
-    const endpoints = [
-      `${apiUrl}?module=contract&action=getsourcecode&address=${contractAddress}`,
-      `${apiUrl}/v2/smart-contracts/${contractAddress}`,
-    ];
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await axios.get(endpoint, {
-          timeout: 10000,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        // Handle Etherscan-style response from Blockscout
-        if (
-          response.data.status === "1" &&
-          response.data.result &&
-          response.data.result.length > 0
-        ) {
-          const sourceInfo = response.data.result[0];
-          console.log(`🔍 [${explorerName}] Blockscout source info:`, {
-            contractName: sourceInfo.ContractName,
-            compilerVersion: sourceInfo.CompilerVersion,
-            fileName: sourceInfo.FileName,
-          });
-          return {
-            contractName: sourceInfo.ContractName || undefined,
-            compilerVersion: sourceInfo.CompilerVersion || undefined,
-          };
-        }
-
-        // Handle Blockscout v2 API response
-        if (response.data.name || response.data.contract_name) {
-          return {
-            contractName:
-              response.data.name || response.data.contract_name || undefined,
-            compilerVersion: response.data.compiler_version || undefined,
-          };
-        }
-
-        // Handle nested contract data
-        if (
-          response.data.result &&
-          (response.data.result.name || response.data.result.contract_name)
-        ) {
-          return {
-            contractName:
-              response.data.result.name ||
-              response.data.result.contract_name ||
-              undefined,
-            compilerVersion: response.data.result.compiler_version || undefined,
-          };
-        }
-      } catch (endpointError) {
-        continue; // Try next endpoint
-      }
-    }
-  } catch (error) {
-    console.warn(
-      `Failed to fetch contract source info from ${explorerName} Blockscout:`,
-      error
-    );
-  }
-
-  return {};
-};
-
-// Fetch token information from Blockscout token API
-const fetchTokenInfoFromBlockscout = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string
-): Promise<{
-  name?: string;
-  symbol?: string;
-  decimals?: string;
-  totalSupply?: string;
-  tokenType?: string;
-}> => {
-  try {
-    const url = `${apiUrl}?module=token&action=getToken&contractaddress=${contractAddress}`;
-
-    const response = await axios.get<BlockscoutTokenResponse>(url, {
-      timeout: 10000,
-    });
-
-    if (response.data.result) {
-      const tokenData = response.data.result;
-      return {
-        name: tokenData.name || undefined,
-        symbol: tokenData.symbol || undefined,
-        decimals: tokenData.decimals || undefined,
-        totalSupply: tokenData.totalSupply || undefined,
-        tokenType: tokenData.type || undefined,
-      };
-    }
-  } catch (error) {
-    console.warn(
-      `Failed to fetch token info from ${explorerName} Blockscout:`,
-      error
-    );
-  }
-
-  return {};
-};
-
-// Fetch ABI from Etherscan-style API
-const fetchFromEtherscan = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string,
-  apiKey?: string
-): Promise<ExtendedABIFetchResult> => {
-  try {
-    const url = `${apiUrl}?module=contract&action=getabi&address=${contractAddress}${apiKey ? `&apikey=${apiKey}` : ""}`;
-    console.log(
-      `Fetching ABI from ${explorerName} (Etherscan API): ${contractAddress}`
-    );
-
-    const response = await axios.get<EtherscanResponse>(url, {
-      timeout: 15000, // 15 second timeout
-    });
-
-    if (response.data.status === "1" && response.data.result) {
-      try {
-        JSON.parse(response.data.result);
-
-        // Fetch additional contract information and token info in parallel
-        const [sourceInfo, tokenInfo] = await Promise.allSettled([
-          fetchContractSourceInfo(
-            contractAddress,
-            apiUrl,
-            explorerName,
-            apiKey
-          ),
-          fetchTokenInfoFromEtherscan(
-            contractAddress,
-            apiUrl,
-            explorerName,
-            apiKey
-          ),
-        ]);
-
-        const contractSource =
-          sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
-        const tokenData =
-          tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
-
-        return {
-          success: true,
-          abi: response.data.result,
-          source: "etherscan",
-          explorerName,
-          contractName: contractSource.contractName,
-          compilerVersion: contractSource.compilerVersion,
-          sourceCode: contractSource.sourceCode,
-          tokenInfo: Object.keys(tokenData).length > 0 ? tokenData : undefined,
-        };
-      } catch (jsonError) {
-        return {
-          success: false,
-          error: `Invalid ABI format from ${explorerName}`,
-          source: "etherscan",
-          explorerName,
-        };
-      }
-    } else if (response.data.status === "0") {
-      const message = response.data.message || response.data.result;
-
-      if (message && message.includes("Contract source code not verified")) {
-        return {
-          success: false,
-          error: `Contract not verified on ${explorerName}`,
-          source: "etherscan",
-          explorerName,
-        };
-      }
-
-      if (message === "NOTOK" || message === "No data found") {
-        return {
-          success: false,
-          error: apiKey
-            ? `Contract not found on ${explorerName}`
-            : `Rate limited on ${explorerName} - API key may help`,
-          source: "etherscan",
-          explorerName,
-        };
-      }
-
-      return {
-        success: false,
-        error: `${explorerName}: ${message || "Failed to fetch ABI"}`,
-        source: "etherscan",
-        explorerName,
-      };
-    }
-
-    return {
-      success: false,
-      error: `Unexpected response from ${explorerName}`,
-      source: "etherscan",
-      explorerName,
-    };
-  } catch (error: any) {
-    console.error(`Error fetching from ${explorerName}:`, error);
-
-    if (error.code === "ECONNABORTED") {
-      return {
-        success: false,
-        error: `${explorerName} request timeout`,
-        source: "etherscan",
-        explorerName,
-      };
-    }
-
-    if (error.response?.status === 403) {
-      return {
-        success: false,
-        error: `${explorerName} API access denied`,
-        source: "etherscan",
-        explorerName,
-      };
-    }
-
-    if (error.response?.status === 429) {
-      return {
-        success: false,
-        error: `${explorerName} rate limit exceeded`,
-        source: "etherscan",
-        explorerName,
-      };
-    }
-
-    return {
-      success: false,
-      error: `${explorerName} connection error: ${error.message}`,
-      source: "etherscan",
-      explorerName,
-    };
-  }
-};
-
-// Fetch ABI from Blockscout API
-const fetchFromBlockscout = async (
-  contractAddress: string,
-  apiUrl: string,
-  explorerName: string
-): Promise<ExtendedABIFetchResult> => {
-  try {
-    // Blockscout uses different endpoints - try multiple approaches
-    const endpoints = [
-      `${apiUrl}?module=contract&action=getabi&address=${contractAddress}`,
-      `${apiUrl}/v2/smart-contracts/${contractAddress}`,
-      `${apiUrl}/api/eth-rpc?module=contract&action=getabi&address=${contractAddress}`,
-    ];
-
-    console.log(
-      `Fetching ABI from ${explorerName} (Blockscout API): ${contractAddress}`
-    );
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(
-          `🔍 [${explorerName}] Trying Blockscout endpoint: ${endpoint}`
-        );
-        const response = await axios.get(endpoint, {
-          timeout: 15000,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        // Handle Etherscan-style response from Blockscout
-        if (response.data.status === "1" && response.data.result) {
-          try {
-            JSON.parse(response.data.result);
-
-            // Fetch additional contract information and token info in parallel
-            const [sourceInfo, tokenInfo] = await Promise.allSettled([
-              fetchContractSourceInfoFromBlockscout(
-                contractAddress,
-                apiUrl,
-                explorerName
-              ),
-              fetchTokenInfoFromBlockscout(
-                contractAddress,
-                apiUrl,
-                explorerName
-              ),
-            ]);
-
-            const contractSource =
-              sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
-            const tokenData =
-              tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
-
-            return {
-              success: true,
-              abi: response.data.result,
-              source: "blockscout",
-              explorerName,
-              contractName: contractSource.contractName,
-              compilerVersion: contractSource.compilerVersion,
-              tokenInfo:
-                Object.keys(tokenData).length > 0 ? tokenData : undefined,
-            };
-          } catch (jsonError) {
-            continue; // Try next endpoint
-          }
-        }
-
-        // Handle Blockscout v2 API response
-        if (response.data.abi && Array.isArray(response.data.abi)) {
-          // Fetch additional contract information and token info in parallel
-          const [sourceInfo, tokenInfo] = await Promise.allSettled([
-            fetchContractSourceInfoFromBlockscout(
-              contractAddress,
-              apiUrl,
-              explorerName
-            ),
-            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName),
-          ]);
-
-          const contractSource =
-            sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
-          const tokenData =
-            tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
-
-          return {
-            success: true,
-            abi: JSON.stringify(response.data.abi),
-            source: "blockscout",
-            explorerName,
-            contractName: contractSource.contractName,
-            compilerVersion: contractSource.compilerVersion,
-            tokenInfo:
-              Object.keys(tokenData).length > 0 ? tokenData : undefined,
-          };
-        }
-
-        // Handle nested ABI in smart contract data
-        if (response.data.result && response.data.result.abi) {
-          // Fetch additional contract information and token info in parallel
-          const [sourceInfo, tokenInfo] = await Promise.allSettled([
-            fetchContractSourceInfoFromBlockscout(
-              contractAddress,
-              apiUrl,
-              explorerName
-            ),
-            fetchTokenInfoFromBlockscout(contractAddress, apiUrl, explorerName),
-          ]);
-
-          const contractSource =
-            sourceInfo.status === "fulfilled" ? sourceInfo.value : {};
-          const tokenData =
-            tokenInfo.status === "fulfilled" ? tokenInfo.value : {};
-
-          return {
-            success: true,
-            abi: JSON.stringify(response.data.result.abi),
-            source: "blockscout",
-            explorerName,
-            contractName: contractSource.contractName,
-            compilerVersion: contractSource.compilerVersion,
-            tokenInfo:
-              Object.keys(tokenData).length > 0 ? tokenData : undefined,
-          };
-        }
-      } catch (endpointError) {
-        continue; // Try next endpoint
-      }
-    }
-
-    return {
-      success: false,
-      error: `No ABI found on ${explorerName} Blockscout`,
-      source: "blockscout",
-      explorerName,
-    };
-  } catch (error: any) {
-    console.error(`Error fetching from ${explorerName} Blockscout:`, error);
-
-    return {
-      success: false,
-      error: `${explorerName} Blockscout error: ${error.message}`,
-      source: "blockscout",
-      explorerName,
-    };
-  }
-};
-
-// Multi-source ABI fetching with priority order: Sourcify -> Blockscout -> Etherscan -> WhatsABI
+/**
+ * Fetch contract ABI from multiple sources.
+ *
+ * This function now uses the optimized resolver which:
+ * - Races all sources in parallel
+ * - Has built-in request deduplication
+ * - Uses two-layer caching (memory + IndexedDB)
+ *
+ * @deprecated Use `contractResolver.resolve()` from `./resolver` for new code.
+ */
 export const fetchContractABIMultiSource = async (
   contractAddress: string,
   chain: Chain,
-  etherscanApiKey?: string,
-  provider?: any // Optional provider for WhatsABI
+  options: FetchABIMultiSourceOptions = {}
 ): Promise<ExtendedABIFetchResult> => {
-  // Validate contract address
-  if (
-    !contractAddress ||
-    contractAddress.length !== 42 ||
-    !contractAddress.startsWith("0x")
-  ) {
+  const { etherscanApiKey, blockscoutApiKey, preferredSources } = options;
+
+  // Validate address
+  if (!isValidAddress(contractAddress)) {
     return {
       success: false,
       error: "Invalid contract address format",
     };
   }
 
-  // CRITICAL: Check if contract actually exists on this network before trying APIs
   try {
-    const ethProvider =
-      provider ||
-      new (await import("ethers")).ethers.providers.JsonRpcProvider(
-        chain.rpcUrl,
-        {
-          name: chain.name,
-          chainId: chain.id,
-        }
-      );
+    // Use the new optimized resolver
+    const result = await contractResolver.resolve(contractAddress, chain, {
+      etherscanApiKey,
+      blockscoutApiKey,
+      preferredSources,
+    });
 
-    const bytecode = await ethProvider.getCode(contractAddress);
-    if (!bytecode || bytecode === "0x") {
-      return {
-        success: false,
-        error: `No contract deployed at ${contractAddress} on ${chain.name}`,
-      };
-    }
-    console.log(
-      `✅ Contract exists at ${contractAddress} on ${chain.name} (${bytecode.length} chars)`
-    );
-  } catch (error) {
+    return toExtendedResult(result);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      error: `Failed to check contract existence on ${chain.name}: ${error}`,
+      error: errorMessage,
     };
   }
-
-  const attempts: ExtendedABIFetchResult[] = [];
-
-  // Priority 1: Try Sourcify first (highest quality verification)
-  try {
-    console.log(
-      `🔍 Trying Sourcify first for ${contractAddress} on ${chain.name}...`
-    );
-    const sourcifyResult = await fetchFromSourcify(contractAddress, chain.id);
-    attempts.push(sourcifyResult);
-
-    if (sourcifyResult.success) {
-      console.log(
-        `✅ ABI fetched successfully from ${sourcifyResult.explorerName} (${sourcifyResult.source})`
-      );
-      return sourcifyResult;
-    }
-  } catch (error) {
-    console.error("Sourcify error:", error);
-    attempts.push({
-      success: false,
-      error: `Sourcify failed: ${error}`,
-      source: "sourcify",
-      explorerName: "Sourcify",
-    });
-  }
-
-  // Priority 2 & 3: Try configured chain explorers (Blockscout then Etherscan)
-  // Sort explorers by priority: blockscout first, then etherscan
-  const sortedExplorers = [...chain.explorers].sort((a, b) => {
-    if (a.type === "blockscout" && b.type === "etherscan") return -1;
-    if (a.type === "etherscan" && b.type === "blockscout") return 1;
-    return 0;
-  });
-
-  for (const explorer of sortedExplorers) {
-    try {
-      console.log(
-        `🔍 Trying ${explorer.name} (${explorer.type}) for ${contractAddress}...`
-      );
-      let result: ExtendedABIFetchResult;
-
-      if (explorer.type === "etherscan") {
-        result = await fetchFromEtherscan(
-          contractAddress,
-          explorer.url,
-          explorer.name,
-          etherscanApiKey
-        );
-      } else if (explorer.type === "blockscout") {
-        result = await fetchFromBlockscout(
-          contractAddress,
-          explorer.url,
-          explorer.name
-        );
-      } else {
-        continue;
-      }
-
-      attempts.push(result);
-
-      // If we got a successful result, return it immediately
-      if (result.success) {
-        console.log(
-          `✅ ABI fetched successfully from ${result.explorerName} (${result.source})`
-        );
-        return result;
-      }
-    } catch (error) {
-      console.error(`Error with ${explorer.name}:`, error);
-      attempts.push({
-        success: false,
-        error: `${explorer.name} failed: ${error}`,
-        source: explorer.type,
-        explorerName: explorer.name,
-      });
-    }
-  }
-
-  // Priority 4: Final fallback - WhatsABI (works with ANY contract)
-  try {
-    console.log(
-      `🔍 Trying WhatsABI as final fallback for ${contractAddress}...`
-    );
-    const whatsabiResult = await fetchFromWhatsABI(
-      contractAddress,
-      chain,
-      provider
-    );
-    attempts.push(whatsabiResult);
-
-    if (whatsabiResult.success) {
-      console.log(
-        `✅ ABI extracted successfully using WhatsABI (${whatsabiResult.confidence} confidence)`
-      );
-      return whatsabiResult;
-    }
-  } catch (error) {
-    console.error("WhatsABI error:", error);
-    attempts.push({
-      success: false,
-      error: `WhatsABI failed: ${error}`,
-      source: "whatsabi",
-      explorerName: "WhatsABI",
-    });
-  }
-
-  // No successful fetch - return most informative error
-  const errors = attempts
-    .map((a) => `${a.explorerName}: ${a.error}`)
-    .join("; ");
-
-  return {
-    success: false,
-    error: `ABI not found on ${chain.name}. Tried: ${errors}`,
-  };
 };
 
-// Search for contract across all supported networks
+/**
+ * Search for a contract across all supported networks.
+ *
+ * This function now uses parallel search which is much faster than
+ * the previous sequential implementation.
+ *
+ * @deprecated Use `searchAcrossChains()` from `./resolver` for new code.
+ */
 export const searchContractAcrossNetworks = async (
   contractAddress: string,
   etherscanApiKey?: string
 ): Promise<Array<{ chain: Chain; result: ExtendedABIFetchResult }>> => {
+  // Import chains dynamically to avoid circular deps
   const { SUPPORTED_CHAINS } = await import("./chains");
-  const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
 
-  // Search all networks in parallel for faster results
-  const promises = SUPPORTED_CHAINS.map(async (chain) => {
-    const result = await fetchContractABIMultiSource(
-      contractAddress,
-      chain,
-      etherscanApiKey
-    );
-    return { chain, result };
+  // Use new parallel search
+  const searchResult = await searchAcrossChains(contractAddress, SUPPORTED_CHAINS, {
+    etherscanApiKey,
   });
 
-  const allResults = await Promise.allSettled(promises);
+  const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
 
-  for (const promiseResult of allResults) {
-    if (promiseResult.status === "fulfilled") {
-      results.push(promiseResult.value);
+  for (const chain of SUPPORTED_CHAINS) {
+    const resolveResult = searchResult.results.get(chain.id);
+
+    if (resolveResult) {
+      results.push({
+        chain,
+        result: toExtendedResult(resolveResult),
+      });
+    } else {
+      results.push({
+        chain,
+        result: {
+          success: false,
+          error: searchResult.errors.get(chain.id) || "Not found",
+        },
+      });
     }
   }
 
-  // Sort results - successful ones first, then by explorer preference
   return results.sort((a, b) => {
     if (a.result.success && !b.result.success) return -1;
     if (!a.result.success && b.result.success) return 1;

@@ -4,6 +4,8 @@ export interface ExplorerAPI {
   type: 'etherscan' | 'blockscout';
 }
 
+export type ExplorerSource = 'sourcify' | 'blockscout' | 'etherscan';
+
 export interface Chain {
   id: number;
   name: string;
@@ -32,3 +34,15 @@ export interface ContractInfo {
   name?: string;
   verified?: boolean;
 }
+
+export type {
+  ContractInfoResult,
+  ContractExternalFunction,
+  ContractTokenInfo,
+  ContractSearchProgress,
+} from './contractInfo';
+
+export type {
+  ExtendedABIFetchResult,
+  ExtendedABITokenInfo,
+} from './abi';

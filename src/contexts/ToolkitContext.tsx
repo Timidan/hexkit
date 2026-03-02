@@ -73,7 +73,6 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
   const setDecodedTransaction = (data: DecodedTransactionData) => {
     setLastDecodedTransaction(data);
     
-    // Add contract to recent data if not already there
     if (data.contractAddress && data.abi) {
       addContractData({
         address: data.contractAddress,
@@ -83,7 +82,6 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
       });
     }
     
-    // Add signature to global signatures
     const selector = data.calldata.slice(0, 10);
     addSignature(selector, data.functionSignature);
   };
@@ -91,7 +89,6 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
   const setGeneratedCalldata = (data: GeneratedCalldataData) => {
     setLastGeneratedCalldata(data);
     
-    // Add contract to recent data
     addContractData({
       address: data.contractAddress,
       abi: data.abi,
@@ -102,10 +99,8 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addContractData = (data: ContractData) => {
     setRecentContractData(prev => {
-      // Remove existing entry with same address
       const filtered = prev.filter(item => item.address.toLowerCase() !== data.address.toLowerCase());
-      // Add new entry at the beginning
-      return [data, ...filtered].slice(0, 10); // Keep only last 10 contracts
+      return [data, ...filtered].slice(0, 10);
     });
   };
 
@@ -132,26 +127,18 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Navigation functions
   const navigateToBuilder = () => navigate('/builder');
-  const navigateToDecoder = () => navigate('/decoder');
+  const navigateToDecoder = () => navigate('/database?tab=tools&tool=decoder');
 
-  // Cross-tool transfer actions with auto-navigation
   const transferToTransactionBuilder = (data: DecodedTransactionData | GeneratedCalldataData) => {
-    // Store the data first
     if ('functionSignature' in data) {
-      // It's decoded transaction data
       setLastDecodedTransaction(data);
     } else {
-      // It's generated calldata data
       setLastGeneratedCalldata(data);
     }
-    // Auto-navigate to transaction builder
     navigateToBuilder();
   };
 
-
   const transferToDecoder = (calldata: string) => {
-    // Store calldata for decoder to pick up
-    // This is a simple implementation - could be enhanced
     navigateToDecoder();
   };
 

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <polygon points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30" stroke="#fff" stroke-width="3.5" stroke-linejoin="miter"/>
+  <line x1="36" y1="31" x2="36" y2="69" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+  <line x1="64" y1="31" x2="64" y2="69" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+  <line x1="36" y1="50" x2="64" y2="50" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+  <line x1="1" y1="39" x2="15.4" y2="39" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  <line x1="0" y1="50" x2="15.4" y2="50" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  <line x1="1" y1="61" x2="15.4" y2="61" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  <line x1="84.6" y1="39" x2="99" y2="39" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  <line x1="84.6" y1="50" x2="100" y2="50" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  <line x1="84.6" y1="61" x2="99" y2="61" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+</svg>

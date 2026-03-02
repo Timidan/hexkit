@@ -2,27 +2,32 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
+import { configureMonacoCdn } from "@/lib/monaco";
 import App from "./App.tsx";
+
+// Configure Monaco CDN once at app startup
+configureMonacoCdn();
 import { 
-  config, 
   queryClient, 
   RainbowKitProvider, 
-  WagmiProvider, 
   QueryClientProvider,
-  web3ToolkitTheme
+  web3ToolkitTheme,
+  RpcAwareWagmiProvider
 } from './config/rainbowkit';
-// import DynamicWeb3Provider from './components/DynamicWeb3Provider'
+import { NetworkConfigProvider } from "./contexts/NetworkConfigContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <WagmiProvider config={config as any}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={web3ToolkitTheme}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <NetworkConfigProvider>
+      <RpcAwareWagmiProvider>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider theme={web3ToolkitTheme}>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </RainbowKitProvider>
+        </QueryClientProvider>
+      </RpcAwareWagmiProvider>
+    </NetworkConfigProvider>
   </StrictMode>
 );

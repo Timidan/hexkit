@@ -139,39 +139,5 @@ export const parseError = (error: any): ParsedError => {
   };
 };
 
-export const getErrorSeverity = (errorType: ParsedError['type']): 'low' | 'medium' | 'high' => {
-  switch (errorType) {
-    case 'auth':
-      return 'low'; // User choice
-    case 'validation':
-    case 'gas':
-      return 'medium'; // User can fix
-    case 'network':
-    case 'revert':
-    case 'unknown':
-      return 'high'; // Requires investigation
-    default:
-      return 'medium';
-  }
-};
-
-export const getErrorColor = (errorType: ParsedError['type']): string => {
-  switch (errorType) {
-    case 'auth':
-      return '#fbbf24'; // Amber - user action needed
-    case 'validation':
-    case 'gas':
-      return '#f59e0b'; // Orange - user error
-    case 'network':
-      return '#3b82f6'; // Blue - network issue
-    case 'revert':
-      return '#ef4444'; // Red - contract error
-    case 'unknown':
-    default:
-      return '#6b7280'; // Gray - unknown
-  }
-};
-
-// Legacy function names for backward compatibility
 export const parseTransactionError = parseErrorMessage;
 export const formatErrorForUser = parseErrorMessage;

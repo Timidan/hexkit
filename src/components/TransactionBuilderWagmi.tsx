@@ -1,481 +1,304 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { SettingsIcon } from "./icons/IconLibrary";
-import {
-  useAccount,
-  useWalletClient,
-  usePublicClient,
-  useChainId,
-} from "wagmi";
-import { parseEther, encodeFunctionData, createPublicClient, http } from "viem";
-import type {
-  TransactionRequest,
-  SimulationResult,
-  TransactionReceipt,
-} from "../types/transaction";
-import type { Chain } from "../types";
-import WalletConnectionNew from "./WalletConnectionNew";
-import ABIFetcher from "./ABIFetcher";
-import ContractInfoDisplay from "./ContractInfoDisplay";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { LayoutTransitionWrapper } from "./ui/animated-tabs";
+import { ethers } from "ethers";
+import SimpleGridUI from "./SimpleGridUI";
+import { EXTENDED_NETWORKS } from "./shared/NetworkSelector";
 import { SUPPORTED_CHAINS } from "../utils/chains";
-import { simulateTransaction } from "../utils/transactionSimulation";
+import { useSimulation } from "../contexts/SimulationContext";
 import {
-  parseTransactionError,
-  formatErrorForUser,
-} from "../utils/errorParser";
+  type SimulationViewMode,
+  type TxHashReplayData,
+  TXHASH_REPLAY_KEY,
+  TXHASH_REPLAY_EVENT,
+  TXHASH_REPLAY_LAST_INTENT_KEY,
+} from "./transaction-builder/types";
+import { SimulationReplayResults } from "./transaction-builder/SimulationReplayResults";
+import { TransactionReplayView } from "./transaction-builder/TransactionReplayView";
+import { renderModeToggle } from "./transaction-builder/renderModeToggle";
+import { attemptCalldataDecodeNotification } from "./transaction-builder/calldataDecodeNotification";
+import "../styles/SharedComponents.css";
+import "../styles/SimulatorWorkbench.css";
+
+// Re-export public API so existing consumers are not broken
+export { SimulationReplayResults } from "./transaction-builder/SimulationReplayResults";
+export {
+  TXHASH_REPLAY_KEY,
+  TXHASH_REPLAY_EVENT,
+  TXHASH_REPLAY_LAST_INTENT_KEY,
+} from "./transaction-builder/types";
+export type { TxHashReplayData } from "./transaction-builder/types";
 
 const TransactionBuilderWagmi: React.FC = () => {
-  const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-  const chainId = useChainId();
+  const { contractContext } = useSimulation();
+  const location = useLocation();
 
-  // Transaction building state
-  const [contractAddress, setContractAddress] = useState("");
-  const [abi, setAbi] = useState("");
-  const [selectedFunction, setSelectedFunction] = useState("");
-  const [functionInputs, setFunctionInputs] = useState<Record<string, string>>(
-    {}
-  );
-  const [ethValue, setEthValue] = useState("");
-  const [gasLimit, setGasLimit] = useState("");
+  // Clone data fetched from IndexedDB when ?clone=<id> query param is present
+  const [cloneData, setCloneData] = useState<any>(null);
+  const [urlPrefillContractData, setUrlPrefillContractData] = useState<any>(null);
+  // True while async clone fetch is in progress - prevents flash of wrong view
+  const [cloneLoading, setCloneLoading] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return !!params.get('clone');
+  });
 
-  // Transaction execution state
-  const [builtTransaction, setBuiltTransaction] =
-    useState<TransactionRequest | null>(null);
-  const [simulation, setSimulation] = useState<SimulationResult | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [receipt, setReceipt] = useState<TransactionReceipt | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Initialize viewMode: "replay" if txHash replay data exists, otherwise "builder"
+  const [viewMode, setViewMode] = useState<SimulationViewMode>(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedMode = params.get('mode');
+    if (requestedMode === 'replay' || params.get('replay') === 'txhash') {
+      return "replay";
+    }
+    if (requestedMode === 'simulation') {
+      return "builder";
+    }
 
-  // Find current chain
-  const currentChain = useMemo(() => {
-    return (
-      SUPPORTED_CHAINS.find((chain) => chain.id === chainId) ||
-      SUPPORTED_CHAINS[0]
-    );
-  }, [chainId]);
-
-  // Create ethers provider for compatibility with existing functions
-  const ethersProvider = useMemo(() => {
-    if (!publicClient) return undefined;
-
-    // Create a simple ethers-compatible provider wrapper
-    return {
-      connection: { url: publicClient?.transport?.url || "unknown" },
-      estimateGas: async (transaction: any) => {
-        const gas = await publicClient.estimateGas({
-          account: transaction.from,
-          to: transaction.to,
-          data: transaction.data,
-          value: transaction.value ? BigInt(transaction.value) : BigInt(0),
-        });
-        return { toString: () => gas.toString() };
-      },
-      call: async (transaction: any) => {
-        return await publicClient.call({
-          account: transaction.from,
-          to: transaction.to,
-          data: transaction.data,
-          value: transaction.value ? BigInt(transaction.value) : BigInt(0),
-        });
-      },
-    };
-  }, [publicClient]);
-
-  const buildTransaction = () => {
+    // Check for txHash replay data (set by SimulationResultsPage for re-simulation)
     try {
-      if (!abi || !selectedFunction || !contractAddress) {
-        setError(
-          "Please provide ABI, select function, and enter contract address"
-        );
-        return;
+      const txHashReplayData = localStorage.getItem(TXHASH_REPLAY_KEY);
+      if (txHashReplayData) {
+        return "replay";
       }
+    } catch {
+      // Ignore errors
+    }
+    return "builder";
+  });
 
-      const parsedAbi = JSON.parse(abi);
-      const func = parsedAbi.find((f: any) => f.name === selectedFunction);
+  // Read clone simulation ID from URL query param (?clone=<simulationId>).
+  // Uses location.search so it re-triggers when PersistentTools reveals
+  // this component after a new navigation from SimulationHistoryPage.
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const cloneId = params.get('clone');
+    if (!cloneId) {
+      // No clone param - clear stale state (handles clone->no-clone transition)
+      setCloneLoading(false);
+      setCloneData(null);
+      return;
+    }
 
-      if (!func) {
-        setError("Selected function not found in ABI");
-        return;
-      }
-
-      // Build function arguments
-      const args = func.inputs.map((input: any) => {
-        const value = functionInputs[input.name] || "";
-        if (input.type.includes("uint") || input.type.includes("int")) {
-          return BigInt(value || "0");
+    // Set loading before async fetch to prevent wrong-view flash on URL transitions
+    setCloneLoading(true);
+    let cancelled = false;
+    import('../services/SimulationHistoryService').then(({ simulationHistoryService }) => {
+      simulationHistoryService.getSimulation(cloneId).then(fullSim => {
+        if (cancelled) return;
+        if (!fullSim) {
+          setCloneLoading(false);
+          setCloneData(null);
+          return;
         }
-        if (input.type === "bool") {
-          return value === "true";
-        }
-        if (input.type.includes("[]")) {
-          try {
-            return JSON.parse(value || "[]");
-          } catch {
-            return [];
+
+        // Determine origin: top-level origin (canonical) > contractContext > inference from result
+        const origin = fullSim.origin
+          || fullSim.contractContext?.simulationOrigin
+          || (fullSim.transactionHash
+            || fullSim.contractContext?.replayTxHash
+            || fullSim.result?.transactionHash
+            || fullSim.result?.txHash
+            || fullSim.result?.mode === 'onchain'
+              ? 'tx-hash-replay'
+              : 'manual');
+
+        if (origin === 'tx-hash-replay') {
+          // Route to replay view with prefilled hash & network
+          // Check all possible locations where the tx hash might be stored (including legacy records)
+          const replayHash = fullSim.transactionHash
+            || fullSim.contractContext?.replayTxHash
+            || fullSim.result?.transactionHash
+            || fullSim.result?.txHash
+            || '';
+          const networkId = fullSim.contractContext?.networkId || fullSim.networkId || 1;
+          const networkName = fullSim.contractContext?.networkName || fullSim.networkName || 'Ethereum';
+
+          if (replayHash) {
+            const replayData: TxHashReplayData = {
+              transactionHash: replayHash,
+              networkId,
+              networkName,
+              forkBlockTag: fullSim.contractContext?.blockOverride || undefined,
+              debugEnabled: fullSim.contractContext?.debugEnabled || false,
+              source: "simulation-history-clone",
+            };
+            const replayPrefill = { ...replayData, noAutoReplay: true };
+            const replayAudit = {
+              transactionHash: replayData.transactionHash,
+              noAutoReplay: true,
+              source: replayData.source,
+              recordedAt: Date.now(),
+            };
+            // Write prefill data - TransactionReplayView will pick it up
+            // Set noAutoReplay flag so user must click Run manually
+            try {
+              localStorage.setItem(TXHASH_REPLAY_KEY, JSON.stringify(replayPrefill));
+              localStorage.setItem(TXHASH_REPLAY_LAST_INTENT_KEY, JSON.stringify(replayAudit));
+              window.dispatchEvent(new CustomEvent(TXHASH_REPLAY_EVENT, { detail: replayPrefill }));
+            } catch (storageErr) {
+              // localStorage quota exceeded - clear artifact cache and retry
+              const keysToRemove: string[] = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('web3toolkit:sim:artifact:')) {
+                  keysToRemove.push(key);
+                }
+              }
+              keysToRemove.forEach(k => localStorage.removeItem(k));
+              try {
+                localStorage.setItem(TXHASH_REPLAY_KEY, JSON.stringify(replayPrefill));
+                localStorage.setItem(TXHASH_REPLAY_LAST_INTENT_KEY, JSON.stringify(replayAudit));
+                window.dispatchEvent(new CustomEvent(TXHASH_REPLAY_EVENT, { detail: replayPrefill }));
+              } catch {
+                // Still can't write - fall through, replay view will work without prefill
+              }
+            }
+            setViewMode('replay');
+
+            // Decode-aware notification: if calldata exists, try to decode it
+            // and offer "Switch to Manual" with decoded args
+            const calldata = fullSim.contractContext?.calldata;
+            const targetAddress = fullSim.contractContext?.address;
+            if (calldata && calldata.length >= 10 && targetAddress) {
+              attemptCalldataDecodeNotification(calldata, targetAddress, networkId, fullSim.contractContext, setViewMode, setCloneData);
+            }
+          } else {
+            // No hash available, fall back to manual builder with whatever we have
+            setCloneData(fullSim.contractContext || null);
+          }
+        } else {
+          // Manual origin: pass to SimpleGridUI and ensure builder view is active
+          const ctx = fullSim.contractContext;
+          if (ctx) {
+            setCloneData(ctx);
+            setViewMode('builder');
+          } else {
+            // No contractContext found for simulation
           }
         }
-        return value;
+        setCloneLoading(false);
+      }).catch(err => {
+        if (!cancelled) {
+          setCloneLoading(false);
+        }
       });
-
-      // Encode function data using viem
-      const data = encodeFunctionData({
-        abi: parsedAbi,
-        functionName: selectedFunction,
-        args,
-      });
-
-      // Build transaction
-      const transaction: TransactionRequest = {
-        to: contractAddress,
-        data,
-        value: ethValue ? parseEther(ethValue).toString() : "0",
-        gasLimit: gasLimit || undefined,
-      };
-
-      setBuiltTransaction(transaction);
-      setSimulation(null);
-      setReceipt(null);
-      setError(null);
-    } catch (err: any) {
-      setError(`Failed to build transaction: ${err.message}`);
-    }
-  };
-
-  const simulateTransactionCall = async () => {
-    if (!builtTransaction || !address) {
-      setError("Please build transaction and connect wallet first");
-      return;
-    }
-
-    setIsSimulating(true);
-    setError(null);
-
-    try {
-      const result = await simulateTransaction(
-        builtTransaction,
-        currentChain,
-        address,
-        ethersProvider as any
-      );
-      setSimulation(result);
-    } catch (err: any) {
-      const parsedError = parseTransactionError(err);
-      setError(formatErrorForUser(parsedError));
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
-  const sendTransaction = async () => {
-    if (!builtTransaction || !walletClient || !address) {
-      setError("Please build transaction and connect wallet first");
-      return;
-    }
-
-    setIsSending(true);
-    setError(null);
-
-    try {
-      const hash = await walletClient.sendTransaction({
-        account: address,
-        to: builtTransaction.to as `0x${string}`,
-        data: builtTransaction.data as `0x${string}`,
-        value: builtTransaction.value
-          ? BigInt(builtTransaction.value)
-          : BigInt(0),
-        gas: builtTransaction.gasLimit
-          ? BigInt(builtTransaction.gasLimit)
-          : undefined,
-      });
-
-      // Wait for transaction receipt
-      if (publicClient) {
-        const txReceipt = await publicClient.waitForTransactionReceipt({
-          hash,
-        });
-
-        const receipt: TransactionReceipt = {
-          hash: txReceipt.transactionHash,
-          blockNumber: Number(txReceipt.blockNumber),
-          gasUsed: txReceipt.gasUsed.toString(),
-          effectiveGasPrice: txReceipt.effectiveGasPrice?.toString() || "0",
-          status: txReceipt.status === "success" ? 1 : 0,
-          explorerUrl: `${currentChain.explorerUrl}/tx/${txReceipt.transactionHash}`,
-        };
-
-        setReceipt(receipt);
+    }).catch(err => {
+      // Chunk-load / dynamic import failure
+      if (!cancelled) {
+        setCloneLoading(false);
       }
-    } catch (err: any) {
-      const parsedError = parseTransactionError(err);
-      setError(formatErrorForUser(parsedError));
-    } finally {
-      setIsSending(false);
-    }
-  };
+    });
+    return () => { cancelled = true; };
+  }, [location.search]);
 
-  const resetBuilder = () => {
-    setBuiltTransaction(null);
-    setSimulation(null);
-    setReceipt(null);
-    setError(null);
-    setContractAddress("");
-    setSelectedFunction("");
-    setFunctionInputs({});
-    setEthValue("");
-    setGasLimit("");
-  };
+  // Keep route intent in sync while this component stays mounted in PersistentTools.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedMode = params.get('mode');
+    if (requestedMode === 'replay' || params.get('replay') === 'txhash') {
+      setViewMode('replay');
+      return;
+    }
+    if (requestedMode === 'simulation') {
+      setViewMode('builder');
+    }
+  }, [location.search]);
+
+  // URL prefill contract intent: /builder?mode=simulation&address=0x...&chainId=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('clone')) {
+      setUrlPrefillContractData(null);
+      return;
+    }
+
+    const addressParam = params.get('address')?.trim();
+    if (!addressParam || !ethers.utils.isAddress(addressParam)) {
+      setUrlPrefillContractData(null);
+      return;
+    }
+
+    const normalizedAddress = ethers.utils.getAddress(addressParam);
+    const rawChainId = params.get('chainId');
+    const parsedChainId = rawChainId ? Number.parseInt(rawChainId, 10) : Number.NaN;
+    const matchedNetwork = SUPPORTED_CHAINS.find((chain) => chain.id === parsedChainId);
+    const networkId = matchedNetwork?.id || contractContext?.networkId || 1;
+    const networkName = matchedNetwork?.name || contractContext?.networkName || 'Ethereum';
+
+    setUrlPrefillContractData((prev: any) => {
+      if (
+        prev &&
+        typeof prev.address === 'string' &&
+        prev.address.toLowerCase() === normalizedAddress.toLowerCase() &&
+        prev.networkId === networkId
+      ) {
+        return prev;
+      }
+      return {
+        address: normalizedAddress,
+        name: contractContext?.name,
+        abi: [],
+        networkId,
+        networkName,
+      };
+    });
+  }, [location.search, contractContext?.name, contractContext?.networkId, contractContext?.networkName]);
+
+  const handleModeChange = (mode: SimulationViewMode) => setViewMode(mode);
+
+  // Build initialContractData from cloneData first, then contractContext as fallback
+  const initialContractData = React.useMemo(() => {
+    // Priority: cloneData > URL prefill > current contract context
+    const source = cloneData || urlPrefillContractData || contractContext;
+    if (!source?.address) return undefined;
+
+    return {
+      address: source.address,
+      name: source.name,
+      abi: source.abi || [],
+      networkId: source.networkId,
+      networkName: source.networkName,
+      // Re-simulation fields
+      selectedFunction: source.selectedFunction,
+      selectedFunctionType: source.selectedFunctionType,
+      functionInputs: source.functionInputs,
+      calldata: source.calldata,
+      fromAddress: source.fromAddress,
+      ethValue: source.ethValue,
+      blockOverride: source.blockOverride,
+      debugEnabled: source.debugEnabled,
+      // Token info
+      tokenType: source.tokenType,
+      tokenSymbol: source.tokenSymbol,
+      tokenDecimals: source.tokenDecimals,
+      // Proxy/Diamond info
+      proxyType: source.proxyType,
+      implementationAddress: source.implementationAddress,
+      implementations: source.implementations,
+      diamondFacets: source.diamondFacets,
+    };
+  }, [cloneData, urlPrefillContractData, contractContext]);
+
+  // While clone data is loading from IndexedDB, show nothing to avoid flash of wrong view
+  if (cloneLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />
+    );
+  }
 
   return (
-    <div className="transaction-builder">
-      <h2>🔨 Transaction Builder</h2>
-
-      <WalletConnectionNew />
-
-      {isConnected && (
-        <div className="builder-content">
-          {/* Contract and ABI Section */}
-          <div className="builder-section">
-            <h3>📋 Contract Setup</h3>
-
-            <ABIFetcher
-              onABIFetched={setAbi}
-              initialContractAddress={contractAddress}
-              onContractAddressChange={setContractAddress}
-            />
-
-            {abi && contractAddress && (
-              <ContractInfoDisplay
-                abi={abi}
-                contractAddress={contractAddress}
-                chain={currentChain}
-                provider={ethersProvider as any}
-              />
-            )}
-          </div>
-
-          {/* Function Selection Section */}
-          {abi && (
-            <div className="builder-section">
-              <h3><SettingsIcon width={16} height={16} style={{ marginRight: '6px' }} />Function Selection</h3>
-
-              <div className="form-group">
-                <label>Select Function</label>
-                <select
-                  value={selectedFunction}
-                  onChange={(e) => {
-                    setSelectedFunction(e.target.value);
-                    const func = JSON.parse(abi).find(
-                      (f: any) => f.name === e.target.value
-                    );
-                    if (func) {
-                      const newInputs: Record<string, string> = {};
-                      func.inputs.forEach((input: any) => {
-                        newInputs[input.name] = "";
-                      });
-                      setFunctionInputs(newInputs);
-                    }
-                  }}
-                >
-                  <option value="">Choose function...</option>
-                  {JSON.parse(abi)
-                    .filter((item: any) => item.type === "function")
-                    .map((func: any) => (
-                      <option key={func.name} value={func.name}>
-                        {func.name}(
-                        {func.inputs
-                          .map((i: any) => `${i.type} ${i.name}`)
-                          .join(", ")}
-                        )
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {selectedFunction &&
-                Object.keys(functionInputs).map((name) => {
-                  const func = JSON.parse(abi).find(
-                    (f: any) => f.name === selectedFunction
-                  );
-                  const input = func?.inputs.find((i: any) => i.name === name);
-
-                  return (
-                    <div key={name} className="form-group">
-                      <label>
-                        {name} ({input?.type})
-                      </label>
-                      <input
-                        value={functionInputs[name]}
-                        onChange={(e) =>
-                          setFunctionInputs({
-                            ...functionInputs,
-                            [name]: e.target.value,
-                          })
-                        }
-                        placeholder={`Enter ${input?.type} value`}
-                      />
-                    </div>
-                  );
-                })}
-
-              <div className="form-group">
-                <label>ETH Value (optional)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={ethValue}
-                  onChange={(e) => setEthValue(e.target.value)}
-                  placeholder="0.0"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Gas Limit (optional)</label>
-                <input
-                  value={gasLimit}
-                  onChange={(e) => setGasLimit(e.target.value)}
-                  placeholder="Auto-estimate"
-                />
-              </div>
-
-              <button onClick={buildTransaction} className="build-btn">
-                🔨 Build Transaction
-              </button>
-            </div>
-          )}
-
-          {/* Transaction Preview Section */}
-          {builtTransaction && (
-            <div className="builder-section">
-              <h3>📄 Transaction Preview</h3>
-
-              <div className="transaction-preview">
-                <div className="tx-field">
-                  <label>To:</label>
-                  <code>{builtTransaction.to}</code>
-                </div>
-                <div className="tx-field">
-                  <label>Data:</label>
-                  <code className="truncate">{builtTransaction.data}</code>
-                </div>
-                {builtTransaction.value !== "0" && (
-                  <div className="tx-field">
-                    <label>Value:</label>
-                    <code>
-                      {(
-                        parseFloat(builtTransaction.value || "0") / 1e18
-                      ).toFixed(4)}{" "}
-                      ETH
-                    </code>
-                  </div>
-                )}
-              </div>
-
-              <div className="transaction-actions">
-                <button
-                  onClick={simulateTransactionCall}
-                  disabled={isSimulating}
-                  className="simulate-btn"
-                >
-                  {isSimulating ? "Simulating..." : "🔍 Simulate Transaction"}
-                </button>
-
-                <button
-                  onClick={sendTransaction}
-                  disabled={
-                    isSending || (simulation ? !simulation.success : false)
-                  }
-                  className="send-btn"
-                  style={{
-                    opacity: simulation && !simulation.success ? 0.5 : 1,
-                  }}
-                >
-                  {isSending ? "Sending..." : "🚀 Send Transaction"}
-                </button>
-
-                <button onClick={resetBuilder} className="reset-btn">
-                  🔄 Reset
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Simulation Results */}
-          {simulation && (
-            <div className="builder-section">
-              <h3>🔍 Simulation Results</h3>
-
-              <div
-                className={`simulation-result ${simulation.success ? "success" : "error"}`}
-              >
-                {simulation.success ? (
-                  <div>
-                    <p>✅ Simulation successful!</p>
-                    <div className="simulation-details">
-                      <div>Gas Used: {simulation.gasUsed}</div>
-                      <div>Gas Limit: {simulation.gasLimit}</div>
-                      {simulation.changes && simulation.changes.length > 0 && (
-                        <div className="asset-changes">
-                          <h4>Asset Changes:</h4>
-                          {simulation.changes.map((change, index) => (
-                            <div key={index} className="asset-change">
-                              {change.changeType}{" "}
-                              {Math.abs(parseFloat(change.amount))}{" "}
-                              {change.symbol}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <p>❌ Simulation failed!</p>
-                    <div className="simulation-error">{simulation.error}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Transaction Receipt */}
-          {receipt && (
-            <div className="builder-section">
-              <h3>✅ Transaction Sent</h3>
-
-              <div className="transaction-receipt success">
-                <p>Transaction successfully sent!</p>
-                <div className="receipt-details">
-                  <div>
-                    Hash:{" "}
-                    <a
-                      href={receipt.explorerUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {receipt.hash}
-                    </a>
-                  </div>
-                  <div>Block: {receipt.blockNumber}</div>
-                  <div>Gas Used: {receipt.gasUsed}</div>
-                  <div>
-                    Status: {receipt.status === 1 ? "Success" : "Failed"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <div className="builder-section">
-              <div className="error-message">❌ {error}</div>
-            </div>
-          )}
-        </div>
+    <LayoutTransitionWrapper activeKey={viewMode}>
+      {viewMode === "builder" ? (
+        <SimpleGridUI
+          contractModeToggle={renderModeToggle(viewMode, handleModeChange)}
+          mode="simulation"
+          initialContractData={initialContractData}
+        />
+      ) : (
+        <TransactionReplayView
+          modeToggle={renderModeToggle(viewMode, handleModeChange)}
+        />
       )}
-    </div>
+    </LayoutTransitionWrapper>
   );
 };
 

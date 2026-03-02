@@ -1,0 +1,208 @@
+/**
+ * Execution Tree Styles
+ */
+
+.execution-tree {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.execution-tree--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Header with title and filter dropdown */
+.execution-tree__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.execution-tree__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.execution-tree__title-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.execution-tree__filter {
+  display: flex;
+  align-items: center;
+}
+
+.execution-tree__filter-trigger {
+  height: 1.75rem !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.8125rem !important;
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+}
+
+.execution-tree__filter-trigger:hover {
+  background: var(--accent) !important;
+}
+
+/* Scroll area for tree content */
+.execution-tree__scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.execution-tree__content {
+  padding: 0.25rem 0;
+}
+
+.execution-tree__node {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.1s;
+  min-height: 1.75rem;
+  position: relative;
+}
+
+/* ============================================
+   VERTICAL RAILS
+   Continuous vertical lines - no horizontal branches
+   ============================================ */
+
+/* Container for vertical guide lines - inline flex */
+.execution-tree__guides {
+  display: flex;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+/* Individual vertical guide segment - always full height */
+.execution-tree__guide {
+  width: 16px;
+  align-self: stretch;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Active guide shows the continuous vertical line */
+.execution-tree__guide--active::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(214, 211, 209, 0.25);
+  border-radius: 1px;
+}
+
+/* Collapse toggle button (+/-) */
+.execution-tree__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-right: 4px;
+  border: none;
+  background: rgba(214, 211, 209, 0.12);
+  color: #d6d3d1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.execution-tree__toggle:hover {
+  background: rgba(214, 211, 209, 0.25);
+  color: #e7e5e4;
+}
+
+.execution-tree__toggle:active {
+  background: rgba(214, 211, 209, 0.35);
+}
+
+/* Spacer for nodes without children (maintains alignment) */
+.execution-tree__toggle-spacer {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.execution-tree__node:hover {
+  background: var(--accent);
+}
+
+.execution-tree__node--selected {
+  background: var(--accent);
+}
+
+.execution-tree__node--revert {
+  color: var(--destructive);
+}
+
+.execution-tree__label {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.execution-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-tree__name--opcode {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.execution-tree__node--revert .execution-tree__name--opcode {
+  color: var(--destructive);
+}
+
+/* Function nodes styling */
+.execution-tree__node--function {
+  font-weight: 500;
+}
+
+.execution-tree__name--function {
+  color: #d6d3d1;
+}
+
+/* Contract name display */
+.execution-tree__contract {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  background: var(--muted);
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+

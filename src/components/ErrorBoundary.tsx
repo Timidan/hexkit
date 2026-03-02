@@ -1,11 +1,12 @@
 import React, { Component } from 'react';
 import type { ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: any) => void;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 interface State {
@@ -23,7 +24,7 @@ class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.props.onError?.(error, errorInfo);
   }
@@ -52,13 +53,13 @@ class ErrorBoundary extends Component<Props, State> {
             color: '#ef4444'
           }}>
             <AlertTriangle size={24} />
-            <h3 style={{ margin: 0, fontSize: '18px' }}>Something went wrong</h3>
+            <h3 style={{ margin: 0, fontSize: '19px' }}>Something went wrong</h3>
           </div>
           
           <p style={{ 
             color: '#6b7280', 
             marginBottom: '16px',
-            fontSize: '14px' 
+            fontSize: '15px' 
           }}>
             This component encountered an error. Please try refreshing or contact support if the problem persists.
           </p>
@@ -68,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
               <summary style={{ 
                 cursor: 'pointer', 
                 color: '#6b7280', 
-                fontSize: '12px',
+                fontSize: '13px',
                 marginBottom: '8px'
               }}>
                 Technical Details
@@ -77,7 +78,7 @@ class ErrorBoundary extends Component<Props, State> {
                 background: '#f3f4f6',
                 padding: '8px',
                 borderRadius: '4px',
-                fontSize: '10px',
+                fontSize: '11px',
                 overflow: 'auto',
                 color: '#374151'
               }}>
@@ -86,7 +87,9 @@ class ErrorBoundary extends Component<Props, State> {
             </details>
           )}
 
-          <button
+          <Button
+            type="button"
+            variant="default"
             onClick={() => {
               this.setState({ hasError: false, error: undefined });
               window.location.reload();
@@ -95,19 +98,12 @@ class ErrorBoundary extends Component<Props, State> {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '8px 16px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
               margin: '0 auto'
             }}
           >
             <RefreshCw size={16} />
             Refresh Page
-          </button>
+          </Button>
         </div>
       );
     }

@@ -1,0 +1,86 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/sourcify/repository/:path*",
+      "destination": "https://repo.sourcify.dev/:path*"
+    },
+    {
+      "source": "/api/sourcify/server/:path*",
+      "destination": "https://sourcify.dev/server/:path*"
+    },
+    {
+      "source": "/api/sourcify/:path*",
+      "destination": "https://sourcify.dev/:path*"
+    },
+    {
+      "source": "/api/eth-blockscout/:path*",
+      "destination": "https://eth.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/blockscout/:path*",
+      "destination": "https://base.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/polygon-blockscout/:path*",
+      "destination": "https://polygon.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/arbitrum-blockscout/:path*",
+      "destination": "https://arbitrum.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/base-sepolia-blockscout/:path*",
+      "destination": "https://base-sepolia.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/lisk-sepolia-blockscout/:path*",
+      "destination": "https://sepolia-blockscout.lisk.com/:path*"
+    },
+    {
+      "source": "/api/basescan/:path*",
+      "destination": "https://api.basescan.org/:path*"
+    },
+    {
+      "source": "/api/base-sepolia-basescan/:path*",
+      "destination": "https://api-sepolia.basescan.org/:path*"
+    },
+    {
+      "source": "/api/etherscan/:path*",
+      "destination": "https://api.etherscan.io/:path*"
+    },
+    {
+      "source": "/api/sepolia-etherscan/:path*",
+      "destination": "https://api-sepolia.etherscan.io/:path*"
+    },
+    {
+      "source": "/api/holesky-etherscan/:path*",
+      "destination": "https://api-holesky.etherscan.io/:path*"
+    },
+    {
+      "source": "/api/polygonscan/:path*",
+      "destination": "https://api.polygonscan.com/:path*"
+    },
+    {
+      "source": "/api/amoy-polygonscan/:path*",
+      "destination": "https://api-amoy.polygonscan.com/:path*"
+    },
+    {
+      "source": "/api/arbiscan/:path*",
+      "destination": "https://api.arbiscan.io/:path*"
+    },
+    {
+      "source": "/api/repo/:path*",
+      "destination": "https://repo.sourcify.dev/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

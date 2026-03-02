@@ -13,39 +13,94 @@
 }
 
 .simple-grid-title {
-  font-size: 32px;
+  font-size: 33px;
   font-weight: bold;
-  color: #00ffff;
-  text-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+  color: hsl(var(--foreground));
   margin-bottom: 8px;
 }
 
 .simple-grid-subtitle {
   color: #888;
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .simple-grid-main {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  max-width: 1400px;
+  grid-template-columns: minmax(980px, 2fr) minmax(320px, 0.65fr);
+  gap: 36px;
+  max-width: 2040px;
   margin: 0 auto;
 }
 
+@media (max-width: 1620px) {
+  .simple-grid-main {
+    grid-template-columns: minmax(880px, 1.8fr) minmax(300px, 0.75fr);
+    gap: 28px;
+    max-width: 1840px;
+  }
+}
+
+@media (max-width: 1380px) {
+  .simple-grid-main {
+    grid-template-columns: minmax(760px, 1.55fr) minmax(280px, 0.85fr);
+    gap: 24px;
+    max-width: 1500px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .simple-grid-main {
+    grid-template-columns: 1fr;
+    max-width: 900px;
+  }
+}
+
+/* Bordered section cards */
+.section-card {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.section-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-card-title .collapse-btn {
+  background: transparent;
+  border: none;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.section-card-title .collapse-btn:hover {
+  background: hsl(var(--accent));
+}
+
 .simple-grid-card {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  border: 1px solid #333;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: none;
 }
 
 .simple-grid-section-title {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
-  margin-bottom: 20px;
-  color: #fff;
+  margin-bottom: 16px;
+  color: hsl(var(--foreground));
 }
 
 .selection-card {
@@ -53,30 +108,23 @@
   padding: 16px;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #333;
-  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.15s ease;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
 }
 
 .selection-card.selected {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 123, 255, 0.2) 0%,
-    rgba(40, 167, 69, 0.2) 100%
-  );
-  border: 1px solid #007bff;
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary));
 }
 
 .selection-card:hover {
-  background: rgba(255, 255, 255, 0.1);
+  border-color: hsl(var(--primary) / 0.5);
+  background: hsl(var(--accent) / 0.5);
 }
 
 .selection-card.selected:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 123, 255, 0.3) 0%,
-    rgba(40, 167, 69, 0.3) 100%
-  );
+  background: hsl(var(--primary) / 0.15);
 }
 
 .selection-radio {
@@ -112,7 +160,7 @@
 }
 
 .selection-text-secondary {
-  font-size: 12px;
+  font-size: 13px;
   color: #888;
 }
 
@@ -123,7 +171,7 @@
   border: 1px solid #333;
   border-radius: 6px;
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .function-search-input:focus {
@@ -141,7 +189,7 @@
   margin: 4px 0;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   background: rgba(255, 255, 255, 0.05);
   transition: background 0.2s ease;
 }
@@ -160,7 +208,7 @@
 
 .facet-address {
   color: #888;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .transaction-params-checkbox {
@@ -174,11 +222,11 @@
 }
 
 .transaction-params-checkbox span {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .coming-soon {
-  font-size: 12px;
+  font-size: 13px;
   color: #888;
 }
 
@@ -198,7 +246,7 @@
 }
 
 .placeholder-subtext {
-  font-size: 14px;
+  font-size: 15px;
   margin: 8px 0 0 0;
 }
 
@@ -223,11 +271,11 @@
   }
 
   .simple-grid-title {
-    font-size: 24px;
+    font-size: 25px;
   }
 
   .simple-grid-section-title {
-    font-size: 18px;
+    font-size: 19px;
   }
 }
 
@@ -251,6 +299,29 @@
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.shimmer-loading {
+  background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Pulse animation for loading indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
 /* Loading state improvements */
 .loading-overlay {
   position: absolute;
@@ -265,21 +336,757 @@
   border-radius: 12px;
 }
 
-/* Enhanced hover effects */
+/* Enhanced hover effects - flat design */
 .simple-grid-card:hover {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  transform: translateY(-2px);
-  transition: all 0.3s ease;
+  border-color: hsl(var(--primary) / 0.3);
+  transition: border-color 0.15s ease;
 }
 
-/* Better focus states for accessibility */
-.function-search-input:focus,
-.selection-card:focus {
+/* Better focus states for accessibility — only show on keyboard navigation */
+.function-search-input:focus-visible,
+.selection-card:focus-visible {
   outline: 2px solid #007bff;
   outline-offset: 2px;
 }
 
-button:focus {
+button:focus-visible {
   outline: 2px solid #007bff;
   outline-offset: 2px;
+}
+
+/* ============================================================================
+   SimpleGridUI Inline Style Replacements
+   These classes replace common inline style patterns for better performance
+   ============================================================================ */
+
+/* Container styles */
+.sgui-container {
+  color: #fff;
+  position: relative;
+}
+
+/* Grid container */
+.sgui-grid-container {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Grid layout */
+.sgui-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 1200px) {
+  .sgui-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Contract card */
+.sgui-contract-card {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 20px;
+  min-height: 300px;
+}
+
+/* Function card */
+.sgui-function-card {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  padding: 20px;
+  min-height: 300px;
+}
+
+/* Card headers */
+.sgui-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sgui-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0;
+}
+
+/* Error box */
+.sgui-error-box {
+  padding: 12px;
+  background: rgba(220, 38, 38, 0.125);
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.sgui-error-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sgui-error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dc2626;
+}
+
+.sgui-error-text {
+  font-size: 15px;
+}
+
+/* ABI upload modal */
+.sgui-abi-modal {
+  padding: 16px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.sgui-abi-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sgui-abi-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.sgui-abi-modal-close {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 17px;
+  padding: 2px;
+}
+
+.sgui-abi-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.sgui-abi-textarea-label {
+  display: block;
+  font-size: 13px;
+  color: #ccc;
+  margin-bottom: 6px;
+}
+
+/* Contract info card */
+.sgui-contract-info {
+  position: relative;
+  padding: 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.sgui-contract-info.diamond {
+  background: #1a1025;
+  border-color: #7c3aed;
+}
+
+.sgui-contract-info.loading {
+  opacity: 0.6;
+  filter: grayscale(0.2);
+}
+
+.sgui-contract-info-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sgui-contract-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.sgui-contract-icon-text {
+  font-size: 15px;
+  color: #fff;
+}
+
+.sgui-contract-name {
+  font-weight: 600;
+  font-size: 19px;
+  color: #fff;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sgui-diamond-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #a78bfa;
+}
+
+/* Function tabs */
+.sgui-function-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* Function list */
+.sgui-function-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.sgui-function-item {
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.sgui-function-item:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  background: hsl(var(--accent) / 0.3);
+}
+
+.sgui-function-item.selected {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+}
+
+.sgui-function-name {
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.sgui-function-params {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-family: monospace;
+}
+
+/* Parameter inputs */
+.sgui-param-section {
+  margin-top: 16px;
+}
+
+.sgui-param-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  margin-bottom: 6px;
+}
+
+.sgui-param-type {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-family: monospace;
+  margin-left: 8px;
+}
+
+/* Simulation section */
+.sgui-simulation-section {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.sgui-simulation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sgui-simulation-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Result display */
+.sgui-result {
+  margin-top: 16px;
+  padding: 16px;
+  background: hsl(var(--accent) / 0.3);
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+}
+
+.sgui-result-success {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.sgui-result-error {
+  border-color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.sgui-result-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 8px;
+}
+
+.sgui-result-value {
+  font-family: monospace;
+  font-size: 14px;
+  color: hsl(var(--foreground));
+  word-break: break-all;
+}
+
+/* Button styles */
+.sgui-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.sgui-btn-primary {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.sgui-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.sgui-btn-secondary {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+
+.sgui-btn-secondary:hover {
+  background: hsl(var(--accent));
+}
+
+.sgui-btn-success {
+  background: #22c55e;
+  color: #fff;
+}
+
+.sgui-btn-ghost {
+  background: #6b7280;
+  color: #fff;
+}
+
+/* Loading states */
+.sgui-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground));
+}
+
+.sgui-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Flex utilities */
+.sgui-flex {
+  display: flex;
+}
+
+.sgui-flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.sgui-items-center {
+  align-items: center;
+}
+
+.sgui-justify-between {
+  justify-content: space-between;
+}
+
+.sgui-gap-2 {
+  gap: 8px;
+}
+
+.sgui-gap-3 {
+  gap: 12px;
+}
+
+.sgui-gap-4 {
+  gap: 16px;
+}
+
+/* Margin utilities */
+.sgui-mb-2 {
+  margin-bottom: 8px;
+}
+
+.sgui-mb-3 {
+  margin-bottom: 12px;
+}
+
+.sgui-mb-4 {
+  margin-bottom: 16px;
+}
+
+.sgui-mt-4 {
+  margin-top: 16px;
+}
+
+/* Text utilities */
+.sgui-text-sm {
+  font-size: 13px;
+}
+
+.sgui-text-xs {
+  font-size: 11px;
+}
+
+.sgui-text-muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.sgui-font-mono {
+  font-family: monospace;
+}
+
+.sgui-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Animated SVG Icons (hover-triggered stroke-draw) ── */
+
+/* Shared resting state: fully drawn & filled */
+.animated-play-triangle,
+.animated-zap-bolt {
+  fill-opacity: 1;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out, fill-opacity 0.3s ease;
+}
+
+.animated-play-triangle {
+  stroke-dasharray: 48;
+}
+
+.animated-zap-bolt {
+  stroke-dasharray: 60;
+}
+
+/* On hover: erase then redraw */
+button:hover .animated-play-triangle,
+[role="tab"]:hover .animated-play-triangle {
+  animation: draw-48 0.9s ease-out forwards, icon-fill 0.35s ease-in 0.7s forwards;
+  stroke-dashoffset: 48;
+  fill-opacity: 0;
+}
+
+button:hover .animated-zap-bolt,
+[role="tab"]:hover .animated-zap-bolt {
+  animation: draw-60 0.9s ease-out forwards, icon-fill 0.35s ease-in 0.7s forwards;
+  stroke-dashoffset: 60;
+  fill-opacity: 0;
+}
+
+@keyframes draw-48 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-60 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes icon-fill {
+  to { fill-opacity: 1; }
+}
+
+/* Animated hash icon — each stroke draws on hover with stagger */
+.animated-hash-h {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-hash-v {
+  stroke-dasharray: 19;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+button:hover .animated-hash-h,
+[role="tab"]:hover .animated-hash-h {
+  animation: draw-16 0.8s ease-out forwards;
+  stroke-dashoffset: 16;
+}
+
+button:hover .animated-hash-v,
+[role="tab"]:hover .animated-hash-v {
+  animation: draw-19 0.9s ease-out 0.25s forwards;
+  stroke-dashoffset: 19;
+}
+
+@keyframes draw-16 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-19 {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Animated file-text icon — outline, fold, then text lines stagger in */
+.animated-ft-outline {
+  stroke-dasharray: 62;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-ft-fold {
+  stroke-dasharray: 12;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-ft-line {
+  stroke-dasharray: 8;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+button:hover .animated-ft-outline,
+[role="tab"]:hover .animated-ft-outline {
+  animation: draw-62 0.85s ease-out forwards;
+  stroke-dashoffset: 62;
+}
+
+button:hover .animated-ft-fold,
+[role="tab"]:hover .animated-ft-fold {
+  animation: draw-12 0.65s ease-out 0.3s forwards;
+  stroke-dashoffset: 12;
+}
+
+button:hover .animated-ft-line,
+[role="tab"]:hover .animated-ft-line {
+  animation: draw-8 0.65s ease-out 0.5s forwards;
+  stroke-dashoffset: 8;
+}
+
+@keyframes draw-62 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-12 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-8 {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Animated link icon — two arcs draw on hover with stagger */
+.animated-link-arc1 {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-link-arc2 {
+  stroke-dasharray: 28;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+button:hover .animated-link-arc1,
+[role="tab"]:hover .animated-link-arc1 {
+  animation: draw-28 0.8s ease-out forwards;
+  stroke-dashoffset: 28;
+}
+
+button:hover .animated-link-arc2,
+[role="tab"]:hover .animated-link-arc2 {
+  animation: draw-28 0.8s ease-out 0.3s forwards;
+  stroke-dashoffset: 28;
+}
+
+@keyframes draw-28 {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Animated clock icon — face circle draws, then hour & minute hands sweep around */
+.animated-clock-face {
+  stroke-dasharray: 57;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-clock-hour,
+.animated-clock-minute {
+  transform-origin: 12px 12px;
+  transition: transform 0.5s ease-out;
+}
+
+button:hover .animated-clock-face,
+[role="tab"]:hover .animated-clock-face {
+  animation: draw-57 0.8s ease-out forwards;
+  stroke-dashoffset: 57;
+}
+
+button:hover .animated-clock-hour,
+[role="tab"]:hover .animated-clock-hour {
+  animation: clock-hour-sweep 1.2s ease-in-out 0.4s forwards;
+}
+
+button:hover .animated-clock-minute,
+[role="tab"]:hover .animated-clock-minute {
+  animation: clock-minute-sweep 1s ease-in-out 0.5s forwards;
+}
+
+@keyframes draw-57 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes clock-hour-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes clock-minute-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(720deg); }
+}
+
+/* Animated book icon — covers draw on, page flips from right to left */
+.animated-book-cover {
+  stroke-dasharray: 42;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-book-page {
+  transform-origin: 12px 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.5s ease;
+}
+
+button:hover .animated-book-cover,
+[role="tab"]:hover .animated-book-cover {
+  animation: draw-42 0.8s ease-out forwards;
+  stroke-dashoffset: 42;
+}
+
+button:hover .animated-book-page,
+[role="tab"]:hover .animated-book-page {
+  animation: page-flip 1.2s ease-in-out 0.3s forwards;
+}
+
+@keyframes draw-42 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes page-flip {
+  0%   { opacity: 0.6; transform: scaleX(1); }
+  50%  { opacity: 0.8; transform: scaleX(0.02); }
+  100% { opacity: 0.5; transform: scaleX(-1); }
+}
+
+/* Animated pen-write icon — pen draws on, wobbles, trail appears */
+.animated-pw-pen {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+  transform-origin: 5px 21px;
+}
+
+.animated-pw-cross {
+  stroke-dasharray: 6;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.animated-pw-trail {
+  stroke-dasharray: 13;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+button:hover .animated-pw-pen,
+[role="tab"]:hover .animated-pw-pen {
+  animation: draw-60-pen 0.85s ease-out forwards, pen-wobble 0.9s ease-in-out 0.85s;
+  stroke-dashoffset: 60;
+}
+
+button:hover .animated-pw-cross,
+[role="tab"]:hover .animated-pw-cross {
+  animation: draw-6 0.5s ease-out 0.35s forwards;
+  stroke-dashoffset: 6;
+}
+
+button:hover .animated-pw-trail,
+[role="tab"]:hover .animated-pw-trail {
+  animation: draw-13 0.8s ease-out 0.55s forwards;
+  stroke-dashoffset: 13;
+}
+
+@keyframes draw-60-pen {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-6 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes draw-13 {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pen-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-3deg); }
+  40% { transform: rotate(2deg); }
+  60% { transform: rotate(-2deg); }
+  80% { transform: rotate(1deg); }
 }
