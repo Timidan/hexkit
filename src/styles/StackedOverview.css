@@ -222,7 +222,7 @@
 
 /* Chip styles already defined above */
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .stacked-card {
     padding: 12px;
   }

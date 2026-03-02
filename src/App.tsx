@@ -1,5 +1,6 @@
 import React, { Suspense, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import "./App.css";
 import { useApplyRainbowKitTheme } from "./config/rainbowkit";
 import "./styles/AnimatedInput.css";
@@ -77,7 +78,7 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                 </Routes>
               ) : (
-                <div className="app">
+                <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder")) && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
 
                   <main className="content">

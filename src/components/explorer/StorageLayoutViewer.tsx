@@ -86,7 +86,7 @@ const StorageLayoutViewer: React.FC = () => {
         {state.showSkeleton ? (
           <StorageSkeleton phase={state.loadingPhase} slotCount={state.evidence.length} />
         ) : state.showTable ? (
-          <div className="flex-1 min-h-0 w-full flex">
+          <div className="flex-1 min-h-0 w-full flex responsive-scroll">
               {/* Left Panel: Collapsible Storage Tree + Probe */}
               {state.treeOpen && (
               <TreePanel

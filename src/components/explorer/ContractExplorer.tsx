@@ -501,7 +501,7 @@ const ContractExplorer: React.FC = () => {
 
           {/* Source Code Viewer */}
           <div
-            className="code-viewer flex border border-border rounded-lg overflow-hidden bg-background"
+            className="code-viewer flex border border-border rounded-lg overflow-hidden bg-background responsive-scroll"
             style={{
               height: "calc(100vh - 320px)",
               minHeight: "400px",

@@ -50,6 +50,10 @@ body {
   }
 }
 
+.app-fullwidth {
+  max-width: none;
+}
+
 @keyframes appFadeIn {
   from {
     opacity: 0;

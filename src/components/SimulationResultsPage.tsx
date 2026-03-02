@@ -161,7 +161,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
         onValueChange={(value) => setActiveTab(value as SimulatorTab)}
         className="sim-tabs-container"
       >
-        <nav className="sim-tabs-wrapper">
+        <nav className="sim-tabs-wrapper responsive-scroll">
           <TabsList className="sim-tabs-list">
             <TabsTrigger value="summary" className="sim-tab-trigger">Summary</TabsTrigger>
             <TabsTrigger value="contracts" className="sim-tab-trigger">Contracts</TabsTrigger>
@@ -171,7 +171,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
         </nav>
 
         {/* Tab Content - blur transition on switch */}
-        <AnimatedTabContent activeKey={activeTab} className="sim-tab-content">
+        <AnimatedTabContent activeKey={activeTab} className="sim-tab-content responsive-scroll">
           {activeTab === "summary" && (
             <SummaryTab
               result={result}
