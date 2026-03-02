@@ -91,11 +91,14 @@ export default defineConfig(() => {
           rewrite: (path) => path.replace(/^\/api\/edb/, ""),
         },
         // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
+        // repo.sourcify.dev now 307-redirects to sourcify.dev/server/repository,
+        // so target the new location directly to avoid redirect/CORS issues.
         "/api/sourcify/repository": {
-          target: "https://repo.sourcify.dev",
+          target: "https://sourcify.dev",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/sourcify\/repository/, ""),
+          rewrite: (path) =>
+            path.replace(/^\/api\/sourcify\/repository/, "/server/repository"),
         },
         // Proxy for Sourcify Server API
         "/api/sourcify/server": {
@@ -113,44 +116,45 @@ export default defineConfig(() => {
           rewrite: (path) => path.replace(/^\/api\/sourcify/, ""),
         },
         // Proxy for Blockscout APIs - Ethereum mainnet
+        // Blockscout API lives at /api/v2/... so rewrite must preserve the /api prefix
         "/api/eth-blockscout": {
           target: "https://eth.blockscout.com",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/eth-blockscout/, ""),
+          rewrite: (path) => path.replace(/^\/api\/eth-blockscout/, "/api"),
         },
         // Base Blockscout (also default for many chains)
         "/api/blockscout": {
           target: "https://base.blockscout.com",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/blockscout/, ""),
+          rewrite: (path) => path.replace(/^\/api\/blockscout/, "/api"),
         },
         "/api/polygon-blockscout": {
           target: "https://polygon.blockscout.com",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/polygon-blockscout/, ""),
+          rewrite: (path) => path.replace(/^\/api\/polygon-blockscout/, "/api"),
         },
         "/api/arbitrum-blockscout": {
           target: "https://arbitrum.blockscout.com",
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/arbitrum-blockscout/, ""),
+          rewrite: (path) => path.replace(/^\/api\/arbitrum-blockscout/, "/api"),
         },
         "/api/base-sepolia-blockscout": {
           target: "https://base-sepolia.blockscout.com",
           changeOrigin: true,
           secure: true,
           rewrite: (path) =>
-            path.replace(/^\/api\/base-sepolia-blockscout/, ""),
+            path.replace(/^\/api\/base-sepolia-blockscout/, "/api"),
         },
         "/api/lisk-sepolia-blockscout": {
           target: "https://sepolia-blockscout.lisk.com",
           changeOrigin: true,
           secure: true,
           rewrite: (path) =>
-            path.replace(/^\/api\/lisk-sepolia-blockscout/, ""),
+            path.replace(/^\/api\/lisk-sepolia-blockscout/, "/api"),
         },
         // Proxy for Etherscan APIs
         "/api/basescan": {

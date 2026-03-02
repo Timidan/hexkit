@@ -579,7 +579,9 @@ const SimulationHistoryPage: React.FC = () => {
                     <StatusBadge status={sim.status} />
                   </TableCell>
                   <TableCell className="sim-history-td-id">
-                    <span className="sim-history-id">{sim.id}</span>
+                    <span className="sim-history-id" title={sim.id}>
+                      {sim.id.length > 12 ? `${sim.id.slice(0, 8)}…` : sim.id}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span className="sim-history-address" title={sim.from}>
