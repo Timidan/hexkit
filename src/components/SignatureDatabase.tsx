@@ -24,8 +24,8 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
   const db = useSignatureDatabase(initialTab, initialToolSubTab);
 
   return (
-    <div className="bg-background px-2 py-3 sm:px-3 max-w-4xl mx-auto">
-      <div className="tool-content-container">
+    <div className="bg-background px-2 py-3 sm:px-3 md:px-3 max-w-4xl mx-auto">
+      <div className="tool-content-container responsive-scroll">
         {/* Animated tab content with blur transition */}
         <AnimatedTabContent activeKey={db.activeTab}>
           {db.activeTab === "lookup" && (

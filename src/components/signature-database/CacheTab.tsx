@@ -77,7 +77,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-1">
+            <div className="mt-1 responsive-scroll">
               <List
                 style={{
                   height: Math.min(
@@ -147,7 +147,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-1">
+            <div className="mt-1 responsive-scroll">
               <List
                 style={{
                   height: Math.min(
@@ -217,7 +217,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-1">
+            <div className="mt-1 responsive-scroll">
               <List
                 style={{
                   height: Math.min(
