@@ -52,16 +52,6 @@ export default async function handler(
     return;
   }
 
-  // Temporary debug endpoint — remove after confirming path extraction works
-  if (req.url?.includes("__debug")) {
-    return res.status(200).json({
-      url: req.url,
-      query: req.query,
-      method: req.method,
-      bridgeUrl: bridgeUrl ? "SET" : "UNSET",
-    });
-  }
-
   // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes
   const urlPath = (req.url || "").split("?")[0];
   const subPath = urlPath.replace(/^\/api\/edb\/?/, "");
