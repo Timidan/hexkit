@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Bug, Check, X, Loader2, Square, ChevronRight } from 'lucide-react';
 import type { DebugPrepState } from '../../types/debug';
 import '../../styles/DebugPillButton.css';
@@ -36,22 +36,10 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
   onCancelPrep,
 }) => {
   const { status, stage, progressPct } = debugPrepState;
-  const [showFailed, setShowFailed] = useState(false);
-  const failTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const isPreparing = status === 'queued' || status === 'preparing';
   const isReady = status === 'ready';
   const isFailed = status === 'failed';
-
-  // Auto-clear failed state after 3s
-  useEffect(() => {
-    if (isFailed) {
-      setShowFailed(true);
-      failTimer.current = setTimeout(() => setShowFailed(false), 3000);
-      return () => clearTimeout(failTimer.current);
-    }
-    setShowFailed(false);
-  }, [isFailed]);
 
   // Derive the visual state
   const debugExplicitlyDisabled = debugEnabled === false;
@@ -106,10 +94,15 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
     );
   }
 
-  // ── Failed state (brief flash) ──────────
-  if (showFailed) {
+  // ── Failed state (persistent until reset) ──────────
+  if (isFailed) {
+    const failureMessage = debugPrepState.error || 'Debug preparation failed';
     return (
-      <button className="debug-pill debug-pill--failed" onClick={onCancelPrep}>
+      <button
+        className="debug-pill debug-pill--failed"
+        onClick={onCancelPrep}
+        title={failureMessage}
+      >
         <span className="debug-pill__content">
           <X size={14} />
           Prep Failed

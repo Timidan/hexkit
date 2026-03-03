@@ -212,6 +212,27 @@ class DebugBridgeService {
     let sessionId: string | null = null;
     let snapshotCount = 0;
     let sourceFiles: Record<string, string> = {};
+    let debugStartFailure: string | null = null;
+    let simulateFailure: string | null = null;
+
+    const clip = (value: string): string =>
+      value.length > 400 ? `${value.slice(0, 397)}...` : value;
+
+    const parseErrorText = async (response: Response): Promise<string> => {
+      const bodyText = await response.text().catch(() => '');
+      if (!bodyText) return response.statusText || 'Unknown error';
+      try {
+        const parsed = JSON.parse(bodyText);
+        if (parsed?.error && typeof parsed.error === 'string') {
+          const details =
+            parsed?.details && typeof parsed.details === 'string' ? ` (${parsed.details})` : '';
+          return clip(`${parsed.error}${details}`);
+        }
+      } catch {
+        // Fall through to raw text when body is not JSON.
+      }
+      return clip(bodyText);
+    };
 
     const startFromDebugEndpoint = async (): Promise<boolean> => {
       try {
@@ -227,11 +248,14 @@ class DebugBridgeService {
         });
 
         if (!response.ok) {
+          const reason = await parseErrorText(response);
+          debugStartFailure = `/debug/start ${response.status}: ${reason}`;
           return false;
         }
 
         const data = await response.json();
         if (!data?.sessionId) {
+          debugStartFailure = '/debug/start returned no sessionId';
           return false;
         }
 
@@ -243,6 +267,7 @@ class DebugBridgeService {
 
         const hasHookSnapshots = await this.sessionHasHookSnapshots(sessionId, snapshotCount);
         if (!hasHookSnapshots) {
+          debugStartFailure = '/debug/start session has no hook snapshots';
           try {
             await this.endSession({ sessionId });
           } catch {
@@ -255,7 +280,9 @@ class DebugBridgeService {
         }
 
         return true;
-      } catch {
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : 'Unknown error';
+        debugStartFailure = `/debug/start request failed: ${clip(reason)}`;
         return false;
       }
     };
@@ -284,11 +311,18 @@ class DebugBridgeService {
         });
 
         if (!simResponse.ok) {
+          const reason = await parseErrorText(simResponse);
+          simulateFailure = `/simulate ${simResponse.status}: ${reason}`;
           return false;
         }
 
         const simData = await simResponse.json();
         if (!simData?.debugSession?.sessionId) {
+          const simError =
+            typeof simData?.error === 'string'
+              ? simData.error
+              : 'simulate response did not include debugSession';
+          simulateFailure = `/simulate did not produce debug session: ${clip(simError)}`;
           return false;
         }
 
@@ -301,6 +335,7 @@ class DebugBridgeService {
         // Verify the /simulate session has hook snapshots (same as /debug/start path)
         const hasHookSnapshots = await this.sessionHasHookSnapshots(sessionId, snapshotCount);
         if (!hasHookSnapshots) {
+          simulateFailure = '/simulate session has no hook snapshots';
           try {
             await this.endSession({ sessionId });
           } catch {
@@ -312,7 +347,9 @@ class DebugBridgeService {
           return false;
         }
         return true;
-      } catch {
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : 'Unknown error';
+        simulateFailure = `/simulate request failed: ${clip(reason)}`;
         return false;
       }
     };
@@ -322,9 +359,14 @@ class DebugBridgeService {
       : ((await startFromSimulate()) || (await startFromDebugEndpoint()));
 
     if (!started || !sessionId) {
+      const failureParts: string[] = [];
+      if (debugStartFailure) failureParts.push(debugStartFailure);
+      if (simulateFailure) failureParts.push(simulateFailure);
+      const failureDetails = failureParts.join(' | ');
       throw new Error(
         'Failed to start debug session: both /debug/start and /simulate paths failed to produce a session with hook snapshots. ' +
-        'Ensure the contract has debug metadata and the simulation produced source-level snapshots.'
+        'Ensure the contract has debug metadata and the simulation produced source-level snapshots.' +
+        (failureDetails ? ` Details: ${failureDetails}` : '')
       );
     }
 
