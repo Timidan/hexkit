@@ -79,6 +79,7 @@ const simulationSemaphore = new SimulationSemaphore(
   SIMULATION_QUEUE_MAX,
   SIMULATION_QUEUE_TIMEOUT_MS,
 );
+const allowedOriginsSet = new Set(ALLOWED_ORIGINS);
 
 // =============================================================================
 // Helper: 503 Capacity Error Response
@@ -110,21 +111,11 @@ function send503(res, err) {
 // HTTP Server
 // =============================================================================
 
-const EDB_API_KEY = process.env.EDB_API_KEY || "";
-
-// Comma-separated list of allowed origins, e.g. "https://example.com,https://app.example.com"
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-);
-
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.size > 0 && ALLOWED_ORIGINS.has(origin)) {
+  if (allowedOriginsSet.size > 0 && allowedOriginsSet.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-  } else if (ALLOWED_ORIGINS.size === 0) {
+  } else if (allowedOriginsSet.size === 0) {
     res.setHeader("Access-Control-Allow-Origin", "*");
   }
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
@@ -204,9 +195,9 @@ const server = http.createServer(async (req, res) => {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "Access-Control-Allow-Origin":
-          ALLOWED_ORIGINS.size > 0 && ALLOWED_ORIGINS.has(origin)
+          allowedOriginsSet.size > 0 && allowedOriginsSet.has(origin)
             ? origin
-            : ALLOWED_ORIGINS.size === 0
+            : allowedOriginsSet.size === 0
               ? "*"
               : "",
       });
@@ -394,11 +385,15 @@ const server = http.createServer(async (req, res) => {
                 "[simulator-bridge] keep-alive simulation failed:",
                 err,
               );
+              const errorMessage =
+                err instanceof Error
+                  ? (err.message || "keep-alive simulation failed")
+                  : String(err);
 
               const isOutputTooLarge =
-                err.message?.includes("too large") ||
-                err.message?.includes("ERR_STRING_TOO_LONG") ||
-                err.message?.includes("string longer than");
+                errorMessage.includes("too large") ||
+                errorMessage.includes("ERR_STRING_TOO_LONG") ||
+                errorMessage.includes("string longer than");
               if (isOutputTooLarge) {
                 console.error(
                   "[simulator-bridge] trace output exceeds Node.js string limit, cannot proceed",
@@ -409,21 +404,22 @@ const server = http.createServer(async (req, res) => {
                     success: false,
                     error:
                       "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
-                    details: err.message,
+                    details: errorMessage,
                   }),
                 );
                 break;
               }
 
-              console.log(
-                "[simulator-bridge] falling back to regular simulation",
+              // Fail closed for debug requests: never silently downgrade to
+              // non-debug simulation when keep-alive bootstrap fails.
+              res.writeHead(502, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  success: false,
+                  error: "debug_bootstrap_failed",
+                  details: errorMessage,
+                }),
               );
-              const result = await runSimulation(payload);
-              let responsePayload = parseSimulationResult(result);
-              if (enableLiteTraceTransport) {
-                responsePayload = applyLiteTraceTransport(responsePayload);
-              }
-              sendJson(res, req, 200, responsePayload);
             }
           } else {
             try {

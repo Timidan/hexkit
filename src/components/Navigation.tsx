@@ -81,6 +81,13 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   // /simulations is the history page — highlight the "simulation" sub-tab
   if (pathname.startsWith("/simulations")) return "simulation";
   const params = new URLSearchParams(search);
+  // Replay is a simulation workflow even though it can carry dedicated replay params.
+  if (
+    tool.id === "builder" &&
+    (params.get("mode") === "replay" || params.get("replay") === "txhash")
+  ) {
+    return "simulation";
+  }
   for (const sub of tool.subTabs) {
     const val = params.get(sub.paramKey);
     if (val === sub.id) return sub.id;
