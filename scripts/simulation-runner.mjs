@@ -265,7 +265,7 @@ export function runSimulation(payload) {
             try { unlinkSync(tempFile); } catch {}
 
             if (readErr.code === 'ERR_STRING_TOO_LONG' || readErr.message?.includes('string longer than')) {
-              settleReject(new Error(`Trace output too large (${(totalBytes / 1024 / 1024).toFixed(0)} MB). This transaction has too many opcodes to process. Try a simpler transaction.`));
+              settleReject(new Error(`Trace output too large (${(totalBytes / 1024 / 1024).toFixed(0)} MB). The trace data exceeded processing limits. Try a simpler transaction.`));
             } else {
               settleReject(new Error(`Failed to read simulator output: ${readErr.message}`));
             }

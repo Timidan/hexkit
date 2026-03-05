@@ -219,7 +219,7 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
       const searchNext = async () => {
         if (currentSourceIndex >= searchSources.length) {
           setCurrentSearchProgress([]); clearAbort();
-          reject(new Error(`Contract not verified on any block explorer: ${errors.join(' | ')}`));
+          reject(new Error(`Could not retrieve ABI from any block explorer: ${errors.join(' | ')}`));
           return;
         }
         if (signal.aborted) {

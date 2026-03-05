@@ -215,6 +215,6 @@ export async function fetchSourcify(
 
   return {
     success: false,
-    error: 'Contract not verified on Sourcify',
+    error: 'Could not retrieve ABI from Sourcify',
   };
 }

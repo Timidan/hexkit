@@ -467,7 +467,7 @@ export function runSimulationWithKeepAlive(payload, options = {}) {
             if (e?.code === "ERR_STRING_TOO_LONG") {
               settleReject(
                 new Error(
-                  `Trace output too large (${(totalBytes / 1024 / 1024).toFixed(0)} MB). This transaction has too many opcodes to display. Consider using a simpler transaction.`,
+                  `Trace output too large (${(totalBytes / 1024 / 1024).toFixed(0)} MB). The trace data exceeded processing limits. Try a simpler transaction.`,
                 ),
               );
             } else if ((code === 0 || code === null || typeof code === "undefined") && !signal) {

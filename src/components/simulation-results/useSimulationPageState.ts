@@ -48,7 +48,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     decodedTraceMeta, setDecodedTraceMeta,
     simulationId: contextSimulationId, stripHeavyDataFromCurrentSimulation,
   } = useSimulation();
-  const { showSuccess } = useNotifications();
+  const { showSuccess, showError } = useNotifications();
   const {
     isDebugging, openDebugWindow, closeDebugWindow, session: debugSession,
     initFromTraceData, connectToSession, isLoading: isDebugLoading,
@@ -239,7 +239,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
   const handleExportTestData = useCallback(() => {
     if (!result) {
-      showSuccess("Export Failed", "No simulation data to export");
+      showError("Export Failed", "No simulation data to export");
       return;
     }
 
@@ -263,7 +263,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
     copyTextToClipboard(JSON.stringify(exportData, null, 2));
     showSuccess("Copied", "Simulation payload copied to clipboard");
-  }, [result, contractContext, showSuccess]);
+  }, [result, contractContext, showSuccess, showError]);
 
   // ---- Artifacts ----
   const artifacts = useMemo(() => {

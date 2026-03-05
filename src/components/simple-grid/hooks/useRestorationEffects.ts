@@ -122,7 +122,7 @@ export function useRestorationEffects(deps: RestorationDeps): void {
             address: initialContractData.address,
             chain: initialNetwork,
             abi: JSON.stringify(initialContractData.abi),
-            verified: true,
+            verified: false,
             name: initialContractData.name,
           };
           contractState.setContractInfo(info);
@@ -284,7 +284,7 @@ export function useRestorationEffects(deps: RestorationDeps): void {
               address: contractContext.address,
               chain: matchingNetwork,
               abi: abiString,
-              verified: true,
+              verified: false,
               name: contractContext.name,
             };
             contractState.setContractInfo(restoredInfo);

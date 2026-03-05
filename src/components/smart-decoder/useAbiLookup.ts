@@ -67,7 +67,7 @@ export const fetchABIFromEtherscanInstances = async (
             errors.push(`${instance.name}: invalid ABI format`);
           }
         } else {
-          errors.push(`${instance.name}: ${data.message || 'contract not verified'}`);
+          errors.push(`${instance.name}: ${data.message || 'ABI not available'}`);
         }
       } else {
         errors.push(`${instance.name}: API error ${response.status}`);
@@ -79,7 +79,7 @@ export const fetchABIFromEtherscanInstances = async (
     }
   }
 
-  throw new Error(`Contract not verified on any Etherscan instance: ${errors.join(', ')}`);
+  throw new Error(`Could not retrieve ABI from Etherscan: ${errors.join(', ')}`);
 };
 
 /**
@@ -127,7 +127,7 @@ export const fetchABIFromBlockscoutInstances = async (
             sourceName: instance.name,
           };
         } else {
-          errors.push(`${instance.name}: contract not verified`);
+          errors.push(`${instance.name}: ABI not available`);
         }
       } else if (response.status === 404) {
         errors.push(`${instance.name}: contract not found`);
@@ -141,7 +141,7 @@ export const fetchABIFromBlockscoutInstances = async (
     }
   }
 
-  throw new Error(`Contract not verified on any Blockscout instance: ${errors.join(', ')}`);
+  throw new Error(`Could not retrieve ABI from Blockscout: ${errors.join(', ')}`);
 };
 
 /**

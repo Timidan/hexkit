@@ -338,7 +338,7 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
         const lineNum = typeof row.line === "number" ? row.line : Number(row.line);
         const hasLineHint = Number.isFinite(lineNum) && lineNum > 0;
         const hasSource = hasLineHint && !!resolveSourceContent(row.sourceFile);
-        const canOpenSourcePanel = hasSource || !!row.isUnverifiedContract || hasLineHint;
+        const canOpenSourcePanel = hasSource || !!row.hasNoSourceMaps || hasLineHint;
         const frameInfo = frameHierarchy.get(row.id);
         const isEntryFrame = frameInfo?.isEntry ?? false;
         const isExplicitEntry = !!(row.entry && row.entryMeta);
@@ -355,7 +355,7 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
         return (
           <React.Fragment key={row.id}>
             <div
-              className={`${rowClasses}${hasSource || row.isUnverifiedContract ? " has-source" : ""}${isEntryFrame ? " entry-frame" : ""}${row.isInternalCall ? " internal-call" : ""}${row.isInternalReturn ? " internal-return" : ""}`}
+              className={`${rowClasses}${hasSource || row.hasNoSourceMaps ? " has-source" : ""}${isEntryFrame ? " entry-frame" : ""}${row.isInternalCall ? " internal-call" : ""}${row.isInternalReturn ? " internal-return" : ""}`}
               data-internal-call={row.isInternalCall ? "true" : undefined}
               data-internal-return={row.isInternalReturn ? "true" : undefined}
               data-visual-depth={row.visualDepth ?? row.depth ?? 0}
@@ -750,15 +750,15 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
         return renderSnippet(row);
       }
 
-      if (!hasSource && (row.isUnverifiedContract || hasLineHint)) {
+      if (!hasSource && (row.hasNoSourceMaps || hasLineHint)) {
         return (
           <div className="exec-no-source-notice">
-            <div className="exec-no-source-header">No source for this contract</div>
+            <div className="exec-no-source-header">Source code not available</div>
             <div className="exec-no-source-address">
               Contract address: {row.entryMeta?.codeAddress || row.entryMeta?.target || row.contract}
             </div>
             <div className="exec-no-source-message">
-              Unfortunately we do not have the source code for this contract to display the exact line of code.
+              Source code is not available for this contract address, so the exact line cannot be displayed.
             </div>
             <div className="exec-no-source-actions">
               <Button type="button" variant="ghost" className="exec-no-source-button" disabled>

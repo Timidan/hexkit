@@ -266,6 +266,6 @@ export async function fetchBlockscout(
 
   return {
     success: false,
-    error: `Contract not verified on Blockscout: ${lastError}`,
+    error: `Could not retrieve ABI from Blockscout: ${lastError}`,
   };
 }

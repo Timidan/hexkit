@@ -114,7 +114,7 @@ export async function fetchEtherscan(
       const abiString = contract?.ABI;
 
       if (!abiString || !isAbiVerified(abiString)) {
-        lastError = 'Contract not verified on Etherscan';
+        lastError = 'ABI not available on Etherscan';
         continue;
       }
 
@@ -235,7 +235,7 @@ export async function fetchEtherscan(
     success: false,
     error: needsApiKey
       ? 'Etherscan API requires a valid API key. Add one in settings and retry.'
-      : `Contract not verified on Etherscan: ${lastError}`,
+      : `Could not retrieve ABI from Etherscan: ${lastError}`,
     needsApiKey,
   };
 }

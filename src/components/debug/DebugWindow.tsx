@@ -319,7 +319,7 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
                 <Bug className="h-12 w-12 mx-auto mb-4 text-yellow-400" />
                 <p className="text-yellow-400 mb-2">No Debug Session Available</p>
                 <p className="text-sm max-w-sm mx-auto">
-                  This simulation doesn't have debug data. Re-run the simulation to enable debugging.
+                  This simulation doesn't have debug data. Re-run the simulation with the Debug toggle enabled.
                 </p>
               </>
             ) : (

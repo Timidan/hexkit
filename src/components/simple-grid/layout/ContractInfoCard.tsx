@@ -244,7 +244,13 @@ export default function ContractInfoCard(): React.ReactElement | null {
                 size="sm"
                 className="uppercase tracking-wide cursor-help gap-1"
                 style={{ flexShrink: 0, flexGrow: 0, width: "fit-content" }}
-                title={`Contract ABI verified from ${
+                title={`Contract ABI ${
+                  ["sourcify", "etherscan", "blockscout"].includes(abiSource)
+                    ? "verified"
+                    : abiSource === "blockscout-bytecode"
+                      ? "matched"
+                      : "loaded"
+                } from ${
                   abiSource === "blockscout-bytecode"
                     ? "Blockscout Bytecode DB"
                     : abiSource.charAt(0).toUpperCase() +
@@ -256,7 +262,13 @@ export default function ContractInfoCard(): React.ReactElement | null {
                       ? "Verified contract explorer"
                       : abiSource === "blockscout-bytecode"
                         ? "Shared bytecode database fallback"
-                        : "Blockchain explorer verification"
+                        : abiSource === "whatsabi"
+                          ? "ABI reconstructed from bytecode analysis"
+                          : abiSource === "manual"
+                            ? "Manually provided ABI"
+                            : abiSource === "restored"
+                              ? "Restored from previous session"
+                              : "Blockchain explorer"
                 }`}
               >
                 {abiSource === "blockscout-bytecode"

@@ -275,9 +275,7 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
           <div className="exec-trace-diagnostics">
             {!isDecoding && !traceDiagnostics.hasRawTrace && (
               <div className="exec-trace-warning">
-                No rawTrace was returned by the simulator. Ensure the EDB
-                simulator bridge is running at the configured endpoint and the
-                simulation succeeded.
+                No execution trace data available. This can happen if the EDB bridge is not running or the transaction had no contract interactions.
               </div>
             )}
             {!isDecoding && traceDiagnostics.hasRawTrace && !traceDiagnostics.hasSnapshots && (
@@ -313,11 +311,11 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                 }}
               >
                 <span style={{ fontWeight: 600 }}>
-                  {"\u2139\uFE0F"} Limited debugging info:
+                  {"\u2139\uFE0F"} Reduced debug detail:
                 </span>{" "}
                 {traceDiagnostics.artifactWarning}
                 <div style={{ marginTop: "6px", opacity: 0.8, fontSize: "13px" }}>
-                  Clicking on trace rows won't show source code. Event decoding may also be limited.
+                  Trace rows won't link to source code, and event decoding may be incomplete.
                 </div>
               </div>
             )}

@@ -261,7 +261,7 @@ class ContractResolver {
 
     return {
       ...createEmptyResult(address, chainId, chain),
-      error: errorMessages || 'Contract not verified on any source',
+      error: errorMessages || 'Could not retrieve contract ABI from any source',
       durationMs,
       attempts,
     };

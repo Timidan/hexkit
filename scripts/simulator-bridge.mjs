@@ -403,7 +403,7 @@ const server = http.createServer(async (req, res) => {
                   JSON.stringify({
                     success: false,
                     error:
-                      "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
+                      "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
                     details: errorMessage,
                   }),
                 );
@@ -441,7 +441,7 @@ const server = http.createServer(async (req, res) => {
                   JSON.stringify({
                     success: false,
                     error:
-                      "Transaction trace is too large to process. This transaction has too many opcodes (likely a complex DeFi transaction). Try simulating a simpler transaction.",
+                      "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
                     details: err.message,
                   }),
                 );

@@ -389,7 +389,7 @@ const SmartDecoder: React.FC = () => {
               <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/30">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-xs text-emerald-400">Using {contractMetadata?.name || 'verified'} ABI</span>
+                  <span className="text-xs text-emerald-400">Using {contractMetadata?.name || 'loaded'} ABI</span>
                 </div>
                 <Button
                   type="button"

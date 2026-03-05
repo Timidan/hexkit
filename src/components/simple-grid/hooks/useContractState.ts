@@ -326,7 +326,7 @@ export function useContractState(deps: UseContractStateDeps) {
             address: result.address,
             chain: result.chain,
             abi: result.abi,
-            verified: true,
+            verified: !!result.verified,
             name: result.contractName || undefined,
           };
           if (isStale()) return;
