@@ -232,12 +232,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
 
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [isHovered, setIsHovered] = useState(false);
-  const [valueExpanded, setValueExpanded] = useState(false);
-
-  const isLongValue = !isCollapsible &&
-    node.value !== undefined &&
-    typeof node.value === 'string' &&
-    node.value.length > 120;
 
   useEffect(() => {
     setCollapsed(defaultCollapsed);
@@ -247,7 +241,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
     if (!globalAction) return;
     startTransition(() => {
       setCollapsed(globalAction.type === 'collapse');
-      setValueExpanded(globalAction.type === 'expand');
     });
   }, [globalAction]);
 
@@ -256,16 +249,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
     if (!collapsed) return '';
     return collapsedPreview(node, options.previewItems ?? DEFAULT_OPTIONS.previewItems);
   }, [collapsed, isCollapsible, node, options.previewItems]);
-
-  const truncatedDisplayValue = useMemo(() => {
-    if (!isLongValue || node.value === undefined) return undefined;
-    const val = String(node.value);
-    if (val.startsWith('0x')) {
-      const byteCount = (val.length - 2) / 2;
-      return `${val.slice(0, 10)}\u2026${val.slice(-8)} (${byteCount.toLocaleString()} bytes)`;
-    }
-    return `${val.slice(0, 50)}\u2026 (${val.length.toLocaleString()} chars)`;
-  }, [isLongValue, node.value]);
 
   const summary = useMemo(() => buildSummary(node), [node]);
 
@@ -290,11 +273,9 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
 
   const getSerializedCopyValue = useCallback(() => serializeNode(node), [node]);
 
-  const displayValue = isLongValue
-    ? (valueExpanded ? undefined : truncatedDisplayValue)
-    : (node.value !== undefined
-      ? formatDisplayValue(node.value, node.type)
-      : preview);
+  const displayValue = node.value !== undefined
+    ? formatDisplayValue(node.value, node.type)
+    : preview;
 
   const typeStyle = getTypeConfig(node.type);
   const TypeIcon = typeStyle.icon;
@@ -308,7 +289,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
     <div
       className={cn(
         'cv-node group relative rounded-md px-2 py-1.5',
-        (isCollapsible || isLongValue) && 'cursor-pointer'
+        isCollapsible && 'cursor-pointer'
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -328,7 +309,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
       {/* Single flowing row: [toggle] [label] [badge] [summary] [data...wraps] [copy] */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {/* Toggle button — always stays on first line */}
-        {isCollapsible || isLongValue ? (
+        {isCollapsible ? (
           <CollapsibleTrigger asChild>
             <Button
               variant="ghost"
@@ -336,11 +317,11 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
               className={cn(
                 'h-5 w-5 p-0 shrink-0 text-slate-500 hover:text-slate-300',
                 'transition-transform duration-200',
-                (isCollapsible ? !collapsed : valueExpanded) && 'text-slate-400'
+                !collapsed && 'text-slate-400'
               )}
               onClick={(e) => e.stopPropagation()}
             >
-              {(isCollapsible ? collapsed : !valueExpanded) ? (
+              {collapsed ? (
                 <ChevronRight className="h-3.5 w-3.5" />
               ) : (
                 <ChevronDown className="h-3.5 w-3.5" />
@@ -433,29 +414,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
   );
 
   if (!isCollapsible) {
-    if (isLongValue) {
-      return (
-        <Collapsible
-          open={valueExpanded}
-          onOpenChange={(open) => startTransition(() => setValueExpanded(open))}
-          className="mb-0.5"
-        >
-          {nodeContent}
-          <CollapsibleContent>
-            <ScrollArea className="max-h-[300px]">
-              <div className={cn(
-                'ml-7 mt-1 p-3 rounded-md',
-                'bg-zinc-900/40 border border-zinc-800/40',
-                'font-mono text-xs text-white/70',
-                'break-all whitespace-pre-wrap'
-              )}>
-                {formatDisplayValue(node.value, node.type)}
-              </div>
-            </ScrollArea>
-          </CollapsibleContent>
-        </Collapsible>
-      );
-    }
     return <div className="mb-0.5">{nodeContent}</div>;
   }
 
