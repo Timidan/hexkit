@@ -1,10 +1,11 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import {
   Settings as SettingsIcon,
   HardDrive,
   Menu,
   X,
   Search,
+  Zap,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -31,6 +32,28 @@ const TopBar: React.FC<TopBarProps> = ({
   isMobileMenuOpen,
 }) => {
   const { isMobile } = useBreakpoint();
+  const { config } = useNetworkConfig();
+
+  const needsKeys =
+    config.rpcMode === "DEFAULT" && !config.etherscanApiKey?.trim();
+
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  useEffect(() => {
+    if (!needsKeys) {
+      setPopoverOpen(false);
+      return;
+    }
+    const openTimer = setTimeout(() => setPopoverOpen(true), 1500);
+    return () => clearTimeout(openTimer);
+  }, [needsKeys]);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const closeTimer = setTimeout(() => setPopoverOpen(false), 5000);
+    return () => clearTimeout(closeTimer);
+  }, [popoverOpen]);
+
   return (
     <header
       className={cn(
