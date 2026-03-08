@@ -34,6 +34,7 @@ const StorageLayoutViewer: React.FC = () => {
                 isLoading={state.isLoading || state.isFetchPending}
                 error={state.error}
                 onFetchABI={state.handleFetch}
+                onCancel={state.handleCancel}
                 fetchIcon={<StorageGridIcon size={16} state={state.iconState} />}
                 fetchLabel="Load storage layout"
                 className="flex-1"

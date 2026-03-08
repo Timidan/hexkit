@@ -85,6 +85,7 @@ export function useStorageViewerState() {
     loadingPhase,
     error,
     loadStorageForContract,
+    cancelLoad,
     seedFromLayout,
     seedDiamondNamespace,
     addManualSlot,
@@ -92,6 +93,9 @@ export function useStorageViewerState() {
     readSlotFromEdb,
     readSlotFromRpc,
   } = useStorageEvidence();
+
+  // AbortController for the resolveContractContext phase (before evidence loading starts)
+  const contextAbortRef = useRef<AbortController | null>(null);
 
   // Computed filter: during loading (before layout arrives), force 'all' so
   // RPC-seeded slots are immediately visible instead of an empty 'resolved' view.
@@ -219,9 +223,23 @@ export function useStorageViewerState() {
 
   // ─── Actions ────────────────────────────────────────────────────────
 
+  const handleCancel = useCallback(() => {
+    contextAbortRef.current?.abort();
+    contextAbortRef.current = null;
+    cancelLoad();
+    setIsFetchPending(false);
+    setPostLoadResolving(false);
+    discovery.stopScan();
+  }, [cancelLoad, discovery]);
+
   const handleFetch = useCallback(async () => {
     const addr = contractAddress.trim();
     if (!addr) return;
+
+    // Abort any previous fetch
+    contextAbortRef.current?.abort();
+    const controller = new AbortController();
+    contextAbortRef.current = controller;
 
     // Immediate visual feedback
     setIsFetchPending(true);
@@ -242,11 +260,13 @@ export function useStorageViewerState() {
     const chain = getChainById(chainId);
     if (chain) {
       try {
+        if (controller.signal.aborted) return;
         const ctx = await resolveContractContext(addr, chain, {
           abi: true,
           proxy: true,
           token: false,
           diamond: true,
+          signal: controller.signal,
         });
 
         const name = ctx.implementationName || ctx.name;
@@ -298,6 +318,7 @@ export function useStorageViewerState() {
     }
 
     setIsFetchPending(false);
+    if (controller.signal.aborted) return;
     await loadStorageForContract({
       chainId,
       address: addr,
@@ -371,7 +392,7 @@ export function useStorageViewerState() {
 
     performance.mark('storage-fetch-end');
     performance.measure('storage-slot-table-paint', 'storage-fetch-start', 'storage-fetch-end');
-  }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc]);
+  }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc, discovery]);
 
   // URL intent handling
   useEffect(() => {
@@ -728,7 +749,7 @@ export function useStorageViewerState() {
     keyBySlot, stats, computedSlot, filteredSlots, displayRows, historyRows, treeGroups,
     isHistoryView, isMappingView, sessionId,
     tableHeaderRef, charLimits,
-    handleFetch, handleProbeSlot, toggleSlotExpansion, handleInspect,
+    handleFetch, handleCancel, handleProbeSlot, toggleSlotExpansion, handleInspect,
     handleKeyLookup, handleHistory, handleExportCsv,
     handleStartDiscovery, handleRescanDiscovery,
     hasData, hasSession, showSkeleton, showTable, isResolvingInBackground, iconState,

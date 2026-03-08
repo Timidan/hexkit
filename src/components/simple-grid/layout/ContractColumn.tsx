@@ -46,6 +46,7 @@ export default function ContractColumn(): React.ReactElement {
     manualAbi,
     savedContracts,
     handleFetchABI,
+    handleCancelFetch,
     handleManualAddressChange,
     loadContractFromStorage,
     navigate,
@@ -183,6 +184,7 @@ export default function ContractColumn(): React.ReactElement {
               isLoading={isLoadingABI}
               error={abiError}
               onFetchABI={handleFetchABI}
+              onCancel={handleCancelFetch}
               contractName={resolvedContractName}
               abiSource={abiSource}
               tokenInfo={tokenInfo}

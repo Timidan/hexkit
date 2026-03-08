@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Search, X, CheckCircle2 } from "lucide-react";
+import { Search, X, Square, CheckCircle2 } from "lucide-react";
 import { ethers } from "ethers";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,8 @@ export interface ContractAddressInputProps {
   fetchIcon?: React.ReactNode;
   /** Custom title/aria-label for the fetch button */
   fetchLabel?: string;
+  /** Callback to cancel an in-progress loading sequence */
+  onCancel?: () => void;
 }
 
 const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
@@ -101,6 +103,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
   className = "",
   fetchIcon,
   fetchLabel,
+  onCancel,
 }) => {
   const extendedNetworks = useMemo<ExtendedChain[]>(
     () => supportedChains.map(mapChainToExtended),
@@ -179,32 +182,46 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               variant="input"
             />
 
-            {/* Search Button - minimal icon */}
+            {/* Search / Cancel Button */}
             {onFetchABI && (
-              <Button
-                type="button"
-                variant="icon-borderless"
-                size="icon-inline"
-                onClick={onFetchABI}
-                disabled={!isValidAddress || isLoading}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  "text-foreground/70 hover:text-foreground hover:bg-muted",
-                  fetchIcon
-                    ? "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
-                    : "disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
-                )}
-                title={fetchLabel || "Fetch ABI"}
-                aria-label={fetchLabel || "Fetch ABI"}
-              >
-                {fetchIcon ? (
-                  fetchIcon
-                ) : isLoading ? (
-                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                ) : (
-                  <Search size={16} />
-                )}
-              </Button>
+              isLoading && onCancel ? (
+                <Button
+                  type="button"
+                  variant="icon-borderless"
+                  size="icon-inline"
+                  onClick={onCancel}
+                  className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  title="Cancel loading"
+                  aria-label="Cancel loading"
+                >
+                  <Square size={14} fill="currentColor" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="icon-borderless"
+                  size="icon-inline"
+                  onClick={onFetchABI}
+                  disabled={!isValidAddress || isLoading}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    "text-foreground/70 hover:text-foreground hover:bg-muted",
+                    fetchIcon
+                      ? "disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                      : "disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-foreground/70"
+                  )}
+                  title={fetchLabel || "Fetch ABI"}
+                  aria-label={fetchLabel || "Fetch ABI"}
+                >
+                  {fetchIcon ? (
+                    fetchIcon
+                  ) : isLoading ? (
+                    <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                  ) : (
+                    <Search size={16} />
+                  )}
+                </Button>
+              )
             )}
           </div>
         </div>

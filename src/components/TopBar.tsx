@@ -1,9 +1,11 @@
-import React, { Suspense } from "react";
-import { Settings as SettingsIcon, HardDrive } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Settings as SettingsIcon, HardDrive, Zap } from "lucide-react";
 import { Button } from "./ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import RainbowKitWallet from "./RainbowKitWallet";
 import EdbBridgeStatus from "./EdbBridgeStatus";
 import UniversalSearchBar from "./UniversalSearchBar";
+import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
 import { cn } from "@/lib/utils";
 
 interface TopBarProps {
@@ -17,6 +19,28 @@ const TopBar: React.FC<TopBarProps> = ({
   onOpenStorageManager,
   className,
 }) => {
+  const { config } = useNetworkConfig();
+
+  const needsKeys =
+    config.rpcMode === "DEFAULT" && !config.etherscanApiKey?.trim();
+
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  useEffect(() => {
+    if (!needsKeys) {
+      setPopoverOpen(false);
+      return;
+    }
+    const openTimer = setTimeout(() => setPopoverOpen(true), 1500);
+    return () => clearTimeout(openTimer);
+  }, [needsKeys]);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const closeTimer = setTimeout(() => setPopoverOpen(false), 5000);
+    return () => clearTimeout(closeTimer);
+  }, [popoverOpen]);
+
   return (
     <header
       className={cn(
@@ -67,17 +91,52 @@ const TopBar: React.FC<TopBarProps> = ({
         >
           <HardDrive size={15} />
         </Button>
-        <Button
-          type="button"
-          variant="icon-borderless"
-          size="icon-inline"
-          className="rpc-settings-trigger"
-          onClick={onOpenRpcSettings}
-          title="RPC Settings"
-          aria-label="RPC settings"
-        >
-          <SettingsIcon size={16} />
-        </Button>
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="icon-borderless"
+              size="icon-inline"
+              className="rpc-settings-trigger relative"
+              onClick={(e) => {
+                e.preventDefault();
+                setPopoverOpen(false);
+                onOpenRpcSettings();
+              }}
+              title="RPC Settings"
+              aria-label="RPC settings"
+            >
+              <SettingsIcon size={16} />
+              {needsKeys && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400"
+                  style={{ animation: "rpc-hint-pulse 2s ease-in-out infinite" }}
+                />
+              )}
+            </Button>
+          </PopoverTrigger>
+          {needsKeys && (
+            <PopoverContent
+              side="bottom"
+              align="end"
+              sideOffset={8}
+              className="w-64 p-3"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="flex items-start gap-2.5">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <div>
+                  <p className="text-xs font-medium leading-snug">
+                    Add your own RPC & Etherscan keys for faster performance
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                    Settings are stored locally in your browser
+                  </p>
+                </div>
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
         <RainbowKitWallet />
       </div>
     </header>
