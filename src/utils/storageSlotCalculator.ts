@@ -64,6 +64,16 @@ export function computeNamespaceRoot(namespace: string): bigint {
   return BigInt(ethers.utils.keccak256(ethers.utils.toUtf8Bytes(namespace)));
 }
 
+/** Well-known ERC-1967 proxy slot hashes */
+export const PROXY_SLOTS: Record<string, string> = {
+  '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc': 'ERC-1967 Implementation',
+  '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103': 'ERC-1967 Admin',
+  '0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50': 'ERC-1967 Beacon',
+};
+
+/** 32-byte zero word constant */
+export const ZERO_WORD = '0x' + '0'.repeat(64);
+
 /** Well-known diamond namespace strings */
 export const DIAMOND_NAMESPACES = [
   'diamond.standard.diamond.storage',  // canonical mudgen

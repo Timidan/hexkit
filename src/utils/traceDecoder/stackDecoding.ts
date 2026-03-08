@@ -19,7 +19,7 @@ const MAX_ARRAY_PREVIEW_ELEMENTS = 16;
 const MAX_INLINE_ARG_CHARS = 220;
 const TYPE_QUALIFIER_REGEX = /\b(memory|calldata|storage|payable)\b/gi;
 
-const truncateMiddle = (value: string, maxChars = MAX_INLINE_ARG_CHARS): string => {
+export const truncateMiddle = (value: string, maxChars = MAX_INLINE_ARG_CHARS): string => {
   if (!value || value.length <= maxChars) return value;
   const keep = Math.max(8, Math.floor((maxChars - 1) / 2));
   return `${value.slice(0, keep)}…${value.slice(-keep)}`;

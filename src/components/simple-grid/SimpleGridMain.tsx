@@ -10,7 +10,6 @@
 import React, {
   useEffect,
   useRef,
-  type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -41,43 +40,7 @@ import { useSimulationState } from "./hooks/useSimulationState";
 import { useRestorationEffects } from "./hooks/useRestorationEffects";
 import { useSharedEffects } from "./hooks/useSharedEffects";
 import { buildGridContextValue } from "./buildGridContextValue";
-
-interface SimpleGridUIProps {
-  contractModeToggle?: ReactNode;
-  mode?: "live" | "simulation";
-  initialContractData?: {
-    address: string;
-    name?: string;
-    abi: any[];
-    networkId: number;
-    networkName?: string;
-    selectedFunction?: string;
-    selectedFunctionType?: "read" | "write";
-    functionInputs?: Record<string, string>;
-    calldata?: string;
-    fromAddress?: string;
-    ethValue?: string;
-    blockOverride?: string;
-    debugEnabled?: boolean;
-    tokenType?: "ERC20" | "ERC721" | "ERC1155" | "ERC777" | "ERC4626" | null;
-    tokenSymbol?: string;
-    tokenDecimals?: number;
-    proxyType?: string;
-    implementationAddress?: string;
-    implementations?: string[];
-    beaconAddress?: string;
-    adminAddress?: string;
-    diamondFacets?: Array<{
-      address: string;
-      name?: string;
-      selectors?: string[];
-      abi?: any[];
-      source?: string;
-      isVerified?: boolean;
-      functions?: { read: unknown[]; write: unknown[] };
-    }>;
-  };
-}
+import type { SimpleGridUIProps } from "./types";
 
 const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   contractModeToggle,

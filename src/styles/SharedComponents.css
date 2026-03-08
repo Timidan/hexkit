@@ -942,6 +942,8 @@
   word-break: break-word;
   overflow-wrap: anywhere;
   color: var(--text-primary);
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .copyable-result-content *,

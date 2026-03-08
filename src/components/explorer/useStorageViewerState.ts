@@ -14,6 +14,7 @@ import {
   computeNestedMappingSlot,
   formatSlotHex,
   parseSlotInput,
+  ZERO_WORD,
 } from '../../utils/storageSlotCalculator';
 import { resolveContractContext } from '../../utils/resolver/contractContext';
 import { resolveLeafValueType } from '../../utils/storageLayoutResolver';
@@ -351,7 +352,6 @@ export function useStorageViewerState() {
             let namespaceOffset: bigint | undefined;
 
             if (nsResult.namespaceRoot) {
-              const ZERO_WORD = '0x' + '0'.repeat(64);
               const probeEntries = facetLayout.layout.storage
                 .filter((e) => BigInt(e.slot) < 256n)
                 .slice(0, 5);

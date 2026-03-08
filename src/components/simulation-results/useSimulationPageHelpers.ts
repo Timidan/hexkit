@@ -17,6 +17,17 @@ export type InternalInfoRow = {
   hasChildren?: boolean;
 };
 
+/** Check whether decoded trace rows contain internal call hierarchy info */
+export const hasInternalInfo = (rows?: InternalInfoRow[]): boolean =>
+  Array.isArray(rows) &&
+  rows.some(
+    (row) =>
+      row?.jumpMarker ||
+      row?.destFn ||
+      row?.isInternalCall ||
+      row?.hasChildren
+  );
+
 // ---- Context / result extras ------------------------------------------
 
 export type ContractContextExtras = {

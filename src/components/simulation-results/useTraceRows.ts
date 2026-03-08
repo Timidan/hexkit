@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import type { SimulationCallNode } from "../../utils/simulationArtifacts";
 import type { TraceRow } from "./types";
 import { getOpcodeName, snapshotFrameKey } from "./formatters";
+import { splitTopLevel } from "../execution-trace/traceRowHelpers";
+import { truncateMiddle } from "../../utils/traceDecoder/stackDecoding";
 
 interface UseTraceRowsParams {
   callSummaryRow: TraceRow | null;
@@ -23,34 +25,10 @@ export function useTraceRows({
   decodedTrace,
 }: UseTraceRowsParams): TraceRow[] {
   return useMemo<TraceRow[]>(() => {
-    const truncateMiddle = (value: string, maxChars = 180): string => {
-      if (!value || value.length <= maxChars) return value;
-      const keep = Math.max(8, Math.floor((maxChars - 1) / 2));
-      return `${value.slice(0, keep)}…${value.slice(-keep)}`;
-    };
-
     const formatJumpArgs = (
       decodedArgs: Array<{ name: string; value: string }> | null | undefined
     ): { preview?: string; full?: string } => {
       if (!decodedArgs || decodedArgs.length === 0) return {};
-
-      const splitTopLevel = (value: string): string[] => {
-        const parts: string[] = [];
-        let current = "";
-        let depth = 0;
-        for (const ch of value) {
-          if (ch === "[" || ch === "{" || ch === "(") depth += 1;
-          if (ch === "]" || ch === "}" || ch === ")") depth = Math.max(0, depth - 1);
-          if (ch === "," && depth === 0) {
-            if (current.trim()) parts.push(current.trim());
-            current = "";
-            continue;
-          }
-          current += ch;
-        }
-        if (current.trim()) parts.push(current.trim());
-        return parts;
-      };
 
       const compactStructuredValue = (rawValue: string): string => {
         const value = String(rawValue ?? "").trim();
