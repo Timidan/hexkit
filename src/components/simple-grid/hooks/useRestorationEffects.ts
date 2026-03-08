@@ -11,6 +11,14 @@ import type { DiamondFacet } from "../../../utils/diamondFacetFetcher";
 import type { SimulationContractContext } from "../../../contexts/SimulationContext";
 import type { AbiSourceType } from "../GridContext";
 
+/** Serialize a decoded ABI argument to a string for form restoration. */
+function serializeDecodedArg(arg: unknown): string {
+  if (ethers.BigNumber.isBigNumber(arg)) return arg.toString();
+  if (typeof arg === 'bigint') return arg.toString();
+  if (Array.isArray(arg)) return JSON.stringify(arg);
+  return String(arg);
+}
+
 interface RestorationDeps {
   initialContractData: any;
   contractContext: SimulationContractContext | null;
@@ -141,11 +149,7 @@ export function useRestorationEffects(deps: RestorationDeps): void {
             if (decoded && decoded.args) {
               inputsToRestore = {};
               decoded.functionFragment.inputs.forEach((input: any, idx: number) => {
-                const arg = decoded.args[idx];
-                const serialized = ethers.BigNumber.isBigNumber(arg) ? arg.toString()
-                  : typeof arg === 'bigint' ? arg.toString()
-                  : Array.isArray(arg) ? JSON.stringify(arg)
-                  : String(arg);
+                const serialized = serializeDecodedArg(decoded.args[idx]);
                 inputsToRestore![`${decoded.name}_${idx}`] = serialized;
                 if (input.name) inputsToRestore![input.name] = serialized;
               });
@@ -346,11 +350,7 @@ export function useRestorationEffects(deps: RestorationDeps): void {
                 if (decoded && decoded.args) {
                   ctxInputsToRestore = {};
                   decoded.functionFragment.inputs.forEach((input: any, idx: number) => {
-                    const arg = decoded.args[idx];
-                    const serialized = ethers.BigNumber.isBigNumber(arg) ? arg.toString()
-                      : typeof arg === 'bigint' ? arg.toString()
-                      : Array.isArray(arg) ? JSON.stringify(arg)
-                      : String(arg);
+                    const serialized = serializeDecodedArg(decoded.args[idx]);
                     ctxInputsToRestore![`${decoded.name}_${idx}`] = serialized;
                     if (input.name) ctxInputsToRestore![input.name] = serialized;
                   });
@@ -436,11 +436,7 @@ export function useRestorationEffects(deps: RestorationDeps): void {
         const decoded = iface.decodeFunctionData(func.name, pending.calldata);
         const recovered: Record<string, string> = {};
         func.inputs.forEach((input: any, idx: number) => {
-          const arg = decoded[idx];
-          const serialized = ethers.BigNumber.isBigNumber(arg) ? arg.toString()
-            : typeof arg === 'bigint' ? arg.toString()
-            : Array.isArray(arg) ? JSON.stringify(arg)
-            : String(arg);
+          const serialized = serializeDecodedArg(decoded[idx]);
           recovered[`${func.name}_${idx}`] = serialized;
           if (input.name) {
             recovered[input.name] = serialized;

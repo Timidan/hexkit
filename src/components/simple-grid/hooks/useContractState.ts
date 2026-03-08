@@ -136,7 +136,6 @@ export function useContractState(deps: UseContractStateDeps) {
   const [abiSource, setAbiSource] = useState<AbiSourceType>(null);
   const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
-  const [isLoadingContractInfo, setIsLoadingContractInfo] = useState(false);
   const [showSavedContracts, setShowSavedContracts] = useState(false);
   const [showAbiUpload, setShowAbiUpload] = useState(false);
   const [manualAbi, setManualAbi] = useState("");
@@ -562,7 +561,6 @@ export function useContractState(deps: UseContractStateDeps) {
     abiSource, setAbiSource,
     searchProgress, setSearchProgress,
     contractInfo, setContractInfo,
-    isLoadingContractInfo, setIsLoadingContractInfo,
     showSavedContracts, setShowSavedContracts,
     showAbiUpload, setShowAbiUpload,
     manualAbi, setManualAbi,
