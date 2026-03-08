@@ -16,9 +16,9 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-4 pb-24">
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center px-3 md:px-4 pb-24">
       {/* Large logo */}
-      <svg viewBox="0 0 100 100" fill="none" width={120} height={120} className="text-foreground mb-3">
+      <svg viewBox="0 0 100 100" fill="none" className="size-20 md:size-[120px] text-foreground mb-3">
         <polygon points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="miter"/>
         <line x1="36" y1="31" x2="36" y2="69" stroke="currentColor" strokeWidth="4.5" strokeLinecap="square"/>
         <line x1="64" y1="31" x2="64" y2="69" stroke="currentColor" strokeWidth="4.5" strokeLinecap="square"/>
@@ -33,7 +33,7 @@ const HomePage: React.FC = () => {
 
       {/* Brand text */}
       <h1
-        className="text-3xl font-extrabold tracking-[0.14em] text-foreground mb-1.5"
+        className="text-2xl md:text-3xl font-extrabold tracking-[0.14em] text-foreground mb-1.5"
         style={{ fontFamily: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace" }}
       >
         HEXKIT
@@ -48,7 +48,7 @@ const HomePage: React.FC = () => {
       <button
         type="button"
         onClick={openSearch}
-        className="group flex h-11 w-full max-w-[560px] items-center gap-3 rounded-xl border border-border/60 bg-muted/30 px-4 text-left text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:bg-muted/50 hover:text-foreground"
+        className="group flex h-11 w-full max-w-[560px] items-center gap-3 rounded-xl border border-border/60 bg-muted/30 px-3 md:px-4 text-left text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:bg-muted/50 hover:text-foreground"
       >
         <Search className="size-4 shrink-0 opacity-60" />
         <span className="flex-1 text-sm opacity-60">Search address, tx hash, selector, signature...</span>

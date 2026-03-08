@@ -142,7 +142,7 @@ const SearchTab: React.FC<SearchTabProps> = ({
                 flattenedFunctionResults.length > 0 ? "functions" : "events"
               }
             >
-              <TabsList className="h-8 bg-muted/30">
+              <TabsList className="h-8 bg-muted/30 overflow-x-auto">
                 {flattenedFunctionResults.length > 0 && (
                   <TabsTrigger
                     value="functions"
@@ -174,7 +174,7 @@ const SearchTab: React.FC<SearchTabProps> = ({
               </TabsList>
 
               {flattenedFunctionResults.length > 0 && (
-                <TabsContent value="functions" className="mt-2">
+                <TabsContent value="functions" className="mt-2 responsive-scroll">
                   <ScrollArea className="max-h-72">
                     <div className="space-y-px">
                       {flattenedFunctionResults.map((item, i) => (
@@ -230,7 +230,7 @@ const SearchTab: React.FC<SearchTabProps> = ({
               )}
 
               {flattenedEventResults.length > 0 && (
-                <TabsContent value="events" className="mt-2">
+                <TabsContent value="events" className="mt-2 responsive-scroll">
                   <ScrollArea className="max-h-72">
                     <div className="space-y-px">
                       {flattenedEventResults.map((item, i) => (

@@ -73,7 +73,7 @@ export const TreePanel: React.FC<TreePanelProps> = ({
   manualSlotReading,
   contractAddress,
 }) => (
-  <div className="w-[240px] min-w-[200px] max-w-[320px] border-r border-border/30 flex flex-col h-full">
+  <div className="w-full md:w-[240px] md:min-w-[200px] md:max-w-[320px] border-r border-border/30 flex flex-col h-full">
     <div className="px-2 py-1.5 flex items-center justify-between border-b border-border/30">
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Storage Tree</span>
       <button onClick={() => setTreeOpen(false)} className="p-0.5 rounded hover:bg-muted/40 text-muted-foreground/60 hover:text-muted-foreground transition-colors" title="Collapse tree">

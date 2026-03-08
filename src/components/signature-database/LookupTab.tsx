@@ -137,7 +137,7 @@ const LookupTab: React.FC<LookupTabProps> = ({
       </FieldGroup>
 
       {lookupResults && lookupResults.result && (
-        <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+        <div className="mt-4 pt-4 border-t border-border/50 space-y-3 responsive-scroll">
           <div className="sigdb-section-header">
             Results
             <Badge

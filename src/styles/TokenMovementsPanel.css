@@ -364,7 +364,7 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .token-movements-header {
     flex-direction: column;
     gap: 12px;

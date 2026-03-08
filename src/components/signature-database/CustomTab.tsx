@@ -177,7 +177,7 @@ const CustomTab: React.FC<CustomTabProps> = ({
         {/* Extracted Signatures Preview */}
         {(extractedSignatures.functions.length > 0 ||
           extractedSignatures.events.length > 0) && (
-          <div className="mt-3 p-3 rounded-lg border border-border/30 bg-background/50 space-y-2">
+          <div className="mt-3 p-3 rounded-lg border border-border/30 bg-background/50 space-y-2 responsive-scroll">
             <div className="sigdb-section-header">
               Extracted (
               {extractedSignatures.functions.length +
