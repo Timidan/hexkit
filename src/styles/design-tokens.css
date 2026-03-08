@@ -204,7 +204,7 @@
 
 /* Safe area insets for notched devices */
 .topbar {
-  padding-top: env(safe-area-inset-top);
+  margin-top: env(safe-area-inset-top);
 }
 
 /* Reduced motion — disable spring animations */
