@@ -28,10 +28,29 @@ export interface DiscoveredKey {
   value: string | null;
   variable: string;
   baseSlot: string;
+  source: DiscoveredKeySource;
+  sourceLabel: string;
+  sources: DiscoveredKeySource[];
+  sourceLabels: string[];
+  evidenceCount: number;
   /** Optional second-level key for nested mappings */
   nestedKey?: string;
   nestedKeyType?: string;
 }
+
+export type DiscoveredKeySource =
+  | 'transfer_event'
+  | 'approval_event'
+  | 'approval_for_all_event'
+  | 'transfer_single_event'
+  | 'deposit_event'
+  | 'withdrawal_event'
+  | 'generic_topic'
+  | 'log_data'
+  | 'tx_from'
+  | 'tx_to'
+  | 'tx_calldata'
+  | 'manual_lookup';
 
 export interface DiscoveryResult {
   /** baseSlot (lowercase hex) -> discovered keys */
@@ -138,25 +157,407 @@ function resolveKeyType(
   return null;
 }
 
+function normalizeKeyType(type: string | null | undefined): NormalizedKeyType | null {
+  if (!type) return null;
+  if (type === 'address' || type === 'address payable') return 'address';
+  if (type === 'bool') return 'bool';
+  if (type === 'bytes32') return 'bytes32';
+  if (type === 'uint' || /^uint\d+$/.test(type)) return 'uint';
+  if (type === 'int' || /^int\d+$/.test(type)) return 'int';
+  return null;
+}
+
+const DISCOVERY_SOURCE_META: Record<DiscoveredKeySource, { label: string; rank: number }> = {
+  transfer_event: { label: 'Transfer', rank: 100 },
+  approval_event: { label: 'Approval', rank: 95 },
+  approval_for_all_event: { label: 'ApprovalForAll', rank: 90 },
+  transfer_single_event: { label: 'TransferSingle', rank: 88 },
+  deposit_event: { label: 'Deposit', rank: 84 },
+  withdrawal_event: { label: 'Withdrawal', rank: 84 },
+  tx_calldata: { label: 'Calldata', rank: 72 },
+  tx_from: { label: 'Tx From', rank: 66 },
+  tx_to: { label: 'Tx To', rank: 64 },
+  log_data: { label: 'Log Data', rank: 56 },
+  generic_topic: { label: 'Event Topic', rank: 52 },
+  manual_lookup: { label: 'Manual', rank: 120 },
+};
+
+const CANONICAL_EVENT_TOPICS = new Set(
+  Object.values(CANONICAL_EVENTS).map((topic) => topic.toLowerCase()),
+);
+
+export function getDiscoverySourceLabel(source: DiscoveredKeySource): string {
+  return DISCOVERY_SOURCE_META[source].label;
+}
+
+function isHigherPrioritySource(next: DiscoveredKeySource, current: DiscoveredKeySource): boolean {
+  return DISCOVERY_SOURCE_META[next].rank > DISCOVERY_SOURCE_META[current].rank;
+}
+
+export function sortDiscoverySources(sources: Iterable<DiscoveredKeySource>): DiscoveredKeySource[] {
+  return Array.from(new Set(sources))
+    .sort((left, right) => DISCOVERY_SOURCE_META[right].rank - DISCOVERY_SOURCE_META[left].rank);
+}
+
+function mergeSources(
+  existing: Iterable<DiscoveredKeySource>,
+  incoming: Iterable<DiscoveredKeySource>,
+): DiscoveredKeySource[] {
+  return sortDiscoverySources([...existing, ...incoming]);
+}
+
+function getPrimarySource(sources: Iterable<DiscoveredKeySource>): DiscoveredKeySource {
+  const [primary] = sortDiscoverySources(sources);
+  return primary ?? 'manual_lookup';
+}
+
+function toSourceLabels(sources: Iterable<DiscoveredKeySource>): string[] {
+  return sortDiscoverySources(sources).map(getDiscoverySourceLabel);
+}
+
+function getPoolValueKey(value: string | boolean): string {
+  return typeof value === 'string' ? value.toLowerCase() : String(value);
+}
+
+function upsertPoolValue<T extends string | boolean>(
+  bucket: Map<string, { value: T; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>,
+  value: T,
+  incomingSources: Iterable<DiscoveredKeySource>,
+): void {
+  const poolKey = getPoolValueKey(value);
+  const existing = bucket.get(poolKey);
+  const sources = existing
+    ? mergeSources(existing.sources, incomingSources)
+    : sortDiscoverySources(incomingSources);
+  bucket.set(poolKey, { value, source: getPrimarySource(sources), sources });
+}
+
+function createCandidatePool(): CandidatePool {
+  return {
+    address: new Map(),
+    uint: new Map(),
+    int: new Map(),
+    bytes32: new Map(),
+    bool: new Map(),
+  };
+}
+
+function mergeCandidatePools(target: CandidatePool, source: CandidatePool): void {
+  for (const entry of source.address.values()) upsertPoolValue(target.address, entry.value, entry.sources);
+  for (const entry of source.uint.values()) upsertPoolValue(target.uint, entry.value, entry.sources);
+  for (const entry of source.int.values()) upsertPoolValue(target.int, entry.value, entry.sources);
+  for (const entry of source.bytes32.values()) upsertPoolValue(target.bytes32, entry.value, entry.sources);
+  for (const entry of source.bool.values()) upsertPoolValue(target.bool, entry.value, entry.sources);
+}
+
+function splitHexWords(hex: string | undefined | null, skipHexChars = 0): string[] {
+  if (!hex || typeof hex !== 'string') return [];
+  const raw = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (raw.length <= skipHexChars) return [];
+  const sliced = raw.slice(skipHexChars);
+  const words: string[] = [];
+  for (let i = 0; i + 64 <= sliced.length; i += 64) {
+    words.push(sliced.slice(i, i + 64).toLowerCase());
+  }
+  return words;
+}
+
+function decodeWordAddress(word: string): string | null {
+  if (word.length !== 64) return null;
+  if (word.slice(0, 24) !== '0'.repeat(24)) return null;
+  const address = `0x${word.slice(24)}`;
+  if (address === `0x${'0'.repeat(40)}`) return null;
+  return address.toLowerCase();
+}
+
+function decodeWordInteger(word: string): bigint | null {
+  if (word.length !== 64) return null;
+  try {
+    return BigInt(`0x${word}`);
+  } catch {
+    return null;
+  }
+}
+
+function collectWordCandidates(
+  words: string[],
+  expectedKinds: Set<NormalizedKeyType>,
+  pool: CandidatePool,
+  source: DiscoveredKeySource,
+): void {
+  for (const word of words) {
+    if (expectedKinds.has('address')) {
+      const address = decodeWordAddress(word);
+      if (address) upsertPoolValue(pool.address, address, [source]);
+    }
+
+    const numeric = decodeWordInteger(word);
+    if (numeric === null) continue;
+
+    if (expectedKinds.has('bytes32') && numeric !== 0n) {
+      upsertPoolValue(pool.bytes32, `0x${word}`, [source]);
+    }
+
+    if (expectedKinds.has('uint') && numeric !== 0n) {
+      upsertPoolValue(pool.uint, numeric.toString(), [source]);
+    }
+
+    if (expectedKinds.has('int') && numeric !== 0n) {
+      upsertPoolValue(pool.int, numeric.toString(), [source]);
+    }
+
+    if (expectedKinds.has('bool') && (numeric === 0n || numeric === 1n)) {
+      upsertPoolValue(pool.bool, numeric === 1n, [source]);
+    }
+  }
+}
+
+function buildExpectedKeyKinds(
+  mappingEntries: MappingEntry[],
+  layout: StorageLayoutResponse,
+): Set<NormalizedKeyType> {
+  const expected = new Set<NormalizedKeyType>();
+
+  for (const entry of mappingEntries) {
+    const rootType = normalizeKeyType(
+      entry.keyTypeId ? resolveKeyType(entry.keyTypeId, layout) : null,
+    );
+    if (rootType) expected.add(rootType);
+
+    if (!entry.valueTypeId) continue;
+    const valueType = layout.types[entry.valueTypeId];
+    if (!valueType || valueType.encoding !== 'mapping' || !valueType.key) continue;
+    const nestedType = normalizeKeyType(resolveKeyType(valueType.key, layout));
+    if (nestedType) expected.add(nestedType);
+  }
+
+  return expected;
+}
+
+function getCandidateValuesForType(
+  pool: CandidatePool,
+  kind: NormalizedKeyType,
+): Array<{ value: string | boolean; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }> {
+  switch (kind) {
+    case 'address':
+      return Array.from(pool.address.values());
+    case 'uint':
+      return Array.from(pool.uint.values());
+    case 'int':
+      return Array.from(pool.int.values());
+    case 'bytes32':
+      return Array.from(pool.bytes32.values());
+    case 'bool':
+      return Array.from(pool.bool.values());
+    default:
+      return [];
+  }
+}
+
+function enrichCandidatePoolFromLog(
+  log: LogEntry,
+  expectedKinds: Set<NormalizedKeyType>,
+  pool: CandidatePool,
+): void {
+  if (expectedKinds.size === 0) return;
+  const topic0 = log.topics[0]?.toLowerCase();
+  if (!topic0 || !CANONICAL_EVENT_TOPICS.has(topic0)) {
+    const topicWords = log.topics.slice(1).map((topic) => {
+      const raw = topic.startsWith('0x') ? topic.slice(2) : topic;
+      return raw.slice(-64).padStart(64, '0').toLowerCase();
+    });
+    collectWordCandidates(topicWords, expectedKinds, pool, 'generic_topic');
+  }
+  collectWordCandidates(splitHexWords(log.data), expectedKinds, pool, 'log_data');
+}
+
+async function buildTransactionCandidatePool(
+  provider: ethers.providers.JsonRpcProvider,
+  txHashes: string[],
+  expectedKinds: Set<NormalizedKeyType>,
+  signal: AbortSignal,
+): Promise<CandidatePool> {
+  const pool = createCandidatePool();
+  if (
+    txHashes.length === 0 ||
+    expectedKinds.size === 0 ||
+    typeof (provider as ethers.providers.JsonRpcProvider & { getTransaction?: unknown }).getTransaction !== 'function'
+  ) {
+    return pool;
+  }
+
+  for (let i = 0; i < txHashes.length; i += TX_FETCH_CONCURRENCY) {
+    if (signal.aborted) break;
+    const batch = txHashes.slice(i, i + TX_FETCH_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (txHash) => {
+        if (signal.aborted) return null;
+        return provider.getTransaction(txHash);
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status !== 'fulfilled' || !result.value) continue;
+      const tx = result.value as ethers.providers.TransactionResponse & { input?: string };
+
+      if (expectedKinds.has('address')) {
+        if (tx.from && ethers.utils.isAddress(tx.from)) {
+          upsertPoolValue(pool.address, tx.from.toLowerCase(), ['tx_from']);
+        }
+        if (tx.to && ethers.utils.isAddress(tx.to)) {
+          upsertPoolValue(pool.address, tx.to.toLowerCase(), ['tx_to']);
+        }
+      }
+
+      const input = typeof tx.data === 'string'
+        ? tx.data
+        : typeof tx.input === 'string'
+          ? tx.input
+          : undefined;
+      collectWordCandidates(splitHexWords(input, 8), expectedKinds, pool, 'tx_calldata');
+    }
+  }
+
+  return pool;
+}
+
+function appendPoolCandidates(
+  candidateMap: Map<string, { candidate: KeyCandidate; mapping: MappingEntry }>,
+  pool: CandidatePool,
+  mappingEntries: MappingEntry[],
+  layout: StorageLayoutResponse,
+): void {
+  for (const mapping of mappingEntries) {
+    if (candidateMap.size >= MAX_CANDIDATES) return;
+
+    const rootKind = normalizeKeyType(
+      mapping.keyTypeId ? resolveKeyType(mapping.keyTypeId, layout) : null,
+    );
+    if (!rootKind) continue;
+
+    const rootValues = getCandidateValuesForType(pool, rootKind).slice(0, MAX_VALUES_PER_KIND);
+    if (rootValues.length === 0) continue;
+
+    const valueType = mapping.valueTypeId ? layout.types[mapping.valueTypeId] : null;
+    const nestedKind = valueType?.encoding === 'mapping' && valueType.key
+      ? normalizeKeyType(resolveKeyType(valueType.key, layout))
+      : null;
+
+    if (!nestedKind) {
+      for (const entry of rootValues) {
+        if (candidateMap.size >= MAX_CANDIDATES) return;
+        const dedupeKey = `${mapping.baseSlot.toLowerCase()}:${String(entry.value)}:`;
+        const existing = candidateMap.get(dedupeKey);
+        if (existing) {
+          existing.candidate.sources = mergeSources(existing.candidate.sources, entry.sources);
+          existing.candidate.source = getPrimarySource(existing.candidate.sources);
+          continue;
+        }
+        candidateMap.set(dedupeKey, {
+          candidate: {
+            key: entry.value,
+            keyType: rootKind,
+            source: entry.source,
+            sources: entry.sources,
+          },
+          mapping,
+        });
+      }
+      continue;
+    }
+
+    const nestedValues = getCandidateValuesForType(pool, nestedKind).slice(0, MAX_NESTED_VALUES_PER_KIND);
+    if (nestedValues.length === 0) continue;
+
+    let emitted = 0;
+    for (const entry of rootValues) {
+      for (const nestedEntry of nestedValues) {
+        if (candidateMap.size >= MAX_CANDIDATES) return;
+        if (emitted >= MAX_NESTED_COMBINATIONS_PER_MAPPING) break;
+        const sources = mergeSources(entry.sources, nestedEntry.sources);
+        const source = getPrimarySource(sources);
+        const dedupeKey = `${mapping.baseSlot.toLowerCase()}:${String(entry.value)}:${String(nestedEntry.value)}`;
+        const existing = candidateMap.get(dedupeKey);
+        if (existing) {
+          existing.candidate.sources = mergeSources(existing.candidate.sources, sources);
+          existing.candidate.source = getPrimarySource(existing.candidate.sources);
+          continue;
+        }
+        candidateMap.set(dedupeKey, {
+          candidate: {
+            key: entry.value,
+            keyType: rootKind,
+            nestedKey: nestedEntry.value,
+            nestedKeyType: nestedKind,
+            source,
+            sources,
+          },
+          mapping,
+        });
+        emitted++;
+      }
+      if (emitted >= MAX_NESTED_COMBINATIONS_PER_MAPPING) break;
+    }
+  }
+}
+
 // ─── Event-to-Key Extractors ─────────────────────────────────────────
 
 interface KeyCandidate {
-  key: string;
+  key: string | boolean;
   keyType: string;
+  source: DiscoveredKeySource;
+  sources: DiscoveredKeySource[];
   /** For nested mappings: second-level key */
-  nestedKey?: string;
+  nestedKey?: string | boolean;
   nestedKeyType?: string;
 }
+
+type NormalizedKeyType = 'address' | 'uint' | 'int' | 'bytes32' | 'bool';
+
+interface CandidatePool {
+  address: Map<string, { value: string; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>;
+  uint: Map<string, { value: string; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>;
+  int: Map<string, { value: string; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>;
+  bytes32: Map<string, { value: string; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>;
+  bool: Map<string, { value: boolean; source: DiscoveredKeySource; sources: DiscoveredKeySource[] }>;
+}
+
+const MAX_TX_ENRICHMENT = 128;
+const TX_FETCH_CONCURRENCY = 6;
+const MAX_VALUES_PER_KIND = 48;
+const MAX_NESTED_VALUES_PER_KIND = 16;
+const MAX_NESTED_COMBINATIONS_PER_MAPPING = 96;
 
 /**
  * Extract address candidates from a decoded log entry.
  * Returns candidate keys grouped by the events they relate to.
  */
 function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
-  const candidates: KeyCandidate[] = [];
+  const candidates = new Map<string, KeyCandidate>();
   const topic0 = log.topics[0]?.toLowerCase();
 
-  if (!topic0) return candidates;
+  if (!topic0) return [];
+
+  const pushCandidate = (candidate: KeyCandidate): void => {
+    const dedupeKey = `${String(candidate.key)}:${candidate.keyType}:${String(candidate.nestedKey ?? '')}:${candidate.nestedKeyType ?? ''}`;
+    const existing = candidates.get(dedupeKey);
+    if (!existing) {
+      candidates.set(dedupeKey, {
+        ...candidate,
+        sources: sortDiscoverySources(candidate.sources),
+        source: getPrimarySource(candidate.sources),
+      });
+      return;
+    }
+    const sources = mergeSources(existing.sources, candidate.sources);
+    candidates.set(dedupeKey, {
+      ...existing,
+      ...candidate,
+      source: getPrimarySource(sources),
+      sources,
+    });
+  };
 
   // Helper: decode address from indexed topic (32-byte hex, left-padded with zeros)
   const decodeTopicAddress = (topic: string): string | null => {
@@ -183,28 +584,32 @@ function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
     // Transfer(address indexed from, address indexed to, uint256 value_or_tokenId)
     const from = decodeTopicAddress(log.topics[1]);
     const to = decodeTopicAddress(log.topics[2]);
-    if (from) candidates.push({ key: from, keyType: 'address' });
-    if (to) candidates.push({ key: to, keyType: 'address' });
+    if (from) pushCandidate({ key: from, keyType: 'address', source: 'transfer_event', sources: ['transfer_event'] });
+    if (to) pushCandidate({ key: to, keyType: 'address', source: 'transfer_event', sources: ['transfer_event'] });
 
     // For ERC721: tokenId is topic[3] if present, otherwise in data
     if (log.topics.length >= 4) {
       const tokenId = decodeTopicUint(log.topics[3]);
-      if (tokenId) candidates.push({ key: tokenId, keyType: 'uint256' });
+      if (tokenId) pushCandidate({ key: tokenId, keyType: 'uint256', source: 'transfer_event', sources: ['transfer_event'] });
     }
 
     // For nested mappings like _allowances[from][to]
     if (from && to) {
-      candidates.push({
+      pushCandidate({
         key: from,
         keyType: 'address',
         nestedKey: to,
         nestedKeyType: 'address',
+        source: 'transfer_event',
+        sources: ['transfer_event'],
       });
-      candidates.push({
+      pushCandidate({
         key: to,
         keyType: 'address',
         nestedKey: from,
         nestedKeyType: 'address',
+        source: 'transfer_event',
+        sources: ['transfer_event'],
       });
     }
   }
@@ -213,16 +618,18 @@ function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
     // Approval(address indexed owner, address indexed spender, uint256 value)
     const owner = decodeTopicAddress(log.topics[1]);
     const spender = decodeTopicAddress(log.topics[2]);
-    if (owner) candidates.push({ key: owner, keyType: 'address' });
-    if (spender) candidates.push({ key: spender, keyType: 'address' });
+    if (owner) pushCandidate({ key: owner, keyType: 'address', source: 'approval_event', sources: ['approval_event'] });
+    if (spender) pushCandidate({ key: spender, keyType: 'address', source: 'approval_event', sources: ['approval_event'] });
 
     // Nested: _allowances[owner][spender]
     if (owner && spender) {
-      candidates.push({
+      pushCandidate({
         key: owner,
         keyType: 'address',
         nestedKey: spender,
         nestedKeyType: 'address',
+        source: 'approval_event',
+        sources: ['approval_event'],
       });
     }
   }
@@ -231,16 +638,18 @@ function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
     // ApprovalForAll(address indexed owner, address indexed operator, bool approved)
     const owner = decodeTopicAddress(log.topics[1]);
     const operator = decodeTopicAddress(log.topics[2]);
-    if (owner) candidates.push({ key: owner, keyType: 'address' });
-    if (operator) candidates.push({ key: operator, keyType: 'address' });
+    if (owner) pushCandidate({ key: owner, keyType: 'address', source: 'approval_for_all_event', sources: ['approval_for_all_event'] });
+    if (operator) pushCandidate({ key: operator, keyType: 'address', source: 'approval_for_all_event', sources: ['approval_for_all_event'] });
 
     // Nested: _operatorApprovals[owner][operator]
     if (owner && operator) {
-      candidates.push({
+      pushCandidate({
         key: owner,
         keyType: 'address',
         nestedKey: operator,
         nestedKeyType: 'address',
+        source: 'approval_for_all_event',
+        sources: ['approval_for_all_event'],
       });
     }
   }
@@ -250,23 +659,23 @@ function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
     const operator = decodeTopicAddress(log.topics[1]);
     const from = decodeTopicAddress(log.topics[2]);
     const to = decodeTopicAddress(log.topics[3]);
-    if (operator) candidates.push({ key: operator, keyType: 'address' });
-    if (from) candidates.push({ key: from, keyType: 'address' });
-    if (to) candidates.push({ key: to, keyType: 'address' });
+    if (operator) pushCandidate({ key: operator, keyType: 'address', source: 'transfer_single_event', sources: ['transfer_single_event'] });
+    if (from) pushCandidate({ key: from, keyType: 'address', source: 'transfer_single_event', sources: ['transfer_single_event'] });
+    if (to) pushCandidate({ key: to, keyType: 'address', source: 'transfer_single_event', sources: ['transfer_single_event'] });
 
     // Try to decode tokenId from data
     if (log.data && log.data.length >= 66) {
       try {
         const decoded = ethers.utils.defaultAbiCoder.decode(['uint256', 'uint256'], log.data);
         const tokenId = decoded[0].toString();
-        candidates.push({ key: tokenId, keyType: 'uint256' });
+        pushCandidate({ key: tokenId, keyType: 'uint256', source: 'transfer_single_event', sources: ['transfer_single_event'] });
 
         // Nested: _balances[tokenId][from/to]
         if (from) {
-          candidates.push({ key: tokenId, keyType: 'uint256', nestedKey: from, nestedKeyType: 'address' });
+          pushCandidate({ key: tokenId, keyType: 'uint256', nestedKey: from, nestedKeyType: 'address', source: 'transfer_single_event', sources: ['transfer_single_event'] });
         }
         if (to) {
-          candidates.push({ key: tokenId, keyType: 'uint256', nestedKey: to, nestedKeyType: 'address' });
+          pushCandidate({ key: tokenId, keyType: 'uint256', nestedKey: to, nestedKeyType: 'address', source: 'transfer_single_event', sources: ['transfer_single_event'] });
         }
       } catch { /* ignore decode errors */ }
     }
@@ -277,18 +686,26 @@ function extractKeyCandidates(log: LogEntry): KeyCandidate[] {
     topic0 === CANONICAL_EVENTS.Withdrawal.toLowerCase()
   ) {
     const addr = decodeTopicAddress(log.topics[1]);
-    if (addr) candidates.push({ key: addr, keyType: 'address' });
-  }
-
-  // Generic: any indexed address topic is a candidate key
-  for (let i = 1; i < log.topics.length; i++) {
-    const addr = decodeTopicAddress(log.topics[i]);
-    if (addr && !candidates.some((c) => c.key === addr && !c.nestedKey)) {
-      candidates.push({ key: addr, keyType: 'address' });
+    if (addr) {
+      pushCandidate({
+        key: addr,
+        keyType: 'address',
+        source: topic0 === CANONICAL_EVENTS.Deposit.toLowerCase() ? 'deposit_event' : 'withdrawal_event',
+        sources: [topic0 === CANONICAL_EVENTS.Deposit.toLowerCase() ? 'deposit_event' : 'withdrawal_event'],
+      });
     }
   }
 
-  return candidates;
+  // Generic topic extraction is only useful for non-canonical events. Canonical
+  // handlers above already produce stronger, non-duplicative evidence.
+  if (!CANONICAL_EVENT_TOPICS.has(topic0)) {
+    for (let i = 1; i < log.topics.length; i++) {
+      const addr = decodeTopicAddress(log.topics[i]);
+      if (addr) pushCandidate({ key: addr, keyType: 'address', source: 'generic_topic', sources: ['generic_topic'] });
+    }
+  }
+
+  return Array.from(candidates.values());
 }
 
 // ─── Slot Verification ───────────────────────────────────────────────
@@ -315,15 +732,15 @@ async function verifyCandidate(
       if (resolvedType) keyType = resolvedType;
     }
 
-    // Skip if key type doesn't match candidate
-    if (keyType === 'address' && candidate.keyType !== 'address') return null;
-    if (keyType !== 'address' && candidate.keyType === 'address') return null;
+    const expectedKind = normalizeKeyType(keyType);
+    const candidateKind = normalizeKeyType(candidate.keyType);
+    if (expectedKind && candidateKind && expectedKind !== candidateKind) return null;
 
     let derivedSlot: bigint;
     let derivedSlotHex: string;
     let resolvedNestedKeyType: string | undefined = candidate.nestedKeyType;
 
-    if (candidate.nestedKey && candidate.nestedKeyType) {
+    if (candidate.nestedKey !== undefined && candidate.nestedKeyType) {
       // Nested mapping: compute keccak256(key2, keccak256(key1, baseSlot))
       // Check if the value type is itself a mapping
       const valueTypeId = mappingEntry.valueTypeId;
@@ -362,13 +779,18 @@ async function verifyCandidate(
     if (normalized === ZERO) return null;
 
     return {
-      key: candidate.key,
+      key: String(candidate.key),
       keyType,
       derivedSlot: derivedSlotHex,
       value: normalized,
       variable: mappingEntry.variable,
       baseSlot: mappingEntry.baseSlot,
-      nestedKey: candidate.nestedKey,
+      source: candidate.source,
+      sourceLabel: getDiscoverySourceLabel(candidate.source),
+      sources: candidate.sources,
+      sourceLabels: toSourceLabels(candidate.sources),
+      evidenceCount: candidate.sources.length,
+      nestedKey: candidate.nestedKey !== undefined ? String(candidate.nestedKey) : undefined,
       nestedKeyType: resolvedNestedKeyType,
     };
   } catch {
@@ -436,6 +858,10 @@ export async function discoverMappingKeys(
 
   const allTopics = Object.values(CANONICAL_EVENTS);
   const topicFilter: (string | string[] | null)[] = [allTopics];
+  const expectedKeyKinds = buildExpectedKeyKinds(mappingEntries, layout);
+  const pooledCandidates = createCandidatePool();
+  const txHashes: string[] = [];
+  const seenTxHashes = new Set<string>();
 
   // Collect unique candidates: Map<"baseSlot:key:nestedKey", {candidate, mapping}>
   const candidateMap = new Map<string, { candidate: KeyCandidate; mapping: MappingEntry }>();
@@ -463,6 +889,19 @@ export async function discoverMappingKeys(
 
         for (const log of logs) {
           const candidates = extractKeyCandidates(log);
+          enrichCandidatePoolFromLog(log, expectedKeyKinds, pooledCandidates);
+
+          if (
+            typeof log.transactionHash === 'string' &&
+            log.transactionHash.length > 0 &&
+            txHashes.length < MAX_TX_ENRICHMENT
+          ) {
+            const txHash = log.transactionHash.toLowerCase();
+            if (!seenTxHashes.has(txHash)) {
+              seenTxHashes.add(txHash);
+              txHashes.push(txHash);
+            }
+          }
 
           for (const candidate of candidates) {
             // Stop collecting if we have enough unique candidates
@@ -470,8 +909,13 @@ export async function discoverMappingKeys(
 
             for (const mapping of mappingEntries) {
               const dedupeKey = `${mapping.baseSlot.toLowerCase()}:${candidate.key}:${candidate.nestedKey ?? ''}`;
-              if (candidateMap.has(dedupeKey)) continue;
-              candidateMap.set(dedupeKey, { candidate, mapping });
+              const existing = candidateMap.get(dedupeKey);
+              if (existing) {
+                existing.candidate.sources = mergeSources(existing.candidate.sources, candidate.sources);
+                existing.candidate.source = getPrimarySource(existing.candidate.sources);
+                continue;
+              }
+              candidateMap.set(dedupeKey, { candidate: { ...candidate }, mapping });
             }
           }
         }
@@ -509,6 +953,25 @@ export async function discoverMappingKeys(
     result.durationMs = performance.now() - startTime;
     return result;
   }
+
+  if (txHashes.length > 0 && candidateMap.size < MAX_CANDIDATES) {
+    onProgress?.({
+      phase: 'scanning',
+      scannedBlocks: toBlock - fromBlock + 1,
+      totalBlocks: toBlock - fromBlock + 1,
+      keysFound: totalKeysFound,
+      message: `Inspecting ${txHashes.length} related transactions for additional key candidates...`,
+    });
+    const txCandidatePool = await buildTransactionCandidatePool(
+      provider,
+      txHashes,
+      expectedKeyKinds,
+      signal,
+    );
+    mergeCandidatePools(pooledCandidates, txCandidatePool);
+  }
+
+  appendPoolCandidates(candidateMap, pooledCandidates, mappingEntries, layout);
 
   const candidates = Array.from(candidateMap.values());
 

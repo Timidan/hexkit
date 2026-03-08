@@ -15,7 +15,7 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { Separator } from '../ui/separator';
 import { ProxyTypeBadge, DiamondBadge } from '../shared/ContractBadges';
-import type { ViewFilter, ResolvedSlot } from './storageViewerTypes';
+import type { ViewFilter } from './storageViewerTypes';
 import type { LayoutConfidence } from './storage-viewer/fetchStorageLayout';
 import type { ProxyInfo } from '../../utils/resolver/types';
 import type { useAutoDiscovery } from './storage-viewer/useAutoDiscovery';
@@ -31,6 +31,7 @@ export interface StorageToolbarProps {
     total: number;
     resolved: number;
     unknown: number;
+    changed: number;
     nonZero: number;
     packed: number;
   };
@@ -135,6 +136,9 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
         </TabsTrigger>
         <TabsTrigger value="unknown" className="h-5 text-xs px-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
           Unknown <span className="ml-0.5 text-[10px] opacity-60">{stats.unknown}</span>
+        </TabsTrigger>
+        <TabsTrigger value="changed" className="h-5 text-xs px-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+          Changed <span className="ml-0.5 text-[10px] opacity-60">{stats.changed}</span>
         </TabsTrigger>
         <TabsTrigger value="non-zero" className="h-5 text-xs px-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
           Non-zero <span className="ml-0.5 text-[10px] opacity-60">{stats.nonZero}</span>
