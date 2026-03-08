@@ -2,8 +2,6 @@ import React, { Suspense, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import "./App.css";
 import { useApplyRainbowKitTheme } from "./config/rainbowkit";
-import "./styles/AnimatedInput.css";
-import "./styles/DynamicWallet.css";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
