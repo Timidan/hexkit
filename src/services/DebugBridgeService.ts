@@ -364,8 +364,8 @@ class DebugBridgeService {
       if (simulateFailure) failureParts.push(simulateFailure);
       const failureDetails = failureParts.join(' | ');
       throw new Error(
-        'Failed to start debug session: both /debug/start and /simulate paths failed to produce a session with hook snapshots. ' +
-        'Ensure the contract has debug metadata and the simulation produced source-level snapshots.' +
+        'Failed to start debug session: could not establish a session with source-level snapshots via either path. ' +
+        'Check that the EDB bridge is running and the contract has available source code.' +
         (failureDetails ? ` Details: ${failureDetails}` : '')
       );
     }

@@ -103,7 +103,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
             {loadingPhase === 'seeding'
               ? 'Reading storage slots\u2026'
               : loadingPhase === 'resolving'
-                ? 'Fetching storage layout from verified sources\u2026'
+                ? 'Resolving storage layout\u2026'
                 : postLoadResolving
                   ? 'Resolving diamond namespace\u2026'
                   : isLayoutPending

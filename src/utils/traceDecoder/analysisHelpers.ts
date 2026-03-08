@@ -190,7 +190,7 @@ export function buildCallFrameRows(ctx: DecodeTraceContext): DecodedTraceRow[] {
     const targetAddress = (callEntry.target || callEntry.code_address || "").toLowerCase();
 
     let callContractName = ctx.codeAddrToContractName.get(codeAddress);
-    const isUnverified = hasAnyArtifacts && !pcMapsPerContract.has(codeAddress) && !pcMapsPerContract.has(targetAddress);
+    const hasNoSourceMaps = hasAnyArtifacts && !pcMapsPerContract.has(codeAddress) && !pcMapsPerContract.has(targetAddress);
 
     if (!callContractName) {
       if (codeAddress) {
@@ -305,7 +305,7 @@ export function buildCallFrameRows(ctx: DecodeTraceContext): DecodedTraceRow[] {
         value: callEntry.value,
       },
       contract: callContractName,
-      isUnverifiedContract: isUnverified,
+      hasNoSourceMaps: hasNoSourceMaps,
     };
 
     callFrameRows.push(callFrameRow);

@@ -331,7 +331,7 @@ export function buildTraceLite(rawTrace) {
         write: entry.storage_write ?? entry.storageWrite ?? null,
       },
       flags: {
-        isUnverifiedFrame: !pcInfo,
+        hasNoSourceMaps: !pcInfo,
         srcMapConfidence: srcRef?.line ? "high" : "low",
       },
     };

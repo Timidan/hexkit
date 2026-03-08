@@ -28,7 +28,7 @@ export interface DecodedTraceRow {
   firstSnapshotId?: number; // For call frame entries: links to internal function context
   externalParentTraceId?: number | null; // From EDB parent_id: explicit external call parent
   isConfirmedCall?: boolean; // True if this call was confirmed via source map jump type 'i'
-  isUnverifiedContract?: boolean; // True if this call is to a contract without source code
+  hasNoSourceMaps?: boolean; // True if this call is to a contract without source maps
   line?: number;
   sourceFile?: string | null;
   fn?: string | null;

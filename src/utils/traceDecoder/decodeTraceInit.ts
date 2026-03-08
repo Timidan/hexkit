@@ -645,7 +645,7 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     }
     if (traceId !== undefined && unverifiedTraceIds.has(traceId)) {
       isInUnverifiedFrame = true;
-      r.isUnverifiedContract = true;
+      r.hasNoSourceMaps = true;
     }
 
     const pcInfo = getPcInfoForOpcode(r.pc, r.frame_id);
@@ -672,7 +672,7 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
   });
 
   opRows.forEach((r) => {
-    if (r.isUnverifiedContract || r.line !== undefined) return;
+    if (r.hasNoSourceMaps || r.line !== undefined) return;
 
     let traceId: number | undefined;
     const frameId = r.frame_id;

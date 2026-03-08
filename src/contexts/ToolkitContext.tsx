@@ -77,7 +77,7 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
       addContractData({
         address: data.contractAddress,
         abi: data.abi,
-        verified: true,
+        verified: false,
         functions: data.abi.filter((item: any) => item.type === 'function').map((f: any) => f.name)
       });
     }
@@ -92,7 +92,7 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({ children })
     addContractData({
       address: data.contractAddress,
       abi: data.abi,
-      verified: true,
+      verified: false,
       functions: data.abi.filter((item: any) => item.type === 'function').map((f: any) => f.name)
     });
   };
