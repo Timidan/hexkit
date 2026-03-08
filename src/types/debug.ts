@@ -86,19 +86,19 @@ export interface SnapshotListItem {
 }
 
 /** Call result status */
-export type CallResult =
+type CallResult =
   | { Success: { gas_used: number; output: string } }
   | { Revert: { gas_used: number; output: string } }
   | { Halt: { reason: string; gas_used: number } };
 
 /** Call scheme for CALL-type opcodes */
-export type CallScheme = 'Call' | 'StaticCall' | 'DelegateCall' | 'CallCode';
+type CallScheme = 'Call' | 'StaticCall' | 'DelegateCall' | 'CallCode';
 
 /** Create scheme for CREATE-type opcodes */
-export type CreateScheme = 'Create' | 'Create2';
+type CreateScheme = 'Create' | 'Create2';
 
 /** Call type - either a call or a create */
-export type CallType =
+type CallType =
   | { Call: CallScheme }
   | { Create: CreateScheme };
 
@@ -120,27 +120,27 @@ export interface TraceEntry {
 }
 
 /** Log entry (event) */
-export interface LogEntry {
+interface LogEntry {
   address: string;
   topics: string[];
   data: string;
 }
 
 /** Complete execution trace */
-export interface ExecutionTrace {
+interface ExecutionTrace {
   entries: TraceEntry[];
   rootId: number;
 }
 
 /** Opcode breakpoint location */
-export interface OpcodeBreakpointLocation {
+interface OpcodeBreakpointLocation {
   type: 'opcode';
   bytecodeAddress: string;
   pc: number;
 }
 
 /** Source breakpoint location */
-export interface SourceBreakpointLocation {
+interface SourceBreakpointLocation {
   type: 'source';
   bytecodeAddress: string;
   filePath: string;
@@ -157,12 +157,6 @@ export interface Breakpoint {
   condition?: string; // Solidity expression
   enabled: boolean;
   hitCount: number;
-}
-
-/** Breakpoint hit result */
-export interface BreakpointHit {
-  breakpointId: string;
-  snapshotId: number;
 }
 
 /** Watch expression */
@@ -191,12 +185,6 @@ export interface StorageDiffEntry {
   slotLabel?: string; // e.g., "balances[0x123...]"
   before: string;
   after: string;
-}
-
-/** Storage read result */
-export interface StorageReadResult {
-  slot: string;
-  value: string;
 }
 
 /** Storage layout entry - describes a state variable's storage location */
@@ -343,14 +331,6 @@ export interface SourceFile {
   contractName?: string;
 }
 
-/** Source location */
-export interface SourceLocation {
-  filePath: string;
-  line: number;
-  column?: number;
-  length?: number;
-}
-
 /** Debug session state */
 export interface DebugSession {
   sessionId: string;
@@ -364,7 +344,7 @@ export interface DebugSession {
   startedAt: number;
 }
 
-export type DebugSessionHydrationMode = 'full' | 'minimal';
+type DebugSessionHydrationMode = 'full' | 'minimal';
 
 export interface DebugSessionConnectOptions {
   hydrate?: DebugSessionHydrationMode;
@@ -439,18 +419,6 @@ export interface EvalExpressionRequest {
 /** Evaluate expression response */
 export interface EvalExpressionResponse {
   result: EvalResult;
-}
-
-/** Get storage request */
-export interface GetStorageRequest {
-  sessionId: string;
-  snapshotId: number;
-  slot: string;
-}
-
-/** Get storage response */
-export interface GetStorageResponse {
-  value: unknown;
 }
 
 /** Get storage diff request */
@@ -666,29 +634,3 @@ export interface PrepareStatusResponse {
   error: string | null;
 }
 
-/** Panel visibility state */
-export interface DebugPanelVisibility {
-  callStack: boolean;
-  locals: boolean;
-  stateVariables: boolean;
-  watchExpressions: boolean;
-  storage: boolean;
-  expressionEvaluator: boolean;
-}
-
-/** Debug toolbar state */
-export interface DebugToolbarState {
-  canStepPrev: boolean;
-  canStepNext: boolean;
-  canStepPrevCall: boolean;
-  canStepNextCall: boolean;
-  canContinue: boolean;
-}
-
-/** Source view state */
-export interface SourceViewState {
-  currentFile: string | null;
-  highlightedLine: number | null;
-  breakpointLines: Set<number>;
-  scrollToLine: number | null;
-}

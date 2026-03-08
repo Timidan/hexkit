@@ -37,9 +37,6 @@ export interface ContractInfo {
 
 export type {
   ContractInfoResult,
-  ContractExternalFunction,
-  ContractTokenInfo,
-  ContractSearchProgress,
 } from './contractInfo';
 
 export type {

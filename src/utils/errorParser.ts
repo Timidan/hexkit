@@ -10,11 +10,6 @@ export interface ParsedError {
   suggestion?: string;
 }
 
-export const parseErrorMessage = (error: any): string => {
-  const parsed = parseError(error);
-  return parsed.message;
-};
-
 export const parseError = (error: any): ParsedError => {
   let errorMessage = '';
   let errorType: ParsedError['type'] = 'unknown';
@@ -139,5 +134,3 @@ export const parseError = (error: any): ParsedError => {
   };
 };
 
-export const parseTransactionError = parseErrorMessage;
-export const formatErrorForUser = parseErrorMessage;
