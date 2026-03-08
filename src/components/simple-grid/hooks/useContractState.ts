@@ -146,6 +146,7 @@ export function useContractState(deps: UseContractStateDeps) {
   const [isLoadingImplementation, setIsLoadingImplementation] = useState(false);
 
   const fetchRequestRef = useRef<number>(0);
+  const abortRef = useRef<AbortController | null>(null);
   const restoredAddressRef = useRef<string | null>(null);
   const userEditedAddressRef = useRef(false);
 
@@ -277,6 +278,10 @@ export function useContractState(deps: UseContractStateDeps) {
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsLoadingABI(true);
     setAbiError(null);
     setAbiSource(null);
@@ -305,7 +310,7 @@ export function useContractState(deps: UseContractStateDeps) {
 
     const requestId = Date.now();
     fetchRequestRef.current = requestId;
-    const isStale = () => fetchRequestRef.current !== requestId;
+    const isStale = () => fetchRequestRef.current !== requestId || controller.signal.aborted;
 
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 50)));
 
@@ -430,15 +435,25 @@ export function useContractState(deps: UseContractStateDeps) {
         }
       }
     } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
       if (fetchRequestRef.current !== requestId) return;
       setAbiError("Network error occurred while fetching contract information");
     } finally {
-      if (fetchRequestRef.current === requestId) {
+      if (fetchRequestRef.current === requestId && !controller.signal.aborted) {
         setIsLoadingABI(false);
         tokenSetters.setIsDetectingTokenType(false);
       }
     }
   };
+
+  const handleCancelFetch = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoadingABI(false);
+    setAbiError(null);
+    setSearchProgress(null);
+    tokenSetters.setIsDetectingTokenType(false);
+  }, [tokenSetters]);
 
   // ---------- handleManualABI ----------
   const handleManualABI = async () => {
@@ -565,6 +580,7 @@ export function useContractState(deps: UseContractStateDeps) {
     getInitialData,
     handleManualAddressChange,
     handleFetchABI,
+    handleCancelFetch,
     handleManualABI,
     saveContractToStorage,
     normalizeSavedContracts,

@@ -271,7 +271,7 @@ const SimulationHistoryPage: React.FC = () => {
     // Pass simulation ID via URL query parameter.
     // Avoids localStorage entirely since it can be full (QuotaExceededError).
     // The builder fetches full contractContext from IndexedDB using this ID.
-    navigate(`/builder?clone=${encodeURIComponent(sim.id)}`);
+    navigate(`/builder?mode=simulation&clone=${encodeURIComponent(sim.id)}`);
   }, [clearSimulation, navigate]);
 
   // Handle delete simulation
@@ -579,7 +579,9 @@ const SimulationHistoryPage: React.FC = () => {
                     <StatusBadge status={sim.status} />
                   </TableCell>
                   <TableCell className="sim-history-td-id">
-                    <span className="sim-history-id">{sim.id}</span>
+                    <span className="sim-history-id" title={sim.id}>
+                      {sim.id.length > 12 ? `${sim.id.slice(0, 8)}…` : sim.id}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span className="sim-history-address" title={sim.from}>

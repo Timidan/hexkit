@@ -203,6 +203,7 @@ export function buildGridContextValue(args: BuildContextArgs): any {
     selectionCardStyle,
     // Callbacks
     handleFetchABI: contractState.handleFetchABI,
+    handleCancelFetch: contractState.handleCancelFetch,
     handleManualABI: contractState.handleManualABI,
     handleManualAddressChange: contractState.handleManualAddressChange,
     handleFunctionSelect: functionState.handleFunctionSelect,

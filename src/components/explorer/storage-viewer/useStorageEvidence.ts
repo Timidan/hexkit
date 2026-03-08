@@ -760,6 +760,15 @@ export function useStorageEvidence() {
     [mergeEvidence],
   );
 
+  /** Cancel an in-progress load without clearing already-collected evidence */
+  const cancelLoad = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+    setLoadingPhase('done');
+    setError(null);
+  }, []);
+
   const clearEvidence = useCallback(() => {
     abortRef.current?.abort();
     setEvidence([]);
@@ -778,6 +787,7 @@ export function useStorageEvidence() {
     error,
     seedFromLayout,
     loadStorageForContract,
+    cancelLoad,
     seedDiamondNamespace,
     addManualSlot,
     readAndUpdateSlot,

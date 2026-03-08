@@ -29,6 +29,51 @@ export {
 } from "./transaction-builder/types";
 export type { TxHashReplayData } from "./transaction-builder/types";
 
+const SAVED_CONTRACTS_KEY = "web3-toolkit-saved-contracts";
+
+function hydrateWithSavedAbi(context: any): any {
+  if (!context || typeof context.address !== "string") return context;
+  if (Array.isArray(context.abi) && context.abi.length > 0) return context;
+
+  try {
+    const raw = localStorage.getItem(SAVED_CONTRACTS_KEY);
+    if (!raw) return context;
+    const savedContracts = JSON.parse(raw);
+    if (!Array.isArray(savedContracts)) return context;
+
+    const match = savedContracts.find((entry: any) => {
+      if (!entry || typeof entry.address !== "string") return false;
+      const sameAddress = entry.address.toLowerCase() === context.address.toLowerCase();
+      if (!sameAddress) return false;
+      const savedChainId = entry?.chain?.id;
+      if (typeof context.networkId !== "number" || typeof savedChainId !== "number") {
+        return true;
+      }
+      return savedChainId === context.networkId;
+    });
+    if (!match) return context;
+
+    let parsedAbi: any[] | null = null;
+    if (Array.isArray(match.abi)) {
+      parsedAbi = match.abi;
+    } else if (typeof match.abi === "string") {
+      const parsed = JSON.parse(match.abi);
+      if (Array.isArray(parsed)) parsedAbi = parsed;
+    }
+
+    if (!parsedAbi || parsedAbi.length === 0) return context;
+
+    return {
+      ...context,
+      abi: parsedAbi,
+      name: context.name || match.name,
+      abiSource: context.abiSource || match.abiSource || "restored",
+    };
+  } catch {
+    return context;
+  }
+}
+
 const TransactionBuilderWagmi: React.FC = () => {
   const { contractContext } = useSimulation();
   const location = useLocation();
@@ -101,6 +146,9 @@ const TransactionBuilderWagmi: React.FC = () => {
               ? 'tx-hash-replay'
               : 'manual');
 
+        const baseCloneData = hydrateWithSavedAbi(fullSim.contractContext || null);
+        setCloneData(baseCloneData || null);
+
         if (origin === 'tx-hash-replay') {
           // Route to replay view with prefilled hash & network
           // Check all possible locations where the tx hash might be stored (including legacy records)
@@ -159,15 +207,23 @@ const TransactionBuilderWagmi: React.FC = () => {
             const calldata = fullSim.contractContext?.calldata;
             const targetAddress = fullSim.contractContext?.address;
             if (calldata && calldata.length >= 10 && targetAddress) {
-              attemptCalldataDecodeNotification(calldata, targetAddress, networkId, fullSim.contractContext, setViewMode, setCloneData);
+              attemptCalldataDecodeNotification(
+                calldata,
+                targetAddress,
+                networkId,
+                baseCloneData || fullSim.contractContext,
+                setViewMode,
+                setCloneData
+              );
             }
           } else {
             // No hash available, fall back to manual builder with whatever we have
-            setCloneData(fullSim.contractContext || null);
+            setCloneData(baseCloneData);
+            setViewMode('builder');
           }
         } else {
           // Manual origin: pass to SimpleGridUI and ensure builder view is active
-          const ctx = fullSim.contractContext;
+          const ctx = baseCloneData;
           if (ctx) {
             setCloneData(ctx);
             setViewMode('builder');

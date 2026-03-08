@@ -350,7 +350,13 @@ export default function ExecutionSection(): React.ReactElement | null {
                     return;
                   }
 
-                  if (isDiamond || !publicClient) {
+                  // Check if publicClient's chain matches the selected network
+                  const walletChainMismatch =
+                    publicClient &&
+                    selectedNetwork &&
+                    publicClient.chain?.id !== selectedNetwork.id;
+
+                  if (isDiamond || !publicClient || walletChainMismatch) {
                     if (!selectedNetwork) {
                       throw new Error("No network selected");
                     }
@@ -367,12 +373,6 @@ export default function ExecutionSection(): React.ReactElement | null {
                     ](...args);
                     persistResult(result);
                   } else {
-                    if (!publicClient) {
-                      throw new Error(
-                        "Public client unavailable"
-                      );
-                    }
-
                     const result = await publicClient.readContract({
                       address: contractAddress as `0x${string}`,
                       abi: contractABI,

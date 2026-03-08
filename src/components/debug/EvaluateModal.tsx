@@ -40,7 +40,7 @@ interface EvalResult {
   note?: string;
 }
 
-const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 60000;
+const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 45000;
 const EVALUATION_TIMEOUT_MS = 15000;
 
 async function withTimeout<T>(
@@ -184,6 +184,10 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
       prepStateForCurrentSimulation.sessionId
         ? prepStateForCurrentSimulation.sessionId
         : null;
+    const prepFailureMessage =
+      prepStateForCurrentSimulation?.status === 'failed'
+        ? (prepStateForCurrentSimulation.error || prepStateForCurrentSimulation.message || 'Debug preparation failed')
+        : null;
     const targetSessionId =
       currentDebugSession?.sessionId || prepSessionId || null;
     const hasValidCurrentLiveSession =
@@ -194,6 +198,15 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
 
     if (!force && hasValidCurrentLiveSession) {
       return true;
+    }
+
+    if (prepFailureMessage && !targetSessionId) {
+      const message =
+        `Debug preparation failed for this simulation: ${prepFailureMessage}. ` +
+        'Re-simulate with Debug enabled after fixing backend instrumentation errors.';
+      setStartLiveError(message);
+      setResult({ type: 'error', error: message });
+      return false;
     }
 
     if (!force && isPrepInFlightForCurrentSimulation) {

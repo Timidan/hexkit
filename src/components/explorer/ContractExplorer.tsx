@@ -77,6 +77,9 @@ const ContractExplorer: React.FC = () => {
     "address" | "chainId" | "proxyInfo" | "tokenInfo" | "tokenType"
   > | null>(null);
 
+  // Abort controller for cancellation
+  const abortRef = useRef<AbortController | null>(null);
+
   // Animation refs
   const resultsRef = useRef<HTMLDivElement>(null);
   const prevSourceFilesLength = useRef(0);
@@ -156,6 +159,10 @@ const ContractExplorer: React.FC = () => {
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsLoading(true);
     setError(null);
     setSourceFiles([]);
@@ -171,6 +178,7 @@ const ContractExplorer: React.FC = () => {
         abi: true,
         proxy: true,
         token: true,
+        signal: controller.signal,
       });
 
       if (!ctx.exists) {
@@ -287,11 +295,21 @@ const ContractExplorer: React.FC = () => {
         tokenType: ctx.tokenType,
       });
     } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
       setError(err instanceof Error ? err.message : "Failed to fetch contract");
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [addressInput, selectedChain]);
+
+  const handleCancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+    setError(null);
+  }, []);
 
   // Get explorer URL for the contract
   const getExplorerUrl = useCallback(() => {
@@ -376,6 +394,7 @@ const ContractExplorer: React.FC = () => {
             isLoading={isLoading}
             error={error}
             onFetchABI={fetchContract}
+            onCancel={handleCancel}
           />
         </div>
       </div>

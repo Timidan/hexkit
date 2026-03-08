@@ -5,6 +5,7 @@ import {
   Sparkles,
   Settings2,
   Loader2,
+  Square,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
@@ -434,8 +435,8 @@ const SmartDecoder: React.FC = () => {
           />
         )}
 
-        {/* Decode Button */}
-        <div className="flex justify-center w-full">
+        {/* Decode / Cancel Button */}
+        <div className="flex justify-center w-full gap-2">
           <Button
             type="button"
             variant="outline"
@@ -449,6 +450,18 @@ const SmartDecoder: React.FC = () => {
               <Loader2 className="h-3.5 w-3.5 animate-spin" />Decoding...
             </span>
           </Button>
+          {isDecoding && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { cancelActiveLookup(); setIsDecoding(false); setError(null); setCurrentSearchProgress([]); }}
+              className="inline-flex items-center justify-center h-8 px-3 text-sm font-medium text-red-400 hover:text-red-300 hover:border-red-400/50 hover:bg-red-500/10 transition-all duration-200 bg-transparent border border-solid border-border"
+            >
+              <Square size={12} fill="currentColor" className="mr-1.5" />
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
 

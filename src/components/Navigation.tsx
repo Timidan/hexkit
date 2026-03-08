@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -81,6 +81,13 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   // /simulations is the history page — highlight the "simulation" sub-tab
   if (pathname.startsWith("/simulations")) return "simulation";
   const params = new URLSearchParams(search);
+  // Replay is a simulation workflow even though it can carry dedicated replay params.
+  if (
+    tool.id === "builder" &&
+    (params.get("mode") === "replay" || params.get("replay") === "txhash")
+  ) {
+    return "simulation";
+  }
   for (const sub of tool.subTabs) {
     const val = params.get(sub.paramKey);
     if (val === sub.id) return sub.id;
@@ -189,34 +196,77 @@ const Navigation: React.FC = () => {
     }
   }, [activeSubId, subLeft, subWidth]);
 
+  const syncIndicators = useCallback(() => {
+    syncMainIndicator();
+    syncSubIndicator();
+  }, [syncMainIndicator, syncSubIndicator]);
+
+  // Measure synchronously after each render so the indicator starts from the current layout.
+  useLayoutEffect(() => {
+    syncIndicators();
+  }, [syncIndicators]);
+
   // Measure on tool / sub-tab change
   useEffect(() => {
-    syncMainIndicator();
     // RAF for immediate attempt
     const raf = requestAnimationFrame(() => {
-      syncSubIndicator();
+      syncIndicators();
       hasMountedRef.current = true;
-      if (hasInitialRender) setHasInitialRender(false);
+      setHasInitialRender((prev) => (prev ? false : prev));
     });
     // Delayed attempt — AnimatePresence exit+enter may take ~150ms
-    const timer = setTimeout(() => {
-      syncSubIndicator();
+    const timer = window.setTimeout(() => {
+      syncIndicators();
     }, 200);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [activeToolId, activeSubId, syncMainIndicator, syncSubIndicator]);
+  }, [activeToolId, activeSubId, syncIndicators]);
 
   // Re-measure on resize
   useEffect(() => {
     const onResize = () => {
-      syncMainIndicator();
-      syncSubIndicator();
+      syncIndicators();
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [syncMainIndicator, syncSubIndicator]);
+  }, [syncIndicators]);
+
+  // Re-measure when web fonts settle after a hard refresh.
+  useEffect(() => {
+    let cancelled = false;
+    const fontSet = document.fonts;
+
+    const handleFontsSettled = () => {
+      if (!cancelled) {
+        syncIndicators();
+      }
+    };
+
+    fontSet.ready.then(handleFontsSettled);
+    fontSet.addEventListener("loadingdone", handleFontsSettled);
+
+    return () => {
+      cancelled = true;
+      fontSet.removeEventListener("loadingdone", handleFontsSettled);
+    };
+  }, [syncIndicators]);
+
+  // Re-measure if the nav rows resize due to font swaps or content changes.
+  useEffect(() => {
+    const rows = [mainRowRef.current, subRowRef.current].filter(
+      (row): row is HTMLDivElement => row !== null,
+    );
+    if (rows.length === 0) return;
+
+    const observer = new ResizeObserver(() => {
+      syncIndicators();
+    });
+
+    rows.forEach((row) => observer.observe(row));
+    return () => observer.disconnect();
+  }, [syncIndicators]);
 
   // ─── Pressed state for tactile feedback ───
   const [pressedTab, setPressedTab] = useState<string | null>(null);

@@ -27,33 +27,46 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
   });
 }
 
+function normalizePathParam(pathParam: string | string[] | undefined): string {
+  if (Array.isArray(pathParam)) {
+    return pathParam.map((segment) => String(segment || "")).join("/");
+  }
+  if (typeof pathParam === "string") {
+    return pathParam;
+  }
+  return "";
+}
+
+function extractSubPath(req: VercelRequest): string {
+  const fromRewrite = normalizePathParam(req.query?.path as string | string[] | undefined).trim();
+  if (fromRewrite) {
+    return fromRewrite.replace(/^\/+/, "").replace(/\/+$/, "");
+  }
+
+  // Fallback for direct function invocation without rewrite query.
+  const rawPath = (req.url || "").split("?")[0];
+  return rawPath.replace(/^\/api\/edb-proxy\/?/, "").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
 
-  if (!bridgeUrl) {
-    return res.status(503).json({ error: "bridge_not_configured" });
-  }
-  if (!apiKey) {
+  if (!bridgeUrl || !apiKey) {
     return res.status(503).json({ error: "bridge_not_configured" });
   }
 
-  // Method allowlist
   if (!ALLOWED_METHODS.has(req.method || "GET")) {
     return res.status(405).json({ error: "method_not_allowed" });
   }
 
-  // OPTIONS passthrough
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
   }
 
-  // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes
-  const urlPath = (req.url || "").split("?")[0];
-  const subPath = urlPath.replace(/^\/api\/edb\/?/, "");
+  const subPath = extractSubPath(req);
 
-  // Validate each path segment
   const parts = subPath ? subPath.split("/") : [];
   for (const seg of parts) {
     if (seg === "." || seg === ".." || /[^a-zA-Z0-9_\-:.]/.test(seg)) {
@@ -61,9 +74,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const target = `${bridgeUrl.replace(/\/+$/, "")}/${subPath}`;
+  const targetBase = bridgeUrl.replace(/\/+$/, "");
+  const target = subPath ? `${targetBase}/${subPath}` : targetBase;
 
-  // Build upstream headers (explicit allowlist — no client headers leak through)
   const upstreamHeaders: Record<string, string> = {
     "X-API-Key": apiKey,
   };
@@ -80,15 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? await getRawBody(req)
         : undefined;
 
-    // Detect SSE path — use longer timeout, abort on client disconnect
-    const isSSE = subPath.match(/debug\/prepare\/[^/]+\/events$/);
+    const isSSE = subPath.match(/^debug\/prepare\/[^/]+\/events$/);
     const controller = new AbortController();
 
     if (isSSE) {
-      // Abort upstream when client disconnects
       req.on("close", () => controller.abort());
     } else {
-      // Regular requests get a hard timeout
       const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       req.on("close", () => clearTimeout(timer));
     }
@@ -98,10 +108,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: upstreamHeaders,
       body,
       signal: controller.signal,
-      redirect: "error", // never follow redirects — prevents key leaking to unexpected hosts
+      redirect: "error",
     });
 
-    // SSE streaming response
     const contentType = upstream.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream") && upstream.body) {
       res.setHeader("Content-Type", "text/event-stream");
@@ -126,9 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    // Standard response — pipe status + body
     res.status(upstream.status);
-
     for (const key of ["content-type", "vary"]) {
       const v = upstream.headers.get(key);
       if (v) res.setHeader(key, v);

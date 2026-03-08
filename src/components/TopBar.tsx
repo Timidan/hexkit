@@ -1,9 +1,17 @@
 import React, { Suspense } from "react";
-import { Settings as SettingsIcon, HardDrive, Menu, X, Search } from "lucide-react";
+import {
+  Settings as SettingsIcon,
+  HardDrive,
+  Menu,
+  X,
+  Search,
+} from "lucide-react";
 import { Button } from "./ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import RainbowKitWallet from "./RainbowKitWallet";
 import EdbBridgeStatus from "./EdbBridgeStatus";
 import UniversalSearchBar from "./UniversalSearchBar";
+import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
 import { cn } from "@/lib/utils";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 
@@ -32,19 +40,109 @@ const TopBar: React.FC<TopBarProps> = ({
     >
       {/* Left: branding */}
       <div className="flex shrink-0 items-center gap-2.5">
-        <svg viewBox="0 0 100 100" fill="none" width={isMobile ? 32 : 44} height={isMobile ? 32 : 44} className="text-foreground">
-          <polygon points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="miter"/>
-          <line x1="36" y1="31" x2="36" y2="69" stroke="currentColor" strokeWidth="4.5" strokeLinecap="square"/>
-          <line x1="64" y1="31" x2="64" y2="69" stroke="currentColor" strokeWidth="4.5" strokeLinecap="square"/>
-          <line x1="36" y1="50" x2="64" y2="50" stroke="currentColor" strokeWidth="4.5" strokeLinecap="square"/>
-          <line x1="1" y1="39" x2="15.4" y2="39" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="0" y1="50" x2="15.4" y2="50" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="1" y1="61" x2="15.4" y2="61" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="84.6" y1="39" x2="99" y2="39" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="84.6" y1="50" x2="100" y2="50" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
-          <line x1="84.6" y1="61" x2="99" y2="61" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square"/>
+        <svg
+          viewBox="0 0 100 100"
+          fill="none"
+          width={isMobile ? 32 : 44}
+          height={isMobile ? 32 : 44}
+          className="text-foreground"
+        >
+          <polygon
+            points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30"
+            stroke="currentColor"
+            strokeWidth="3.5"
+            strokeLinejoin="miter"
+          />
+          <line
+            x1="36"
+            y1="31"
+            x2="36"
+            y2="69"
+            stroke="currentColor"
+            strokeWidth="4.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="64"
+            y1="31"
+            x2="64"
+            y2="69"
+            stroke="currentColor"
+            strokeWidth="4.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="36"
+            y1="50"
+            x2="64"
+            y2="50"
+            stroke="currentColor"
+            strokeWidth="4.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="1"
+            y1="39"
+            x2="15.4"
+            y2="39"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="0"
+            y1="50"
+            x2="15.4"
+            y2="50"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="1"
+            y1="61"
+            x2="15.4"
+            y2="61"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="84.6"
+            y1="39"
+            x2="99"
+            y2="39"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="84.6"
+            y1="50"
+            x2="100"
+            y2="50"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
+          <line
+            x1="84.6"
+            y1="61"
+            x2="99"
+            y2="61"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="square"
+          />
         </svg>
-        <span className="hidden md:inline text-lg font-extrabold tracking-[0.14em] text-foreground" style={{ fontFamily: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace" }}>HEXKIT</span>
+        <span
+          className="hidden md:inline text-lg font-extrabold tracking-[0.14em] text-foreground"
+          style={{
+            fontFamily: "'SF Mono', 'JetBrains Mono', ui-monospace, monospace",
+          }}
+        >
+          HEXKIT
+        </span>
       </div>
 
       {/* Center: search bar trigger (absolute-center so left/right asymmetry doesn't shift it) */}
@@ -67,7 +165,15 @@ const TopBar: React.FC<TopBarProps> = ({
             variant="icon-borderless"
             size="icon-inline"
             className="touch-target"
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))}
+            onClick={() =>
+              document.dispatchEvent(
+                new KeyboardEvent("keydown", {
+                  key: "k",
+                  ctrlKey: true,
+                  bubbles: true,
+                }),
+              )
+            }
             title="Search"
             aria-label="Search"
           >
@@ -86,17 +192,54 @@ const TopBar: React.FC<TopBarProps> = ({
         >
           <HardDrive size={15} />
         </Button>
-        <Button
-          type="button"
-          variant="icon-borderless"
-          size="icon-inline"
-          className="rpc-settings-trigger"
-          onClick={onOpenRpcSettings}
-          title="RPC Settings"
-          aria-label="RPC settings"
-        >
-          <SettingsIcon size={16} />
-        </Button>
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="icon-borderless"
+              size="icon-inline"
+              className="rpc-settings-trigger relative"
+              onClick={(e) => {
+                e.preventDefault();
+                setPopoverOpen(false);
+                onOpenRpcSettings();
+              }}
+              title="RPC Settings"
+              aria-label="RPC settings"
+            >
+              <SettingsIcon size={16} />
+              {needsKeys && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400"
+                  style={{
+                    animation: "rpc-hint-pulse 2s ease-in-out infinite",
+                  }}
+                />
+              )}
+            </Button>
+          </PopoverTrigger>
+          {needsKeys && (
+            <PopoverContent
+              side="bottom"
+              align="end"
+              sideOffset={8}
+              className="w-64 p-3"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="flex items-start gap-2.5">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <div>
+                  <p className="text-xs font-medium leading-snug">
+                    Add your own RPC & Etherscan keys for faster performance
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+                    Settings are stored locally in your browser
+                  </p>
+                </div>
+              </div>
+            </PopoverContent>
+          )}
+        </Popover>
         <RainbowKitWallet />
         {isMobile && onToggleMobileMenu && (
           <Button

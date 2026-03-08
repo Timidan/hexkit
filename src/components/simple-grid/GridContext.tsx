@@ -210,6 +210,7 @@ export interface GridContextValue {
 
   // --- Callbacks ---
   handleFetchABI: () => Promise<void>;
+  handleCancelFetch: () => void;
   handleManualABI: () => Promise<void>;
   handleManualAddressChange: (v: string) => void;
   handleFunctionSelect: (value: string, initialInputValues?: Record<string, string>) => void;

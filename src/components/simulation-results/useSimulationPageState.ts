@@ -210,7 +210,10 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     if (onReSimulate) { onReSimulate(); return; }
 
     const simId = resultWithExtras?.simulationId || contextSimulationId || id;
-    if (simId) { navigate(`/builder?clone=${encodeURIComponent(simId)}`); return; }
+    if (simId) {
+      navigate(`/builder?mode=simulation&clone=${encodeURIComponent(simId)}`);
+      return;
+    }
 
     const txHash = resultWithExtras?.transactionHash;
     if (txHash && typeof txHash === 'string' && txHash.startsWith('0x')) {
@@ -231,7 +234,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       }
     }
 
-    navigate('/builder');
+    navigate('/builder?mode=simulation&replay=txhash');
   }, [onReSimulate, navigate, result, contractContext, contextSimulationId, id]);
 
   const handleExportTestData = useCallback(() => {
