@@ -11,7 +11,8 @@ import {
 } from "../../utils/simulationArtifacts";
 import type { SimulationResult } from "../../types/transaction";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../ui/table";
-import { shortAddress, EMPTY_CALL_TREE } from "./types";
+import { EMPTY_CALL_TREE } from "./types";
+import { shortenAddress } from "../shared/AddressDisplay";
 
 const renderCallTreeNodes = (nodes: SimulationCallNode[]): React.ReactNode => {
   if (!nodes || nodes.length === 0) {
@@ -26,7 +27,7 @@ const renderCallTreeNodes = (nodes: SimulationCallNode[]): React.ReactNode => {
             <strong>{node.functionName || node.label || "Call"}</strong>
           </div>
           <div className="simulation-call-node__meta">
-            <span>{shortAddress(node.from)} → {shortAddress(node.to)}</span>
+            <span>{shortenAddress(node.from)} → {shortenAddress(node.to)}</span>
             {node.gasUsed ? <span> · gas {node.gasUsed}</span> : null}
             {node.error ? (
               <span style={{ color: "#fb7185" }}>
@@ -136,7 +137,7 @@ export const SimulationReplayResults: React.FC<{ result: SimulationResult }> = (
                           {entry.functionName || entry.label || "Call"}
                         </TableCell>
                         <TableCell>
-                          {shortAddress(entry.from)} → {shortAddress(entry.to)}
+                          {shortenAddress(entry.from)} → {shortenAddress(entry.to)}
                         </TableCell>
                         <TableCell>
                           {entry.gasUsed ?? "\u2014"}
@@ -162,7 +163,7 @@ export const SimulationReplayResults: React.FC<{ result: SimulationResult }> = (
               <li key={index} style={{ marginBottom: "6px" }}>
                 <strong>{event.name || "Event"}</strong>{" "}
                 <span style={{ color: "#94a3b8" }}>
-                  ({shortAddress(event.address)})
+                  ({shortenAddress(event.address)})
                 </span>
                 {event.decoded ? (
                   <details style={{ marginTop: "4px" }}>
@@ -200,7 +201,7 @@ export const SimulationReplayResults: React.FC<{ result: SimulationResult }> = (
             <TableBody>
               {artifacts.storageDiffs.slice(0, 8).map((diff, index) => (
                 <TableRow key={`${diff.address}-${diff.slot}-${index}`}>
-                  <TableCell>{shortAddress(diff.address)}</TableCell>
+                  <TableCell>{shortenAddress(diff.address)}</TableCell>
                   <TableCell>{diff.slot ?? diff.key ?? "\u2014"}</TableCell>
                   <TableCell>{diff.before ?? "\u2014"}</TableCell>
                   <TableCell>{diff.after ?? diff.value ?? "\u2014"}</TableCell>

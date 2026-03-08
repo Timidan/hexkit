@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
 import type { TraceRow } from "../simulation-results/types";
-import { shortenAddress } from "../shared/AddressDisplay";
 
 export interface StackTraceProps {
   traceRows: TraceRow[];
@@ -251,15 +250,3 @@ export const formatParamValue = (value: any, type?: string, components?: any[]):
   return JSON.stringify(value);
 };
 
-/** @deprecated Use `shortenAddress` from `shared/AddressDisplay` directly */
-export const shortAddress = shortenAddress;
-
-/** Format contract name with address */
-export const formatContractDisplay = (address?: string, name?: string) => {
-  if (!address) return "\u2014";
-  const short = shortenAddress(address);
-  if (name && name !== address) {
-    return `${name}(${short})`;
-  }
-  return short;
-};

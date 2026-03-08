@@ -3,7 +3,6 @@ import { EXTENDED_NETWORKS, type ExtendedChain } from "../shared/NetworkSelector
 import { SUPPORTED_CHAINS } from "../../utils/chains";
 import type { Chain } from "../../types";
 import type { SimulationCallNode } from "../../utils/simulationArtifacts";
-import { shortenAddress } from "../shared/AddressDisplay";
 
 // ---- View mode type ----
 export type SimulationViewMode = "builder" | "replay";
@@ -96,9 +95,6 @@ export const replaySectionStyle: React.CSSProperties = {
 };
 
 // ---- Utility functions ----
-/** @deprecated Use `shortenAddress` from `shared/AddressDisplay` directly */
-export const shortAddress = shortenAddress;
-
 export const EMPTY_CALL_TREE: SimulationCallNode[] = [];
 
 export const defaultReplayNetwork =

@@ -13,49 +13,9 @@ import {
   parseFunctionSignatureParameters,
   type ParsedSolidityParameter,
 } from '../utils/solidityTypes';
+import { isValidSolidityType, areValidSolidityParams } from './signature-database/helpers';
 
 type EncoderMode = 'function' | 'raw';
-
-/** Validate a single Solidity ABI type string. */
-function isValidSolidityType(t: string): boolean {
-  const base = t.replace(/(\[\d*\])+$/, '');
-  if (base.startsWith('(') && base.endsWith(')')) {
-    const inner = base.slice(1, -1);
-    return inner.length > 0 && areValidSolidityParams(inner);
-  }
-  if (['address', 'bool', 'string', 'bytes'].includes(base)) return true;
-  const intMatch = base.match(/^(u?int)(\d+)?$/);
-  if (intMatch) {
-    if (!intMatch[2]) return true;
-    const n = Number(intMatch[2]);
-    return n >= 8 && n <= 256 && n % 8 === 0;
-  }
-  const bytesMatch = base.match(/^bytes(\d+)$/);
-  if (bytesMatch) {
-    const n = Number(bytesMatch[1]);
-    return n >= 1 && n <= 32;
-  }
-  return false;
-}
-
-/** Split comma-separated params respecting nested parens, then validate each. */
-function areValidSolidityParams(params: string): boolean {
-  const types: string[] = [];
-  let depth = 0;
-  let current = '';
-  for (const ch of params) {
-    if (ch === '(') depth++;
-    else if (ch === ')') depth--;
-    if (ch === ',' && depth === 0) {
-      types.push(current.trim());
-      current = '';
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) types.push(current.trim());
-  return types.length > 0 && types.every(isValidSolidityType);
-}
 
 /** Return a placeholder string for the given Solidity type. */
 function placeholderForType(type: string): string {

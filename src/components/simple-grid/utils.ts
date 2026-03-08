@@ -164,9 +164,6 @@ export const deriveResultMetadata = (
   };
 };
 
-export const shortAddress = (value?: string | null) =>
-  shortenAddress(value);
-
 export const abbreviateFacet = (address: string) =>
   address ? shortenAddress(address) : "";
 
