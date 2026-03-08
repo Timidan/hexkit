@@ -1,9 +1,16 @@
 import React from 'react';
-import { ArrowRight, Layers } from 'lucide-react';
+import { ArrowRight, History, Layers, Sparkles } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { CopyButton } from '../ui/copy-button';
 import { CopyableCell, ClickableValue } from './StorageCells';
-import { cleanLabel, simplifyType, getDecodedSummary } from './storageViewerHelpers';
+import {
+  cleanLabel,
+  simplifyType,
+  getDecodedSummary,
+  getDecodeKindDescription,
+  getDecodeKindLabel,
+  getProvenanceLabel,
+} from './storageViewerHelpers';
 import { ZERO_VALUE, SLOT_TABLE_GRID } from './storageViewerTypes';
 import type { ResolvedSlot } from './storageViewerTypes';
 import PackingVisualizer from './storage-viewer/PackingVisualizer';
@@ -32,6 +39,7 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
 }) => {
   const isZero = slot.value === ZERO_VALUE;
   const isReference = slot.kind === 'mapping' || slot.kind === 'dynamic_array';
+  const hasMutation = slot.before !== undefined || slot.after !== undefined;
   const decodedSummary = getDecodedSummary(slot);
   return (
     <div className="border-b border-border/10">
@@ -99,17 +107,30 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
               Inspect
             </button>
           ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30 hover:bg-muted/80 transition-colors"
-            >
-              Detail
-            </button>
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); onHistory(); }}
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded border transition-colors",
+                  hasMutation
+                    ? "bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+                    : "bg-muted text-muted-foreground border-border/30 hover:bg-muted/80",
+                )}
+              >
+                History
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggle(); }}
+                className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30 hover:bg-muted/80 transition-colors"
+              >
+                Detail
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {isExpanded && <InlineInspector slot={slot} />}
+      {isExpanded && <InlineInspector slot={slot} onHistory={onHistory} />}
     </div>
   );
 });
@@ -119,15 +140,56 @@ SlotRowWithInspector.displayName = 'SlotRowWithInspector';
 
 interface InlineInspectorProps {
   slot: ResolvedSlot;
+  onHistory: () => void;
 }
 
-const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
+const InlineInspector: React.FC<InlineInspectorProps> = ({ slot, onHistory }) => {
   const isZero = slot.value === ZERO_VALUE;
   const hasDecodedFields = slot.decodedFields && slot.decodedFields.length > 0;
   const hasPackingViz = slot.isPacked && slot.decodedFields && slot.decodedFields.length > 1;
+  const hasMutation = slot.before !== undefined || slot.after !== undefined;
 
   return (
     <div className="px-3 py-3 bg-muted/5 border-t border-border/20 space-y-3">
+      <div>
+        <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+          <Sparkles className="h-3 w-3 text-primary" />
+          Resolution
+        </div>
+        <div className="bg-muted/10 rounded border border-border/20 p-2 space-y-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] h-5">
+                {getDecodeKindLabel(slot.decodeKind)}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {slot.confidence} confidence
+              </Badge>
+              {hasMutation && (
+                <Badge variant="outline" className="text-[10px] h-5 text-amber-300 border-amber-500/30">
+                  <History className="h-2.5 w-2.5 mr-1" />
+                  Changed
+                </Badge>
+              )}
+              {slot.provenance.map((source) => (
+                <Badge key={source} variant="secondary" className="text-[10px] h-5">
+                  {getProvenanceLabel(source)}
+                </Badge>
+              ))}
+            </div>
+            <button
+              onClick={onHistory}
+              className="text-[10px] px-2 py-1 rounded border border-border/40 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+            >
+              Open History
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {getDecodeKindDescription(slot)}
+          </p>
+        </div>
+      </div>
+
       {/* Row 1: Slot + Raw Value + Copy buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>

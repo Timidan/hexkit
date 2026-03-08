@@ -10,7 +10,12 @@
  * - TTL-based expiry + schema version invalidation.
  */
 
-import type { DiscoveredKey } from './mappingKeyDiscovery';
+import {
+  getDiscoverySourceLabel,
+  sortDiscoverySources,
+  type DiscoveredKey,
+  type DiscoveredKeySource,
+} from './mappingKeyDiscovery';
 
 // ─── Constants ───────────────────────────────────────────────────────
 
@@ -18,7 +23,7 @@ const DB_NAME = 'web3-toolkit-mapping-keys';
 const DB_VERSION = 1;
 const STORE_NAME = 'discoveredKeys';
 /** Schema version for invalidating stale cache entries */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 3;
 /** Default TTL: 7 days (mapping keys don't expire quickly) */
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -41,6 +46,25 @@ export interface CacheHydrateResult {
   keys: Map<string, DiscoveredKey[]>;
   /** Minimum lastScannedBlock across all slots (for resume) */
   resumeFromBlock: number | null;
+}
+
+function mergeCachedDiscoveredKey(existing: DiscoveredKey, incoming: DiscoveredKey): DiscoveredKey {
+  const sources = sortDiscoverySources([
+    ...((existing.sources.length > 0 ? existing.sources : [existing.source]) as DiscoveredKeySource[]),
+    ...((incoming.sources.length > 0 ? incoming.sources : [incoming.source]) as DiscoveredKeySource[]),
+  ]);
+  const primarySource = sources[0] ?? 'manual_lookup';
+
+  return {
+    ...existing,
+    ...incoming,
+    value: incoming.value ?? existing.value,
+    source: primarySource,
+    sourceLabel: getDiscoverySourceLabel(primarySource),
+    sources,
+    sourceLabels: sources.map(getDiscoverySourceLabel),
+    evidenceCount: sources.length,
+  };
 }
 
 // ─── Cache Implementation ────────────────────────────────────────────
@@ -172,13 +196,15 @@ class MappingKeyCache {
             let mergedKeys = keys;
 
             if (existing && existing.schemaVersion === SCHEMA_VERSION) {
-              const existingSet = new Set(
-                existing.keys.map((k) => `${k.key}:${k.derivedSlot.toLowerCase()}`),
+              const mergedById = new Map(
+                existing.keys.map((k) => [`${k.key}:${k.derivedSlot.toLowerCase()}`, k]),
               );
-              const newKeys = keys.filter(
-                (k) => !existingSet.has(`${k.key}:${k.derivedSlot.toLowerCase()}`),
-              );
-              mergedKeys = [...existing.keys, ...newKeys];
+              for (const key of keys) {
+                const dedupeKey = `${key.key}:${key.derivedSlot.toLowerCase()}`;
+                const prior = mergedById.get(dedupeKey);
+                mergedById.set(dedupeKey, prior ? mergeCachedDiscoveredKey(prior, key) : key);
+              }
+              mergedKeys = Array.from(mergedById.values());
             }
 
             const entry: CachedMappingKeys = {

@@ -1,4 +1,5 @@
 import type { ResolvedSlot, SlotEvidence, SlotHistoryRecord } from './storageViewerTypes';
+import type { SlotSource } from '../../types/debug';
 import { ZERO_VALUE } from './storageViewerTypes';
 
 /** Shorten hex for display */
@@ -143,5 +144,58 @@ export function decodeSlotWord(value: string | null, typeLabel?: string): string
     return BigInt(value).toString();
   } catch {
     return value;
+  }
+}
+
+export function getDecodeKindLabel(kind: ResolvedSlot['decodeKind']): string {
+  switch (kind) {
+    case 'exact':
+      return 'Exact layout match';
+    case 'derived':
+      return 'Derived slot';
+    case 'proxy_slot':
+      return 'Proxy slot';
+    case 'namespace_root':
+      return 'Namespace root';
+    case 'unknown':
+    default:
+      return 'Heuristic';
+  }
+}
+
+export function getDecodeKindDescription(slot: ResolvedSlot): string {
+  switch (slot.decodeKind) {
+    case 'exact':
+      return 'Matched directly against the recovered storage layout for this contract.';
+    case 'derived':
+      return 'Computed from layout metadata for a mapping or dynamic array entry.';
+    case 'proxy_slot':
+      return 'Matched to a well-known proxy administration slot.';
+    case 'namespace_root':
+      return 'Resolved from detected namespaced storage used by the contract.';
+    case 'unknown':
+    default:
+      return 'No trusted layout match was found, so the value and type use heuristic decoding.';
+  }
+}
+
+export function getProvenanceLabel(source: SlotSource): string {
+  switch (source) {
+    case 'layout':
+      return 'Layout';
+    case 'trace':
+      return 'Trace';
+    case 'manual':
+      return 'Manual';
+    case 'rpc_scan':
+      return 'RPC scan';
+    case 'rpc_proof':
+      return 'RPC proof';
+    case 'proxy':
+      return 'Proxy';
+    case 'namespace':
+      return 'Namespace';
+    default:
+      return source;
   }
 }

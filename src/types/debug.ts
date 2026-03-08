@@ -304,6 +304,11 @@ export interface DiscoveredMappingKey {
   value: string | null;
   variable: string;
   baseSlot: string;
+  source: string;
+  sourceLabel: string;
+  sources: string[];
+  sourceLabels: string[];
+  evidenceCount: number;
 }
 
 /** A single historical value change for a storage slot */
