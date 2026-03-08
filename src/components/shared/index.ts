@@ -3,8 +3,7 @@ export { default as Input } from './Input';
 export { default as Card } from './Card';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as ErrorDisplay } from './ErrorDisplay';
-export { AddressDisplay, shortenAddress, shortenHash } from './AddressDisplay';
-export type { AddressDisplayProps } from './AddressDisplay';
+export { shortenAddress, shortenHash } from './AddressDisplay';
 
 // Contract Badges
 export {

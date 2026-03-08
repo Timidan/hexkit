@@ -31,9 +31,6 @@ export const useNotifications = () => {
   return context;
 };
 
-// Re-export toast for direct usage (e.g. toast.promise, toast.loading)
-export { toast };
-
 const toastByType = {
   success: toast.success,
   error: toast.error,
@@ -88,5 +85,3 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     </NotificationContext.Provider>
   );
 };
-
-export default NotificationProvider;

@@ -16,7 +16,6 @@ import type {
 } from "../types";
 import {
   contractResolver,
-  searchAcrossChains,
   type ResolveResult,
 } from "./resolver";
 
@@ -100,50 +99,3 @@ export const fetchContractABIMultiSource = async (
   }
 };
 
-/**
- * Search for a contract across all supported networks.
- *
- * This function now uses parallel search which is much faster than
- * the previous sequential implementation.
- *
- * @deprecated Use `searchAcrossChains()` from `./resolver` for new code.
- */
-export const searchContractAcrossNetworks = async (
-  contractAddress: string,
-  etherscanApiKey?: string
-): Promise<Array<{ chain: Chain; result: ExtendedABIFetchResult }>> => {
-  // Import chains dynamically to avoid circular deps
-  const { SUPPORTED_CHAINS } = await import("./chains");
-
-  // Use new parallel search
-  const searchResult = await searchAcrossChains(contractAddress, SUPPORTED_CHAINS, {
-    etherscanApiKey,
-  });
-
-  const results: Array<{ chain: Chain; result: ExtendedABIFetchResult }> = [];
-
-  for (const chain of SUPPORTED_CHAINS) {
-    const resolveResult = searchResult.results.get(chain.id);
-
-    if (resolveResult) {
-      results.push({
-        chain,
-        result: toExtendedResult(resolveResult),
-      });
-    } else {
-      results.push({
-        chain,
-        result: {
-          success: false,
-          error: searchResult.errors.get(chain.id) || "Not found",
-        },
-      });
-    }
-  }
-
-  return results.sort((a, b) => {
-    if (a.result.success && !b.result.success) return -1;
-    if (!a.result.success && b.result.success) return 1;
-    return 0;
-  });
-};
