@@ -19,7 +19,7 @@ interface ChainOverride {
   etherscanApiKey?: string;
 }
 
-interface NetworkConfig {
+export interface NetworkConfig {
   // RPC Provider Settings
   rpcMode: RpcProviderMode;
   alchemyApiKey?: string;
