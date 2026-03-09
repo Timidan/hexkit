@@ -134,9 +134,7 @@ const StorageLayoutViewer: React.FC = () => {
                 handleKeyLookup={state.handleKeyLookup}
                 isLookingUp={state.isLookingUp}
                 resolvedSlots={state.resolvedSlots}
-                isHistoryView={state.isHistoryView}
                 isMappingView={state.isMappingView}
-                historyRows={state.historyRows}
                 displayRows={state.displayRows}
                 keyBySlot={state.keyBySlot}
                 tableHeaderRef={state.tableHeaderRef}
@@ -144,7 +142,6 @@ const StorageLayoutViewer: React.FC = () => {
                 expandedSlot={state.expandedSlot}
                 toggleSlotExpansion={state.toggleSlotExpansion}
                 handleInspect={state.handleInspect}
-                handleHistory={state.handleHistory}
                 discovery={state.discovery}
                 mappingEntries={state.mappingEntries}
                 handleStartDiscovery={state.handleStartDiscovery}

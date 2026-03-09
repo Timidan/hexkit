@@ -15,7 +15,7 @@ import { CopyableCell, ClickableValue } from './StorageCells';
 import { SlotRowWithInspector } from './SlotRow';
 import { shortHex, simplifyType } from './storageViewerHelpers';
 import { ZERO_VALUE, MAPPING_TABLE_GRID, SLOT_TABLE_GRID } from './storageViewerTypes';
-import type { DiscoveredMappingKey, ResolvedSlot, PathSegment, SlotHistoryRecord } from './storageViewerTypes';
+import type { DiscoveredMappingKey, ResolvedSlot, PathSegment } from './storageViewerTypes';
 import type { useAutoDiscovery } from './storage-viewer/useAutoDiscovery';
 import type { LoadingPhase } from './storage-viewer/useStorageEvidence';
 
@@ -39,9 +39,7 @@ export interface StorageTableViewProps {
   isLookingUp: boolean;
   resolvedSlots: ResolvedSlot[];
   // Views
-  isHistoryView: boolean;
   isMappingView: boolean;
-  historyRows: SlotHistoryRecord[];
   displayRows: ResolvedSlot[];
   keyBySlot: Map<string, DiscoveredMappingKey>;
   // Table header ref + char limits
@@ -51,7 +49,6 @@ export interface StorageTableViewProps {
   expandedSlot: string | null;
   toggleSlotExpansion: (slotHex: string) => void;
   handleInspect: (slot: ResolvedSlot) => void;
-  handleHistory: (slot: ResolvedSlot) => void;
   // Discovery
   discovery: ReturnType<typeof useAutoDiscovery>;
   mappingEntries: { baseSlot: string }[];
@@ -76,9 +73,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
   handleKeyLookup,
   isLookingUp,
   resolvedSlots,
-  isHistoryView,
   isMappingView,
-  historyRows,
   displayRows,
   keyBySlot,
   tableHeaderRef,
@@ -86,7 +81,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
   expandedSlot,
   toggleSlotExpansion,
   handleInspect,
-  handleHistory,
   discovery,
   mappingEntries,
   handleStartDiscovery,
@@ -147,7 +141,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
       )}
 
       {/* Key Input Panel */}
-      {pathSegments.length > 0 && !isHistoryView && (() => {
+      {pathSegments.length > 0 && (() => {
         const currentSeg = pathSegments[pathSegments.length - 1];
         const isArrayDrillDown = currentSeg.slotKind === 'dynamic_array';
         const keyTypeId = currentSeg.keyTypeId;
@@ -244,11 +238,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
               <PanelLeftOpen className="h-3.5 w-3.5" />
             </button>
           )}
-          {isHistoryView ? (
-            <span>History ({historyRows.length})</span>
-          ) : (
-            <span>Slots ({displayRows.length})</span>
-          )}
+          <span>Slots ({displayRows.length})</span>
         </div>
         {/* Discovery scan controls */}
         {isMappingView && mappingEntries.length > 0 && (
@@ -295,40 +285,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
 
       <div className="flex-1 overflow-auto">
        <div className="min-w-[720px] w-full">
-        {isHistoryView ? (
-          <>
-            <div ref={tableHeaderRef} className="grid grid-cols-[minmax(100px,1fr)_130px_100px_minmax(100px,1fr)] gap-2 px-3 py-1 text-[11px] text-muted-foreground uppercase tracking-wider border-b border-border/20 sticky top-0 bg-background z-10 text-left">
-              <span>TX HASH</span>
-              <span>BLOCK NUMBER</span>
-              <span>TX POSITION</span>
-              <span>VALUE</span>
-            </div>
-            {historyRows.length === 0 ? (
-              <div className="text-xs text-muted-foreground text-center py-8">
-                No mutation history available for this slot.
-              </div>
-            ) : (
-              historyRows.map((row, index) => (
-                <div
-                  key={`${row.txHash}-${row.blockNumber}-${row.txPosition}-${index}`}
-                  className="grid grid-cols-[minmax(100px,1fr)_130px_100px_minmax(100px,1fr)] gap-2 px-3 py-1.5 text-xs border-b border-border/10 text-left"
-                >
-                  {row.txHash === '--' ? (
-                    <span className="font-mono text-xs text-primary">--</span>
-                  ) : (
-                    <CopyableCell value={row.txHash} className="text-primary" maxChars={charLimits[0] || 32} />
-                  )}
-                  <span className="font-mono">{row.blockNumber > 0 ? row.blockNumber.toLocaleString() : '--'}</span>
-                  <span className="font-mono">{row.txPosition > 0 ? row.txPosition : '--'}</span>
-                  <span className="min-w-0">
-                    <ClickableValue value={row.value} label="Slot Value" maxChars={charLimits[3] || 64} />
-                  </span>
-                </div>
-              ))
-            )}
-          </>
-        ) : (
-          <>
+        <>
             {/* Table header */}
             <div ref={tableHeaderRef} className={`grid ${isMappingView ? MAPPING_TABLE_GRID : SLOT_TABLE_GRID} gap-2 px-3 py-1 text-[11px] text-muted-foreground uppercase tracking-wider border-b border-border/20 sticky top-0 bg-background z-10 text-left`}>
               {isMappingView ? (
@@ -400,7 +357,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
                     isExpanded={expandedSlot === slot.slot}
                     onToggle={() => toggleSlotExpansion(slot.slot)}
                     onInspect={() => handleInspect(slot)}
-                    onHistory={() => handleHistory(slot)}
                     charLimits={charLimits}
                     isResolving={isResolvingInBackground}
                   />
@@ -412,7 +368,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
               )}
             </div>
           </>
-        )}
        </div>
       </div>
     </div>

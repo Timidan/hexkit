@@ -23,7 +23,6 @@ export interface SlotRowWithInspectorProps {
   isExpanded: boolean;
   onToggle: () => void;
   onInspect: () => void;
-  onHistory: () => void;
   charLimits: number[];
   isResolving?: boolean;
 }
@@ -33,7 +32,6 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
   isExpanded,
   onToggle,
   onInspect,
-  onHistory,
   charLimits,
   isResolving,
 }) => {
@@ -107,30 +105,17 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
               Inspect
             </button>
           ) : (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); onHistory(); }}
-                className={cn(
-                  "text-[10px] px-2 py-0.5 rounded border transition-colors",
-                  hasMutation
-                    ? "bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
-                    : "bg-muted text-muted-foreground border-border/30 hover:bg-muted/80",
-                )}
-              >
-                History
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onToggle(); }}
-                className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30 hover:bg-muted/80 transition-colors"
-              >
-                Detail
-              </button>
-            </>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+              className="text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30 hover:bg-muted/80 transition-colors"
+            >
+              Detail
+            </button>
           )}
         </div>
       </div>
 
-      {isExpanded && <InlineInspector slot={slot} onHistory={onHistory} />}
+      {isExpanded && <InlineInspector slot={slot} />}
     </div>
   );
 });
@@ -140,10 +125,9 @@ SlotRowWithInspector.displayName = 'SlotRowWithInspector';
 
 interface InlineInspectorProps {
   slot: ResolvedSlot;
-  onHistory: () => void;
 }
 
-const InlineInspector: React.FC<InlineInspectorProps> = ({ slot, onHistory }) => {
+const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
   const isZero = slot.value === ZERO_VALUE;
   const hasDecodedFields = slot.decodedFields && slot.decodedFields.length > 0;
   const hasPackingViz = slot.isPacked && slot.decodedFields && slot.decodedFields.length > 1;
@@ -177,12 +161,6 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot, onHistory }) =>
                 </Badge>
               ))}
             </div>
-            <button
-              onClick={onHistory}
-              className="text-[10px] px-2 py-1 rounded border border-border/40 bg-background/60 text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
-            >
-              Open History
-            </button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {getDecodeKindDescription(slot)}

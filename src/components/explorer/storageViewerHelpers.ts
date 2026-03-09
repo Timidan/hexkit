@@ -1,4 +1,4 @@
-import type { ResolvedSlot, SlotEvidence, SlotHistoryRecord } from './storageViewerTypes';
+import type { ResolvedSlot } from './storageViewerTypes';
 import type { SlotSource } from '../../types/debug';
 import { ZERO_VALUE } from './storageViewerTypes';
 
@@ -81,51 +81,6 @@ export function getDecodedSummary(slot: ResolvedSlot): string | null {
   }
 
   return field.decoded;
-}
-
-export function readMetaNumber(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = value.startsWith('0x') ? parseInt(value, 16) : Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
-
-export function buildSlotHistoryRecords(slot: string, evidence: SlotEvidence[]): SlotHistoryRecord[] {
-  const slotLower = slot.toLowerCase();
-  const matching = evidence.filter((item) => item.slot.toLowerCase() === slotLower);
-  const rows: SlotHistoryRecord[] = [];
-
-  for (const item of matching) {
-    if (!item.before && !item.after && !item.value) continue;
-
-    const txHash = typeof item.meta?.txHash === 'string' ? item.meta.txHash : '--';
-    const blockNumber = readMetaNumber(item.meta?.blockNumber);
-    const txPosition = readMetaNumber(item.meta?.txPosition ?? item.meta?.transactionIndex);
-    const value = item.after || item.value || item.before || ZERO_VALUE;
-
-    rows.push({
-      txHash,
-      blockNumber,
-      txPosition,
-      value,
-    });
-  }
-
-  if (rows.length === 0) {
-    const current = matching.find((item) => item.value);
-    if (current?.value) {
-      rows.push({
-        txHash: '--',
-        blockNumber: 0,
-        txPosition: 0,
-        value: current.value,
-      });
-    }
-  }
-
-  return rows.sort((a, b) => (b.blockNumber - a.blockNumber) || (b.txPosition - a.txPosition));
 }
 
 export function decodeSlotWord(value: string | null, typeLabel?: string): string | null {

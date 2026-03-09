@@ -1,4 +1,4 @@
-import type { SlotEvidence, ResolvedSlot, SlotHistoryRecord, DiscoveredMappingKey, PathSegment } from '../../types/debug';
+import type { SlotEvidence, ResolvedSlot, DiscoveredMappingKey, PathSegment } from '../../types/debug';
 
 export type ViewFilter = 'all' | 'resolved' | 'unknown' | 'changed' | 'non-zero';
 export type SlotMode = 'simple' | 'mapping' | 'array' | 'nested';
@@ -19,4 +19,4 @@ export const MAPPING_TABLE_GRID = 'grid-cols-[2fr_3fr_1.5fr_8fr]';
 export type StorageIconState = 'empty' | 'valid' | 'loading' | 'loaded';
 
 // Re-export commonly used types from debug so consumers don't need dual imports
-export type { SlotEvidence, ResolvedSlot, SlotHistoryRecord, DiscoveredMappingKey, PathSegment };
+export type { SlotEvidence, ResolvedSlot, DiscoveredMappingKey, PathSegment };

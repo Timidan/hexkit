@@ -190,11 +190,16 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
                   variant="icon-borderless"
                   size="icon-inline"
                   onClick={onCancel}
-                  className="p-1.5 rounded-md transition-colors text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    fetchIcon
+                      ? "text-foreground/70 hover:text-red-300 hover:bg-red-500/10"
+                      : "text-red-400 hover:text-red-300 hover:bg-red-500/10 animate-pulse"
+                  )}
                   title="Cancel loading"
                   aria-label="Cancel loading"
                 >
-                  <Square size={14} fill="currentColor" />
+                  {fetchIcon || <Square size={14} fill="currentColor" />}
                 </Button>
               ) : (
                 <Button

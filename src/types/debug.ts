@@ -273,7 +273,6 @@ export interface PathSegment {
   label: string;
   variable: string;
   baseSlot: string;
-  history?: boolean;
   /** For mapping drill-down: key type ID from layout (e.g. "t_address") */
   keyTypeId?: string;
   /** Optional selected key for current segment */
@@ -299,14 +298,6 @@ export interface DiscoveredMappingKey {
   evidenceCount: number;
 }
 
-/** A single historical value change for a storage slot */
-export interface SlotHistoryRecord {
-  txHash: string;
-  blockNumber: number;
-  txPosition: number;
-  value: string;
-  decodedValue?: string;
-}
 
 /** Detected RPC capabilities for storage inspection */
 export interface RpcCapabilities {

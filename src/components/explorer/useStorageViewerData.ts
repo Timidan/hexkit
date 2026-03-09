@@ -5,12 +5,10 @@ import type {
   ViewFilter,
   ResolvedSlot,
   PathSegment,
-  SlotHistoryRecord,
-  SlotEvidence,
   DiscoveredMappingKey,
 } from './storageViewerTypes';
 import { ZERO_VALUE } from './storageViewerTypes';
-import { shortHex, decodeSlotWord, buildSlotHistoryRecords } from './storageViewerHelpers';
+import { shortHex, decodeSlotWord } from './storageViewerHelpers';
 
 interface UseStorageViewerDataParams {
   resolvedSlots: ResolvedSlot[];
@@ -21,12 +19,10 @@ interface UseStorageViewerDataParams {
   getChanged: () => ResolvedSlot[];
   getNonZero: () => ResolvedSlot[];
   pathSegments: PathSegment[];
-  isHistoryView: boolean;
   mergedKeys: Map<string, DiscoveredMappingKey[]>;
   contractAddress: string;
   mappingEntriesBySlot: Map<string, { variable: string; baseSlot: string; keyTypeId?: string; valueTypeId?: string }>;
   layout: StorageLayoutResponse | null;
-  evidence: SlotEvidence[];
 }
 
 export function useStorageViewerData({
@@ -38,12 +34,10 @@ export function useStorageViewerData({
   getChanged,
   getNonZero,
   pathSegments,
-  isHistoryView,
   mergedKeys,
   contractAddress,
   mappingEntriesBySlot,
   layout,
-  evidence,
 }: UseStorageViewerDataParams) {
 
   // ─── Summary Stats ───────────────────────────────────────────────
@@ -91,10 +85,6 @@ export function useStorageViewerData({
   const displayRows = useMemo(() => {
     if (pathSegments.length === 0) {
       return filteredSlots;
-    }
-
-    if (isHistoryView) {
-      return [] as ResolvedSlot[];
     }
 
     const currentSegment = pathSegments[pathSegments.length - 1];
@@ -145,13 +135,7 @@ export function useStorageViewerData({
     }
 
     return rows;
-  }, [pathSegments, filteredSlots, isHistoryView, mergedKeys, contractAddress, searchQuery, mappingEntriesBySlot, layout]);
-
-  const historyRows = useMemo<SlotHistoryRecord[]>(() => {
-    if (!isHistoryView || pathSegments.length === 0) return [];
-    const currentSegment = pathSegments[pathSegments.length - 1];
-    return buildSlotHistoryRecords(currentSegment.baseSlot, evidence);
-  }, [isHistoryView, pathSegments, evidence]);
+  }, [pathSegments, filteredSlots, mergedKeys, contractAddress, searchQuery, mappingEntriesBySlot, layout]);
 
   /** Group slots for the tree view -- only show non-zero slots */
   const treeGroups = useMemo(() => {
@@ -186,7 +170,6 @@ export function useStorageViewerData({
     stats,
     filteredSlots,
     displayRows,
-    historyRows,
     treeGroups,
   };
 }

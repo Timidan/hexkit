@@ -143,12 +143,11 @@ export function useStorageViewerState() {
 
   const sessionId = session?.sessionId ?? null;
   const chainId = selectedChain.id;
-  const isHistoryView = pathSegments.length > 0 && pathSegments[pathSegments.length - 1]?.history === true;
-  const isMappingView = pathSegments.length > 0 && !isHistoryView;
+  const isMappingView = pathSegments.length > 0;
 
   // Dynamic per-column character limits based on actual rendered widths
   const tableHeaderRef = useRef<HTMLDivElement | null>(null);
-  const viewKey = isHistoryView ? 'history' : isMappingView ? 'mapping' : 'standard';
+  const viewKey = isMappingView ? 'mapping' : 'standard';
   const charLimits = useGridCharLimits(tableHeaderRef, viewKey);
 
   /** Merged keys: manual + auto-discovered */
@@ -205,7 +204,7 @@ export function useStorageViewerState() {
 
   // ─── Computed Data (delegated to useStorageViewerData) ─────────────
 
-  const { stats, filteredSlots, displayRows, historyRows, treeGroups } = useStorageViewerData({
+  const { stats, filteredSlots, displayRows, treeGroups } = useStorageViewerData({
     resolvedSlots,
     filter,
     searchQuery,
@@ -214,12 +213,10 @@ export function useStorageViewerState() {
     getChanged,
     getNonZero,
     pathSegments,
-    isHistoryView,
     mergedKeys,
     contractAddress,
     mappingEntriesBySlot,
     layout,
-    evidence,
   });
 
   // ─── Actions ────────────────────────────────────────────────────────
@@ -666,18 +663,6 @@ export function useStorageViewerState() {
     }
   }, [keyInput, pathSegments, chainId, contractAddress, readSlotFromRpc]);
 
-  const handleHistory = useCallback((row: ResolvedSlot) => {
-    setPathSegments((prev) => [
-      ...prev,
-      {
-        label: 'History',
-        variable: row.label || shortHex(row.slot, 6, 4),
-        baseSlot: row.slot,
-        history: true,
-      },
-    ]);
-    setExpandedSlot(null);
-  }, []);
 
   const navigateTo = useCallback((segIdx: number) => {
     if (segIdx < 0) {
@@ -769,11 +754,11 @@ export function useStorageViewerState() {
     resolvedSlots, isLayoutPending, mappingEntries,
     keyInput, setKeyInput, isLookingUp, slotGraphOpen, setSlotGraphOpen,
     discovery,
-    keyBySlot, stats, computedSlot, filteredSlots, displayRows, historyRows, treeGroups,
-    isHistoryView, isMappingView, sessionId,
+    keyBySlot, stats, computedSlot, filteredSlots, displayRows, treeGroups,
+    isMappingView, sessionId,
     tableHeaderRef, charLimits,
     handleFetch, handleCancel, handleProbeSlot, toggleSlotExpansion, handleInspect,
-    handleKeyLookup, handleHistory, handleExportCsv,
+    handleKeyLookup, handleExportCsv,
     handleStartDiscovery, handleRescanDiscovery,
     hasData, hasSession, showSkeleton, showTable, isResolvingInBackground, iconState,
   };
