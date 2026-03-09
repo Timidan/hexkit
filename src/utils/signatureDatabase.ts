@@ -30,13 +30,7 @@ export interface SignatureResponse {
   };
 }
 
-export interface SearchResponse {
-  ok: boolean;
-  result: {
-    function: { [key: string]: SignatureResult[] };
-    event: { [key: string]: SignatureResult[] };
-  };
-}
+export type SearchResponse = SignatureResponse;
 
 function getSearchResultCount(response: SearchResponse | null | undefined): number {
   if (!response?.result) return 0;

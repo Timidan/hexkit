@@ -14,7 +14,7 @@ export type RpcProviderMode = 'DEFAULT' | 'ALCHEMY' | 'INFURA' | 'CUSTOM';
 
 export type AbiSourceType = 'sourcify' | 'etherscan' | 'blockscout';
 
-export interface ChainOverride {
+interface ChainOverride {
   customRpcUrl?: string;
   etherscanApiKey?: string;
 }
@@ -354,7 +354,7 @@ function normalizeUrl(url: string): string {
 }
 
 /** Validate that a user-supplied RPC URL is not targeting private/reserved IP ranges */
-export function isUrlSafeFromSsrf(url: string): boolean {
+function isUrlSafeFromSsrf(url: string): boolean {
   const normalized = normalizeUrl(url);
   if (!normalized) return false;
   // Reject private IP ranges
@@ -604,19 +604,3 @@ export const isValidRpcUrl = (value: string): boolean => {
   return isUrlSafeFromSsrf(trimmed);
 };
 
-export const getRpcProviderLabel = (mode: RpcProviderMode): string => {
-  switch (mode) {
-    case 'ALCHEMY':
-      return 'Alchemy';
-    case 'INFURA':
-      return 'Infura';
-    case 'CUSTOM':
-      return 'Custom RPC';
-    default:
-      return 'Default';
-  }
-};
-
-export const getPublicRpcUrl = (chainId: number): string | undefined => {
-  return PUBLIC_RPC_FALLBACKS[chainId];
-};

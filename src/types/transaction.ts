@@ -1,16 +1,4 @@
-export interface WalletInfo {
-  name: string;
-  icon: string;
-  isInstalled: boolean;
-  isConnected: boolean;
-  accounts: string[];
-  address: string; // Add address property
-  chainId: string;
-  provider?: any;
-  signer?: any; // Add signer property
-}
-
-export interface StorageOverride {
+interface StorageOverride {
   address: string;
   slot: string;
   value: string;
@@ -37,14 +25,14 @@ export interface TransactionRequest {
 }
 
 /** Debug session info returned with simulation */
-export interface DebugSessionInfo {
+interface DebugSessionInfo {
   sessionId: string;
   rpcPort: number;
   snapshotCount: number;
 }
 
 /** Debug level indicates the quality of trace data returned by EDB */
-export type DebugLevel =
+type DebugLevel =
   | 'source-instrumented'  // Full source-level debugging with instrumented bytecode
   | 'opcode-trace'         // Opcode-level trace with call tree (no source maps)
   | 'call-trace'           // Basic call trace from lightweight execution
@@ -98,20 +86,20 @@ export interface SimulationResult {
 }
 
 /** Handle for fetching heavy trace data on demand from the bridge */
-export interface TraceDetailHandle {
+interface TraceDetailHandle {
   id: string;
   fields: string[];
   expiresAt: number;
 }
 
 /** V2 pre-decoded trace rows from EDB engine */
-export interface TraceLitePayload {
+interface TraceLitePayload {
   version: number;
   rows: TraceLiteRow[];
 }
 
 /** Single pre-decoded trace row from EDB engine */
-export interface TraceLiteRow {
+interface TraceLiteRow {
   id: number;
   rowType: 'opcode';
   depth: number;
@@ -146,13 +134,13 @@ export interface TraceLiteRow {
 }
 
 /** Source metadata accompanying V2 trace */
-export interface TraceMetaPayload {
+interface TraceMetaPayload {
   sourceFiles: Array<{ fileId: number; path: string }>;
   contracts: Array<{ address: string; name: string | null; verified: boolean }>;
 }
 
 /** Quality stats for V2 trace */
-export interface TraceQualityPayload {
+interface TraceQualityPayload {
   stats: {
     totalRows: number;
     rowsWithSrc: number;
@@ -205,36 +193,3 @@ export interface AssetChange {
   usdValue?: string;
 }
 
-export interface EventLog {
-  address: string;
-  topics: string[];
-  data: string;
-  decoded?: {
-    name: string;
-    signature: string;
-    params: Array<{
-      name: string;
-      type: string;
-      value: any;
-    }>;
-  };
-}
-
-export interface CallTrace {
-  from: string;
-  to: string;
-  input: string;
-  output: string;
-  gasUsed: string;
-  type: string;
-  calls?: CallTrace[];
-}
-
-export interface TransactionReceipt {
-  hash: string;
-  blockNumber: number;
-  gasUsed: string;
-  effectiveGasPrice: string;
-  status: number;
-  explorerUrl: string;
-}

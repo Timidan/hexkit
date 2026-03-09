@@ -4,11 +4,9 @@ import {
   getCustomSignatures,
 } from '../../utils/signatureDatabase';
 import type { AbiSourceType } from './types';
+import { shortenAddress } from '../shared/AddressDisplay';
 
-export const shortenAddress = (address?: string | null) => {
-  if (!address) return '—';
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-};
+export { shortenAddress };
 
 export const getAbiCacheKey = (address: string, chainId?: string) => {
   return `${address.toLowerCase()}|${chainId ?? 'multi'}`;

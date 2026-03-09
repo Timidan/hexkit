@@ -16,8 +16,6 @@ export type {
 export {
   formatParamValue,
   formatDecodedValue,
-  shortAddress,
-  formatContractDisplay,
   parseSignatureTypes,
   decodeCalldataWithSignature,
   SEARCH_CATEGORIES,

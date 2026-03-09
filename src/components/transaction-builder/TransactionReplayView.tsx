@@ -36,10 +36,10 @@ import {
   replayCardStyle,
   replaySectionTitleStyle,
   replaySectionStyle,
-  shortAddress,
   defaultReplayNetwork,
   mapExtendedToChain,
 } from "./types";
+import { shortenAddress } from "../shared/AddressDisplay";
 
 export const TransactionReplayView: React.FC<{
   modeToggle: ReactNode;
@@ -495,11 +495,11 @@ export const TransactionReplayView: React.FC<{
                       <div className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <span className="text-muted-foreground block mb-1">From</span>
-                          <code className="text-foreground font-mono">{shortAddress(txPreview.from)}</code>
+                          <code className="text-foreground font-mono">{shortenAddress(txPreview.from)}</code>
                         </div>
                         <div>
                           <span className="text-muted-foreground block mb-1">To</span>
-                          <code className="text-foreground font-mono">{shortAddress(txPreview.to)}</code>
+                          <code className="text-foreground font-mono">{shortenAddress(txPreview.to)}</code>
                         </div>
                         <div>
                           <span className="text-muted-foreground block mb-1">Value</span>

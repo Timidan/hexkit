@@ -442,7 +442,7 @@ const ContractInputComponent: React.FC<ContractInputComponentProps> = ({
 };
 
 // Utility functions
-function getDefaultValue(type: string): any {
+export function getDefaultValue(type: string): any {
   if (type.endsWith('[]')) {
     return [];
   } else if (type === 'tuple') {

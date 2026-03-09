@@ -13,15 +13,7 @@ const readEnv = (keys: string[], fallback = "") => {
   return fallback;
 };
 
-export const getAlchemyApiKey = () => readEnv(["VITE_API_KEY"]);
-
 export const getEtherscanApiKey = () => readEnv(["VITE_ETHERSCAN_API_KEY"]);
-
-export const getBlockscoutBytecodeDbUrl = () =>
-  readEnv(
-    ["VITE_BLOCKSCOUT_BYTECODE_DB_URL"],
-    "https://eth-bytecode-db.services.blockscout.com"
-  );
 
 export const getSimulatorBridgeUrl = () => {
   const value = readEnv(
@@ -46,32 +38,3 @@ export const getBridgeHeaders = (extra?: Record<string, string>): Record<string,
   return { 'Content-Type': 'application/json', ...extra };
 };
 
-type RpcResolutionOptions = {
-  envKeys: string[];
-  fallback: string;
-  alchemyTemplate?: (apiKey: string) => string;
-  defaultValue?: string;
-};
-
-export const resolveRpcUrl = ({
-  envKeys,
-  fallback,
-  alchemyTemplate,
-  defaultValue,
-}: RpcResolutionOptions): string => {
-  const explicit = readEnv(envKeys);
-  if (explicit) {
-    return explicit;
-  }
-
-  if (defaultValue) {
-    return defaultValue;
-  }
-
-  const alchemyKey = getAlchemyApiKey();
-  if (alchemyTemplate && alchemyKey) {
-    return alchemyTemplate(alchemyKey);
-  }
-
-  return fallback;
-};

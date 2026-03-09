@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { Checkbox } from './ui/checkbox';
 import { shortenAddress } from './shared/AddressDisplay';
+import { hasInternalInfo } from './simulation-results/useSimulationPageHelpers';
 import '../styles/SimulationHistory.css';
 
 // Helper to format timestamp
@@ -175,15 +176,6 @@ const SimulationHistoryPage: React.FC = () => {
         setSimulation(fullSim.result, fullSim.contractContext, { skipHistorySave: true });
 
         let restoredFromVault = false;
-        const hasInternalInfo = (rows?: any[]) =>
-          Array.isArray(rows) &&
-          rows.some(
-            (row) =>
-              row?.jumpMarker ||
-              row?.destFn ||
-              row?.isInternalCall ||
-              row?.hasChildren
-          );
         try {
           const traceBundle = await traceVaultService.loadDecodedTrace(sim.id, {
             includeHeavy: false,

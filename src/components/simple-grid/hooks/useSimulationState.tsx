@@ -19,7 +19,7 @@ import { resolveProxyInfo } from "../../../utils/resolver";
 import type { ProxyInfo } from "../../../utils/resolver";
 import { CopyButton } from "../../ui/copy-button";
 import { AlertTriangleIcon } from "../../icons/IconLibrary";
-import { shortAddress, decodeFunctionSelector } from "../utils";
+import { decodeFunctionSelector } from "../utils";
 
 export interface UseSimulationStateDeps {
   selectedNetwork: any;

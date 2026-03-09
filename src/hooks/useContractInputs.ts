@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { getDefaultValue } from '../components/ContractInputComponent';
 import type { ABIInput } from '../components/ContractInputComponent';
 
 interface InputState {
@@ -27,7 +28,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
       // Use initial value if provided, otherwise use default
       const initialValue = initialValues?.[input.name] ?? initialValues?.[`${selectedFunction?.name}_${inputs.indexOf(input)}`];
       initialStates[input.name] = {
-        value: initialValue !== undefined ? initialValue : getDefaultValueForType(input.type),
+        value: initialValue !== undefined ? initialValue : getDefaultValue(input.type),
         isValid: true
       };
     });
@@ -52,7 +53,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
           // Try direct name match or indexed name match
           const value = initialValues[input.name] ?? initialValues[`${selectedFunction?.name}_${inputs.indexOf(input)}`];
           newStates[input.name] = {
-            value: value !== undefined ? value : getDefaultValueForType(input.type),
+            value: value !== undefined ? value : getDefaultValue(input.type),
             isValid: true
           };
         });
@@ -111,7 +112,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
             import('ethers').then(({ ethers }) => {
               const formattedArgs = currentInputs.map(input => {
                 const state = newStates[input.name];
-                if (!state) return formatValueForContract(getDefaultValueForType(input.type), input.type);
+                if (!state) return formatValueForContract(getDefaultValue(input.type), input.type);
                 return formatValueForContract(state.value, input.type);
               });
 
@@ -145,7 +146,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
     const formattedArgs = inputs.map(input => {
       const state = inputStates[input.name];
       if (!state) {
-        return getDefaultValueForType(input.type);
+        return getDefaultValue(input.type);
       }
       return formatValueForContract(state.value, input.type);
     });
@@ -160,7 +161,7 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
     const resetStates: Record<string, InputState> = {};
     inputs.forEach(input => {
       resetStates[input.name] = {
-        value: getDefaultValueForType(input.type),
+        value: getDefaultValue(input.type),
         isValid: true
       };
     });
@@ -201,22 +202,6 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
     setInputValues,
     forceReapply
   };
-}
-
-function getDefaultValueForType(type: string): any {
-  if (type.endsWith('[]')) {
-    return [];
-  } else if (type === 'tuple') {
-    return {};
-  } else if (type.includes('uint') || type.includes('int')) {
-    return '';
-  } else if (type === 'bool') {
-    return '';
-  } else if (type === 'address') {
-    return '';
-  } else {
-    return '';
-  }
 }
 
 function formatValueForContract(value: any, type: string): any {

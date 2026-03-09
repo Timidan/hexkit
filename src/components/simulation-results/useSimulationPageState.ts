@@ -25,6 +25,7 @@ import {
   type InternalInfoRow,
   type ContractContextExtras,
   type SimulationResultExtras,
+  hasInternalInfo,
   buildAddressToNameMap,
   buildRevertInfo,
   buildTraceDiagnostics,
@@ -88,15 +89,6 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
         if (stored) {
           setSimulation(stored.result, stored.contractContext, { skipHistorySave: true });
-          const hasInternalInfo = (rows?: InternalInfoRow[]) =>
-            Array.isArray(rows) &&
-            rows.some(
-              (row) =>
-                row?.jumpMarker ||
-                row?.destFn ||
-                row?.isInternalCall ||
-                row?.hasChildren
-            );
           try {
             const traceBundle = await traceVaultService.loadDecodedTrace(id, { includeHeavy: false });
             let rowsToUse = traceBundle?.rows;
