@@ -7,8 +7,69 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.alchemy.com https://*.infura.io https://*.etherscan.io https://*.basescan.org https://*.polygonscan.com https://*.arbiscan.io https://*.bscscan.com https://*.blockscout.com https://sourcify.dev https://repo.sourcify.dev https://eth-bytecode-db.services.blockscout.com https://api.openchain.xyz https://www.4byte.directory https://coins.llama.fi https://cdn.jsdelivr.net https://cca-lite.coinbase.com https://*.coinbase.com https://*.publicnode.com https://polygon-rpc.com https://*.arbitrum.io https://*.optimism.io https://*.base.org https://api.avax.network https://*.binance.org https://rpc.gnosischain.com https://*.polygon.technology https://*.ethpandaops.io https://*.blastapi.io https://*.lisk.com https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org ws://localhost:* http://localhost:* http://127.0.0.1:*; frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org; worker-src 'self' blob:;" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="icon" type="image/svg+xml" href="/logos/hexkit-favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/logos/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hexkit</title>
+
+    <!-- SEO: Primary Meta Tags -->
+    <title>HexKit — Ethereum Developer Toolkit | Decode, Build, Simulate</title>
+    <meta name="description" content="Free open-source Ethereum developer toolkit. Decode transactions, simulate calls, explore smart contract storage, look up function signatures, and build calldata — all in one interface." />
+    <meta name="keywords" content="ethereum dev tools, EVM simulator, signature database, smart contract decoder, transaction builder, storage viewer, solidity tools, ethereum toolkit, calldata decoder, ABI encoder, function selector lookup, contract explorer" />
+    <meta name="robots" content="index, follow, max-snippet:200, max-image-preview:large" />
+    <link rel="canonical" href="https://hexkit.dev/" />
+
+    <!-- SEO: Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://hexkit.dev/" />
+    <meta property="og:title" content="HexKit — Ethereum Developer Toolkit" />
+    <meta property="og:description" content="Decode transactions, simulate calls, explore contract storage, and look up signatures. Free open-source EVM toolkit for Ethereum developers." />
+    <meta property="og:image" content="https://hexkit.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="HexKit — Ethereum Developer Toolkit: Decode, Build, Simulate" />
+    <meta property="og:site_name" content="HexKit" />
+
+    <!-- SEO: Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="HexKit — Ethereum Developer Toolkit" />
+    <meta name="twitter:description" content="Decode transactions, simulate calls, explore contract storage, and look up signatures. Free open-source EVM toolkit." />
+    <meta name="twitter:image" content="https://hexkit.dev/og-image.png" />
+    <meta name="twitter:image:alt" content="HexKit — Ethereum Developer Toolkit" />
+
+    <!-- SEO: Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "HexKit",
+      "url": "https://hexkit.dev",
+      "description": "Free open-source Ethereum developer toolkit for decoding transactions, simulating calls, exploring smart contract storage, and looking up function signatures.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Transaction decoder and calldata builder",
+        "EVM transaction simulator with trace visualization",
+        "Smart contract storage layout viewer",
+        "Function and event signature database lookup",
+        "ABI encoder and decoder",
+        "Contract source code explorer and diff tool",
+        "Multi-chain support: Ethereum, Polygon, Arbitrum, Base, Optimism"
+      ],
+      "screenshot": "https://hexkit.dev/og-image.png",
+      "softwareHelp": {
+        "@type": "CreativeWork",
+        "url": "https://github.com/Timidan/web3-toolkit"
+      }
+    }
+    </script>
+
+    <!-- PWA: Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0a0a0a" />
   </head>
   <body>
     <div id="root"></div>

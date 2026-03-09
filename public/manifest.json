@@ -1,0 +1,27 @@
+{
+  "name": "HexKit — Ethereum Developer Toolkit",
+  "short_name": "HexKit",
+  "description": "Decode transactions, simulate calls, explore smart contract storage, and look up function signatures.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/logos/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logos/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/logos/hexkit-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["developer", "utilities"]
+}

@@ -1,0 +1,10 @@
+# HexKit — Ethereum Developer Toolkit
+User-agent: *
+Allow: /
+
+# Block non-content paths
+Disallow: /api/
+Disallow: /assets/
+
+# Sitemap
+Sitemap: https://hexkit.dev/sitemap.xml

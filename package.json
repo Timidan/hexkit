@@ -60,6 +60,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-helmet-async": "^3.0.0",
     "react-resizable-panels": "^4.3.0",
     "react-router-dom": "^6.28.1",
     "react-window": "^2.2.3",

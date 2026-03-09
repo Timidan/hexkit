@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0a0a"/>
+      <stop offset="100%" stop-color="#141414"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle grid dots -->
+  <pattern id="dots" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="0.8" fill="#ffffff" opacity="0.06"/>
+  </pattern>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+
+  <!-- Border accent -->
+  <rect x="1" y="1" width="1198" height="628" rx="0" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="1"/>
+
+  <!-- HexKit Logo (scaled from favicon) -->
+  <g transform="translate(520, 120) scale(1.6)">
+    <polygon points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30" stroke="#fff" stroke-width="3.5" stroke-linejoin="miter" fill="none"/>
+    <line x1="36" y1="31" x2="36" y2="69" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+    <line x1="64" y1="31" x2="64" y2="69" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+    <line x1="36" y1="50" x2="64" y2="50" stroke="#fff" stroke-width="4.5" stroke-linecap="square"/>
+    <line x1="1" y1="39" x2="15.4" y2="39" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+    <line x1="0" y1="50" x2="15.4" y2="50" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+    <line x1="1" y1="61" x2="15.4" y2="61" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+    <line x1="84.6" y1="39" x2="99" y2="39" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+    <line x1="84.6" y1="50" x2="100" y2="50" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+    <line x1="84.6" y1="61" x2="99" y2="61" stroke="#fff" stroke-width="2.5" stroke-linecap="square"/>
+  </g>
+
+  <!-- Title -->
+  <text x="600" y="340" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="700" letter-spacing="12">HEXKIT</text>
+
+  <!-- Tagline -->
+  <text x="600" y="390" text-anchor="middle" fill="#ffffff" opacity="0.5" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="400" letter-spacing="4">Decode. Build. Simulate.</text>
+
+  <!-- Feature pills -->
+  <g transform="translate(600, 440)" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500">
+    <!-- Pill 1: Signature Database -->
+    <rect x="-530" y="-14" width="150" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="-455" y="5" fill="#ffffff" opacity="0.7">Signature Lookup</text>
+
+    <!-- Pill 2: Transaction Builder -->
+    <rect x="-355" y="-14" width="165" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="-272" y="5" fill="#ffffff" opacity="0.7">Transaction Builder</text>
+
+    <!-- Pill 3: EVM Simulator -->
+    <rect x="-165" y="-14" width="140" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="-95" y="5" fill="#ffffff" opacity="0.7">EVM Simulator</text>
+
+    <!-- Pill 4: Storage Viewer -->
+    <rect x="0" y="-14" width="140" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="70" y="5" fill="#ffffff" opacity="0.7">Storage Viewer</text>
+
+    <!-- Pill 5: Contract Explorer -->
+    <rect x="165" y="-14" width="160" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="245" y="5" fill="#ffffff" opacity="0.7">Contract Explorer</text>
+
+    <!-- Pill 6: Calldata Decoder -->
+    <rect x="350" y="-14" width="155" height="28" rx="14" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1"/>
+    <text x="427" y="5" fill="#ffffff" opacity="0.7">Calldata Decoder</text>
+  </g>
+
+  <!-- Bottom descriptor -->
+  <text x="600" y="530" text-anchor="middle" fill="#ffffff" opacity="0.3" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="400">Open-Source Ethereum Developer Toolkit</text>
+
+  <!-- Bottom URL -->
+  <text x="600" y="570" text-anchor="middle" fill="#ffffff" opacity="0.2" font-family="monospace" font-size="14">hexkit.dev</text>
+</svg>

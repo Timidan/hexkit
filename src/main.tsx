@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import "./index.css";
 import { configureMonacoCdn } from "@/lib/monaco";
 import App from "./App.tsx";
@@ -18,16 +19,18 @@ import { NetworkConfigProvider } from "./contexts/NetworkConfigContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <NetworkConfigProvider>
-      <RpcAwareWagmiProvider>
-        <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider theme={web3ToolkitTheme}>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </RainbowKitProvider>
-        </QueryClientProvider>
-      </RpcAwareWagmiProvider>
-    </NetworkConfigProvider>
+    <HelmetProvider>
+      <NetworkConfigProvider>
+        <RpcAwareWagmiProvider>
+          <QueryClientProvider client={queryClient}>
+            <RainbowKitProvider theme={web3ToolkitTheme}>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </RainbowKitProvider>
+          </QueryClientProvider>
+        </RpcAwareWagmiProvider>
+      </NetworkConfigProvider>
+    </HelmetProvider>
   </StrictMode>
 );

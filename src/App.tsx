@@ -11,6 +11,7 @@ import { DebugProvider } from "./contexts/DebugContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
+import { RouteMetaTags } from "./components/shared/RouteMetaTags";
 import { useNetworkConfig } from "./contexts/NetworkConfigContext";
 import { Button } from "./components/ui/button";
 import TopBar from "./components/TopBar";
@@ -49,6 +50,7 @@ function App() {
         <DebugProvider>
           <NotificationProvider>
             <ErrorBoundary>
+              <RouteMetaTags />
               <ConstellationBackground />
               {/* Global top bar — visible on every route */}
               <TopBar
