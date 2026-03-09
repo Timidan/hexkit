@@ -6,11 +6,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { ScrollArea } from "../ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { AlertCircle } from "lucide-react";
-import { HoverCard, HoverCardTrigger, HoverCardContent } from "../ui/hover-card";
 import {
-  Field,
-  FieldDescription,
-} from "../ui/field";
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "../ui/hover-card";
+import { Field, FieldDescription } from "../ui/field";
 import {
   InputGroup,
   InputGroupAddon,
@@ -103,7 +104,7 @@ const SearchTab: React.FC<SearchTabProps> = ({
             {isSearching && (
               <div className="flex items-center gap-1.5 animate-pulse">
                 <span>{"\u22EF"}</span>
-                <span>waiting for response\u2026</span>
+                <span>waiting for response</span>
               </div>
             )}
           </div>
@@ -121,12 +122,8 @@ const SearchTab: React.FC<SearchTabProps> = ({
         <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
           <div className="sigdb-section-header">
             Results
-            <Badge
-              variant={searchResults.ok ? "success" : "error"}
-              size="sm"
-            >
-              {flattenedFunctionResults.length +
-                flattenedEventResults.length}{" "}
+            <Badge variant={searchResults.ok ? "success" : "error"} size="sm">
+              {flattenedFunctionResults.length + flattenedEventResults.length}{" "}
               found
             </Badge>
           </div>
@@ -174,7 +171,10 @@ const SearchTab: React.FC<SearchTabProps> = ({
               </TabsList>
 
               {flattenedFunctionResults.length > 0 && (
-                <TabsContent value="functions" className="mt-2 responsive-scroll">
+                <TabsContent
+                  value="functions"
+                  className="mt-2 responsive-scroll"
+                >
                   <ScrollArea className="max-h-72">
                     <div className="space-y-px">
                       {flattenedFunctionResults.map((item, i) => (
