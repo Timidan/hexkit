@@ -258,6 +258,7 @@ export function useStorageViewerState() {
     let proxyType: import('../../utils/resolver/types').ProxyType | undefined;
     let diamondFacets: import('../../utils/resolver/types').FacetInfo[] | null = null;
     let implAddresses: string[] = [];
+    let sourceBundle: { files: Record<string, string>; contractName?: string; compilerVersion?: string } | undefined;
     const chain = getChainById(chainId);
     if (chain) {
       try {
@@ -281,6 +282,17 @@ export function useStorageViewerState() {
           compilerVersion,
           proxyInfo: ctx.proxyInfo || null,
         });
+
+        // Build sourceBundle for AST-based storage layout reconstruction.
+        // Prefer implementation sources (proxy target), fall back to direct contract sources.
+        const metaForSources = ctx.implementationMetadata || ctx.metadata;
+        if (metaForSources?.sources && Object.keys(metaForSources.sources).length > 0) {
+          sourceBundle = {
+            files: metaForSources.sources,
+            contractName: ctx.implementationName || ctx.name || undefined,
+            compilerVersion: metaForSources.compilerVersion || undefined,
+          };
+        }
 
         if (ctx.proxyInfo?.isProxy && ctx.proxyInfo.proxyType) {
           proxyType = ctx.proxyInfo.proxyType;
@@ -325,6 +337,7 @@ export function useStorageViewerState() {
       address: addr,
       sessionId: sessionId ?? undefined,
       proxyType,
+      sourceBundle,
       fallbackAddresses,
     });
 

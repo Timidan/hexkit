@@ -101,14 +101,47 @@ const extractMetadata = (data: unknown): ContractMetadata => {
   if (!data || typeof data !== 'object') return {};
 
   const obj = data as Record<string, unknown>;
-  const contract = obj.result || obj;
+  const contract = (obj.result || obj) as Record<string, unknown>;
+
+  // Extract source code and build sources map
+  const mainSourceCode = contract.source_code as string | undefined;
+  const filePath = contract.file_path as string | undefined;
+  const additionalSources = contract.additional_sources as
+    | Array<{ file_path?: string; source_code?: string }>
+    | undefined;
+
+  let sourceCode: string | undefined;
+  let sources: Record<string, string> | undefined;
+  let mainSourcePath: string | undefined;
+
+  if (mainSourceCode) {
+    sourceCode = mainSourceCode;
+    mainSourcePath = filePath || undefined;
+
+    // Build sources map from main + additional sources
+    sources = {};
+    const mainKey = filePath || 'Contract.sol';
+    sources[mainKey] = mainSourceCode;
+
+    if (Array.isArray(additionalSources)) {
+      for (const extra of additionalSources) {
+        if (extra.file_path && extra.source_code) {
+          sources[extra.file_path] = extra.source_code;
+        }
+      }
+    }
+  }
 
   return {
-    compilerVersion: (contract as Record<string, unknown>).compiler_version as string | undefined,
-    optimization: (contract as Record<string, unknown>).optimization as boolean | undefined,
-    optimizationRuns: (contract as Record<string, unknown>).optimization_runs as number | undefined,
-    evmVersion: (contract as Record<string, unknown>).evm_version as string | undefined,
-    license: (contract as Record<string, unknown>).license_type as string | undefined,
+    compiler: 'Solidity',
+    compilerVersion: contract.compiler_version as string | undefined,
+    optimization: contract.optimization as boolean | undefined,
+    optimizationRuns: contract.optimization_runs as number | undefined,
+    evmVersion: contract.evm_version as string | undefined,
+    license: contract.license_type as string | undefined,
+    sourceCode,
+    sources,
+    mainSourcePath,
   };
 };
 
