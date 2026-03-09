@@ -232,6 +232,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
 
   const [collapsed, setCollapsed] = useState<boolean>(defaultCollapsed);
   const [isHovered, setIsHovered] = useState(false);
+  const [isValueExpanded, setIsValueExpanded] = useState(false);
 
   useEffect(() => {
     setCollapsed(defaultCollapsed);
@@ -368,31 +369,41 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
           </span>
         )}
 
-        {/* Value — allowed to wrap to next line */}
-        {displayValue && (
-          <HoverCard>
-            <HoverCardTrigger asChild>
-              <span
+        {/* Value — truncated for long values with expand toggle */}
+        {displayValue && (() => {
+          const isLong = displayValue.length > 120;
+          const truncated = isLong && !isValueExpanded
+            ? displayValue.slice(0, 120) + '…'
+            : displayValue;
+
+          return (
+            <div className="flex flex-col gap-1 min-w-0">
+              <div
                 className={cn(
                   'cv-value font-mono text-xs tabular-nums',
                   'break-all',
                   'transition-colors duration-150',
-                  'text-white/80'
+                  'text-white/80',
+                  isLong && isValueExpanded && 'max-h-40 overflow-y-auto cv-long-value-scroll'
                 )}
               >
-                {displayValue}
-              </span>
-            </HoverCardTrigger>
-            {displayValue.length > 80 && (
-              <HoverCardContent
-                side="left"
-                className="max-w-md font-mono text-xs break-all"
-              >
-                {displayValue}
-              </HoverCardContent>
-            )}
-          </HoverCard>
-        )}
+                {truncated}
+              </div>
+              {isLong && (
+                <button
+                  type="button"
+                  className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors self-start"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsValueExpanded(!isValueExpanded);
+                  }}
+                >
+                  {isValueExpanded ? '▲ Collapse' : '▼ Show full value'}
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Copy button */}
         {hasCopyCapability && (

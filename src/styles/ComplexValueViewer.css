@@ -111,6 +111,25 @@
   letter-spacing: -0.01em;
 }
 
+/* Scrollable container for expanded long values */
+.cv-long-value-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(82, 82, 82, 0.4) transparent;
+}
+
+.cv-long-value-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cv-long-value-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cv-long-value-scroll::-webkit-scrollbar-thumb {
+  background: rgba(82, 82, 82, 0.4);
+  border-radius: 2px;
+}
+
 /* Children connector line animation */
 .cv-children {
   position: relative;
