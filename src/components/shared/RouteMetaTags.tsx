@@ -47,5 +47,5 @@ export function RouteMetaTags() {
     ] ??
     ROUTE_META["/"];
 
-  return <PageMeta title={meta.title} description={meta.description} path={pathname} />;
+  return <PageMeta title={meta.title} description={meta.description} />;
 }
