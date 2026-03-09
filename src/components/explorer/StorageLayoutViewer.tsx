@@ -72,7 +72,7 @@ const StorageLayoutViewer: React.FC = () => {
           <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 border-b border-border/20 text-xs text-muted-foreground">
             <EyeOff className="h-3 w-3 shrink-0" />
             <span>
-              {state.stats.unknown} slot{state.stats.unknown !== 1 ? 's' : ''} hidden — types could not be determined from verified sources
+              {state.stats.unknown} slot{state.stats.unknown !== 1 ? 's' : ''} hidden — types could not be determined from available source data
             </span>
             <button
               onClick={() => state.setUserFilter('unknown')}
@@ -87,7 +87,7 @@ const StorageLayoutViewer: React.FC = () => {
         {state.showSkeleton ? (
           <StorageSkeleton phase={state.loadingPhase} slotCount={state.evidence.length} />
         ) : state.showTable ? (
-          <div className="flex-1 min-h-0 w-full flex">
+          <div className="flex-1 min-h-0 w-full flex responsive-scroll">
               {/* Left Panel: Collapsible Storage Tree + Probe */}
               {state.treeOpen && (
               <TreePanel

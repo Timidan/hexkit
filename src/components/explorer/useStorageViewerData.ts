@@ -55,10 +55,11 @@ export function useStorageViewerData({
       total: resolvedSlots.length,
       resolved: getResolved().length,
       unknown: getUnknown().length,
+      changed: getChanged().length,
       nonZero: getNonZero().length,
       packed,
     };
-  }, [resolvedSlots, getResolved, getUnknown, getNonZero]);
+  }, [resolvedSlots, getResolved, getUnknown, getChanged, getNonZero]);
 
   // ─── Filtered & Grouped Data ─────────────────────────────────────────
 

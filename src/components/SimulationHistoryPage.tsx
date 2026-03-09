@@ -530,7 +530,7 @@ const SimulationHistoryPage: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <div className="sim-history-table-container">
+        <div className="sim-history-table-container responsive-scroll">
           <Table className="sim-history-table">
             <TableHeader>
               <TableRow>

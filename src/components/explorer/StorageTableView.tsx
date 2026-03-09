@@ -15,7 +15,7 @@ import { CopyableCell, ClickableValue } from './StorageCells';
 import { SlotRowWithInspector } from './SlotRow';
 import { shortHex, simplifyType } from './storageViewerHelpers';
 import { ZERO_VALUE, MAPPING_TABLE_GRID, SLOT_TABLE_GRID } from './storageViewerTypes';
-import type { ResolvedSlot, PathSegment, SlotHistoryRecord } from './storageViewerTypes';
+import type { DiscoveredMappingKey, ResolvedSlot, PathSegment, SlotHistoryRecord } from './storageViewerTypes';
 import type { useAutoDiscovery } from './storage-viewer/useAutoDiscovery';
 import type { LoadingPhase } from './storage-viewer/useStorageEvidence';
 
@@ -43,7 +43,7 @@ export interface StorageTableViewProps {
   isMappingView: boolean;
   historyRows: SlotHistoryRecord[];
   displayRows: ResolvedSlot[];
-  keyBySlot: Map<string, string>;
+  keyBySlot: Map<string, DiscoveredMappingKey>;
   // Table header ref + char limits
   tableHeaderRef: React.RefObject<HTMLDivElement | null>;
   charLimits: number[];
@@ -103,7 +103,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
             {loadingPhase === 'seeding'
               ? 'Reading storage slots\u2026'
               : loadingPhase === 'resolving'
-                ? 'Fetching storage layout from verified sources\u2026'
+                ? 'Resolving storage layout\u2026'
                 : postLoadResolving
                   ? 'Resolving diamond namespace\u2026'
                   : isLayoutPending
@@ -351,7 +351,8 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
             {/* Rows */}
             <div>
               {isMappingView ? displayRows.map((slot) => {
-                const mk = keyBySlot.get(slot.slot.toLowerCase()) ?? '';
+                const keyMeta = keyBySlot.get(slot.slot.toLowerCase());
+                const keyValue = keyMeta?.key ?? '';
                 const isZero = slot.value === ZERO_VALUE;
                 const decoded = slot.decodedFields?.[0]?.decoded;
                 return (
@@ -359,7 +360,22 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
                     key={slot.slot}
                     className={`grid ${MAPPING_TABLE_GRID} gap-2 px-3 py-1.5 text-xs border-b border-border/10 hover:bg-muted/20 transition-colors text-left`}
                   >
-                    <CopyableCell value={mk} className="text-primary" maxChars={charLimits[0] || 16} />
+                    <div
+                      className="min-w-0 flex flex-col items-start gap-1"
+                      title={keyMeta?.sourceLabels?.join(', ') || undefined}
+                    >
+                      <CopyableCell value={keyValue} className="text-primary" maxChars={charLimits[0] || 16} />
+                      {keyMeta?.sourceLabel ? (
+                        <Badge variant="secondary" className="h-4 px-1.5 text-[9px] leading-none">
+                          {keyMeta.sourceLabel}
+                        </Badge>
+                      ) : null}
+                      {(keyMeta?.evidenceCount ?? 0) > 1 ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          {keyMeta?.evidenceCount} signals
+                        </span>
+                      ) : null}
+                    </div>
                     <CopyableCell value={slot.slot} className="text-muted-foreground" maxChars={charLimits[1] || 16} />
                     <span>
                       <Badge variant="outline" className="text-[11px] h-[18px] rounded-sm">

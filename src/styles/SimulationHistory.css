@@ -404,7 +404,7 @@
 }
 
 /* Responsive */
-@media (max-width: 1200px) {
+@media (max-width: 1279px) {
   .sim-history-table {
     font-size: 0.8625rem;
   }
@@ -415,7 +415,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 767px) {
   .sim-history-page {
     padding: 16px;
   }
@@ -515,7 +515,7 @@
   border-color: #6366f1;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 639px) {
   .sim-history-pagination {
     flex-direction: column;
     align-items: stretch;

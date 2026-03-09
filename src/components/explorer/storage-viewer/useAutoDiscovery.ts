@@ -13,12 +13,15 @@ import { useState, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
 import { getSharedProvider } from '../../../utils/providerPool';
 import { getChainById } from '../../../utils/chains';
-import type { StorageLayoutResponse } from '../../../types/debug';
+import type { DiscoveredMappingKey, StorageLayoutResponse } from '../../../types/debug';
 import type { MappingEntry } from './useSlotResolution';
 import {
   discoverMappingKeys,
   type DiscoveredKey,
+  type DiscoveredKeySource,
+  getDiscoverySourceLabel,
   type DiscoveryProgress,
+  sortDiscoverySources,
 } from './mappingKeyDiscovery';
 import { mappingKeyCache } from './mappingKeyCache';
 
@@ -64,7 +67,7 @@ export interface AutoDiscoveryControls {
   /** Count of discovered keys for a specific mapping base slot */
   getKeyCountForSlot: (baseSlot: string) => number;
   /** Merge discovered keys into manual keys map (returns new map) */
-  mergeWithManualKeys: (manualKeys: Map<string, import('../../../types/debug').DiscoveredMappingKey[]>) => Map<string, import('../../../types/debug').DiscoveredMappingKey[]>;
+  mergeWithManualKeys: (manualKeys: Map<string, DiscoveredMappingKey[]>) => Map<string, DiscoveredMappingKey[]>;
 }
 
 // ─── Default State ───────────────────────────────────────────────────
@@ -79,6 +82,33 @@ const INITIAL_STATE: DiscoveryState = {
   lastScannedBlock: null,
   error: null,
 };
+
+type SignalEntry = {
+  source: string;
+  sourceLabel: string;
+  sources: string[];
+  sourceLabels: string[];
+  evidenceCount: number;
+  value: string | null;
+};
+
+function mergeSignalEntry<T extends SignalEntry>(existing: T, incoming: T): T {
+  const sources = sortDiscoverySources([
+    ...((existing.sources.length > 0 ? existing.sources : [existing.source]) as DiscoveredKeySource[]),
+    ...((incoming.sources.length > 0 ? incoming.sources : [incoming.source]) as DiscoveredKeySource[]),
+  ]);
+  const primarySource = sources[0] ?? 'manual_lookup';
+  return {
+    ...existing,
+    ...incoming,
+    value: incoming.value ?? existing.value,
+    source: primarySource,
+    sourceLabel: getDiscoverySourceLabel(primarySource),
+    sources,
+    sourceLabels: sources.map(getDiscoverySourceLabel),
+    evidenceCount: sources.length,
+  };
+}
 
 // ─── Hook ────────────────────────────────────────────────────────────
 
@@ -178,15 +208,18 @@ export function useAutoDiscovery(): AutoDiscoveryControls {
             const merged = new Map(cached.keys);
             for (const [slot, newKeys] of keys) {
               const existing = merged.get(slot) ?? [];
-              const existingSet = new Set(
-                existing.map((k) => `${k.key}:${k.derivedSlot.toLowerCase()}`),
+              const nextById = new Map(
+                existing.map((k) => [`${k.key}:${k.derivedSlot.toLowerCase()}`, k]),
               );
-              const deduped = newKeys.filter(
-                (k) => !existingSet.has(`${k.key}:${k.derivedSlot.toLowerCase()}`),
-              );
-              if (deduped.length > 0) {
-                merged.set(slot, [...existing, ...deduped]);
+              for (const key of newKeys) {
+                const dedupeKey = `${key.key}:${key.derivedSlot.toLowerCase()}`;
+                const prior = nextById.get(dedupeKey);
+                nextById.set(
+                  dedupeKey,
+                  prior ? mergeSignalEntry(prior, key) : key,
+                );
               }
+              merged.set(slot, Array.from(nextById.values()));
             }
             let total = 0;
             merged.forEach((v) => { total += v.length; });
@@ -204,15 +237,18 @@ export function useAutoDiscovery(): AutoDiscoveryControls {
           const finalKeys = new Map(cached.keys);
           for (const [slot, newKeys] of result.keys) {
             const existing = finalKeys.get(slot) ?? [];
-            const existingSet = new Set(
-              existing.map((k) => `${k.key}:${k.derivedSlot.toLowerCase()}`),
+            const nextById = new Map(
+              existing.map((k) => [`${k.key}:${k.derivedSlot.toLowerCase()}`, k]),
             );
-            const deduped = newKeys.filter(
-              (k) => !existingSet.has(`${k.key}:${k.derivedSlot.toLowerCase()}`),
-            );
-            if (deduped.length > 0) {
-              finalKeys.set(slot, [...existing, ...deduped]);
+            for (const key of newKeys) {
+              const dedupeKey = `${key.key}:${key.derivedSlot.toLowerCase()}`;
+              const prior = nextById.get(dedupeKey);
+              nextById.set(
+                dedupeKey,
+                prior ? mergeSignalEntry(prior, key) : key,
+              );
             }
+            finalKeys.set(slot, Array.from(nextById.values()));
           }
 
           let total = 0;
@@ -286,30 +322,36 @@ export function useAutoDiscovery(): AutoDiscoveryControls {
 
   const mergeWithManualKeys = useCallback(
     (
-      manualKeys: Map<string, import('../../../types/debug').DiscoveredMappingKey[]>,
-    ): Map<string, import('../../../types/debug').DiscoveredMappingKey[]> => {
+      manualKeys: Map<string, DiscoveredMappingKey[]>,
+    ): Map<string, DiscoveredMappingKey[]> => {
       const merged = new Map(manualKeys);
 
       for (const [baseSlot, discoveredKeys] of state.discoveredKeys) {
         const existing = merged.get(baseSlot) ?? [];
-        const existingSet = new Set(
-          existing.map((e) => `${e.key}:${e.derivedSlot.toLowerCase()}`),
+        const nextById = new Map(
+          existing.map((entry) => [`${entry.key}:${entry.derivedSlot.toLowerCase()}`, entry]),
         );
 
-        const newEntries = discoveredKeys
-          .filter((dk) => !existingSet.has(`${dk.nestedKey ? `${dk.key} → ${dk.nestedKey}` : dk.key}:${dk.derivedSlot.toLowerCase()}`))
-          .map((dk) => ({
+        for (const dk of discoveredKeys) {
+          const entry: DiscoveredMappingKey = {
             key: dk.nestedKey ? `${dk.key} → ${dk.nestedKey}` : dk.key,
             keyType: dk.keyType,
             derivedSlot: dk.derivedSlot,
             value: dk.value,
             variable: dk.variable,
             baseSlot: dk.baseSlot,
-          }));
-
-        if (newEntries.length > 0) {
-          merged.set(baseSlot, [...existing, ...newEntries]);
+            source: dk.source,
+            sourceLabel: dk.sourceLabel,
+            sources: dk.sources,
+            sourceLabels: dk.sourceLabels,
+            evidenceCount: dk.evidenceCount,
+          };
+          const dedupeKey = `${entry.key}:${entry.derivedSlot.toLowerCase()}`;
+          const prior = nextById.get(dedupeKey);
+          nextById.set(dedupeKey, prior ? mergeSignalEntry(prior, entry) : entry);
         }
+
+        merged.set(baseSlot, Array.from(nextById.values()));
       }
 
       return merged;

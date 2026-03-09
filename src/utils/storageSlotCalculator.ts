@@ -40,7 +40,7 @@ export function computeArrayElementSlot(
  */
 export function computeNestedMappingSlot(
   baseSlot: bigint,
-  keys: { value: string; type: string }[]
+  keys: { value: string | number | boolean; type: string }[]
 ): bigint {
   let slot = baseSlot;
   for (const key of keys) {

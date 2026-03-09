@@ -43,6 +43,17 @@ body {
   animation: appFadeIn 0.5s ease-out;
 }
 
+@media (max-width: 767px) {
+  .app {
+    padding: 16px 12px 12px;
+    gap: 12px;
+  }
+}
+
+.app-fullwidth {
+  max-width: none;
+}
+
 @keyframes appFadeIn {
   from {
     opacity: 0;

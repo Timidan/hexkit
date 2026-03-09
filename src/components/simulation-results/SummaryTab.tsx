@@ -104,7 +104,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
             <div style={{ marginTop: "8px", fontSize: "13px", color: "#94a3b8" }}>
               at <span style={{ color: "#60a5fa" }}>{revertInfo.fileName}:{revertInfo.lineNumber}</span>
               {revertInfo.contractName && (
-                <span> in <span style={{ color: "#a78bfa" }}>Diamond {revertInfo.contractName}</span></span>
+                <span> in <span style={{ color: "#a78bfa" }}>{revertInfo.contractName}</span></span>
               )}
             </div>
           )}

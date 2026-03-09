@@ -158,13 +158,13 @@ export function useStorageViewerState() {
 
   /** Map derivedSlot -> key for displaying the KEY column in mapping view */
   const keyBySlot = useMemo(() => {
-    if (!isMappingView) return new Map<string, string>();
+    if (!isMappingView) return new Map<string, DiscoveredMappingKey>();
     const currentSegment = pathSegments[pathSegments.length - 1];
     const bucketKey = currentSegment.baseSlot.toLowerCase();
     const keyRows = mergedKeys.get(bucketKey) || [];
-    const map = new Map<string, string>();
+    const map = new Map<string, DiscoveredMappingKey>();
     for (const kr of keyRows) {
-      map.set(kr.derivedSlot.toLowerCase(), kr.key);
+      map.set(kr.derivedSlot.toLowerCase(), kr);
     }
     return map;
   }, [isMappingView, pathSegments, mergedKeys]);
@@ -499,6 +499,11 @@ export function useStorageViewerState() {
           value: null,
           variable,
           baseSlot: baseSlotHex,
+          source: 'manual_lookup',
+          sourceLabel: 'Manual',
+          sources: ['manual_lookup'],
+          sourceLabels: ['Manual'],
+          evidenceCount: 1,
         };
 
         setManualKeys((prev) => {
@@ -623,6 +628,11 @@ export function useStorageViewerState() {
         value: value || null,
         variable: currentSegment.variable,
         baseSlot: currentSegment.baseSlot,
+        source: 'manual_lookup',
+        sourceLabel: 'Manual',
+        sources: ['manual_lookup'],
+        sourceLabels: ['Manual'],
+        evidenceCount: 1,
       };
 
       setManualKeys((prev) => {

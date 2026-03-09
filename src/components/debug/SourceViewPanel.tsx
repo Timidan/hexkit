@@ -335,7 +335,7 @@ export const SourceViewPanel: React.FC<SourceViewPanelProps> = React.memo(({ cla
             <p className="text-xs text-muted-foreground/70 max-w-[250px]">
               {isVerified
                 ? 'Contract is verified but source could not be loaded.'
-                : 'Source mapping requires verified contract source. The contract may be unverified.'}
+                : 'Source code could not be loaded for this contract.'}
             </p>
             {currentExecutingAddress && (
               <p className="text-xs text-muted-foreground/50 mt-2 font-mono">

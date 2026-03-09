@@ -115,7 +115,7 @@ export function createEvalError(
   const messages: Record<DebugEvalErrorKind, string> = {
     variable_not_visible: `Variable '${details?.variableName || '?'}' is not visible at this execution point (step ${details?.snapshotId ?? '?'}). Try stepping to a point where this variable is in scope.`,
     opcode_only_snapshot:
-      'Expression evaluation requires source-level debugging. The current snapshot is an opcode-only snapshot with no associated hook data. Step to a different execution point or re-run with verified source code.',
+      'Expression evaluation requires source-level debugging. This execution point only has opcode-level data. Try stepping to a different execution point that has source-level coverage.',
     debug_not_enabled:
       'Expression evaluation is only available when Debug mode is enabled during simulation. Re-simulate with Debug enabled to use this feature.',
     debug_prep_in_progress: `Debug session not ready. Debug preparation is still in progress${details?.prepStage ? ` (stage: ${details.prepStage})` : ''}. Please wait for preparation to complete.`,

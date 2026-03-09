@@ -478,8 +478,8 @@ export default function ExecutionSection(): React.ReactElement | null {
                     const activeWalletClient = walletClient;
                     if (!activeWalletClient) {
                       showError(
-                        "Wallet Disconnected",
-                        "Wallet client became unavailable."
+                        "Wallet Not Available",
+                        "No wallet client found. Please connect your wallet and try again."
                       );
                       return;
                     }
@@ -587,7 +587,7 @@ export default function ExecutionSection(): React.ReactElement | null {
         )}
 
       {/* Wallet / simulation reminder */}
-      {selectedFunctionType === "write" && !isSimulationMode && (
+      {selectedFunctionType === "write" && !isSimulationMode && (!isConnected || !walletClient) && (
         <div
           style={{
             padding: "8px 12px",

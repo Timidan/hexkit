@@ -128,7 +128,7 @@ interface TraceLiteRow {
     write: unknown;
   };
   flags: {
-    isUnverifiedFrame: boolean;
+    hasNoSourceMaps: boolean;
     srcMapConfidence: 'high' | 'low';
   };
 }

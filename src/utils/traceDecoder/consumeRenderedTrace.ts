@@ -89,7 +89,7 @@ function adaptRow(row: any): DecodedTraceRow {
     firstSnapshotId: row.firstSnapshotId,
     externalParentTraceId: row.externalParentTraceId,
     isConfirmedCall: row.isConfirmedCall,
-    isUnverifiedContract: row.isUnverifiedContract,
+    hasNoSourceMaps: row.hasNoSourceMaps ?? row.isUnverifiedContract,
     line: row.line,
     sourceFile: row.sourceFile,
     fn: row.fn, // Rust uses #[serde(rename = "fn")] so JSON key is "fn"

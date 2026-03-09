@@ -247,7 +247,7 @@ export function buildTraceDiagnostics(
     isDecoding: isTraceDecoding,
     artifactWarning:
       !hasSourceMaps && !hasSourceLines
-        ? "Source map data not available. While the contract is verified, EDB didn't receive the full compilation artifacts (bytecode + source maps) needed for line-by-line debugging."
+        ? "No source maps found in this trace, so line-by-line source debugging is not supported."
         : null,
   };
 }

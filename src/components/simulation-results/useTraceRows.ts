@@ -193,7 +193,7 @@ export function useTraceRows({
           frameKey: r.frame_id ? JSON.stringify(r.frame_id) : undefined,
           parentId: r.internalParentId !== undefined ? `opcode-${r.internalParentId}` : undefined,
           internalParentId: r.internalParentId,
-          isUnverifiedContract: r.isUnverifiedContract,
+          hasNoSourceMaps: r.hasNoSourceMaps ?? (r as any).isUnverifiedContract,
         };
         return traceRow;
       });

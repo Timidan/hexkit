@@ -62,5 +62,5 @@ export interface TraceRow {
   decodedLog?: any;
   contractName?: string;
   contract?: string;
-  isUnverifiedContract?: boolean;
+  hasNoSourceMaps?: boolean;
 }
