@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import '../../styles/SharedComponents.css';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -22,6 +22,8 @@ const Input: React.FC<InputProps> = ({
   className = '',
   ...props
 }) => {
+  const inputId = useId();
+
   const inputClasses = [
     'shared-input',
     `shared-input-${variant}`,
@@ -36,7 +38,7 @@ const Input: React.FC<InputProps> = ({
   return (
     <div className={containerClasses}>
       {label && (
-        <label className="shared-input-label">
+        <label className="shared-input-label" htmlFor={inputId}>
           {label}
         </label>
       )}
@@ -49,6 +51,7 @@ const Input: React.FC<InputProps> = ({
         )}
         
         <input
+          id={inputId}
           className={inputClasses}
           {...props}
         />

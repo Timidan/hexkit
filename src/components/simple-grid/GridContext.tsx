@@ -284,14 +284,14 @@ export interface GridContextValue {
   simulationIdRef: React.MutableRefObject<string | null>;
 }
 
-const GridContext = createContext<any>(null);
+const GridContext = createContext<GridContextValue | null>(null);
 
 export function useGridContext(): GridContextValue {
   const ctx = useContext(GridContext);
   if (!ctx) {
     throw new Error("useGridContext must be used within a GridProvider");
   }
-  return ctx as GridContextValue;
+  return ctx;
 }
 
 export const GridProvider = GridContext.Provider;

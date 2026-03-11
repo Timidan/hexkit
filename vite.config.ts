@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { handleEtherscanLookup } from "./api/explorer/etherscanShared";
 
 /**
  * Injects the EDB bridge origin into the CSP connect-src at build time.
@@ -27,6 +28,74 @@ function injectBridgeCsp(): Plugin {
   };
 }
 
+function devExplorerProxy(): Plugin {
+  return {
+    name: "dev-explorer-proxy",
+    configureServer(server) {
+      server.middlewares.use("/api/explorer/etherscan", async (req, res) => {
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.setHeader("cache-control", "no-store");
+          res.end();
+          return;
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.setHeader("cache-control", "no-store");
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ error: "method_not_allowed" }));
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        let totalBytes = 0;
+
+        req.on("data", (chunk: Buffer) => {
+          totalBytes += chunk.length;
+          if (totalBytes > 16 * 1024) {
+            req.destroy(new Error("body_too_large"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+
+        req.on("error", () => {
+          if (!res.writableEnded) {
+            res.statusCode = 400;
+            res.setHeader("cache-control", "no-store");
+            res.setHeader("content-type", "application/json; charset=utf-8");
+            res.end(JSON.stringify({ error: "invalid_request" }));
+          }
+        });
+
+        req.on("end", async () => {
+          try {
+            const rawBody = Buffer.concat(chunks).toString("utf8");
+            const parsedBody = rawBody ? JSON.parse(rawBody) : null;
+            const response = await handleEtherscanLookup(parsedBody, process.env);
+
+            res.statusCode = response.status;
+            response.headers.forEach((value, key) => {
+              res.setHeader(key, value);
+            });
+
+            const body = Buffer.from(await response.arrayBuffer());
+            res.end(body);
+          } catch {
+            if (!res.writableEnded) {
+              res.statusCode = 400;
+              res.setHeader("cache-control", "no-store");
+              res.setHeader("content-type", "application/json; charset=utf-8");
+              res.end(JSON.stringify({ error: "invalid_request" }));
+            }
+          }
+        });
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(() => {
   return {
@@ -36,13 +105,15 @@ export default defineConfig(() => {
       }),
       tailwindcss(),
       injectBridgeCsp(),
+      devExplorerProxy(),
     ],
     esbuild: {
       logOverride: { "this-is-undefined-in-esm": "silent" },
     },
     define: {
       global: "globalThis",
-      "process.env": JSON.stringify({}),
+      "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
+      "process.env": "{}",
     },
     optimizeDeps: {
       include: ["ethers", "buffer"],
@@ -156,55 +227,6 @@ export default defineConfig(() => {
           rewrite: (path) =>
             path.replace(/^\/api\/lisk-sepolia-blockscout/, "/api"),
         },
-        // Proxy for Etherscan APIs
-        "/api/basescan": {
-          target: "https://api.basescan.org",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/basescan/, ""),
-        },
-        "/api/base-sepolia-basescan": {
-          target: "https://api-sepolia.basescan.org",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/base-sepolia-basescan/, ""),
-        },
-        "/api/etherscan": {
-          target: "https://api.etherscan.io",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/etherscan/, ""),
-        },
-        "/api/sepolia-etherscan": {
-          target: "https://api-sepolia.etherscan.io",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/sepolia-etherscan/, ""),
-        },
-        "/api/holesky-etherscan": {
-          target: "https://api-holesky.etherscan.io",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/holesky-etherscan/, ""),
-        },
-        "/api/polygonscan": {
-          target: "https://api.polygonscan.com",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/polygonscan/, ""),
-        },
-        "/api/amoy-polygonscan": {
-          target: "https://api-amoy.polygonscan.com",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/amoy-polygonscan/, ""),
-        },
-        "/api/arbiscan": {
-          target: "https://api.arbiscan.io",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/arbiscan/, ""),
-        },
         // Proxy for Sourcify repo
         "/api/repo": {
           target: "https://repo.sourcify.dev",
@@ -213,7 +235,7 @@ export default defineConfig(() => {
           rewrite: (path) => path.replace(/^\/api\/repo/, ""),
         },
       },
-      allowedHosts: ["https://spt2wbxn-5173.uks1.devtunnels.ms"],
+      allowedHosts: [".devtunnels.ms"],
     },
   };
 });

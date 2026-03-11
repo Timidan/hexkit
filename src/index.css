@@ -194,11 +194,6 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Remove focus outline from all elements */
-  *:focus,
-  *:focus-visible {
-    outline: none;
-  }
 }
 
 /* Storage viewer: shimmer on unknown badges while layout is resolving */

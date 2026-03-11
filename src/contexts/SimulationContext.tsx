@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import type { SimulationResult } from "../types/transaction";
 import type { TraceContract } from "../utils/traceAddressCollector";
 import type { DecodedTraceRow } from "../utils/traceDecoder";
@@ -37,10 +37,6 @@ function stripHeavyTraceDataForRuntime(result: SimulationResult): SimulationResu
 
     for (const field of HEAVY_TRACE_FIELDS) {
       if (field in rawTrace) {
-        // Store count for debugging but not the actual data
-        if (field === 'snapshots' && Array.isArray(rawTrace[field])) {
-          rawTrace._snapshotCount = rawTrace[field].length;
-        }
         delete rawTrace[field];
       }
     }
@@ -230,24 +226,38 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
+  const providerValue = useMemo<SimulationContextValue>(() => ({
+    currentSimulation,
+    contractContext,
+    setSimulation,
+    clearSimulation,
+    simulationId,
+    setSimulationId,
+    setTraceContracts,
+    setSourceTexts,
+    decodedTraceRows,
+    setDecodedTraceRows,
+    decodedTraceMeta,
+    setDecodedTraceMeta,
+    stripHeavyDataFromCurrentSimulation,
+  }), [
+    currentSimulation,
+    contractContext,
+    setSimulation,
+    clearSimulation,
+    simulationId,
+    setSimulationId,
+    setTraceContracts,
+    setSourceTexts,
+    decodedTraceRows,
+    setDecodedTraceRows,
+    decodedTraceMeta,
+    setDecodedTraceMeta,
+    stripHeavyDataFromCurrentSimulation,
+  ]);
+
   return (
-    <SimulationContext.Provider
-      value={{
-        currentSimulation,
-        contractContext,
-        setSimulation,
-        clearSimulation,
-        simulationId,
-        setSimulationId,
-        setTraceContracts,
-        setSourceTexts,
-        decodedTraceRows,
-        setDecodedTraceRows,
-        decodedTraceMeta,
-        setDecodedTraceMeta,
-        stripHeavyDataFromCurrentSimulation,
-      }}
-    >
+    <SimulationContext.Provider value={providerValue}>
       {children}
     </SimulationContext.Provider>
   );

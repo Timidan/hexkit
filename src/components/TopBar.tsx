@@ -35,7 +35,7 @@ const TopBar: React.FC<TopBarProps> = ({
   const { config } = useNetworkConfig();
 
   const needsKeys =
-    config.rpcMode === "DEFAULT" && !config.etherscanApiKey?.trim();
+    config.etherscanKeyMode === "personal" && !config.etherscanApiKey?.trim();
 
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -253,10 +253,10 @@ const TopBar: React.FC<TopBarProps> = ({
                 <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <div>
                   <p className="text-xs font-medium leading-snug">
-                    Add your own RPC & Etherscan keys for faster performance
+                    Add your personal explorer key or switch back to the app default key
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
-                    Settings are stored locally in your browser
+                    Personal browser-held keys stay client-visible on this device
                   </p>
                 </div>
               </div>

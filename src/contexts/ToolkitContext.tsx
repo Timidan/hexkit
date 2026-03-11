@@ -2,6 +2,8 @@ import React, {
   createContext,
   useContext,
   useState,
+  useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 
@@ -33,14 +35,14 @@ export const ToolkitProvider: React.FC<{ children: ReactNode }> = ({
   const [lastDecodedTransaction, setLastDecodedTransaction] =
     useState<DecodedTransactionData | null>(null);
 
-  const setDecodedTransaction = (data: DecodedTransactionData) => {
+  const setDecodedTransaction = useCallback((data: DecodedTransactionData) => {
     setLastDecodedTransaction(data);
-  };
+  }, []);
 
-  const contextValue: ToolkitContextState = {
+  const contextValue = useMemo<ToolkitContextState>(() => ({
     lastDecodedTransaction,
     setDecodedTransaction,
-  };
+  }), [lastDecodedTransaction, setDecodedTransaction]);
 
   return (
     <ToolkitContext.Provider value={contextValue}>

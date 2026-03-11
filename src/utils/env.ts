@@ -13,8 +13,6 @@ const readEnv = (keys: string[], fallback = "") => {
   return fallback;
 };
 
-export const getEtherscanApiKey = () => readEnv(["VITE_ETHERSCAN_API_KEY"]);
-
 export const getSimulatorBridgeUrl = () => {
   const value = readEnv(
     ["VITE_SIMULATOR_BRIDGE_URL"],
@@ -37,4 +35,3 @@ export const getSimulatorBridgeUrl = () => {
 export const getBridgeHeaders = (extra?: Record<string, string>): Record<string, string> => {
   return { 'Content-Type': 'application/json', ...extra };
 };
-

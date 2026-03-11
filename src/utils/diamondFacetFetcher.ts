@@ -8,6 +8,7 @@ import {
 } from "./whatsabiFetcher";
 import { fetchContractABIMultiSource } from "./multiSourceAbiFetcher";
 import { networkConfigManager } from "../config/networkConfig";
+import { postEtherscanLookup } from "./etherscanProxy";
 
 // Diamond facet information
 export interface DiamondFacet {
@@ -71,17 +72,6 @@ function getRpcUrl(chain: Chain): string {
 function getExplorerUrls(chain: Chain, address: string) {
   const id = chain.id;
 
-  const etherscanProxyMap: Record<number, string> = {
-    1: "/api/etherscan",
-    8453: "/api/basescan",
-    11155111: "/api/sepolia-etherscan",
-    17000: "/api/holesky-etherscan",
-    84532: "/api/base-sepolia-basescan",
-    137: "/api/polygonscan",
-    80002: "/api/amoy-polygonscan",
-    42161: "/api/arbiscan",
-  };
-
   const blockscoutProxyMap: Record<number, string> = {
     137: "/api/polygon-blockscout",
     42161: "/api/arbitrum-blockscout",
@@ -89,12 +79,10 @@ function getExplorerUrls(chain: Chain, address: string) {
     4202: "/api/lisk-sepolia-blockscout",
   };
 
-  const etherscanBase = etherscanProxyMap[id] || "/api/etherscan";
   const blockscoutBase = blockscoutProxyMap[id] || "/api/blockscout";
   const sourcifyBase = "/api/sourcify";
 
   return {
-    etherscan: `${etherscanBase}?module=contract&action=getabi&address=${address}`,
     blockscout: `${blockscoutBase}?module=contract&action=getabi&address=${address}`,
     sourcify: `${sourcifyBase}/server/files/${id}/${address}`,
   };
@@ -161,17 +149,16 @@ async function fetchFromEtherscan(
   apiKey?: string
 ): Promise<ExtendedABIFetchResult | null> {
   try {
-    const urls = getExplorerUrls(chain, address);
-    const keyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
-    const response = await axios.get(`${urls.etherscan}${keyParam}`, {
-      timeout: FETCH_TIMEOUT,
+    const response = await postEtherscanLookup({
+      action: "getabi",
+      address,
+      chainId: chain.id,
+      personalApiKey: apiKey,
     });
+    const data = await response.json();
 
-    if (
-      response.data.status === "1" &&
-      response.data.result !== "Contract source code not verified"
-    ) {
-      const abi = JSON.parse(response.data.result);
+    if (response.ok && data.status === "1" && data.result !== "Contract source code not verified") {
+      const abi = JSON.parse(data.result);
       return {
         abi: JSON.stringify(abi),
         source: "Etherscan",

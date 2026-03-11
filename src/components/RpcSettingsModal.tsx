@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   networkConfigManager,
+  type ExplorerKeyMode,
   type RpcProviderMode,
   isValidRpcUrl,
 } from "../config/networkConfig";
@@ -17,6 +18,8 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Checkbox } from "./ui/checkbox";
 import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,9 +35,12 @@ type FormState = {
   alchemyApiKey: string;
   infuraProjectId: string;
   customRpcUrl: string;
+  etherscanKeyMode: ExplorerKeyMode;
+  rememberPersonalEtherscanKey: boolean;
   etherscanApiKey: string;
 };
 
+type ErrorKey = RpcProviderMode | "ETHERSCAN";
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
 
 const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
@@ -47,9 +53,11 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     alchemyApiKey: "",
     infuraProjectId: "",
     customRpcUrl: "",
+    etherscanKeyMode: "default",
+    rememberPersonalEtherscanKey: false,
     etherscanApiKey: "",
   });
-  const [errors, setErrors] = useState<Partial<Record<RpcProviderMode, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<ErrorKey, string>>>({});
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
   const [showAlchemyKey, setShowAlchemyKey] = useState(false);
   const [showInfuraKey, setShowInfuraKey] = useState(false);
@@ -65,6 +73,9 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
       alchemyApiKey: config.alchemyApiKey ?? "",
       infuraProjectId: config.infuraProjectId ?? "",
       customRpcUrl: config.customRpcUrl ?? "",
+      etherscanKeyMode: config.etherscanKeyMode ?? "default",
+      rememberPersonalEtherscanKey:
+        config.rememberPersonalEtherscanKey ?? false,
       etherscanApiKey: config.etherscanApiKey ?? "",
     });
     setShowAlchemyKey(false);
@@ -92,6 +103,8 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
           alchemyApiKey: fs.alchemyApiKey.trim(),
           infuraProjectId: fs.infuraProjectId.trim(),
           customRpcUrl: fs.customRpcUrl.trim(),
+          etherscanKeyMode: fs.etherscanKeyMode,
+          rememberPersonalEtherscanKey: fs.rememberPersonalEtherscanKey,
           etherscanApiKey: fs.etherscanApiKey.trim(),
         });
       }
@@ -112,6 +125,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
       } else if (!isValidRpcUrl(state.customRpcUrl)) {
         nextErrors.CUSTOM = "Enter a valid HTTP(s) URL";
       }
+    }
+    if (
+      state.etherscanKeyMode === "personal" &&
+      !state.etherscanApiKey.trim()
+    ) {
+      nextErrors.ETHERSCAN = "Personal API key required";
     }
     return nextErrors;
   };
@@ -140,6 +159,8 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
         alchemyApiKey: formState.alchemyApiKey.trim(),
         infuraProjectId: formState.infuraProjectId.trim(),
         customRpcUrl: formState.customRpcUrl.trim(),
+        etherscanKeyMode: formState.etherscanKeyMode,
+        rememberPersonalEtherscanKey: formState.rememberPersonalEtherscanKey,
         etherscanApiKey: formState.etherscanApiKey.trim(),
       });
       const hasErrors = Object.keys(nextErrors).length > 0;
@@ -156,11 +177,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>RPC Provider Settings</DialogTitle>
           <DialogDescription>
-            Configure your RPC provider. Settings are stored locally.
+            Configure your RPC provider. Personal settings stay in your browser;
+            the app default explorer key stays server-side.
           </DialogDescription>
         </DialogHeader>
 
@@ -168,7 +190,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
           {/* Provider Tabs */}
           <Tabs
             value={formState.mode}
-            onValueChange={(value) => setFormState((prev) => ({ ...prev, mode: value as RpcProviderMode }))}
+            onValueChange={(value) =>
+              setFormState((prev) => ({
+                ...prev,
+                mode: value as RpcProviderMode,
+              }))
+            }
           >
             <TabsList className="w-full">
               <TabsTrigger
@@ -200,7 +227,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
 
           {/* Provider Config - constant height */}
           <div className="space-y-2">
-            <Label htmlFor="provider-input" className={cn(formState.mode === "DEFAULT" && "text-muted-foreground")}>
+            <Label
+              htmlFor="provider-input"
+              className={cn(
+                formState.mode === "DEFAULT" && "text-muted-foreground",
+              )}
+            >
               {formState.mode === "DEFAULT" && "No configuration needed"}
               {formState.mode === "ALCHEMY" && "Alchemy API Key"}
               {formState.mode === "INFURA" && "Infura Project ID"}
@@ -218,27 +250,51 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                   id="provider-input"
                   type={showAlchemyKey ? "text" : "password"}
                   value={formState.alchemyApiKey}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, alchemyApiKey: e.target.value }))}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      alchemyApiKey: e.target.value,
+                    }))
+                  }
                   placeholder="Enter API key..."
-                  className={cn("flex-1", errors.ALCHEMY && "border-destructive")}
+                  className={cn(
+                    "flex-1",
+                    errors.ALCHEMY && "border-destructive",
+                  )}
                 />
               ) : formState.mode === "INFURA" ? (
                 <Input
                   id="provider-input"
                   type={showInfuraKey ? "text" : "password"}
                   value={formState.infuraProjectId}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, infuraProjectId: e.target.value }))}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      infuraProjectId: e.target.value,
+                    }))
+                  }
                   placeholder="Enter project ID..."
-                  className={cn("flex-1", errors.INFURA && "border-destructive")}
+                  className={cn(
+                    "flex-1",
+                    errors.INFURA && "border-destructive",
+                  )}
                 />
               ) : (
                 <Input
                   id="provider-input"
                   type="url"
                   value={formState.customRpcUrl}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, customRpcUrl: e.target.value }))}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      customRpcUrl: e.target.value,
+                    }))
+                  }
                   placeholder="https://your-node.example.com"
-                  className={cn("flex-1", errors.CUSTOM && "border-destructive")}
+                  className={cn(
+                    "flex-1",
+                    errors.CUSTOM && "border-destructive",
+                  )}
                 />
               )}
               {formState.mode !== "DEFAULT" && formState.mode !== "CUSTOM" && (
@@ -247,13 +303,21 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                   variant="outline"
                   size="icon"
                   onClick={() => {
-                    if (formState.mode === "ALCHEMY") setShowAlchemyKey(!showAlchemyKey);
-                    if (formState.mode === "INFURA") setShowInfuraKey(!showInfuraKey);
+                    if (formState.mode === "ALCHEMY")
+                      setShowAlchemyKey(!showAlchemyKey);
+                    if (formState.mode === "INFURA")
+                      setShowInfuraKey(!showInfuraKey);
                   }}
                 >
-                  {(formState.mode === "ALCHEMY" ? showAlchemyKey : showInfuraKey)
-                    ? <EyeOff className="h-4 w-4" />
-                    : <Eye className="h-4 w-4" />}
+                  {(
+                    formState.mode === "ALCHEMY"
+                      ? showAlchemyKey
+                      : showInfuraKey
+                  ) ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               )}
             </div>
@@ -267,30 +331,114 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
           {/* Etherscan API Key */}
           <div className="space-y-2 pt-3 border-t">
             <div className="flex items-center gap-2">
-              <Label htmlFor="etherscan-key">Etherscan API Key</Label>
-              <Badge variant="outline" className="text-[10px]">Optional</Badge>
+              <Label>Etherscan-Style Explorer Key</Label>
+              <Badge variant="outline" className="text-[10px]">
+                Optional
+              </Badge>
             </div>
-            <div className="flex gap-2">
-              <Input
-                id="etherscan-key"
-                type={showEtherscanKey ? "text" : "password"}
-                value={formState.etherscanApiKey}
-                onChange={(e) => setFormState((prev) => ({ ...prev, etherscanApiKey: e.target.value }))}
-                placeholder="Enter API key..."
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setShowEtherscanKey(!showEtherscanKey)}
-              >
-                {showEtherscanKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              For fetching verified ABIs. Works across all EVM networks.
-            </p>
+            <RadioGroup
+              value={formState.etherscanKeyMode}
+              onValueChange={(value) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  etherscanKeyMode: value as ExplorerKeyMode,
+                }))
+              }
+              className="gap-2"
+            >
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2">
+                <RadioGroupItem
+                  value="default"
+                  id="etherscan-mode-default"
+                  className="mt-0.5"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-sm font-medium">
+                    Use app default key
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    Requests go through the app proxy.
+                  </p>
+                </div>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2">
+                <RadioGroupItem
+                  value="personal"
+                  id="etherscan-mode-personal"
+                  className="mt-0.5"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-sm font-medium">Use my own key</span>
+                  <p className="text-xs text-muted-foreground">
+                    Your browser sends the key to the same-origin proxy for
+                    explorer lookups.
+                  </p>
+                </div>
+              </label>
+            </RadioGroup>
+
+            {formState.etherscanKeyMode === "personal" ? (
+              <div className="space-y-3 rounded-md border border-border/70 bg-muted/20 p-3">
+                <div className="flex gap-2">
+                  <Input
+                    id="etherscan-key"
+                    type={showEtherscanKey ? "text" : "password"}
+                    value={formState.etherscanApiKey}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        etherscanApiKey: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter API key..."
+                    className={cn(
+                      "flex-1",
+                      errors.ETHERSCAN && "border-destructive",
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowEtherscanKey(!showEtherscanKey)}
+                  >
+                    {showEtherscanKey ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox
+                    checked={formState.rememberPersonalEtherscanKey}
+                    onCheckedChange={(checked) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        rememberPersonalEtherscanKey: checked === true,
+                      }))
+                    }
+                    className="mt-0.5"
+                  />
+                  <span className="text-muted-foreground">
+                    Remember personal key on this device. If unchecked, it stays
+                    session-scoped and clears when the tab closes.
+                  </span>
+                </label>
+                {errors.ETHERSCAN && (
+                  <p className="text-xs text-destructive">{errors.ETHERSCAN}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Personal keys stored in the browser are still visible to
+                  browser scripts and extensions on this device.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Default mode keeps the shared explorer key off the client and
+                works across supported Etherscan-style networks.
+              </p>
+            )}
           </div>
         </div>
 
