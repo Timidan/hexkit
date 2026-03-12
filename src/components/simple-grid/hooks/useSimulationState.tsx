@@ -20,6 +20,7 @@ import type { ProxyInfo } from "../../../utils/resolver";
 import { CopyButton } from "../../ui/copy-button";
 import { AlertTriangleIcon } from "../../icons/IconLibrary";
 import { decodeFunctionSelector } from "../utils";
+import { classifySimulationError } from "../../../utils/errorParser";
 
 export interface UseSimulationStateDeps {
   selectedNetwork: any;
@@ -214,9 +215,10 @@ export function useSimulationState(deps: UseSimulationStateDeps) {
         setSimulationResult(null);
         return result;
       } catch (error: any) {
-        const message = error?.message || error?.toString?.() || "Simulation failed due to an unexpected error.";
-        setSimulationError(message);
-        showError("Simulation Error", message);
+        const rawMessage = error?.message || error?.toString?.() || "Simulation failed due to an unexpected error.";
+        const classified = classifySimulationError(rawMessage);
+        setSimulationError(classified.message);
+        showError("Simulation Error", classified.message);
         return null;
       } finally {
         setIsSimulating(false);

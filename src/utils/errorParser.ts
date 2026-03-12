@@ -10,6 +10,13 @@ export interface ParsedError {
   suggestion?: string;
 }
 
+export interface ClassifiedSimulationError {
+  type: 'rpc' | 'bridge' | 'state' | 'config' | 'network' | 'unknown';
+  message: string;
+  suggestion?: string;
+  technicalDetails: string;
+}
+
 export const parseError = (error: any): ParsedError => {
   let errorMessage = '';
   let errorType: ParsedError['type'] = 'unknown';
@@ -131,6 +138,167 @@ export const parseError = (error: any): ParsedError => {
     message: errorMessage,
     originalError,
     suggestion
+  };
+};
+
+/**
+ * Extract the innermost human-readable message from nested Rust/EDB error strings.
+ * E.g. 'engine error: ... Database(EdbDBError { message: "Transport error: ..." })'
+ * → 'Transport error: ...'
+ */
+function extractInnerMessage(raw: string): string {
+  // Match Rust struct pattern: SomeType { message: "..." }
+  const rustMsgMatch = raw.match(/message:\s*"([^"]+)"/);
+  if (rustMsgMatch) return rustMsgMatch[1];
+
+  // Match 'error code -32000: <message>'
+  const rpcCodeMatch = raw.match(/error code -?\d+:\s*(.+?)(?:"|$)/);
+  if (rpcCodeMatch) return rpcCodeMatch[1].trim();
+
+  // Strip common engine prefixes to get to the useful part
+  const stripped = raw
+    .replace(/^engine error:\s*/i, '')
+    .replace(/^engine preparation failed:\s*/i, '')
+    .replace(/^Failed to inspect the target transaction:\s*/i, '')
+    .replace(/^Database\(EdbDBError\s*\{\s*message:\s*"/i, '')
+    .replace(/"\s*\}\s*\)\s*$/i, '');
+
+  return stripped;
+}
+
+/**
+ * Classify bridge/simulation/RPC errors into user-friendly messages.
+ * Use this for errors originating from the EDB bridge, RPC providers,
+ * or simulation infrastructure — NOT for wallet/transaction errors (use parseError for those).
+ */
+export const classifySimulationError = (rawError: string): ClassifiedSimulationError => {
+  const lower = rawError.toLowerCase();
+
+  // Historical state not available (non-archival RPC)
+  if (lower.includes('historical state') && lower.includes('not available')) {
+    return {
+      type: 'state',
+      message: "The RPC node doesn't have historical data for this block.",
+      suggestion: 'Configure an archive RPC node in Settings, or use Alchemy/Infura with an API key.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Rate limiting
+  if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('429')) {
+    return {
+      type: 'rpc',
+      message: 'RPC provider rate limit reached.',
+      suggestion: 'Wait a moment and retry, or add your own API key in Settings > RPC.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Response too large
+  if (lower.includes('exceeds maximum size') || lower.includes('body_too_large') || lower.includes('too large')) {
+    return {
+      type: 'bridge',
+      message: 'Transaction data is too large to simulate.',
+      suggestion: 'Try a simpler transaction or reduce the call data size.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Bridge unreachable / connection refused
+  if (lower.includes('bridge_unreachable') || lower.includes('econnrefused') || lower.includes('connect econnrefused')) {
+    return {
+      type: 'bridge',
+      message: 'Simulation engine is currently unavailable.',
+      suggestion: 'Please try again in a few moments.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Timeout
+  if (lower.includes('bridge_timeout') || lower.includes('timeout') || lower.includes('timed out')) {
+    return {
+      type: 'network',
+      message: 'Simulation timed out.',
+      suggestion: 'The transaction may be too complex. Try again or simplify the call.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Transport / connection errors to RPC
+  if (lower.includes('transport error') || lower.includes('connection refused') || lower.includes('fetch failed') || lower.includes('network error')) {
+    return {
+      type: 'network',
+      message: 'Failed to connect to the RPC node.',
+      suggestion: 'Check your internet connection or try a different RPC provider in Settings.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Rust/EDB engine errors with nested messages
+  if (lower.includes('engine error') || lower.includes('edbdberror') || lower.includes('engine preparation failed')) {
+    const inner = extractInnerMessage(rawError);
+    // Re-classify the inner message if it matches a known pattern
+    const innerLower = inner.toLowerCase();
+    if (innerLower.includes('historical state') && innerLower.includes('not available')) {
+      return {
+        type: 'state',
+        message: "The RPC node doesn't have historical data for this block.",
+        suggestion: 'Configure an archive RPC node in Settings, or use Alchemy/Infura with an API key.',
+        technicalDetails: rawError,
+      };
+    }
+    if (innerLower.includes('rate limit') || innerLower.includes('too many requests')) {
+      return {
+        type: 'rpc',
+        message: 'RPC provider rate limit reached.',
+        suggestion: 'Wait a moment and retry, or add your own API key in Settings > RPC.',
+        technicalDetails: rawError,
+      };
+    }
+    return {
+      type: 'bridge',
+      message: inner !== rawError ? inner : 'Simulation engine encountered an internal error.',
+      suggestion: 'Try changing your RPC provider in Settings or try again.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Generic RPC error codes
+  if (lower.includes('error code -32')) {
+    const inner = extractInnerMessage(rawError);
+    return {
+      type: 'rpc',
+      message: inner !== rawError ? inner : 'RPC provider returned an error.',
+      suggestion: 'Try a different RPC provider or check your RPC settings.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // No RPC configured
+  if (lower.includes('no rpc') || lower.includes('no rpc url configured')) {
+    return {
+      type: 'config',
+      message: 'No RPC URL available for this network.',
+      suggestion: 'Switch to Default mode or configure a custom RPC in Settings > RPC.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Simulation failed (generic bridge response)
+  if (lower === 'simulation failed') {
+    return {
+      type: 'bridge',
+      message: 'Simulation failed.',
+      suggestion: 'Check your transaction parameters and try again.',
+      technicalDetails: rawError,
+    };
+  }
+
+  // Unknown — pass through but clean up
+  return {
+    type: 'unknown',
+    message: rawError.length > 200 ? rawError.slice(0, 200) + '...' : rawError,
+    technicalDetails: rawError,
   };
 };
 

@@ -18,6 +18,7 @@ import type { Chain } from "../../types";
 import { getSimulatorBridgeUrl, getBridgeHeaders } from "../env";
 import { cacheRawTraceText } from "../traceRawTextCache";
 import { networkConfigManager } from "../../config/networkConfig";
+import { classifySimulationError } from "../errorParser";
 
 import {
   type BridgeSimulationResponsePayload,
@@ -129,10 +130,13 @@ export const postSimulatorJob = async (
   } catch (error: any) {
     if (error?.response?.data && typeof error.response.data === "object") {
       const errorData = error.response.data;
+      const rawError = errorData.error || "Simulation failed";
+      const classified = classifySimulationError(rawError);
       return {
         mode: "edb" as const,
         success: false,
-        error: errorData.error || "Simulation failed",
+        error: classified.message,
+        technicalError: classified.technicalDetails,
         warnings: [],
         revertReason: null,
         gasUsed: null,
@@ -144,10 +148,12 @@ export const postSimulatorJob = async (
     const message =
       error instanceof Error ? error.message : "Unknown network error";
     console.error("[postSimulatorJob] network error:", message);
+    const classified = classifySimulationError(message);
     return {
       mode: "edb" as const,
       success: false,
-      error: `Simulation request failed: ${message}`,
+      error: classified.message,
+      technicalError: `Simulation request failed: ${message}`,
       warnings: [],
       revertReason: null,
       gasUsed: null,

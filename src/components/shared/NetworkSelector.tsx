@@ -31,7 +31,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 1,
     name: "Ethereum",
-    rpcUrl: "https://ethereum.publicnode.com",
+    rpcUrl: "https://eth.llamarpc.com",
     blockExplorer: "https://etherscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -41,7 +41,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 137,
     name: "Polygon",
-    rpcUrl: "https://polygon-rpc.com",
+    rpcUrl: "https://polygon.llamarpc.com",
     blockExplorer: "https://polygonscan.com",
     isTestnet: false,
     category: "mainnet",
@@ -51,7 +51,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 42161,
     name: "Arbitrum One",
-    rpcUrl: "https://arb1.arbitrum.io/rpc",
+    rpcUrl: "https://arbitrum.llamarpc.com",
     blockExplorer: "https://arbiscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -61,7 +61,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 10,
     name: "Optimism",
-    rpcUrl: "https://mainnet.optimism.io",
+    rpcUrl: "https://optimism.llamarpc.com",
     blockExplorer: "https://optimistic.etherscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -71,7 +71,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 8453,
     name: "Base",
-    rpcUrl: "https://mainnet.base.org",
+    rpcUrl: "https://base.llamarpc.com",
     blockExplorer: "https://basescan.org",
     isTestnet: false,
     category: "mainnet",
@@ -81,7 +81,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 56,
     name: "BNB Smart Chain",
-    rpcUrl: "https://bsc-dataseed.binance.org",
+    rpcUrl: "https://binance.llamarpc.com",
     blockExplorer: "https://bscscan.com",
     isTestnet: false,
     category: "mainnet",
@@ -91,7 +91,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 100,
     name: "Gnosis Chain",
-    rpcUrl: "https://rpc.gnosischain.com",
+    rpcUrl: "https://rpc.ankr.com/gnosis",
     blockExplorer: "https://gnosisscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -101,7 +101,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 43114,
     name: "Avalanche",
-    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    rpcUrl: "https://rpc.ankr.com/avalanche",
     blockExplorer: "https://snowtrace.io",
     isTestnet: false,
     category: "mainnet",

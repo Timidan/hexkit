@@ -172,7 +172,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     const txHash = simulationWithExtras?.transactionHash;
     const blockTag = contextWithExtras?.blockOverride || simulationWithExtras?.blockNumber;
     const chain = getChainById(chainId);
-    const rpcFallback = chain?.rpcUrl || "https://ethereum.publicnode.com";
+    const rpcFallback = chain?.rpcUrl || "https://eth.llamarpc.com";
     const rpcUrl = resolveRpcUrl(chainId, rpcFallback).url;
 
     const prepParams: import('../../types/debug').PrepareDebugRequest = {

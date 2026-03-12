@@ -14,21 +14,22 @@ import type { Chain } from "../types";
 // Public RPC fallbacks (used only when user hasn't configured a provider
 // OR when user's provider doesn't support the chain)
 const PUBLIC_RPC_URLS = {
-  1: "https://ethereum.publicnode.com",
+  1: "https://eth.llamarpc.com",
   11155111: "https://rpc.sepolia.ethpandaops.io",
-  8453: "https://mainnet.base.org",
+  8453: "https://base.llamarpc.com",
   84532: "https://sepolia.base.org",
-  137: "https://polygon-rpc.com",
+  137: "https://polygon.llamarpc.com",
   17000: "https://ethereum-holesky.publicnode.com",
   4202: "https://rpc.sepolia-api.lisk.com",
   80002: "https://rpc-amoy.polygon.technology",
-  42161: "https://arb1.arbitrum.io/rpc",
+  42161: "https://arbitrum.llamarpc.com",
   421614: "https://sepolia-rollup.arbitrum.io/rpc",
-  10: "https://mainnet.optimism.io",
+  10: "https://optimism.llamarpc.com",
   11155420: "https://sepolia.optimism.io",
-  56: "https://bsc-dataseed.binance.org/",
+  56: "https://binance.llamarpc.com",
   97: "https://bsc-testnet.public.blastapi.io",
-  43114: "https://api.avax.network/ext/bc/C/rpc",
+  43114: "https://rpc.ankr.com/avalanche",
+  100: "https://rpc.ankr.com/gnosis",
 } as const;
 
 export const SUPPORTED_CHAINS: Chain[] = [
@@ -359,6 +360,31 @@ export const SUPPORTED_CHAINS: Chain[] = [
     nativeCurrency: {
       name: "Avalanche",
       symbol: "AVAX",
+      decimals: 18,
+    },
+  },
+  {
+    id: 100,
+    name: "Gnosis",
+    rpcUrl: PUBLIC_RPC_URLS[100],
+    explorerUrl: "https://gnosisscan.io",
+    blockExplorer: "https://gnosisscan.io",
+    apiUrl: "https://api.gnosisscan.io/api",
+    explorers: [
+      {
+        name: "GnosisScan",
+        url: "https://api.gnosisscan.io/api",
+        type: "etherscan",
+      },
+      {
+        name: "Gnosis Blockscout",
+        url: "https://gnosis.blockscout.com/api",
+        type: "blockscout",
+      },
+    ],
+    nativeCurrency: {
+      name: "xDai",
+      symbol: "xDAI",
       decimals: 18,
     },
   },

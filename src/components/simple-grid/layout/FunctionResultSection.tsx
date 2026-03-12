@@ -249,7 +249,7 @@ export default function FunctionResultSection(): React.ReactElement {
               showError("Call Failed", parsedError.message);
               setFunctionResult({
                 data: undefined,
-                error: error.message || "Raw call execution failed",
+                error: parsedError.message,
                 isLoading: false,
               });
             }

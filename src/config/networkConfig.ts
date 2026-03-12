@@ -269,6 +269,7 @@ function migrateSecretsToMemory(): void {
 const ALCHEMY_ENDPOINTS: Record<number, (key: string) => string> = {
   1: (key) => `https://eth-mainnet.g.alchemy.com/v2/${key}`,
   11155111: (key) => `https://eth-sepolia.g.alchemy.com/v2/${key}`,
+  17000: (key) => `https://eth-holesky.g.alchemy.com/v2/${key}`,
   8453: (key) => `https://base-mainnet.g.alchemy.com/v2/${key}`,
   84532: (key) => `https://base-sepolia.g.alchemy.com/v2/${key}`,
   137: (key) => `https://polygon-mainnet.g.alchemy.com/v2/${key}`,
@@ -277,13 +278,18 @@ const ALCHEMY_ENDPOINTS: Record<number, (key: string) => string> = {
   421614: (key) => `https://arb-sepolia.g.alchemy.com/v2/${key}`,
   10: (key) => `https://opt-mainnet.g.alchemy.com/v2/${key}`,
   11155420: (key) => `https://opt-sepolia.g.alchemy.com/v2/${key}`,
+  56: (key) => `https://bnb-mainnet.g.alchemy.com/v2/${key}`,
+  97: (key) => `https://bnb-testnet.g.alchemy.com/v2/${key}`,
   43114: (key) => `https://avax-mainnet.g.alchemy.com/v2/${key}`,
+  100: (key) => `https://gnosis-mainnet.g.alchemy.com/v2/${key}`,
+  4202: (key) => `https://lisk-sepolia.g.alchemy.com/v2/${key}`,
 };
 
 // Infura chain support
 const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
   1: (key) => `https://mainnet.infura.io/v3/${key}`,
   11155111: (key) => `https://sepolia.infura.io/v3/${key}`,
+  17000: (key) => `https://holesky.infura.io/v3/${key}`,
   8453: (key) => `https://base-mainnet.infura.io/v3/${key}`,
   84532: (key) => `https://base-sepolia.infura.io/v3/${key}`,
   137: (key) => `https://polygon-mainnet.infura.io/v3/${key}`,
@@ -292,26 +298,31 @@ const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
   421614: (key) => `https://arbitrum-sepolia.infura.io/v3/${key}`,
   10: (key) => `https://optimism-mainnet.infura.io/v3/${key}`,
   11155420: (key) => `https://optimism-sepolia.infura.io/v3/${key}`,
+  56: (key) => `https://bsc-mainnet.infura.io/v3/${key}`,
+  97: (key) => `https://bsc-testnet.infura.io/v3/${key}`,
   43114: (key) => `https://avalanche-mainnet.infura.io/v3/${key}`,
+  100: (key) => `https://gnosis-mainnet.infura.io/v3/${key}`,
+  4202: (key) => `https://lisk-sepolia.infura.io/v3/${key}`,
 };
 
-// Public RPC fallbacks (used only when allowPublicRpcFallback is true)
+// Public RPC fallbacks — archival-capable free endpoints (may be rate-limited)
 const PUBLIC_RPC_FALLBACKS: Record<number, string> = {
-  1: 'https://ethereum.publicnode.com',
+  1: 'https://eth.llamarpc.com',
   11155111: 'https://rpc.sepolia.ethpandaops.io',
-  8453: 'https://mainnet.base.org',
+  8453: 'https://base.llamarpc.com',
   84532: 'https://sepolia.base.org',
-  137: 'https://polygon-rpc.com',
+  137: 'https://polygon.llamarpc.com',
   80002: 'https://rpc-amoy.polygon.technology',
   17000: 'https://ethereum-holesky.publicnode.com',
   4202: 'https://rpc.sepolia-api.lisk.com',
-  42161: 'https://arb1.arbitrum.io/rpc',
+  42161: 'https://arbitrum.llamarpc.com',
   421614: 'https://sepolia-rollup.arbitrum.io/rpc',
-  10: 'https://mainnet.optimism.io',
+  10: 'https://optimism.llamarpc.com',
   11155420: 'https://sepolia.optimism.io',
-  56: 'https://bsc-dataseed.binance.org/',
+  56: 'https://binance.llamarpc.com',
   97: 'https://bsc-testnet.public.blastapi.io',
-  43114: 'https://api.avax.network/ext/bc/C/rpc',
+  43114: 'https://rpc.ankr.com/avalanche',
+  100: 'https://rpc.ankr.com/gnosis',
 };
 
 interface OldRpcSettings {

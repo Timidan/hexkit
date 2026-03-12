@@ -239,11 +239,14 @@ export const sanitizeAbiEntries = (abiItems: any[]): any[] => {
 };
 
 export const FALLBACK_RPCS: Record<number, string> = {
-  1: "https://ethereum.publicnode.com",
-  8453: "https://mainnet.base.org",
-  137: "https://polygon-rpc.com",
-  42161: "https://arb1.arbitrum.io/rpc",
-  10: "https://mainnet.optimism.io",
+  1: "https://eth.llamarpc.com",
+  8453: "https://base.llamarpc.com",
+  137: "https://polygon.llamarpc.com",
+  42161: "https://arbitrum.llamarpc.com",
+  10: "https://optimism.llamarpc.com",
+  56: "https://binance.llamarpc.com",
+  43114: "https://rpc.ankr.com/avalanche",
+  100: "https://rpc.ankr.com/gnosis",
   11155111: "https://rpc.sepolia.ethpandaops.io",
   17000: "https://ethereum-holesky.publicnode.com",
   80002: "https://rpc-amoy.polygon.technology",

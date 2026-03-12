@@ -42,6 +42,7 @@ export interface SimulationResult {
   mode: 'onchain' | 'local' | 'rpc' | 'edb';
   success: boolean;
   error?: string | null;
+  technicalError?: string | null; // Raw error for debugging (shown via "Show details")
   warnings?: string[];
   revertReason?: string | null;
   gasUsed?: string | null;

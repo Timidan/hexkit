@@ -53,7 +53,9 @@ export const simulateTransaction = async (
       const isNetworkFailure =
         bridgeResult.success === false &&
         typeof bridgeResult.error === "string" &&
-        bridgeResult.error.startsWith("Simulation request failed:");
+        (bridgeResult.error.startsWith("Simulation request failed:") ||
+         (typeof bridgeResult.technicalError === "string" &&
+          bridgeResult.technicalError.startsWith("Simulation request failed:")));
       if (!isNetworkFailure) {
         return bridgeResult;
       }

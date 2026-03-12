@@ -383,10 +383,10 @@ export default function ExecutionSection(): React.ReactElement | null {
                   }
                   return;
                 } catch (error: any) {
+                  const parsedErr = parseError(error);
                   setFunctionResult({
                     data: null,
-                    error:
-                      error.message || error.toString(),
+                    error: parsedErr.message,
                     isLoading: false,
                   });
                 }
@@ -544,19 +544,17 @@ export default function ExecutionSection(): React.ReactElement | null {
                 }
               }
             } catch (overallError: any) {
+              const parsedOverall = parseError(overallError);
               if (selectedFunctionType === "read") {
                 setFunctionResult({
                   data: null,
-                  error:
-                    overallError.message ||
-                    overallError.toString(),
+                  error: parsedOverall.message,
                   isLoading: false,
                 });
               } else {
                 showError(
                   "Transaction failed",
-                  overallError.message ||
-                    overallError.toString()
+                  parsedOverall.message
                 );
               }
             }

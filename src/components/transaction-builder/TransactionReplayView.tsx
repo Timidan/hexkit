@@ -22,6 +22,7 @@ import {
 import { lookupFunctionSignatures } from "../../utils/signatureDatabase";
 import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
+import { classifySimulationError } from "../../utils/errorParser";
 import {
   type TxPreviewData,
   type TxFetchStatus,
@@ -193,8 +194,12 @@ export const TransactionReplayView: React.FC<{
         const rpcUrl = rpcResolution.url;
 
         if (!rpcUrl) {
+          const providerMode = rpcResolution.mode || 'DEFAULT';
+          const providerName = providerMode === 'ALCHEMY' ? 'Alchemy' : providerMode === 'INFURA' ? 'Infura' : providerMode;
           setTxFetchStatus("error");
-          setTxFetchError("No RPC URL configured for this network");
+          setTxFetchError(
+            `No RPC available for ${selectedNetwork.name}. ${providerName} may not support this chain — switch to Default mode or configure a custom RPC in Settings.`
+          );
           return;
         }
 
@@ -325,10 +330,11 @@ export const TransactionReplayView: React.FC<{
       const targetSimulationId = generatedSimulationId;
       navigate(`/simulation/${targetSimulationId}`, { state: { fromSimulation: true } });
     } catch (error: any) {
-      const message =
+      const rawMessage =
         error?.message ??
-        "Replay failed due to an unexpected error. Check the simulator logs.";
-      setFormError(message);
+        "Replay failed due to an unexpected error.";
+      const classified = classifySimulationError(rawMessage);
+      setFormError(classified.message);
     } finally {
       setIsSimulating(false);
     }
