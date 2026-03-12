@@ -1,14 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/edb",
-      "destination": "/api/edb-proxy"
-    },
-    {
-      "source": "/api/edb/:path*",
-      "destination": "/api/edb-proxy?path=:path*"
-    },
-    {
       "source": "/api/sourcify/repository/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },
@@ -45,38 +37,6 @@
       "destination": "https://sepolia-blockscout.lisk.com/:path*"
     },
     {
-      "source": "/api/basescan/:path*",
-      "destination": "https://api.basescan.org/:path*"
-    },
-    {
-      "source": "/api/base-sepolia-basescan/:path*",
-      "destination": "https://api-sepolia.basescan.org/:path*"
-    },
-    {
-      "source": "/api/etherscan/:path*",
-      "destination": "https://api.etherscan.io/:path*"
-    },
-    {
-      "source": "/api/sepolia-etherscan/:path*",
-      "destination": "https://api-sepolia.etherscan.io/:path*"
-    },
-    {
-      "source": "/api/holesky-etherscan/:path*",
-      "destination": "https://api-holesky.etherscan.io/:path*"
-    },
-    {
-      "source": "/api/polygonscan/:path*",
-      "destination": "https://api.polygonscan.com/:path*"
-    },
-    {
-      "source": "/api/amoy-polygonscan/:path*",
-      "destination": "https://api-amoy.polygonscan.com/:path*"
-    },
-    {
-      "source": "/api/arbiscan/:path*",
-      "destination": "https://api.arbiscan.io/:path*"
-    },
-    {
       "source": "/api/repo/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },
@@ -91,7 +51,9 @@
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
     }
   ]

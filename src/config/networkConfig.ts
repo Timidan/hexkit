@@ -11,6 +11,7 @@
  */
 
 export type RpcProviderMode = 'DEFAULT' | 'ALCHEMY' | 'INFURA' | 'CUSTOM';
+export type ExplorerKeyMode = 'default' | 'personal';
 
 export type AbiSourceType = 'sourcify' | 'etherscan' | 'blockscout';
 
@@ -27,6 +28,8 @@ export interface NetworkConfig {
   customRpcUrl?: string;
 
   // Explorer API Keys
+  etherscanKeyMode: ExplorerKeyMode;
+  rememberPersonalEtherscanKey: boolean;
   etherscanApiKey?: string;
   blockscoutApiKey?: string;
 
@@ -51,17 +54,16 @@ export interface RpcResolution {
 }
 
 const STORAGE_KEY = 'web3-toolkit:network-config';
-const SECRETS_KEY = 'web3-toolkit:secrets'; // sessionStorage key for cross-reload persistence
-const CONFIG_VERSION = 1;
-
-// In-memory secret cache — backed by sessionStorage for cross-reload persistence
-const inMemorySecrets: Partial<Pick<NetworkConfig, SecretField>> = {};
+const LOCAL_SECRETS_KEY = 'web3-toolkit:secrets';
+const SESSION_SECRETS_KEY = 'web3-toolkit:session-secrets';
+const LEGACY_SESSION_SECRETS_KEY = 'web3-toolkit:secrets';
+const CONFIG_VERSION = 2;
 
 // Old storage keys for migration
 const OLD_RPC_SETTINGS_KEY = 'web3-toolkit:user-rpc-settings';
 const OLD_UNIVERSAL_API_KEYS_KEY = 'web3-toolkit-universal-api-keys';
 
-// Fields that count as secrets and go into sessionStorage
+// Fields that count as secrets and are stored outside the public config blob.
 const SECRET_FIELDS = [
   'alchemyApiKey',
   'infuraProjectId',
@@ -69,6 +71,97 @@ const SECRET_FIELDS = [
   'blockscoutApiKey',
 ] as const;
 type SecretField = (typeof SECRET_FIELDS)[number];
+
+const DEFAULT_CONFIG: NetworkConfig = {
+  rpcMode: 'DEFAULT',
+  etherscanKeyMode: 'default',
+  rememberPersonalEtherscanKey: false,
+  sourcePriority: ['sourcify', 'etherscan', 'blockscout'],
+  allowPublicRpcFallback: false,
+  version: CONFIG_VERSION,
+};
+
+function parseStoredSecrets(
+  raw: string | null
+): Partial<Pick<NetworkConfig, SecretField>> {
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Partial<Pick<NetworkConfig, SecretField>>;
+  } catch {
+    try {
+      const decoded = decodeURIComponent(escape(atob(raw)));
+      return JSON.parse(decoded) as Partial<Pick<NetworkConfig, SecretField>>;
+    } catch {
+      return {};
+    }
+  }
+}
+
+function readSecretsFromStorage(
+  storage: Storage | undefined,
+  storageKey: string
+): Partial<Pick<NetworkConfig, SecretField>> {
+  if (!storage) {
+    return {};
+  }
+
+  try {
+    return parseStoredSecrets(storage.getItem(storageKey));
+  } catch {
+    return {};
+  }
+}
+
+function writeSecretsToStorage(
+  storage: Storage | undefined,
+  storageKey: string,
+  secrets: Partial<Pick<NetworkConfig, SecretField>>
+): void {
+  if (!storage) {
+    return;
+  }
+
+  try {
+    if (Object.keys(secrets).length === 0) {
+      storage.removeItem(storageKey);
+      return;
+    }
+
+    storage.setItem(storageKey, JSON.stringify(secrets));
+  } catch {
+    // ignore unavailable storage
+  }
+}
+
+function splitSecretsByStorage(
+  secrets: Partial<Pick<NetworkConfig, SecretField>>,
+  config: Pick<NetworkConfig, 'rememberPersonalEtherscanKey'>
+): {
+  localSecrets: Partial<Pick<NetworkConfig, SecretField>>;
+  sessionSecrets: Partial<Pick<NetworkConfig, SecretField>>;
+} {
+  const localSecrets: Partial<Pick<NetworkConfig, SecretField>> = {};
+  const sessionSecrets: Partial<Pick<NetworkConfig, SecretField>> = {};
+
+  for (const field of SECRET_FIELDS) {
+    const value = secrets[field]?.trim();
+    if (!value) {
+      continue;
+    }
+
+    if (field === 'etherscanApiKey' && !config.rememberPersonalEtherscanKey) {
+      sessionSecrets[field] = value;
+      continue;
+    }
+
+    localSecrets[field] = value;
+  }
+
+  return { localSecrets, sessionSecrets };
+}
 
 /** Extract secret fields from a config object */
 function extractSecrets(config: NetworkConfig): Partial<Pick<NetworkConfig, SecretField>> {
@@ -99,92 +192,78 @@ function stripSecrets(config: NetworkConfig): NetworkConfig {
   return clean;
 }
 
-/** Read secrets from in-memory cache, hydrating from sessionStorage if needed */
 function readSecrets(): Partial<Pick<NetworkConfig, SecretField>> {
-  // If in-memory cache is populated, return it directly
-  if (SECRET_FIELDS.some((f) => inMemorySecrets[f])) {
-    return { ...inMemorySecrets };
+  if (typeof window === 'undefined') {
+    return {};
   }
-  // Hydrate from sessionStorage (survives page reload within same tab)
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = sessionStorage.getItem(SECRETS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<Pick<NetworkConfig, SecretField>>;
-        for (const field of SECRET_FIELDS) {
-          if (parsed[field]) {
-            (inMemorySecrets as Record<string, string>)[field] = parsed[field]!;
-          }
-        }
-      }
-    } catch {
-      // ignore corrupted sessionStorage
-    }
-  }
-  return { ...inMemorySecrets };
+
+  return {
+    ...readSecretsFromStorage(window.localStorage, LOCAL_SECRETS_KEY),
+    ...readSecretsFromStorage(window.sessionStorage, SESSION_SECRETS_KEY),
+  };
 }
 
-/** Write secrets to in-memory cache + sessionStorage for cross-reload persistence */
-function writeSecrets(secrets: Partial<Pick<NetworkConfig, SecretField>>): void {
-  for (const field of SECRET_FIELDS) {
-    if (secrets[field]) {
-      (inMemorySecrets as Record<string, string>)[field] = secrets[field]!;
-    } else {
-      // Delete cleared keys to prevent stale secrets
-      delete (inMemorySecrets as Record<string, unknown>)[field];
-    }
+function writeSecrets(
+  secrets: Partial<Pick<NetworkConfig, SecretField>>,
+  config: Pick<NetworkConfig, 'rememberPersonalEtherscanKey'>
+): void {
+  if (typeof window === 'undefined') {
+    return;
   }
-  // Persist to sessionStorage (tab-scoped, auto-cleared on tab close)
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.setItem(SECRETS_KEY, JSON.stringify(inMemorySecrets));
-    } catch {
-      // sessionStorage may be unavailable
-    }
-  }
+
+  const { localSecrets, sessionSecrets } = splitSecretsByStorage(secrets, config);
+  writeSecretsToStorage(window.localStorage, LOCAL_SECRETS_KEY, localSecrets);
+  writeSecretsToStorage(window.sessionStorage, SESSION_SECRETS_KEY, sessionSecrets);
 }
 
-/** One-time migration: load secrets from sessionStorage + strip any from localStorage */
 function migrateSecretsToMemory(): void {
   if (typeof window === 'undefined') return;
-  if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return;
 
-  // Load from sessionStorage into in-memory cache (keeps sessionStorage intact for persistence)
-  try {
-    const sessionRaw = sessionStorage.getItem(SECRETS_KEY);
-    if (sessionRaw) {
-      const parsed = JSON.parse(sessionRaw) as Partial<Pick<NetworkConfig, SecretField>>;
-      for (const field of SECRET_FIELDS) {
-        if (parsed[field]) {
-          (inMemorySecrets as Record<string, string>)[field] = parsed[field]!;
-        }
-      }
+  const rawConfig = window.localStorage.getItem(STORAGE_KEY);
+  let parsedConfig: NetworkConfig | null = null;
+
+  if (rawConfig) {
+    try {
+      parsedConfig = JSON.parse(rawConfig) as NetworkConfig;
+    } catch {
+      parsedConfig = null;
     }
-  } catch {
-    // ignore corrupted sessionStorage
   }
 
-  // Extract any secrets still in localStorage config blob and move to sessionStorage
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return;
-  try {
-    const parsed = JSON.parse(raw) as NetworkConfig;
-    const secrets = extractSecrets(parsed);
-    if (Object.keys(secrets).length === 0) return;
-    writeSecrets(secrets); // Writes to both in-memory + sessionStorage
-    // Strip secrets from localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stripSecrets(parsed)));
-  } catch {
-    // ignore — corrupted data
+  const legacySessionSecrets = readSecretsFromStorage(
+    window.sessionStorage,
+    LEGACY_SESSION_SECRETS_KEY
+  );
+  const localSecrets = readSecretsFromStorage(window.localStorage, LOCAL_SECRETS_KEY);
+  const embeddedSecrets = parsedConfig ? extractSecrets(parsedConfig) : {};
+  const mergedSecrets = {
+    ...localSecrets,
+    ...legacySessionSecrets,
+    ...embeddedSecrets,
+  };
+  const effectiveConfig: NetworkConfig = {
+    ...DEFAULT_CONFIG,
+    ...(parsedConfig ?? {}),
+    ...(!parsedConfig?.etherscanKeyMode && mergedSecrets.etherscanApiKey
+      ? { etherscanKeyMode: 'personal' as const }
+      : {}),
+  };
+
+  if (Object.keys(mergedSecrets).length > 0) {
+    writeSecrets(mergedSecrets, effectiveConfig);
+  }
+
+  if (legacySessionSecrets && Object.keys(legacySessionSecrets).length > 0) {
+    window.sessionStorage.removeItem(LEGACY_SESSION_SECRETS_KEY);
+  }
+
+  if (parsedConfig) {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(stripSecrets({ ...effectiveConfig, ...mergedSecrets }))
+    );
   }
 }
-
-const DEFAULT_CONFIG: NetworkConfig = {
-  rpcMode: 'DEFAULT',
-  sourcePriority: ['sourcify', 'etherscan', 'blockscout'],
-  allowPublicRpcFallback: false,
-  version: CONFIG_VERSION,
-};
 
 // Alchemy chain support
 const ALCHEMY_ENDPOINTS: Record<number, (key: string) => string> = {
@@ -279,11 +358,16 @@ function migrateFromOldSettings(): NetworkConfig | null {
     infuraProjectId: oldRpc.infuraKey?.trim() || undefined,
     customRpcUrl: oldRpc.genericUrl?.trim() || undefined,
     etherscanApiKey: oldRpc.etherscanKey?.trim() || oldApiKeys.ETHERSCAN?.trim() || undefined,
+    etherscanKeyMode:
+      oldRpc.etherscanKey?.trim() || oldApiKeys.ETHERSCAN?.trim()
+        ? 'personal'
+        : 'default',
+    rememberPersonalEtherscanKey: false,
     blockscoutApiKey: oldApiKeys.BLOCKSCOUT?.trim() || undefined,
   };
 
-  // Save migrated config: secrets → sessionStorage, rest → localStorage
-  writeSecrets(extractSecrets(migrated));
+  // Save migrated config: non-sensitive config in localStorage, secrets in mode-specific storage
+  writeSecrets(extractSecrets(migrated), migrated);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stripSecrets(migrated)));
 
   // Clean up old keys
@@ -302,22 +386,29 @@ function readConfig(): NetworkConfig {
     // Try migrating from old settings
     const migrated = migrateFromOldSettings();
     if (migrated) return migrated;
-    // Even with no localStorage config, session secrets may exist
+    // Even with no config blob, persisted secrets may exist
     const secrets = readSecrets();
-    return { ...DEFAULT_CONFIG, ...secrets };
+    return {
+      ...DEFAULT_CONFIG,
+      ...secrets,
+      ...(secrets.etherscanApiKey ? { etherscanKeyMode: 'personal' as const } : {}),
+    };
   }
 
   try {
     const parsed = JSON.parse(raw) as NetworkConfig;
-    // Merge secrets from sessionStorage on top
+    // Merge persisted secrets on top
     const secrets = readSecrets();
     return {
       ...DEFAULT_CONFIG,
       ...parsed,
       ...secrets,
+      ...(!parsed.etherscanKeyMode && secrets.etherscanApiKey
+        ? { etherscanKeyMode: 'personal' as const }
+        : {}),
     };
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return { ...DEFAULT_CONFIG, ...readSecrets() };
   }
 }
 
@@ -329,8 +420,8 @@ function writeConfig(config: NetworkConfig): void {
     version: CONFIG_VERSION,
   };
 
-  // Split: secrets → sessionStorage, rest → localStorage
-  writeSecrets(extractSecrets(toSave));
+  // Split: non-sensitive config in localStorage, secrets in local/session storage by mode
+  writeSecrets(extractSecrets(toSave), toSave);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stripSecrets(toSave)));
   window.dispatchEvent(new CustomEvent('network-config-updated'));
 }
@@ -364,7 +455,7 @@ function isUrlSafeFromSsrf(url: string): boolean {
   return true;
 }
 
-// On first load, migrate secrets from localStorage/sessionStorage into in-memory store
+// On first load, normalize legacy secret storage into the current local/session split.
 migrateSecretsToMemory();
 
 export const networkConfigManager = {
@@ -509,14 +600,17 @@ export const networkConfigManager = {
   },
 
   /**
-   * Get Etherscan API key (chain-specific override or global)
+   * Get the personal Etherscan API key when personal mode is enabled.
    */
   getEtherscanApiKey(chainId?: number): string | undefined {
     const config = readConfig();
+    if (config.etherscanKeyMode !== 'personal') {
+      return undefined;
+    }
 
     // Check chain-specific override
     if (chainId && config.chainOverrides?.[chainId]?.etherscanApiKey) {
-      return config.chainOverrides[chainId].etherscanApiKey;
+      return config.chainOverrides[chainId].etherscanApiKey?.trim() || undefined;
     }
 
     return config.etherscanApiKey?.trim() || undefined;
@@ -586,11 +680,9 @@ export const networkConfigManager = {
   reset(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(SECRETS_KEY); // Clean up legacy
-    // Clear in-memory secrets
-    for (const field of SECRET_FIELDS) {
-      delete (inMemorySecrets as Record<string, unknown>)[field];
-    }
+    localStorage.removeItem(LOCAL_SECRETS_KEY);
+    sessionStorage.removeItem(SESSION_SECRETS_KEY);
+    sessionStorage.removeItem(LEGACY_SESSION_SECRETS_KEY);
     window.dispatchEvent(new CustomEvent('network-config-updated'));
   },
 };
@@ -603,4 +695,3 @@ export const isValidRpcUrl = (value: string): boolean => {
   // Reject private IP ranges for non-localhost
   return isUrlSafeFromSsrf(trimmed);
 };
-

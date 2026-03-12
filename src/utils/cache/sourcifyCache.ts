@@ -244,12 +244,12 @@ export async function prewarmSourcifyCache(
   if (uncached.length === 0) return;
 
   // Fetch in parallel with concurrency limit
-  let idx = 0;
-  const workers = Array.from({ length: Math.min(concurrency, uncached.length) }, async () => {
-    while (idx < uncached.length) {
+  const queue = [...uncached];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    let addr: string | undefined;
+    while ((addr = queue.shift()) !== undefined) {
       if (signal?.aborted) return;
-      const currentIdx = idx++;
-      await fetchSourcifyV2Wide(chainId, uncached[currentIdx], signal);
+      await fetchSourcifyV2Wide(chainId, addr, signal);
     }
   });
 

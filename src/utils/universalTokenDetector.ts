@@ -118,7 +118,7 @@ export async function detectTokenType(
   // Step 2: ERC165 detection (highest confidence) - FAST PATH
   const erc165Result = await detectViaERC165(provider, address);
   if (erc165Result.type !== "unknown") {
-    // ERC165 is highly reliable - return immediately, fetch metadata in parallel (non-blocking)
+    // ERC165 is highly reliable - return immediately with metadata if available quickly
     const result: TokenDetectionResult = {
       type: erc165Result.type,
       isDiamond,
@@ -126,12 +126,20 @@ export async function detectTokenType(
       confidence: erc165Result.confidence,
     };
 
-    // Fetch metadata in parallel (non-blocking) - update result if available quickly
-    fetchTokenMetadataFast(provider, address, erc165Result.type).then(metadata => {
-      if (metadata.name) result.name = metadata.name;
-      if (metadata.symbol) result.symbol = metadata.symbol;
-      if (metadata.decimals !== undefined) result.decimals = metadata.decimals;
-    }).catch(() => {/* ignore metadata errors */});
+    // Fetch metadata with a short timeout — don't block detection on metadata
+    try {
+      const metadata = await Promise.race([
+        fetchTokenMetadataFast(provider, address, erc165Result.type),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      if (metadata) {
+        if (metadata.name) result.name = metadata.name;
+        if (metadata.symbol) result.symbol = metadata.symbol;
+        if (metadata.decimals !== undefined) result.decimals = metadata.decimals;
+      }
+    } catch {
+      /* ignore metadata errors */
+    }
 
     return result;
   }

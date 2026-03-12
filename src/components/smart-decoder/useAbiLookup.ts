@@ -3,6 +3,8 @@ import {
   BLOCKSCOUT_INSTANCES,
   type AbiFetchResult,
 } from './types';
+import { networkConfigManager } from '../../config/networkConfig';
+import { postEtherscanLookup } from '../../utils/etherscanProxy';
 import { isAbortError } from './utils';
 
 /**
@@ -31,22 +33,13 @@ export const fetchABIFromEtherscanInstances = async (
       }
       addStep?.(` Searching ${instance.name} (Etherscan)...`);
 
-      let apiKey = '';
-      try {
-        const stored = localStorage.getItem(`apiKey_${instance.apiKeyParam}`);
-        if (stored) apiKey = stored;
-      } catch {
-        // localStorage unavailable
-      }
-
-      const apiKeyParam = apiKey ? `&apikey=${apiKey}` : '';
-      const response = await fetch(
-        `${instance.url}/api?module=contract&action=getabi&address=${address}${apiKeyParam}`,
-        {
-          headers: { 'Accept': 'application/json' },
-          signal,
-        }
-      );
+      const response = await postEtherscanLookup({
+        action: 'getabi',
+        address,
+        chainId: Number(instance.chainId),
+        personalApiKey: networkConfigManager.getEtherscanApiKey(Number(instance.chainId)),
+        signal,
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -161,22 +154,13 @@ export const fetchContractNameFromEtherscanInstances = async (
       if (signal?.aborted) {
         throw new DOMException('Lookup cancelled', 'AbortError');
       }
-      let apiKey = '';
-      try {
-        const stored = localStorage.getItem(`apiKey_${instance.apiKeyParam}`);
-        if (stored) apiKey = stored;
-      } catch {
-        // localStorage unavailable
-      }
-
-      const apiKeyParam = apiKey ? `&apikey=${apiKey}` : '';
-      const response = await fetch(
-        `${instance.url}/api?module=contract&action=getsourcecode&address=${address}${apiKeyParam}`,
-        {
-          headers: { Accept: 'application/json' },
-          signal,
-        }
-      );
+      const response = await postEtherscanLookup({
+        action: 'getsourcecode',
+        address,
+        chainId: Number(instance.chainId),
+        personalApiKey: networkConfigManager.getEtherscanApiKey(Number(instance.chainId)),
+        signal,
+      });
 
       if (!response.ok) continue;
 

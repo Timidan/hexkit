@@ -10,7 +10,6 @@
 
 import { ethers } from 'ethers';
 import type { TransactionRequest } from '../../types/transaction';
-import { getEtherscanApiKey } from '../env';
 import { networkConfigManager } from '../../config/networkConfig';
 import type { AbiSourceType } from '../../config/networkConfig';
 
@@ -167,7 +166,7 @@ export const inferArtifactSourcePriority = (
 export const mergeAnalysisOptions = (
   overrides?: BridgeAnalysisOptions
 ): Record<string, unknown> => {
-  const etherscanKey = getEtherscanApiKey() || networkConfigManager.getEtherscanApiKey();
+  const etherscanKey = networkConfigManager.getEtherscanApiKey();
   const artifactSourcePriority = normalizeSourcePriority(overrides?.artifactSourcePriority);
   return {
     ...DEFAULT_ANALYSIS_OPTIONS,

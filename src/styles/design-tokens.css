@@ -179,8 +179,8 @@
   color: var(--text-primary);
 }
 
-/* Focus outline removed globally — no visible outline on any element */
-*:focus-visible {
+/* Opt-in focus outline removal — only for elements with custom focus indicators */
+.focus-custom:focus-visible {
   outline: none;
 }
 

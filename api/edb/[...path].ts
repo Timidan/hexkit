@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (err instanceof Error && err.name === "AbortError") {
       return res.status(504).json({ error: "bridge_timeout" });
     }
-    console.error("[edb-proxy] upstream error:", err);
+    console.error("[edb] upstream error:", err);
     res.status(502).json({ error: "bridge_unreachable" });
   }
 }

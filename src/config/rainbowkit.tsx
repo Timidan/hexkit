@@ -61,20 +61,24 @@ const liskSepolia = {
 
 const chains = [mainnet, polygon, arbitrum, optimism, base, liskSepolia] as const;
 
+const walletConnectProjectId = (
+  import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID ||
+  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ||
+  ''
+).trim();
+
+// When no WalletConnect projectId is configured, omit metaMaskWallet
+// (it initialises WalletConnect v2 internally, which throws without a valid ID).
+// injectedWallet still covers MetaMask & Brave via the browser extension provider.
+const wallets = walletConnectProjectId
+  ? [injectedWallet, metaMaskWallet, coinbaseWallet]
+  : [injectedWallet, coinbaseWallet];
+
 const connectors = connectorsForWallets(
-  [
-    {
-      groupName: 'Recommended',
-      wallets: [
-        injectedWallet,
-        metaMaskWallet,
-        coinbaseWallet,
-      ],
-    },
-  ],
+  [{ groupName: 'Recommended', wallets }],
   {
     appName: 'Web3 Toolkit',
-    projectId: import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '', // Requires real project ID from env
+    projectId: walletConnectProjectId || 'PLACEHOLDER',
   }
 );
 
