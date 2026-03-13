@@ -45,7 +45,7 @@ export interface UseUniversalSearchReturn {
   setQuery: (q: string) => void;
   inputType: InputType;
   matchingTools: ToolDefinition[];
-  executeTool: (toolId: string) => void;
+  executeTool: (toolId: string, inputOverride?: string) => void;
   reset: () => void;
   /** Recent searches from localStorage */
   recentSearches: RecentSearch[];
@@ -381,10 +381,12 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
   }, [query]);
 
   const addToRecentSearches = useCallback(
-    (toolId: string, toolName: string) => {
+    (toolId: string, toolName: string, queryOverride?: string) => {
+      const effectiveQuery = (queryOverride ?? query).trim();
+      const effectiveType = queryOverride ? detectInputType(queryOverride) : inputType;
       const entry: RecentSearch = {
-        query: query.trim(),
-        inputType,
+        query: effectiveQuery,
+        inputType: effectiveType,
         toolId,
         toolName,
         timestamp: Date.now(),
@@ -396,11 +398,11 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
   );
 
   const executeTool = useCallback(
-    (toolId: string) => {
+    (toolId: string, inputOverride?: string) => {
       const tool = tools.find((t) => t.id === toolId);
       if (tool) {
-        const input = getEffectiveInput();
-        addToRecentSearches(tool.id, tool.name);
+        const input = inputOverride?.trim() ?? getEffectiveInput();
+        addToRecentSearches(tool.id, tool.name, inputOverride);
         tool.navigate(input);
       }
     },

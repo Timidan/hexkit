@@ -144,10 +144,8 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
   const handleRecentSelect = useCallback(
     (recent: RecentSearch) => {
       setQuery(recent.query);
-      setTimeout(() => {
-        executeTool(recent.toolId);
-        handleOpenChange(false);
-      }, 50);
+      executeTool(recent.toolId, recent.query);
+      handleOpenChange(false);
     },
     [setQuery, executeTool, handleOpenChange],
   );
