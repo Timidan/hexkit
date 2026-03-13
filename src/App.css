@@ -70,6 +70,24 @@ body {
 
 /* Old header-content, header-title, header-search, header-wallet removed — now in TopBar */
 
+/* ========== APP FOOTER ========== */
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 4px 12px;
+  pointer-events: none;
+}
+
+.app-footer > * {
+  pointer-events: auto;
+}
+
 .edb-status-indicator {
   display: inline-flex;
   align-items: center;

@@ -10,7 +10,7 @@ import {
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import RainbowKitWallet from "./RainbowKitWallet";
-import EdbBridgeStatus from "./EdbBridgeStatus";
+
 import UniversalSearchBar from "./UniversalSearchBar";
 import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
 import { cn } from "@/lib/utils";
@@ -203,7 +203,6 @@ const TopBar: React.FC<TopBarProps> = ({
             <Search size={16} />
           </Button>
         )}
-        <EdbBridgeStatus />
         <Button
           type="button"
           variant="icon-borderless"

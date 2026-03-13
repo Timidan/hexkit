@@ -15,6 +15,7 @@ import { RouteMetaTags } from "./components/shared/RouteMetaTags";
 import { useNetworkConfig } from "./contexts/NetworkConfigContext";
 import { Button } from "./components/ui/button";
 import TopBar from "./components/TopBar";
+import EdbBridgeStatus from "./components/EdbBridgeStatus";
 import ConstellationBackground from "./components/ConstellationBackground";
 import HomePage from "./components/HomePage";
 import MobileDrawer from "./components/MobileDrawer";
@@ -176,6 +177,11 @@ function App() {
                   )}
                 </div>
               )}
+
+              {/* Global footer — EDB status at far right */}
+              <footer className="app-footer">
+                <EdbBridgeStatus />
+              </footer>
 
               {isRpcModalOpen && (
                 <Suspense fallback={null}>
