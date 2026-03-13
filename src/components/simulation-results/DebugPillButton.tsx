@@ -21,6 +21,7 @@ interface DebugPillButtonProps {
   isDebugging: boolean;
   isDebugLoading: boolean;
   debugEnabled?: boolean;
+  hasLiveDebugSession: boolean;
   onOpenDebug: () => void;
   onCloseDebug: () => void;
   onCancelPrep: () => void;
@@ -31,6 +32,7 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
   isDebugging,
   isDebugLoading,
   debugEnabled,
+  hasLiveDebugSession,
   onOpenDebug,
   onCloseDebug,
   onCancelPrep,
@@ -38,7 +40,7 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
   const { status, stage, progressPct } = debugPrepState;
 
   const isPreparing = status === 'queued' || status === 'preparing';
-  const isReady = status === 'ready';
+  const isReady = status === 'ready' || hasLiveDebugSession;
   const isFailed = status === 'failed';
 
   // Derive the visual state

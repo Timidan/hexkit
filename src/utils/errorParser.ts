@@ -214,6 +214,16 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
     };
   }
 
+  // Debug bootstrap must return a live keep-alive session
+  if (lower.includes('debug_bootstrap_failed') || lower.includes('no_live_session_returned')) {
+    return {
+      type: 'bridge',
+      message: 'Live debugger could not be prepared for this simulation.',
+      suggestion: 'Retry with Debug enabled, and verify the EDB bridge is healthy.',
+      technicalDetails: rawError,
+    };
+  }
+
   // Timeout
   if (lower.includes('bridge_timeout') || lower.includes('timeout') || lower.includes('timed out')) {
     return {
@@ -301,4 +311,3 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
     technicalDetails: rawError,
   };
 };
-

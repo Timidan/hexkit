@@ -152,15 +152,13 @@ export function useSimulationState(deps: UseSimulationStateDeps) {
           }),
         };
 
-        // Always run fast simulation (enableDebug=false) for immediate results.
-        // If debug was requested, async debug prep is triggered from SimulationResultsPage
-        // after results render, using the debugEnabled flag in contractContext.
+        // Respect the user's debug intent at the initial simulation entry point.
         const result = await simulateTransaction(
           transactionWithOverrides,
           selectedNetwork,
           normalizedFrom,
           provider,
-          { enableDebug: false }
+          { enableDebug: simulationOverrides.enableDebug === true }
         );
         // Persist the effective sender used by the simulator for debugging/QA parity.
         (result as any).requestedFrom = normalizedFrom;

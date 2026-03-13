@@ -14,8 +14,6 @@ import { collectTraceAddresses, createTraceContractMap } from "../../utils/trace
 import { traceVaultService } from "../../services/TraceVaultService";
 import { useDecodedTrace } from "../../hooks/useDecodedTrace";
 import { useDebug } from "../../contexts/DebugContext";
-import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
-import { getChainById } from "../../utils/chains";
 import type { SimulationResultsPageProps, SimulatorTab } from "./types";
 import { decodeRawEvent } from "./eventDecoder";
 import { useTraceRows } from "./useTraceRows";
@@ -53,9 +51,8 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const {
     isDebugging, openDebugWindow, closeDebugWindow, session: debugSession,
     initFromTraceData, connectToSession, isLoading: isDebugLoading,
-    debugPrepState, startDebugPrep, cancelDebugPrep,
+    debugPrepState, cancelDebugPrep,
   } = useDebug();
-  const { resolveRpcUrl } = useNetworkConfig();
 
   const [activeTab, setActiveTab] = useState<SimulatorTab>("summary");
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,44 +150,6 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   useEffect(() => {
     hasAttemptedLoad.current = false;
   }, [id]);
-
-  // ---- Auto-trigger debug preparation ----
-  const hasTriggeredDebugPrep = useRef(false);
-  useEffect(() => {
-    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-    const debugEnabled = contextWithExtras?.debugEnabled === true;
-    const simulation = propResult || currentSimulation;
-    const simulationWithExtras = simulation as (typeof simulation & SimulationResultExtras) | null;
-    if (
-      !debugEnabled || !simulation || !isFreshNavigation ||
-      hasTriggeredDebugPrep.current || debugPrepState.status !== 'idle'
-    ) return;
-
-    hasTriggeredDebugPrep.current = true;
-
-    const chainId = simulation.chainId || contextWithExtras?.networkId || 1;
-    const txHash = simulationWithExtras?.transactionHash;
-    const blockTag = contextWithExtras?.blockOverride || simulationWithExtras?.blockNumber;
-    const chain = getChainById(chainId);
-    const rpcFallback = chain?.rpcUrl || "https://eth.llamarpc.com";
-    const rpcUrl = resolveRpcUrl(chainId, rpcFallback).url;
-
-    const prepParams: import('../../types/debug').PrepareDebugRequest = {
-      rpcUrl,
-      chainId,
-      ...(txHash ? { txHash } : {
-        transaction: {
-          from: simulation.from || contextWithExtras?.fromAddress || '0x0000000000000000000000000000000000000000',
-          to: simulation.to || contextWithExtras?.address,
-          data: simulation.data || contextWithExtras?.calldata || '0x',
-          value: simulation.value || contextWithExtras?.ethValue || '0x0',
-        },
-      }),
-      ...(blockTag ? { blockTag: String(blockTag) } : {}),
-    };
-
-    startDebugPrep(prepParams, contextSimulationId || id || undefined);
-  }, [propResult, currentSimulation, contractContext, isFreshNavigation, debugPrepState.status, startDebugPrep, contextSimulationId, id, resolveRpcUrl]);
 
   const result = propResult || currentSimulation;
 
@@ -367,6 +326,10 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   // ---- Debug window ----
   const handleOpenDebug = useCallback(async () => {
     const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
+    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
+    const debugRequested =
+      resultWithExtras?.debugEnabled === true ||
+      contextWithExtras?.debugEnabled === true;
 
     if (debugPrepState?.status === 'queued' || debugPrepState?.status === 'preparing') return;
 
@@ -406,8 +369,23 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
         openDebugWindow();
         return;
       } catch (err) {
-        console.warn('Failed to connect to live EDB session, falling back to trace mode:', err);
+        console.warn('Failed to connect to live EDB session:', err);
+        if (debugRequested) {
+          showError(
+            "Debug Session Unavailable",
+            "This simulation was requested with live debugging, but its session could not be reconnected. Re-simulate with Debug enabled."
+          );
+          return;
+        }
       }
+    }
+
+    if (debugRequested) {
+      showError(
+        "Debug Session Missing",
+        "This simulation does not have a live debug session. Re-simulate with Debug enabled."
+      );
+      return;
     }
 
     if (traceForDebug?.rows && traceForDebug.rows.length > 0) {
@@ -422,7 +400,9 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     }
 
     openDebugWindow();
-  }, [debugSession, result, contractContext, contextSimulationId, id, decodedTrace, initFromTraceData, connectToSession, openDebugWindow, debugPrepState?.status]);
+  }, [debugSession, result, contractContext, contextSimulationId, id, decodedTrace, initFromTraceData, connectToSession, openDebugWindow, debugPrepState?.status, showError]);
+
+  const hasLiveDebugSession = !!result?.debugSession?.sessionId;
 
   // ---- Trace source resolution ----
   const contractContextRef = useRef(contractContext);
@@ -650,7 +630,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     handleShare, handleGoToRevert, handleOpenDebug,
     // debug
     isDebugging, isDebugLoading, closeDebugWindow,
-    debugPrepState, cancelDebugPrep,
+    debugPrepState, cancelDebugPrep, hasLiveDebugSession,
     // gas helpers
     callTree, flattenedTrace, opcodeTrace, snapshots, storageDiffs, events,
     // address formatting

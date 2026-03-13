@@ -22,6 +22,7 @@ import type {
   NavigateCallResponse,
   EndDebugSessionRequest,
   EndDebugSessionResponse,
+  PrepareStatusResponse,
   DebugSnapshot,
   SnapshotListItem,
   StorageDiffEntry,
@@ -61,13 +62,6 @@ type StorageProofResult = {
 type StorageRangeAtResult = {
   storage: Record<string, { key: string; value: string }>;
   nextKey: string | null;
-};
-
-type PrepareStatusResult = {
-  prepareId: string; status: string; stage: string | null;
-  progressPct: number; message: string | null;
-  sessionId: string | null; snapshotCount: number | null;
-  sourceFiles: Record<string, unknown> | null; error: string | null;
 };
 
 class DebugBridgeService {
@@ -806,7 +800,7 @@ class DebugBridgeService {
   }
 
   /** Poll debug preparation status (fallback when SSE is unavailable). */
-  async getPrepareStatus(prepareId: string): Promise<PrepareStatusResult> {
+  async getPrepareStatus(prepareId: string): Promise<PrepareStatusResponse> {
     const response = await fetch(`${getBridgeUrl()}/debug/prepare/${prepareId}`, {
       headers: getBridgeHeaders(),
       signal: AbortSignal.timeout(30_000),

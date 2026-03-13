@@ -648,5 +648,38 @@ export const replayTransactionWithSimulator = async (
     payload.blockTag = normalizedBlockTagVal;
   }
 
-  return postSimulatorJob(payload, transactionMetadata);
+  const result = await postSimulatorJob(payload, transactionMetadata);
+  if (options?.enableDebug === true) {
+    if (!result) {
+      const classified = classifySimulationError("debug_bootstrap_failed: bridge_unreachable");
+      return {
+        mode: "edb",
+        success: false,
+        error: classified.message,
+        technicalError: classified.technicalDetails,
+        warnings: [],
+        revertReason: null,
+        gasUsed: null,
+        gasLimitSuggested: null,
+        rawTrace: null,
+      };
+    }
+
+    if (result.success !== false && !result.debugSession?.sessionId) {
+      const classified = classifySimulationError("debug_bootstrap_failed: no_live_session_returned");
+      return {
+        ...result,
+        success: false,
+        error: classified.message,
+        technicalError:
+          result.technicalError ||
+          result.error ||
+          classified.technicalDetails,
+        debugSession: null,
+        rawTrace: null,
+      };
+    }
+  }
+
+  return result;
 };
