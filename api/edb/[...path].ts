@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { maybeInjectDefaultEtherscanKey } from "../edbShared";
+import { maybeInjectDefaultEtherscanKey } from "../edbShared.ts";
 
 export const config = {
   api: { bodyParser: false },
