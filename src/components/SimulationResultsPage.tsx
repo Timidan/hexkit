@@ -107,7 +107,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const value = result.value || rootCall?.value?.toString() || "0";
   const rawInput = result.data || rootCall?.input || "0x";
 
-  const functionName = resolveFunctionName(result, rootCall, decodedTrace, rawInput);
+  const functionName = resolveFunctionName(result, rootCall, decodedTrace, rawInput, contractContext);
   const { gasUsed, gasLimit, gasPrice, nonce, txFee, txType } = computeGasValues(
     result, decodedTrace, rawInput, contractContext
   );

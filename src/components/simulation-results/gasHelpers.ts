@@ -23,6 +23,8 @@ export type ContractContextExtras = {
   address?: string;
   calldata?: string;
   ethValue?: string;
+  simulationOrigin?: "manual" | "tx-hash-replay";
+  replayTxHash?: string;
 };
 
 /**
@@ -32,21 +34,32 @@ export function resolveFunctionName(
   result: any,
   rootCall: any,
   decodedTrace: any,
-  rawInput: string
+  rawInput: string,
+  contractContext?: ContractContextExtras | null,
 ): string {
   const isJustSelector = (fn: string) => /^0x[a-fA-F0-9]{8}$/.test(fn);
   const selector = rawInput && rawInput.length >= 10 ? rawInput.slice(0, 10) : null;
-
-  if (result.functionName && !isJustSelector(result.functionName)) return result.functionName;
-  if (rootCall?.functionName && !isJustSelector(rootCall.functionName)) return rootCall.functionName;
-  if (rootCall?.label && !isJustSelector(rootCall.label)) return rootCall.label;
-
+  const isTxReplay =
+    contractContext?.simulationOrigin === "tx-hash-replay" ||
+    typeof contractContext?.replayTxHash === "string" ||
+    typeof result?.transactionHash === "string";
   const traceFn = decodedTrace?.callMeta?.function;
-  if (traceFn && !isJustSelector(traceFn)) return traceFn;
-
   const firstRow = decodedTrace?.rows?.[0] as any;
   const entryFn = firstRow?.entryMeta?.function;
+
+  if (result.functionName && !isJustSelector(result.functionName)) return result.functionName;
+
+  if (traceFn && !isJustSelector(traceFn)) return traceFn;
   if (entryFn && !isJustSelector(entryFn)) return entryFn;
+
+  if (isTxReplay) {
+    if (traceFn && isJustSelector(traceFn)) return traceFn;
+    if (entryFn && isJustSelector(entryFn)) return entryFn;
+    if (selector) return selector;
+  }
+
+  if (rootCall?.functionName && !isJustSelector(rootCall.functionName)) return rootCall.functionName;
+  if (rootCall?.label && !isJustSelector(rootCall.label)) return rootCall.label;
 
   const rows = decodedTrace?.rows || [];
   for (const row of rows) {

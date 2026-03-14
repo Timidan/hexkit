@@ -370,13 +370,19 @@ class SimulationHistoryService {
       status = 'failed';
     }
 
-    // Extract function info - prioritize contractContext, fall back to result
+    // Tx-hash replays should not persist guessed function names from legacy call-tree labels.
+    const isTxHashReplay =
+      contractContext?.simulationOrigin === 'tx-hash-replay' ||
+      !!contractContext?.replayTxHash ||
+      !!result.transactionHash ||
+      result.mode === 'onchain';
+
+    // Extract function info - prioritize explicit manual simulation context.
     let functionName: string | null = null;
     let functionSelector: string | null = null;
-    if (contractContext?.selectedFunction) {
+    if (!isTxHashReplay && contractContext?.selectedFunction) {
       functionName = contractContext.selectedFunction;
-    } else if (result.functionName) {
-      // Fallback to result.functionName if available (from transaction metadata)
+    } else if (!isTxHashReplay && result.functionName) {
       functionName = result.functionName;
     }
     const calldata = contractContext?.calldata || result.data;
