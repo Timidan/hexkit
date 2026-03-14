@@ -514,6 +514,7 @@ const server = http.createServer(async (req, res) => {
           blockTag,
           transaction,
           txHash,
+          analysisOptions,
           artifacts,
           artifacts_inline,
         } = body;
@@ -558,6 +559,7 @@ const server = http.createServer(async (req, res) => {
           blockTag,
           transaction,
           txHash,
+          analysisOptions,
           artifacts,
           artifacts_inline,
         }).catch((err) => {
@@ -579,6 +581,7 @@ const server = http.createServer(async (req, res) => {
           blockTag,
           transaction,
           txHash,
+          analysisOptions,
           artifacts,
           artifacts_inline,
         } = body;
@@ -600,6 +603,7 @@ const server = http.createServer(async (req, res) => {
           blockTag,
           transaction,
           txHash,
+          analysisOptions,
           artifacts,
           artifacts_inline,
         });

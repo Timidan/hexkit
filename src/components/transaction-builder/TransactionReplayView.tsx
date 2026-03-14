@@ -19,7 +19,6 @@ import type { Chain } from "../../types";
 import {
   replayTransactionWithSimulator,
 } from "../../utils/transactionSimulation";
-import { lookupFunctionSignatures } from "../../utils/signatureDatabase";
 import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { classifySimulationError } from "../../utils/errorParser";
@@ -290,24 +289,8 @@ export const TransactionReplayView: React.FC<{
         simulationId: generatedSimulationId,
       };
 
-      // Try to look up function name from calldata selector
-      let functionName: string | undefined;
-      const calldata = simulation.data;
-      if (calldata && calldata.length >= 10) {
-        const selector = calldata.slice(0, 10);
-        try {
-          const sigLookup = await lookupFunctionSignatures([selector]);
-          if (sigLookup.ok && sigLookup.result?.function?.[selector]?.length > 0) {
-            // Extract just the function name (before the parenthesis)
-            const fullSig = sigLookup.result.function[selector][0].name;
-            functionName = fullSig.split("(")[0];
-          }
-        } catch {
-          // Signature lookup failed - not critical, continue without function name
-        }
-      }
-
       // Build contract context for history storage
+      const calldata = simulation.data;
       const contractContext = {
         address: simulation.to || "",
         abi: null as any[] | null,
@@ -315,7 +298,6 @@ export const TransactionReplayView: React.FC<{
         networkName: selectedNetwork?.name || "Unknown",
         simulationOrigin: 'tx-hash-replay' as const,
         replayTxHash: trimmedHash,
-        selectedFunction: functionName,
         fromAddress: simulation.from || undefined,
         calldata: calldata || undefined,
         ethValue: simulation.value || undefined,

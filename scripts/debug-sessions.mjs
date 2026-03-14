@@ -40,6 +40,23 @@ let edbWebSocket = null;
 /** @type {Map<string, DebugSession>} */
 const debugSessions = new Map();
 
+function buildDebugAnalysisOptions(params) {
+  const incoming =
+    params.analysisOptions && typeof params.analysisOptions === "object"
+      ? params.analysisOptions
+      : {};
+
+  return {
+    ...incoming,
+    quickMode: false,
+    collectCallTree: true,
+    collectEvents: true,
+    collectStorageDiff: true,
+    collectStorageDiffs: true,
+    collectSnapshots: true,
+  };
+}
+
 /**
  * Start the EDB server process if not already running
  */
@@ -143,14 +160,7 @@ export async function startDebugSession(simulationSemaphore, params) {
     blockTag: params.blockTag || "latest",
     enableDebug: true,
     debugSessionOnly: true,
-    analysisOptions: {
-      quickMode: true,
-      collectCallTree: true,
-      collectEvents: true,
-      collectStorageDiff: true,
-      collectStorageDiffs: true,
-      collectSnapshots: true,
-    },
+    analysisOptions: buildDebugAnalysisOptions(params),
   };
 
   if (hasTxPayload) {
@@ -346,14 +356,7 @@ export async function runAsyncDebugPrep(simulationSemaphore, prepareId, params) 
     blockTag: params.blockTag || "latest",
     enableDebug: true,
     debugSessionOnly: true,
-    analysisOptions: {
-      quickMode: true,
-      collectCallTree: true,
-      collectEvents: true,
-      collectStorageDiff: true,
-      collectStorageDiffs: true,
-      collectSnapshots: true,
-    },
+    analysisOptions: buildDebugAnalysisOptions(params),
   };
 
   if (params.transaction) payload.transaction = params.transaction;

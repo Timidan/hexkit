@@ -8,12 +8,14 @@ import {
 } from "../../utils/simulationArtifacts";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { useSimulation } from "../../contexts/SimulationContext";
+import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { useNotifications } from "../NotificationManager";
 import type { TraceFilters } from "../ExecutionStackTrace";
 import { collectTraceAddresses, createTraceContractMap } from "../../utils/traceAddressCollector";
 import { traceVaultService } from "../../services/TraceVaultService";
 import { useDecodedTrace } from "../../hooks/useDecodedTrace";
 import { useDebug } from "../../contexts/DebugContext";
+import { getChainById } from "../../utils/chains";
 import type { SimulationResultsPageProps, SimulatorTab } from "./types";
 import { decodeRawEvent } from "./eventDecoder";
 import { useTraceRows } from "./useTraceRows";
@@ -47,11 +49,12 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     decodedTraceMeta, setDecodedTraceMeta,
     simulationId: contextSimulationId, stripHeavyDataFromCurrentSimulation,
   } = useSimulation();
+  const { resolveRpcUrl } = useNetworkConfig();
   const { showSuccess, showError } = useNotifications();
   const {
     isDebugging, openDebugWindow, closeDebugWindow, session: debugSession,
     initFromTraceData, connectToSession, isLoading: isDebugLoading,
-    debugPrepState, cancelDebugPrep,
+    debugPrepState, startDebugPrep, cancelDebugPrep,
   } = useDebug();
 
   const [activeTab, setActiveTab] = useState<SimulatorTab>("summary");
@@ -66,6 +69,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasAttemptedLoad = useRef(false);
   const resolvedAddressesRef = useRef<Set<string>>(new Set());
+  const autoStartedDebugPrepRef = useRef<Set<string>>(new Set());
   const [lookedUpEventNames, setLookedUpEventNames] = useState<Record<string, string>>({});
   const [eventNameFilter, setEventNameFilter] = useState<string>("");
   const [eventContractFilter, setEventContractFilter] = useState<string>("");
@@ -323,6 +327,104 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     decodeMode: "lite",
   });
 
+  const buildReplayDebugPrepRequest = useCallback(() => {
+    const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
+    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
+    const txHash = resultWithExtras?.transactionHash || contextWithExtras?.replayTxHash;
+    if (!txHash) {
+      return null;
+    }
+
+    const chainId = result?.chainId || contractContext?.networkId || 1;
+    const chain = getChainById(chainId);
+    if (!chain) {
+      return null;
+    }
+
+    const rpcUrl = resolveRpcUrl(chain.id, chain.rpcUrl).url;
+    if (!rpcUrl) {
+      return null;
+    }
+
+    const forkBlockTag =
+      typeof resultWithExtras?.forkBlockTag === "string" && resultWithExtras.forkBlockTag.trim()
+        ? resultWithExtras.forkBlockTag.trim()
+        : undefined;
+
+    return {
+      rpcUrl,
+      chainId,
+      txHash,
+      ...(forkBlockTag ? { blockTag: forkBlockTag } : {}),
+    };
+  }, [contractContext, resolveRpcUrl, result]);
+
+  const startReplayDebugPreparation = useCallback(
+    (simulationId: string) => {
+      const prepStateForSimulation =
+        debugPrepState?.simulationId === simulationId ? debugPrepState : null;
+      if (
+        prepStateForSimulation?.status === "queued" ||
+        prepStateForSimulation?.status === "preparing" ||
+        prepStateForSimulation?.status === "ready"
+      ) {
+        return true;
+      }
+
+      const request = buildReplayDebugPrepRequest();
+      if (!request) {
+        return false;
+      }
+
+      autoStartedDebugPrepRef.current.add(simulationId);
+      startDebugPrep(request, simulationId);
+      return true;
+    },
+    [buildReplayDebugPrepRequest, debugPrepState, startDebugPrep]
+  );
+
+  useEffect(() => {
+    const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
+    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
+    const debugRequested =
+      resultWithExtras?.debugEnabled === true ||
+      contextWithExtras?.debugEnabled === true;
+
+    if (!debugRequested || result?.debugSession?.sessionId) {
+      return;
+    }
+
+    const txHash = resultWithExtras?.transactionHash || contextWithExtras?.replayTxHash;
+    if (!txHash) {
+      return;
+    }
+
+    const simulationId = resultWithExtras?.simulationId || contextSimulationId || id;
+    if (!simulationId || autoStartedDebugPrepRef.current.has(simulationId)) {
+      return;
+    }
+
+    const prepStateForSimulation =
+      debugPrepState?.simulationId === simulationId ? debugPrepState : null;
+    if (
+      prepStateForSimulation?.status === "queued" ||
+      prepStateForSimulation?.status === "preparing" ||
+      prepStateForSimulation?.status === "ready" ||
+      prepStateForSimulation?.status === "failed"
+    ) {
+      return;
+    }
+
+    startReplayDebugPreparation(simulationId);
+  }, [
+    contractContext,
+    contextSimulationId,
+    debugPrepState,
+    id,
+    result,
+    startReplayDebugPreparation,
+  ]);
+
   // ---- Debug window ----
   const handleOpenDebug = useCallback(async () => {
     const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
@@ -331,11 +433,19 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       resultWithExtras?.debugEnabled === true ||
       contextWithExtras?.debugEnabled === true;
 
-    if (debugPrepState?.status === 'queued' || debugPrepState?.status === 'preparing') return;
-
     const chainId = result?.chainId || contractContext?.networkId || 1;
     const simulationId =
       resultWithExtras?.simulationId || contextSimulationId || id || `debug-${Date.now()}`;
+    const debugPrepForSimulation =
+      debugPrepState?.simulationId === simulationId ? debugPrepState : null;
+
+    if (
+      debugPrepForSimulation?.status === "queued" ||
+      debugPrepForSimulation?.status === "preparing"
+    ) {
+      return;
+    }
+
     const targetLiveSessionId = result?.debugSession?.sessionId || null;
     const isExistingTraceSession = debugSession?.sessionId?.startsWith('trace-');
     const hasReusableLiveSession =
@@ -381,10 +491,17 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     }
 
     if (debugRequested) {
-      showError(
-        "Debug Session Missing",
-        "This simulation does not have a live debug session. Re-simulate with Debug enabled."
-      );
+      if (startReplayDebugPreparation(simulationId)) {
+        showSuccess(
+          "Preparing Debug Session",
+          "Building a live debug session for this replay. The debugger will be available when preparation completes."
+        );
+      } else {
+        showError(
+          "Debug Session Missing",
+          "This replay is missing the RPC or transaction context required to prepare a live debug session. Re-run the replay with Debug enabled."
+        );
+      }
       return;
     }
 
@@ -400,7 +517,21 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     }
 
     openDebugWindow();
-  }, [debugSession, result, contractContext, contextSimulationId, id, decodedTrace, initFromTraceData, connectToSession, openDebugWindow, debugPrepState?.status, showError]);
+  }, [
+    connectToSession,
+    contextSimulationId,
+    contractContext,
+    debugPrepState,
+    debugSession,
+    decodedTrace,
+    id,
+    initFromTraceData,
+    openDebugWindow,
+    result,
+    showError,
+    showSuccess,
+    startReplayDebugPreparation,
+  ]);
 
   const hasLiveDebugSession = !!result?.debugSession?.sessionId;
 

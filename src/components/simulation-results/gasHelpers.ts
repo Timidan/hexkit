@@ -35,6 +35,7 @@ export function resolveFunctionName(
   rawInput: string
 ): string {
   const isJustSelector = (fn: string) => /^0x[a-fA-F0-9]{8}$/.test(fn);
+  const selector = rawInput && rawInput.length >= 10 ? rawInput.slice(0, 10) : null;
 
   if (result.functionName && !isJustSelector(result.functionName)) return result.functionName;
   if (rootCall?.functionName && !isJustSelector(rootCall.functionName)) return rootCall.functionName;
@@ -58,7 +59,7 @@ export function resolveFunctionName(
     }
   }
 
-  if (rawInput && rawInput.length > 2 && rawInput !== "0x") return "fallback()";
+  if (selector) return selector;
   if (!rawInput || rawInput === "0x" || rawInput.length <= 2) return "transfer";
   return "\u2014";
 }

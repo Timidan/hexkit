@@ -31,6 +31,7 @@ import type {
   OpcodeSnapshotDetail,
   HookSnapshotDetail,
 } from '../types/debug';
+import { networkConfigManager } from '../config/networkConfig';
 import { getSimulatorBridgeUrl, getBridgeHeaders } from '../utils/env';
 import { extractInlineArtifacts } from '../utils/debugArtifacts';
 import {
@@ -63,6 +64,21 @@ type StorageRangeAtResult = {
   storage: Record<string, { key: string; value: string }>;
   nextKey: string | null;
 };
+
+function buildDebugAnalysisOptions(chainId: number): Record<string, unknown> {
+  const etherscanApiKey = networkConfigManager.getEtherscanApiKey(chainId);
+
+  return {
+    quickMode: false,
+    collectCallTree: true,
+    collectEvents: true,
+    collectStorageDiff: true,
+    collectStorageDiffs: true,
+    collectSnapshots: true,
+    artifactSourcePriority: networkConfigManager.getSourcePriority(),
+    ...(etherscanApiKey ? { etherscanApiKey } : {}),
+  };
+}
 
 class DebugBridgeService {
   private storageValueCache = new Map<string, string>();
@@ -186,6 +202,7 @@ class DebugBridgeService {
       blockTag: request.blockTag || 'latest',
       transaction: request.transaction,
       ...(request.txHash ? { txHash: request.txHash, mode: 'onchain' as const } : {}),
+      analysisOptions: buildDebugAnalysisOptions(request.chainId),
     };
 
     let artifactsInline =
@@ -290,14 +307,7 @@ class DebugBridgeService {
             mode: 'local',
             ...bridgeRequest,
             enableDebug: true,
-            analysisOptions: {
-              quickMode: false,
-              collectCallTree: true,
-              collectEvents: true,
-              collectStorageDiff: true,
-              collectStorageDiffs: true,
-              collectSnapshots: true,
-            },
+            analysisOptions: buildDebugAnalysisOptions(request.chainId),
             ...(artifactsInline ? { artifacts_inline: artifactsInline } : {}),
             ...(artifactsList ? { artifacts: artifactsList } : {}),
           }),
@@ -784,7 +794,10 @@ class DebugBridgeService {
     const response = await fetch(`${getBridgeUrl()}/debug/prepare`, {
       method: 'POST',
       headers: getBridgeHeaders(),
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        ...params,
+        analysisOptions: buildDebugAnalysisOptions(params.chainId),
+      }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
