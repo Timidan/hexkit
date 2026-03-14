@@ -57,7 +57,9 @@ const STORAGE_KEY = 'web3-toolkit:network-config';
 const LOCAL_SECRETS_KEY = 'web3-toolkit:secrets';
 const SESSION_SECRETS_KEY = 'web3-toolkit:session-secrets';
 const LEGACY_SESSION_SECRETS_KEY = 'web3-toolkit:secrets';
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
+const DEFAULT_SOURCE_PRIORITY: AbiSourceType[] = ['etherscan', 'sourcify', 'blockscout'];
+const LEGACY_SOURCE_PRIORITY: AbiSourceType[] = ['sourcify', 'etherscan', 'blockscout'];
 
 // Old storage keys for migration
 const OLD_RPC_SETTINGS_KEY = 'web3-toolkit:user-rpc-settings';
@@ -76,10 +78,32 @@ const DEFAULT_CONFIG: NetworkConfig = {
   rpcMode: 'DEFAULT',
   etherscanKeyMode: 'default',
   rememberPersonalEtherscanKey: false,
-  sourcePriority: ['sourcify', 'etherscan', 'blockscout'],
+  sourcePriority: DEFAULT_SOURCE_PRIORITY,
   allowPublicRpcFallback: false,
   version: CONFIG_VERSION,
 };
+
+function matchesSourcePriority(
+  value: AbiSourceType[] | undefined,
+  expected: AbiSourceType[]
+): boolean {
+  return Array.isArray(value) &&
+    value.length === expected.length &&
+    expected.every((entry, index) => value[index] === entry);
+}
+
+function migrateConfigShape(config: NetworkConfig): NetworkConfig {
+  const version = typeof config.version === 'number' ? config.version : 0;
+  if (version >= CONFIG_VERSION) {
+    return config;
+  }
+
+  const migrated = { ...config, version: CONFIG_VERSION };
+  if (!config.sourcePriority || matchesSourcePriority(config.sourcePriority, LEGACY_SOURCE_PRIORITY)) {
+    migrated.sourcePriority = [...DEFAULT_SOURCE_PRIORITY];
+  }
+  return migrated;
+}
 
 function parseStoredSecrets(
   raw: string | null
@@ -243,7 +267,7 @@ function migrateSecretsToMemory(): void {
   };
   const effectiveConfig: NetworkConfig = {
     ...DEFAULT_CONFIG,
-    ...(parsedConfig ?? {}),
+    ...(parsedConfig ? migrateConfigShape(parsedConfig) : {}),
     ...(!parsedConfig?.etherscanKeyMode && mergedSecrets.etherscanApiKey
       ? { etherscanKeyMode: 'personal' as const }
       : {}),
@@ -407,7 +431,7 @@ function readConfig(): NetworkConfig {
   }
 
   try {
-    const parsed = JSON.parse(raw) as NetworkConfig;
+    const parsed = migrateConfigShape(JSON.parse(raw) as NetworkConfig);
     // Merge persisted secrets on top
     const secrets = readSecrets();
     return {
