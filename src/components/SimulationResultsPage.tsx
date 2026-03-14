@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { AnimatedTabContent } from "./ui/animated-tabs";
@@ -16,6 +16,11 @@ import { SummaryTab } from "./simulation-results/SummaryTab";
 import { ContractsTab } from "./simulation-results/ContractsTab";
 import { EventsTab } from "./simulation-results/EventsTab";
 import { StateTab } from "./simulation-results/StateTab";
+
+const DebugWindowWithContext = React.lazy(async () => {
+  const module = await import("./debug/DebugWindow");
+  return { default: module.DebugWindowWithContext };
+});
 
 const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const state = useSimulationPageState(props);
@@ -35,7 +40,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
     handleBack, handleReSimulate, handleExportTestData,
     handleShare, handleGoToRevert, handleOpenDebug,
     isDebugging, isDebugLoading, closeDebugWindow,
-    debugPrepState, cancelDebugPrep,
+    debugPrepState, cancelDebugPrep, hasLiveDebugSession,
     callTree,
     formatAddressWithName, normalizeValue,
   } = state;
@@ -110,111 +115,123 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const errorMessage = result.error || result.revertReason || null;
 
   const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
+  const isDebugOverlayActive = isDebugging || isDebugLoading;
 
   return (
     <div className="sim-results-page">
-      <ResultsHeader
-        statusColor={statusColor}
-        statusLabel={statusLabel}
-        statusIcon={statusIcon}
-        handleBack={handleBack}
-        handleExportTestData={handleExportTestData}
-        handleShare={handleShare}
-        handleOpenDebug={handleOpenDebug}
-        handleReSimulate={handleReSimulate}
-        closeDebugWindow={closeDebugWindow}
-        isDebugging={isDebugging}
-        isDebugLoading={isDebugLoading}
-        debugEnabled={contextWithExtras?.debugEnabled}
-        debugPrepState={debugPrepState}
-        cancelDebugPrep={cancelDebugPrep}
-      />
+      {!isDebugOverlayActive && (
+        <>
+          <ResultsHeader
+            statusColor={statusColor}
+            statusLabel={statusLabel}
+            statusIcon={statusIcon}
+            handleBack={handleBack}
+            handleExportTestData={handleExportTestData}
+            handleShare={handleShare}
+            handleOpenDebug={handleOpenDebug}
+            handleReSimulate={handleReSimulate}
+            closeDebugWindow={closeDebugWindow}
+            isDebugging={isDebugging}
+            isDebugLoading={isDebugLoading}
+            debugEnabled={contextWithExtras?.debugEnabled}
+            hasLiveDebugSession={hasLiveDebugSession}
+            debugPrepState={debugPrepState}
+            cancelDebugPrep={cancelDebugPrep}
+          />
 
-      <TransactionSummary
-        hash={hash}
-        network={network}
-        statusColor={statusColor}
-        statusIcon={statusIcon}
-        statusLabel={statusLabel}
-        blockNumber={blockNumber}
-        result={result}
-        from={from}
-        to={to}
-        functionName={functionName}
-        value={value}
-        txFee={txFee}
-        gasUsed={gasUsed}
-        gasLimit={gasLimit}
-        gasPrice={gasPrice}
-        txType={txType}
-        nonce={nonce}
-        chainId={contractContext?.networkId || 1}
-        formatAddressWithName={formatAddressWithName}
-        normalizeValue={normalizeValue}
-        highlightedValue={highlightedValue}
-        setHighlightedValue={setHighlightedValue}
-      />
+          <TransactionSummary
+            hash={hash}
+            network={network}
+            statusColor={statusColor}
+            statusIcon={statusIcon}
+            statusLabel={statusLabel}
+            blockNumber={blockNumber}
+            result={result}
+            from={from}
+            to={to}
+            functionName={functionName}
+            value={value}
+            txFee={txFee}
+            gasUsed={gasUsed}
+            gasLimit={gasLimit}
+            gasPrice={gasPrice}
+            txType={txType}
+            nonce={nonce}
+            chainId={contractContext?.networkId || 1}
+            formatAddressWithName={formatAddressWithName}
+            normalizeValue={normalizeValue}
+            highlightedValue={highlightedValue}
+            setHighlightedValue={setHighlightedValue}
+          />
 
-      {/* Tab Navigation using shadcn Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as SimulatorTab)}
-        className="sim-tabs-container"
-      >
-        <nav className="sim-tabs-wrapper responsive-scroll">
-          <TabsList className="sim-tabs-list">
-            <TabsTrigger value="summary" className="sim-tab-trigger">Summary</TabsTrigger>
-            <TabsTrigger value="contracts" className="sim-tab-trigger">Contracts</TabsTrigger>
-            <TabsTrigger value="events" className="sim-tab-trigger">Events</TabsTrigger>
-            <TabsTrigger value="state" className="sim-tab-trigger">State</TabsTrigger>
-          </TabsList>
-        </nav>
+          {/* Tab Navigation using shadcn Tabs */}
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as SimulatorTab)}
+            className="sim-tabs-container"
+          >
+            <nav className="sim-tabs-wrapper responsive-scroll">
+              <TabsList className="sim-tabs-list">
+                <TabsTrigger value="summary" className="sim-tab-trigger">Summary</TabsTrigger>
+                <TabsTrigger value="contracts" className="sim-tab-trigger">Contracts</TabsTrigger>
+                <TabsTrigger value="events" className="sim-tab-trigger">Events</TabsTrigger>
+                <TabsTrigger value="state" className="sim-tab-trigger">State</TabsTrigger>
+              </TabsList>
+            </nav>
 
-        {/* Tab Content - blur transition on switch */}
-        <AnimatedTabContent activeKey={activeTab} className="sim-tab-content responsive-scroll">
-          {activeTab === "summary" && (
-            <SummaryTab
-              result={result}
-              artifacts={artifacts}
-              errorMessage={errorMessage}
-              revertInfo={revertInfo}
-              filteredTraceRows={filteredTraceRows}
-              isTraceDecoding={isTraceDecoding}
-              deferredSearchQuery={deferredSearchQuery}
-              setSearchQuery={setSearchQuery}
-              traceFilters={traceFilters}
-              handleToggleFilter={handleToggleFilter}
-              handleGoToRevert={handleGoToRevert}
-              revertRowId={revertRowId}
-              rawInput={rawInput}
-              returnData={returnData}
-              decodedTrace={decodedTrace}
-              traceDiagnostics={traceDiagnostics}
-              highlightedValue={highlightedValue}
-              setHighlightedValue={setHighlightedValue}
-            />
-          )}
-          {activeTab === "contracts" && (
-            <ContractsTab result={result} contractContext={contractContext} />
-          )}
-          {activeTab === "events" && (
-            <EventsTab
-              result={result}
-              artifacts={artifacts}
-              contractContext={contractContext}
-              decodedTrace={decodedTrace}
-              lookedUpEventNames={lookedUpEventNames}
-              eventNameFilter={eventNameFilter}
-              setEventNameFilter={setEventNameFilter}
-              eventContractFilter={eventContractFilter}
-              setEventContractFilter={setEventContractFilter}
-            />
-          )}
-          {activeTab === "state" && (
-            <StateTab result={result} artifacts={artifacts} contractContext={contractContext} />
-          )}
-        </AnimatedTabContent>
-      </Tabs>
+            {/* Tab Content - blur transition on switch */}
+            <AnimatedTabContent activeKey={activeTab} className="sim-tab-content responsive-scroll">
+              {activeTab === "summary" && (
+                <SummaryTab
+                  result={result}
+                  artifacts={artifacts}
+                  errorMessage={errorMessage}
+                  revertInfo={revertInfo}
+                  filteredTraceRows={filteredTraceRows}
+                  isTraceDecoding={isTraceDecoding}
+                  deferredSearchQuery={deferredSearchQuery}
+                  setSearchQuery={setSearchQuery}
+                  traceFilters={traceFilters}
+                  handleToggleFilter={handleToggleFilter}
+                  handleGoToRevert={handleGoToRevert}
+                  revertRowId={revertRowId}
+                  rawInput={rawInput}
+                  returnData={returnData}
+                  decodedTrace={decodedTrace}
+                  traceDiagnostics={traceDiagnostics}
+                  highlightedValue={highlightedValue}
+                  setHighlightedValue={setHighlightedValue}
+                />
+              )}
+              {activeTab === "contracts" && (
+                <ContractsTab result={result} contractContext={contractContext} />
+              )}
+              {activeTab === "events" && (
+                <EventsTab
+                  result={result}
+                  artifacts={artifacts}
+                  contractContext={contractContext}
+                  decodedTrace={decodedTrace}
+                  lookedUpEventNames={lookedUpEventNames}
+                  eventNameFilter={eventNameFilter}
+                  setEventNameFilter={setEventNameFilter}
+                  eventContractFilter={eventContractFilter}
+                  setEventContractFilter={setEventContractFilter}
+                />
+              )}
+              {activeTab === "state" && (
+                <StateTab result={result} artifacts={artifacts} contractContext={contractContext} />
+              )}
+            </AnimatedTabContent>
+          </Tabs>
+        </>
+      )}
+
+      {isDebugOverlayActive && (
+        <Suspense fallback={null}>
+          <DebugWindowWithContext />
+        </Suspense>
+      )}
     </div>
   );
 };

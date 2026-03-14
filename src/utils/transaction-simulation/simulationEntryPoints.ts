@@ -14,6 +14,7 @@ import {
   parseReasonFromString,
   buildFailureRawTrace,
 } from "./revertHandling";
+import { classifySimulationError } from "../errorParser";
 
 // Re-export for barrel
 export { replayTransactionWithSimulator } from "./bridgeSimulation";
@@ -49,6 +50,40 @@ export const simulateTransaction = async (
       fromAddress,
       { enableDebug: options.enableDebug === true },
     );
+    if (options.enableDebug === true) {
+      if (!bridgeResult) {
+        const classified = classifySimulationError("debug_bootstrap_failed: bridge_unreachable");
+        return {
+          mode: "edb",
+          success: false,
+          error: classified.message,
+          technicalError: classified.technicalDetails,
+          warnings: [],
+          revertReason: null,
+          gasUsed: null,
+          gasLimitSuggested: null,
+          rawTrace: null,
+        };
+      }
+
+      if (bridgeResult.success !== false && !bridgeResult.debugSession?.sessionId) {
+        const classified = classifySimulationError("debug_bootstrap_failed: no_live_session_returned");
+        return {
+          ...bridgeResult,
+          success: false,
+          error: classified.message,
+          technicalError:
+            bridgeResult.technicalError ||
+            bridgeResult.error ||
+            classified.technicalDetails,
+          debugSession: null,
+          rawTrace: null,
+        };
+      }
+
+      return bridgeResult;
+    }
+
     if (bridgeResult) {
       const isNetworkFailure =
         bridgeResult.success === false &&

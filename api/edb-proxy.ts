@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { maybeInjectDefaultEtherscanKey } from "./edbShared";
 
 export const config = {
   api: { bodyParser: false },
@@ -56,6 +57,7 @@ function extractSubPath(req: VercelRequest): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
+  const defaultEtherscanApiKey = process.env.ETHERSCAN_API_KEY;
 
   if (!bridgeUrl || !apiKey) {
     return res.status(503).json({ error: "bridge_not_configured" });
@@ -92,10 +94,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (acceptEncoding) upstreamHeaders["Accept-Encoding"] = acceptEncoding;
 
   try {
-    const body =
+    const rawBody =
       req.method !== "GET" && req.method !== "HEAD"
         ? await getRawBody(req)
         : undefined;
+    const body = maybeInjectDefaultEtherscanKey(
+      rawBody,
+      req.headers["content-type"],
+      subPath,
+      defaultEtherscanApiKey,
+    );
 
     const isSSE = subPath.match(/^debug\/prepare\/[^/]+\/events$/);
     const controller = new AbortController();

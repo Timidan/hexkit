@@ -13,6 +13,7 @@ import type {
   PrepareStageEvent,
   PrepareReadyEvent,
   PrepareFailedEvent,
+  PrepareStatusResponse,
 } from '../../types/debug';
 import type { DebugSharedState, DebugSessionActions } from './types';
 
@@ -29,6 +30,8 @@ const INITIAL_PREP_STATE: DebugPrepState = {
   error: null,
 };
 
+const PREP_STATUS_POLL_MS = 1500;
+
 export interface DebugPrepActions {
   debugPrepState: DebugPrepState;
   startDebugPrep: (params: PrepareDebugRequest, simulationId?: string) => void;
@@ -42,6 +45,8 @@ export function useDebugPrep(
   const [prepState, setPrepState] = useState<DebugPrepState>(INITIAL_PREP_STATE);
   const eventSourceRef = useRef<EventSource | null>(null);
   const prepareIdRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const readyHandledForPrepareRef = useRef<string | null>(null);
 
   // Cleanup EventSource on unmount
   useEffect(() => {
@@ -50,17 +55,30 @@ export function useDebugPrep(
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
+      if (pollTimerRef.current !== null) {
+        window.clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, []);
 
-  const cancelDebugPrep = useCallback(() => {
+  const stopPrepWatchers = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
-    prepareIdRef.current = null;
-    setPrepState(INITIAL_PREP_STATE);
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
   }, []);
+
+  const cancelDebugPrep = useCallback(() => {
+    stopPrepWatchers();
+    prepareIdRef.current = null;
+    readyHandledForPrepareRef.current = null;
+    setPrepState(INITIAL_PREP_STATE);
+  }, [stopPrepWatchers]);
 
   const startDebugPrep = useCallback(
     async (params: PrepareDebugRequest, callerSimulationId?: string) => {
@@ -70,6 +88,122 @@ export function useDebugPrep(
       // Capture the simulationId this prep is for so consumers can detect stale state.
       // Prefer the caller-provided ID (from SimulationContext), fall back to debug session.
       const prepSimulationId = callerSimulationId || shared.session?.simulationId || 'debug-prep';
+
+      const handleReady = (prepareId: string, data: PrepareReadyEvent) => {
+        if (prepareIdRef.current !== prepareId) return;
+
+        setPrepState((prev) => ({
+          ...prev,
+          status: 'ready',
+          stage: 'ready',
+          progressPct: 100,
+          message: 'Debug session ready',
+          sessionId: data.sessionId,
+          snapshotCount: data.snapshotCount,
+          sourceFiles: data.sourceFiles,
+        }));
+
+        if (readyHandledForPrepareRef.current === prepareId) {
+          stopPrepWatchers();
+          return;
+        }
+
+        readyHandledForPrepareRef.current = prepareId;
+        stopPrepWatchers();
+
+        sessionActions.connectToSession(
+          {
+            sessionId: data.sessionId,
+            rpcPort: 0,
+            snapshotCount: data.snapshotCount,
+            chainId: params.chainId,
+            simulationId: prepSimulationId,
+          },
+          { hydrate: 'full' },
+        ).catch((err) => {
+          console.error('[useDebugPrep] auto-connect failed:', err);
+        });
+      };
+
+      const handleFailed = (prepareId: string, error: string) => {
+        if (prepareIdRef.current !== prepareId) return;
+
+        setPrepState((prev) => ({
+          ...prev,
+          status: 'failed',
+          error,
+          message: `Debug preparation failed: ${error}`,
+        }));
+
+        stopPrepWatchers();
+      };
+
+      const handleStatusUpdate = (prepareId: string, data: PrepareStageEvent) => {
+        if (prepareIdRef.current !== prepareId) return;
+
+        setPrepState((prev) => ({
+          ...prev,
+          status: 'preparing',
+          stage: data.stage,
+          progressPct: data.progressPct,
+          message: data.message,
+        }));
+      };
+
+      const applyPolledStatus = (prepareId: string, status: PrepareStatusResponse) => {
+        if (prepareIdRef.current !== prepareId) return;
+
+        if (status.status === 'ready' && status.sessionId) {
+          handleReady(prepareId, {
+            sessionId: status.sessionId,
+            snapshotCount: status.snapshotCount || 0,
+            sourceFiles: status.sourceFiles || {},
+          });
+          return;
+        }
+
+        if (status.status === 'failed') {
+          handleFailed(
+            prepareId,
+            status.error || status.message || 'Unknown error during debug preparation',
+          );
+          return;
+        }
+
+        if (status.status === 'queued' || status.status === 'preparing') {
+          setPrepState((prev) => ({
+            ...prev,
+            status: status.status,
+            stage: status.stage,
+            progressPct: status.progressPct,
+            message: status.message,
+          }));
+        }
+      };
+
+      const pollPrepareStatus = async (prepareId: string) => {
+        if (prepareIdRef.current !== prepareId) return;
+
+        try {
+          const status = await debugBridgeService.getPrepareStatus(prepareId);
+          applyPolledStatus(prepareId, status);
+          if (
+            prepareIdRef.current !== prepareId ||
+            status.status === 'ready' ||
+            status.status === 'failed'
+          ) {
+            return;
+          }
+        } catch (err) {
+          if (prepareIdRef.current !== prepareId) return;
+          console.warn('[useDebugPrep] prepare status poll failed:', err);
+        }
+
+        if (prepareIdRef.current !== prepareId) return;
+        pollTimerRef.current = window.setTimeout(() => {
+          void pollPrepareStatus(prepareId);
+        }, PREP_STATUS_POLL_MS);
+      };
 
       setPrepState({
         ...INITIAL_PREP_STATE,
@@ -81,6 +215,7 @@ export function useDebugPrep(
       try {
         const { prepareId } = await debugBridgeService.prepareDebug(params);
         prepareIdRef.current = prepareId;
+        readyHandledForPrepareRef.current = null;
 
         setPrepState((prev) => ({
           ...prev,
@@ -99,13 +234,7 @@ export function useDebugPrep(
 
           try {
             const data: PrepareStageEvent = JSON.parse(event.data);
-            setPrepState((prev) => ({
-              ...prev,
-              status: 'preparing',
-              stage: data.stage,
-              progressPct: data.progressPct,
-              message: data.message,
-            }));
+            handleStatusUpdate(prepareId, data);
           } catch {
             // Ignore parse errors
           }
@@ -116,40 +245,10 @@ export function useDebugPrep(
 
           try {
             const data: PrepareReadyEvent = JSON.parse(event.data);
-            setPrepState((prev) => ({
-              ...prev,
-              status: 'ready',
-              stage: 'ready',
-              progressPct: 100,
-              message: 'Debug session ready',
-              sessionId: data.sessionId,
-              snapshotCount: data.snapshotCount,
-              sourceFiles: data.sourceFiles,
-            }));
-
-            // Auto-connect the debug session
-            const chainId = params.chainId;
-            const simulationId = prepSimulationId;
-
-            sessionActions.connectToSession(
-              {
-                sessionId: data.sessionId,
-                rpcPort: 0, // Port is managed by bridge, not needed for FE
-                snapshotCount: data.snapshotCount,
-                chainId,
-                simulationId,
-              },
-              { hydrate: 'full' },
-            ).catch((err) => {
-              console.error('[useDebugPrep] auto-connect failed:', err);
-            });
+            handleReady(prepareId, data);
           } catch (err) {
             console.error('[useDebugPrep] failed to parse ready event:', err);
           }
-
-          // Close EventSource
-          es.close();
-          eventSourceRef.current = null;
         });
 
         es.addEventListener('failed', (event: MessageEvent) => {
@@ -157,42 +256,21 @@ export function useDebugPrep(
 
           try {
             const data: PrepareFailedEvent = JSON.parse(event.data);
-            setPrepState((prev) => ({
-              ...prev,
-              status: 'failed',
-              error: data.error,
-              message: `Debug preparation failed: ${data.error}`,
-            }));
+            handleFailed(prepareId, data.error);
           } catch {
-            setPrepState((prev) => ({
-              ...prev,
-              status: 'failed',
-              error: 'Unknown error during debug preparation',
-            }));
+            handleFailed(prepareId, 'Unknown error during debug preparation');
           }
-
-          es.close();
-          eventSourceRef.current = null;
         });
 
         es.onerror = () => {
           if (prepareIdRef.current !== prepareId) return;
-
-          // EventSource will auto-reconnect for transient errors.
-          // Only mark as failed if the connection is truly dead.
+          // Keep polling authoritative status even if SSE reconnects poorly.
           if (es.readyState === EventSource.CLOSED) {
-            setPrepState((prev) => {
-              // Don't overwrite terminal states
-              if (prev.status === 'ready' || prev.status === 'failed') return prev;
-              return {
-                ...prev,
-                status: 'failed',
-                error: 'Lost connection to debug preparation stream',
-              };
-            });
             eventSourceRef.current = null;
           }
         };
+
+        void pollPrepareStatus(prepareId);
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to start debug preparation';

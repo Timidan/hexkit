@@ -250,14 +250,12 @@ export const TransactionReplayView: React.FC<{
 
     try {
       const chainForReplay = mapExtendedToChain(selectedNetwork);
-      // Always run fast simulation (enableDebug=false) for immediate results.
-      // If debug was requested, async debug prep is triggered from SimulationResultsPage.
       const simulation = await replayTransactionWithSimulator(
         chainForReplay,
         trimmedHash,
         {
           blockTag: blockTag.trim() || undefined,
-          enableDebug: false,
+          enableDebug: enableDebug === true,
         }
       );
 
