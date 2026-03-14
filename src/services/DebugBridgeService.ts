@@ -44,6 +44,7 @@ import {
 const getBridgeUrl = () => getSimulatorBridgeUrl() || '/api/edb';
 
 const STORAGE_CACHE_MAX_ENTRIES = 5000;
+const DEBUG_SESSION_START_TIMEOUT_MS = 90_000;
 
 interface StartSessionOptions {
   includeTrace?: boolean;
@@ -255,7 +256,7 @@ class DebugBridgeService {
             ...(artifactsInline ? { artifacts_inline: artifactsInline } : {}),
             ...(artifactsList ? { artifacts: artifactsList } : {}),
           }),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(DEBUG_SESSION_START_TIMEOUT_MS),
         });
 
         if (!response.ok) {
@@ -311,7 +312,7 @@ class DebugBridgeService {
             ...(artifactsInline ? { artifacts_inline: artifactsInline } : {}),
             ...(artifactsList ? { artifacts: artifactsList } : {}),
           }),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(DEBUG_SESSION_START_TIMEOUT_MS),
         });
 
         if (!simResponse.ok) {

@@ -40,7 +40,7 @@ interface EvalResult {
   note?: string;
 }
 
-const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 45000;
+const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 120000;
 const EVALUATION_TIMEOUT_MS = 15000;
 
 async function withTimeout<T>(
