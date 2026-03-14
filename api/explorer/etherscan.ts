@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { handleEtherscanLookup } from "./etherscanShared.ts";
+import { handleEtherscanLookup } from "./etherscanShared.js";
 
 export const config = {
   api: { bodyParser: true },
