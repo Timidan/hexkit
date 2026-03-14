@@ -30,6 +30,43 @@ import type { DebugSharedState, DebugSessionActions } from './types';
 const INITIAL_SNAPSHOT_PREFETCH_COUNT = 20;
 const MINIMAL_SNAPSHOT_PREFETCH_COUNT = 8;
 
+function resolveInitialSnapshotId(
+  requestedSnapshotId: number | null | undefined,
+  totalSnapshots: number
+): number | null {
+  if (
+    typeof requestedSnapshotId !== 'number' ||
+    !Number.isInteger(requestedSnapshotId) ||
+    requestedSnapshotId < 0 ||
+    requestedSnapshotId >= totalSnapshots
+  ) {
+    return null;
+  }
+  return requestedSnapshotId;
+}
+
+function getPrefetchWindow(
+  focusSnapshotId: number | null,
+  prefetchCount: number,
+  totalSnapshots: number
+): { startId: number; count: number } {
+  const count = Math.min(prefetchCount, totalSnapshots);
+  if (count <= 0) {
+    return { startId: 0, count: 0 };
+  }
+  if (focusSnapshotId === null) {
+    return { startId: 0, count };
+  }
+
+  const halfWindow = Math.floor(count / 2);
+  let startId = Math.max(0, focusSnapshotId - halfWindow);
+  if (startId + count > totalSnapshots) {
+    startId = Math.max(0, totalSnapshots - count);
+  }
+
+  return { startId, count };
+}
+
 export function useDebugSession(state: DebugSharedState): DebugSessionActions {
   const {
     session,
@@ -236,6 +273,10 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     simulationId: string;
   }, options: DebugSessionConnectOptions = {}) => {
     const hydrate = options.hydrate ?? 'full';
+    const initialSnapshotId = resolveInitialSnapshotId(
+      options.initialSnapshotId,
+      existingSession.snapshotCount
+    );
     setIsLoading(true);
     setError(null);
     setSessionInvalid(false);
@@ -286,14 +327,23 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         const prefetchCount = hydrate === 'minimal'
           ? Math.min(MINIMAL_SNAPSHOT_PREFETCH_COUNT, existingSession.snapshotCount)
           : Math.min(INITIAL_SNAPSHOT_PREFETCH_COUNT, existingSession.snapshotCount);
+        const { startId, count } = getPrefetchWindow(
+          initialSnapshotId,
+          prefetchCount,
+          existingSession.snapshotCount
+        );
         const batchResponse = await debugBridgeService.getSnapshotBatch({
           sessionId: existingSession.sessionId,
-          startId: 0,
-          count: prefetchCount,
+          startId,
+          count,
         });
         setSnapshotList(batchResponse.snapshots);
 
-        await goToSnapshotInternal(existingSession.sessionId, 0, { includeStorageDiff: false });
+        await goToSnapshotInternal(
+          existingSession.sessionId,
+          initialSnapshotId ?? 0,
+          { includeStorageDiff: false }
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to connect to debug session';
@@ -352,17 +402,30 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       }
 
       if (response.snapshotCount > 0) {
+        const initialSnapshotId = resolveInitialSnapshotId(
+          options.initialSnapshotId,
+          response.snapshotCount
+        );
         const prefetchCount = hydrate === 'minimal'
           ? Math.min(MINIMAL_SNAPSHOT_PREFETCH_COUNT, response.snapshotCount)
           : Math.min(INITIAL_SNAPSHOT_PREFETCH_COUNT, response.snapshotCount);
+        const { startId, count } = getPrefetchWindow(
+          initialSnapshotId,
+          prefetchCount,
+          response.snapshotCount
+        );
         const batchResponse = await debugBridgeService.getSnapshotBatch({
           sessionId: response.sessionId,
-          startId: 0,
-          count: prefetchCount,
+          startId,
+          count,
         });
         setSnapshotList(batchResponse.snapshots);
 
-        await goToSnapshotInternal(response.sessionId, 0, { includeStorageDiff: false });
+        await goToSnapshotInternal(
+          response.sessionId,
+          initialSnapshotId ?? 0,
+          { includeStorageDiff: false }
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to start debug session';

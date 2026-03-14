@@ -344,10 +344,12 @@ type DebugSessionHydrationMode = 'full' | 'minimal';
 
 export interface DebugSessionConnectOptions {
   hydrate?: DebugSessionHydrationMode;
+  initialSnapshotId?: number | null;
 }
 
 export interface DebugSessionStartOptions {
   hydrate?: DebugSessionHydrationMode;
+  initialSnapshotId?: number | null;
 }
 
 /** Start debug session request */
@@ -629,4 +631,3 @@ export interface PrepareStatusResponse {
   sourceFiles: Record<string, unknown> | null;
   error: string | null;
 }
-

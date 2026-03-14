@@ -121,7 +121,14 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   open,
   onOpenChange,
 }) => {
-  const { evaluateExpression, session, startSession, connectToSession, debugPrepState } = useDebug();
+  const {
+    evaluateExpression,
+    session,
+    startSession,
+    connectToSession,
+    debugPrepState,
+    currentSnapshotId,
+  } = useDebug();
   const { currentSimulation, contractContext, simulationId } = useSimulation();
   const { resolveRpcUrl } = useNetworkConfig();
   const [expression, setExpression] = useState('');
@@ -164,6 +171,12 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   const isPrepInFlightForCurrentSimulation =
     prepStateForCurrentSimulation?.status === 'queued' ||
     prepStateForCurrentSimulation?.status === 'preparing';
+  const initialLiveSnapshotId =
+    typeof currentSnapshotId === 'number' &&
+    Number.isInteger(currentSnapshotId) &&
+    currentSnapshotId >= 0
+      ? currentSnapshotId
+      : null;
 
   // Focus input when modal opens
   useEffect(() => {
@@ -229,7 +242,10 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
             snapshotCount: currentDebugSession?.snapshotCount ?? prepStateForCurrentSimulation?.snapshotCount ?? 0,
             chainId,
             simulationId: expectedSimulationId || `debug-${Date.now()}`,
-          }, { hydrate: 'minimal' }),
+          }, {
+            hydrate: 'minimal',
+            initialSnapshotId: initialLiveSnapshotId,
+          }),
           LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS,
           `Connecting to existing live debug session timed out after ${Math.round(
             LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS / 1000
@@ -266,7 +282,10 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
             value: liveValue,
           },
           ...(inlineArtifacts ? { artifacts: inlineArtifacts } : {}),
-        }, { hydrate: 'minimal' }),
+        }, {
+          hydrate: 'minimal',
+          initialSnapshotId: initialLiveSnapshotId,
+        }),
         LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS,
         `Live debug session startup timed out after ${Math.round(
           LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS / 1000
@@ -298,6 +317,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     expectedSimulationId,
     prepStateForCurrentSimulation,
     isPrepInFlightForCurrentSimulation,
+    initialLiveSnapshotId,
   ]);
 
   const handleEvaluate = useCallback(async () => {

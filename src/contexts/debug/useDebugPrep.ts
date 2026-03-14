@@ -88,6 +88,12 @@ export function useDebugPrep(
       // Capture the simulationId this prep is for so consumers can detect stale state.
       // Prefer the caller-provided ID (from SimulationContext), fall back to debug session.
       const prepSimulationId = callerSimulationId || shared.session?.simulationId || 'debug-prep';
+      const initialSnapshotId =
+        typeof shared.currentSnapshotId === 'number' &&
+        Number.isInteger(shared.currentSnapshotId) &&
+        shared.currentSnapshotId >= 0
+          ? shared.currentSnapshotId
+          : null;
 
       const handleReady = (prepareId: string, data: PrepareReadyEvent) => {
         if (prepareIdRef.current !== prepareId) return;
@@ -119,7 +125,10 @@ export function useDebugPrep(
             chainId: params.chainId,
             simulationId: prepSimulationId,
           },
-          { hydrate: 'full' },
+          {
+            hydrate: 'full',
+            initialSnapshotId,
+          },
         ).catch((err) => {
           console.error('[useDebugPrep] auto-connect failed:', err);
         });
@@ -282,7 +291,7 @@ export function useDebugPrep(
         }));
       }
     },
-    [cancelDebugPrep, shared.session, sessionActions],
+    [cancelDebugPrep, shared.currentSnapshotId, shared.session, sessionActions],
   );
 
   return {
