@@ -38,30 +38,41 @@ export function resolveFunctionName(
   contractContext?: ContractContextExtras | null,
 ): string {
   const isJustSelector = (fn: string) => /^0x[a-fA-F0-9]{8}$/.test(fn);
+  const isDecodedFunction = (fn: unknown): fn is string =>
+    typeof fn === "string" && fn.trim().length > 0 && !isJustSelector(fn.trim());
+  const rows = Array.isArray(decodedTrace?.rows) ? decodedTrace.rows : [];
   const selector = rawInput && rawInput.length >= 10 ? rawInput.slice(0, 10) : null;
   const isTxReplay =
     contractContext?.simulationOrigin === "tx-hash-replay" ||
     typeof contractContext?.replayTxHash === "string" ||
     typeof result?.transactionHash === "string";
   const traceFn = decodedTrace?.callMeta?.function;
-  const firstRow = decodedTrace?.rows?.[0] as any;
+  const firstRow = rows[0] as any;
   const entryFn = firstRow?.entryMeta?.function;
-
-  if (result.functionName && !isJustSelector(result.functionName)) return result.functionName;
-
-  if (traceFn && !isJustSelector(traceFn)) return traceFn;
-  if (entryFn && !isJustSelector(entryFn)) return entryFn;
-
-  if (isTxReplay) {
-    if (traceFn && isJustSelector(traceFn)) return traceFn;
-    if (entryFn && isJustSelector(entryFn)) return entryFn;
-    if (selector) return selector;
+  let bestDecodedEntry: { depth: number; fn: string } | null = null;
+  for (const row of rows as any[]) {
+    const candidate = row?.entryMeta?.function;
+    if (!isDecodedFunction(candidate)) {
+      continue;
+    }
+    const candidateDepth = Number.isFinite(Number(row?.depth))
+      ? Number(row.depth)
+      : Number.MAX_SAFE_INTEGER;
+    if (!bestDecodedEntry || candidateDepth < bestDecodedEntry.depth) {
+      bestDecodedEntry = { depth: candidateDepth, fn: candidate.trim() };
+    }
   }
+  const decodedEntryFn = bestDecodedEntry?.fn ?? null;
 
-  if (rootCall?.functionName && !isJustSelector(rootCall.functionName)) return rootCall.functionName;
-  if (rootCall?.label && !isJustSelector(rootCall.label)) return rootCall.label;
+  if (isDecodedFunction(result.functionName)) return result.functionName.trim();
 
-  const rows = decodedTrace?.rows || [];
+  if (isDecodedFunction(traceFn)) return traceFn.trim();
+  if (isDecodedFunction(entryFn)) return entryFn.trim();
+  if (decodedEntryFn) return decodedEntryFn;
+
+  if (isDecodedFunction(rootCall?.functionName)) return rootCall.functionName.trim();
+  if (isDecodedFunction(rootCall?.label)) return rootCall.label.trim();
+
   for (const row of rows) {
     const r = row as any;
     if (r?.name === 'DELEGATECALL' && r?.functionName && !isJustSelector(r.functionName)) {
@@ -70,6 +81,12 @@ export function resolveFunctionName(
     if (r?.name === 'DELEGATECALL' && r?.entryMeta?.function && !isJustSelector(r.entryMeta.function)) {
       return r.entryMeta.function;
     }
+  }
+
+  if (isTxReplay) {
+    if (traceFn && isJustSelector(traceFn)) return traceFn;
+    if (entryFn && isJustSelector(entryFn)) return entryFn;
+    if (selector) return selector;
   }
 
   if (selector) return selector;
