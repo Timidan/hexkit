@@ -115,7 +115,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const errorMessage = result.error || result.revertReason || null;
 
   const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-  const isDebugOverlayActive = isDebugging || isDebugLoading;
+  const isDebugOverlayActive = isDebugging;
 
   return (
     <div className="sim-results-page">
@@ -228,7 +228,16 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
       )}
 
       {isDebugOverlayActive && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={(
+            <div className="sim-results-page">
+              <div className="sim-results-empty">
+                <p>Opening debugger...</p>
+                <div className="sim-loading-spinner" />
+              </div>
+            </div>
+          )}
+        >
           <DebugWindowWithContext />
         </Suspense>
       )}

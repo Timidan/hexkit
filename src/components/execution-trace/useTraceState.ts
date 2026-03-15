@@ -480,6 +480,11 @@ export function useTraceState(props: UseTraceStateProps) {
     if (currentStepIndex < 0) return;
     const container = listContainerRef.current;
     if (!container) return;
+    const containerStyle = window.getComputedStyle(container);
+    const canScrollVertically =
+      container.scrollHeight > container.clientHeight + 1 &&
+      (containerStyle.overflowY === "auto" || containerStyle.overflowY === "scroll");
+    if (!canScrollVertically) return;
     const visibleIndex = visibleRows.findIndex(
       ({ originalIndex }) => originalIndex === currentStepIndex
     );
