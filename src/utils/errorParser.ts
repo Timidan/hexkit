@@ -172,10 +172,15 @@ function extractInnerMessage(raw: string): string {
  * or simulation infrastructure — NOT for wallet/transaction errors (use parseError for those).
  */
 export const classifySimulationError = (rawError: string): ClassifiedSimulationError => {
-  const lower = rawError.toLowerCase();
+  const extracted = extractInnerMessage(rawError);
+  const lower = `${rawError}\n${extracted}`.toLowerCase();
 
   // Historical state not available (non-archival RPC)
-  if (lower.includes('historical state') && lower.includes('not available')) {
+  if (
+    (lower.includes('historical state') && lower.includes('not available')) ||
+    lower.includes('missing trie node') ||
+    lower.includes("state histories haven't been fully indexed yet")
+  ) {
     return {
       type: 'state',
       message: "The RPC node doesn't have historical data for this block.",
@@ -323,9 +328,10 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
   }
 
   // Unknown — pass through but clean up
+  const cleaned = extractInnerMessage(rawError);
   return {
     type: 'unknown',
-    message: rawError.length > 200 ? rawError.slice(0, 200) + '...' : rawError,
+    message: cleaned.length > 200 ? cleaned.slice(0, 200) + '...' : cleaned,
     technicalDetails: rawError,
   };
 };

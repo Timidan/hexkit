@@ -62,6 +62,13 @@ function formatReplayRpcError(rawError: string, networkName: string, mode: strin
   return trimmed || "Failed to fetch transaction";
 }
 
+function formatSimulationBridgeError(rawError: string): string {
+  const classified = classifySimulationError(rawError);
+  return classified.suggestion
+    ? `${classified.message} ${classified.suggestion}`
+    : classified.message;
+}
+
 const RPC_AUTO_SWITCH_NOTICE_KEY = "web3-toolkit:rpc-auto-switch-notice";
 
 export const TransactionReplayView: React.FC<{
@@ -352,7 +359,7 @@ export const TransactionReplayView: React.FC<{
 
       // Check if simulation failed with an error message
       if (simulation.success === false && simulation.error) {
-        setBridgeWarning(simulation.error);
+        setBridgeWarning(formatSimulationBridgeError(simulation.error));
         return;
       }
 
