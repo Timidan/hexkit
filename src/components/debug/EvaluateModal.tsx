@@ -141,7 +141,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   // Check if in trace mode (no eval support).
   // Use `=== true` so that a null session doesn't default to trace mode —
   // that case is handled by `!session` in shouldEnsureLiveSession instead.
-  const isTraceMode = session?.sessionId?.startsWith('trace-') === true;
   const chainId = currentSimulation?.chainId || contractContext?.networkId || 1;
   const chain = getChainById(chainId);
   const rpcUrl = chain ? resolveRpcUrl(chain.id, chain.rpcUrl).url : null;
@@ -334,10 +333,10 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     }
 
     const shouldEnsureLiveSession =
-      isTraceMode ||
       !session ||
       !!(
         currentSimulation?.debugSession?.sessionId &&
+        !session?.sessionId.startsWith('trace-') &&
         session?.sessionId !== currentSimulation.debugSession.sessionId
       );
 
@@ -428,7 +427,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   }, [
     expression,
     session,
-    isTraceMode,
     ensureLiveSession,
     evaluateExpression,
     currentSimulation?.debugSession?.sessionId,

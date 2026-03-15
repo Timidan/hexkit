@@ -20,6 +20,13 @@ import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import { debugBridgeService } from '../../services/DebugBridgeService';
 import { ethers } from 'ethers';
 import {
+  buildSlotDescriptors,
+  canonicalizeSlot,
+  decodeSlotValue,
+  type SlotDescriptor,
+} from '../../utils/storageLayoutDecode';
+import { reconstructStorageLayout } from '../../utils/solidity-layout';
+import {
   debugLog,
   resolveSourceContent,
   matchesTraceId,
@@ -247,6 +254,126 @@ export function deriveStructValueFromTrace(params: {
       unreadCount: layout.length - decodedFields.size,
     },
   };
+}
+
+export function deriveScalarStateValueFromTrace(params: {
+  variableName: string;
+  snapshotId: number;
+  traceRows: DecodedTraceRow[];
+  sourceFiles: Map<string, SourceFile>;
+}): SolValue | null {
+  const {
+    variableName,
+    snapshotId,
+    traceRows,
+    sourceFiles,
+  } = params;
+
+  const currentRow = traceRows.find((row) => row.id === snapshotId) ?? null;
+  if (!currentRow) {
+    return null;
+  }
+
+  const contractName =
+    currentRow.contract ||
+    currentRow.entryMeta?.codeContractName ||
+    currentRow.entryMeta?.targetContractName ||
+    null;
+  if (!contractName) {
+    return null;
+  }
+
+  const files: Record<string, string> = {};
+  for (const [path, file] of sourceFiles.entries()) {
+    files[path] = file.content;
+  }
+
+  const reconstruction = reconstructStorageLayout({
+    files,
+    contractName,
+  });
+  if (reconstruction.layout.storage.length === 0) {
+    debugLog('[deriveScalarStateValueFromTrace] No storage layout entries for', contractName);
+    return null;
+  }
+
+  const descriptorsBySlot = buildSlotDescriptors(reconstruction.layout);
+  let matchedDescriptor:
+    | {
+        slotHex: string;
+        descriptor: SlotDescriptor;
+      }
+    | null = null;
+
+  for (const [slotHex, descriptors] of descriptorsBySlot.entries()) {
+    const descriptor = descriptors.find((entry) => entry.label === variableName);
+    if (descriptor) {
+      matchedDescriptor = { slotHex, descriptor };
+      break;
+    }
+  }
+
+  if (!matchedDescriptor) {
+    debugLog('[deriveScalarStateValueFromTrace] No storage descriptor for', variableName, 'in', contractName);
+    return null;
+  }
+
+  const currentStorageContext = currentRow.entryMeta?.target?.toLowerCase() ?? null;
+  const relevantRows = traceRows
+    .filter((row) => row.id <= snapshotId)
+    .filter((row) => {
+      const storageContext = row.entryMeta?.target?.toLowerCase() ?? null;
+      if (currentStorageContext && storageContext && storageContext !== currentStorageContext) {
+        return false;
+      }
+      const rowContractName =
+        row.contract ||
+        row.entryMeta?.codeContractName ||
+        row.entryMeta?.targetContractName ||
+        null;
+      return rowContractName === contractName;
+    })
+    .sort((a, b) => b.id - a.id);
+
+  for (const row of relevantRows) {
+    const storageWrite = parseStorageWrite(row.storage_write);
+    const storageRead = parseStorageRead(row.storage_read);
+    const storageAccess = storageWrite || storageRead;
+    if (!storageAccess) {
+      continue;
+    }
+
+    const slotHex = canonicalizeSlot(`0x${storageAccess.slot.toString(16)}`);
+    if (slotHex !== matchedDescriptor.slotHex) {
+      continue;
+    }
+
+    const rawValue = `0x${storageAccess.value.toString(16).padStart(64, '0')}`;
+    const decodedValue = decodeSlotValue(rawValue, matchedDescriptor.descriptor);
+    debugLog(
+      '[deriveScalarStateValueFromTrace] Decoded',
+      variableName,
+      'from slot',
+      slotHex,
+      'at row',
+      row.id,
+      '=>',
+      decodedValue,
+    );
+    return {
+      type: matchedDescriptor.descriptor.typeLabel,
+      value: decodedValue,
+      rawValue,
+    };
+  }
+
+  debugLog(
+    '[deriveScalarStateValueFromTrace] No matching storage access for',
+    variableName,
+    'at step',
+    snapshotId,
+  );
+  return null;
 }
 
 // ── Dynamic array slot computation ─────────────────────────────────────

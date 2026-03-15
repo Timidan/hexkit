@@ -8,6 +8,7 @@ import type {
   WatchExpression,
   EvalResult,
   SolValue,
+  DebugSnapshot,
 } from '../../types/debug';
 import { debugBridgeService } from '../../services/DebugBridgeService';
 import { fnForLine, parseFunctions } from '../../utils/traceDecoder/sourceParser';
@@ -29,6 +30,7 @@ import {
   SOURCE_LINE_TOLERANCE,
 } from './debugHelpers';
 import {
+  deriveScalarStateValueFromTrace,
   deriveStructValueFromTrace,
   fillUnreadFieldsFromStorage,
   matchesSourceLocation,
@@ -54,6 +56,115 @@ const hookContextMismatchError = (step: number, traceId: number | null, file: st
   `No source-level debug snapshot found near step ${step}. Hook snapshots exist in this session but none match the current execution context (trace frame ${traceId ?? 'unknown'}, file: ${file || 'unknown'}).`;
 
 const SESSION_EXPIRED_ERROR = 'Debug session expired. Please re-run the simulation to debug again.';
+
+function normalizeTraceFrameId(frameId?: Array<string | number> | null): string | null {
+  if (!Array.isArray(frameId) || frameId.length === 0) return null;
+  return frameId.map((part) => String(part)).join('-');
+}
+
+function getTraceRowBytecodeAddress(row: { entryMeta?: { codeAddress?: string; target?: string } | null } | null): string | null {
+  const value = row?.entryMeta?.codeAddress || row?.entryMeta?.target || null;
+  return value ? value.toLowerCase() : null;
+}
+
+function getTraceRowStorageAccess(
+  row: {
+    storage_read?: { slot?: string; value?: string } | null;
+    storage_write?: { slot?: string; after?: string } | null;
+  } | null
+): { type: 'read' | 'write'; slot: string; value?: string } | null {
+  if (row?.storage_read?.slot) {
+    return {
+      type: 'read',
+      slot: row.storage_read.slot.toLowerCase(),
+      value: row.storage_read.value,
+    };
+  }
+  if (row?.storage_write?.slot) {
+    return {
+      type: 'write',
+      slot: row.storage_write.slot.toLowerCase(),
+      value: row.storage_write.after,
+    };
+  }
+  return null;
+}
+
+function getOpcodePc(snapshot: DebugSnapshot | null | undefined): number | null {
+  if (!snapshot || snapshot.type !== 'opcode') return null;
+  const detail = snapshot.detail as { pc?: number };
+  return typeof detail.pc === 'number' ? detail.pc : null;
+}
+
+function scoreOpcodeSnapshotCandidate(
+  traceRow: {
+    frame_id?: Array<string | number>;
+    pc?: number;
+    name?: string;
+    stackTop?: string | null;
+    stackDepth?: number;
+    storage_read?: { slot?: string; value?: string } | null;
+    storage_write?: { slot?: string; after?: string } | null;
+  },
+  snapshot: DebugSnapshot
+): number {
+  let score = 0;
+  const opcodeDetail =
+    snapshot.type === 'opcode'
+      ? (snapshot.detail as {
+          pc?: number;
+          opcodeName?: string;
+          stack?: string[];
+          storageAccess?: { type: 'read' | 'write'; slot: string; value?: string };
+        })
+      : null;
+  const traceFrameId = normalizeTraceFrameId(traceRow.frame_id);
+  if (traceFrameId && snapshot.frameId === traceFrameId) {
+    score += 100;
+  }
+  if (snapshot.type === 'opcode' && opcodeDetail?.pc === traceRow.pc) {
+    score += 50;
+  }
+  if (
+    snapshot.type === 'opcode' &&
+    traceRow.name &&
+    opcodeDetail?.opcodeName?.toUpperCase() === traceRow.name.toUpperCase()
+  ) {
+    score += 25;
+  }
+
+  const traceStorageAccess = getTraceRowStorageAccess(traceRow);
+  const snapshotStorageAccess =
+    snapshot.type === 'opcode' ? opcodeDetail?.storageAccess ?? null : null;
+  if (
+    traceStorageAccess &&
+    snapshotStorageAccess &&
+    snapshotStorageAccess.type === traceStorageAccess.type &&
+    snapshotStorageAccess.slot.toLowerCase() === traceStorageAccess.slot
+  ) {
+    score += 40;
+    if (
+      traceStorageAccess.value &&
+      snapshotStorageAccess.value &&
+      snapshotStorageAccess.value.toLowerCase() === traceStorageAccess.value.toLowerCase()
+    ) {
+      score += 15;
+    }
+  }
+
+  if (snapshot.type === 'opcode') {
+    const stack = Array.isArray(opcodeDetail?.stack) ? opcodeDetail.stack : [];
+    const stackTop = stack.length > 0 ? stack[stack.length - 1] : null;
+    if (traceRow.stackTop && stackTop && stackTop.toLowerCase() === traceRow.stackTop.toLowerCase()) {
+      score += 10;
+    }
+    if (typeof traceRow.stackDepth === 'number' && stack.length === traceRow.stackDepth) {
+      score += 5;
+    }
+  }
+
+  return score;
+}
 
 export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActions {
   const {
@@ -82,6 +193,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
   const variableHintCacheRef = useRef<
     Map<string, { snapshotId: number; value: SolValue | null } | null>
   >(new Map());
+  const traceToLiveSnapshotCacheRef = useRef<Map<string, number>>(new Map());
 
   // ── Wrapped resolver callbacks (delegate to extracted pure functions) ──
 
@@ -162,6 +274,89 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
     [session, sessionInvalid, snapshotCache, sourceFiles]
   );
 
+  const resolveLiveSnapshotFromTraceRowCb = useCallback(
+    async (
+      sessionId: string,
+      traceStepId: number
+    ): Promise<{ snapshotId: number; snapshot: DebugSnapshot } | null> => {
+      const traceRow = decodedTraceRowsRef.current?.find((row) => row.id === traceStepId) ?? null;
+      const bytecodeAddress = getTraceRowBytecodeAddress(traceRow);
+      if (!traceRow || !bytecodeAddress || typeof traceRow.pc !== 'number') {
+        return null;
+      }
+
+      const cacheKey = `${sessionId}:${traceStepId}:${bytecodeAddress}:${traceRow.pc}`;
+      const cachedSnapshotId = traceToLiveSnapshotCacheRef.current.get(cacheKey);
+      if (typeof cachedSnapshotId === 'number') {
+        const cachedSnapshot = snapshotCache.get(cachedSnapshotId);
+        if (cachedSnapshot) {
+          return { snapshotId: cachedSnapshotId, snapshot: cachedSnapshot };
+        }
+      }
+
+      const breakpointHits = await debugBridgeService.getBreakpointHits({
+        sessionId,
+        breakpoints: [
+          {
+            location: {
+              type: 'opcode',
+              bytecodeAddress,
+              pc: traceRow.pc,
+            },
+          },
+        ],
+      });
+
+      const candidateIds = breakpointHits.hits.filter((id) => Number.isInteger(id) && id >= 0);
+      if (candidateIds.length === 0) {
+        return null;
+      }
+
+      let bestMatch:
+        | { snapshotId: number; snapshot: DebugSnapshot; score: number }
+        | null = null;
+
+      for (const candidateId of candidateIds.slice(0, 16)) {
+        try {
+          const response = await debugBridgeService.getSnapshot({
+            sessionId,
+            snapshotId: candidateId,
+          });
+          const candidateSnapshot = response.snapshot;
+          const score = scoreOpcodeSnapshotCandidate(traceRow, candidateSnapshot);
+
+          if (!bestMatch || score > bestMatch.score) {
+            bestMatch = {
+              snapshotId: candidateId,
+              snapshot: candidateSnapshot,
+              score,
+            };
+          }
+        } catch {
+          // Ignore candidate fetch errors and continue scoring remaining hits.
+        }
+      }
+
+      if (!bestMatch) {
+        return null;
+      }
+
+      traceToLiveSnapshotCacheRef.current.set(cacheKey, bestMatch.snapshotId);
+      setSnapshotCache((prev) => {
+        const next = new Map(prev);
+        next.set(bestMatch!.snapshotId, bestMatch!.snapshot);
+        if (next.size > 500) {
+          const sortedKeys = [...next.keys()].sort((a, b) => a - b);
+          sortedKeys.slice(0, next.size - 500).forEach((key) => next.delete(key));
+        }
+        return next;
+      });
+
+      return { snapshotId: bestMatch.snapshotId, snapshot: bestMatch.snapshot };
+    },
+    [decodedTraceRowsRef, snapshotCache, setSnapshotCache]
+  );
+
   // ── Core expression evaluation ───────────────────────────────────────
 
   const evaluateExpressionInternal = useCallback(
@@ -177,13 +372,30 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         };
       }
       const totalSnapshots = activeSession.totalSnapshots ?? session?.totalSnapshots ?? 0;
-      let baseSnapshotId: number | null = isValidSnapshotId(currentSnapshotId, totalSnapshots)
-        ? currentSnapshotId
-        : totalSnapshots > 0
-          ? 0
-          : null;
+      const isTraceSession = activeSession.sessionId.startsWith('trace-');
+      const traceRows = decodedTraceRowsRef.current;
+      const traceSnapshotExists = (snapshotId: number | null | undefined): snapshotId is number =>
+        typeof snapshotId === 'number' &&
+        Number.isInteger(snapshotId) &&
+        snapshotId >= 0 &&
+        (
+          snapshotList.some((snap) => snap.id === snapshotId) ||
+          Boolean(traceRows?.some((row) => row.id === snapshotId))
+        );
 
-      if (!activeSession.sessionId.startsWith('trace-')) {
+      let baseSnapshotId: number | null = isTraceSession
+        ? (
+            traceSnapshotExists(currentSnapshotId)
+              ? currentSnapshotId
+              : traceRows?.[0]?.id ?? snapshotList[0]?.id ?? null
+          )
+        : isValidSnapshotId(currentSnapshotId, totalSnapshots)
+          ? currentSnapshotId
+          : totalSnapshots > 0
+            ? 0
+            : null;
+
+      if (!isTraceSession) {
         const readiness = await waitForLiveSessionReadyCb(
           activeSession.sessionId,
           baseSnapshotId
@@ -194,12 +406,17 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         baseSnapshotId = readiness.snapshotId;
       }
 
-      if (!isValidSnapshotId(baseSnapshotId, totalSnapshots)) {
+      const hasValidBaseSnapshotId = isTraceSession
+        ? traceSnapshotExists(baseSnapshotId)
+        : isValidSnapshotId(baseSnapshotId, totalSnapshots);
+
+      if (!hasValidBaseSnapshotId || baseSnapshotId === null) {
         return {
           success: false,
           error: 'Could not resolve a valid debug snapshot. Retry after the session finishes initializing.',
         };
       }
+      let resolvedBaseSnapshotId: number = baseSnapshotId;
 
       const expressionText = expression.trim();
       if (!expressionText) {
@@ -209,19 +426,46 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       const evalDeadline = Date.now() + EVAL_TOTAL_BUDGET_MS;
       const remainingBudget = () => Math.max(500, evalDeadline - Date.now());
       const budgetExhausted = () => Date.now() >= evalDeadline;
+      let liveSnapshotRemapNote: string | null = null;
+
+      const withLiveSnapshotRemapNote = (result: EvalResult): EvalResult => {
+        if (!result.success || !liveSnapshotRemapNote) {
+          return result;
+        }
+        if (!result.note) {
+          return { ...result, note: liveSnapshotRemapNote };
+        }
+        if (result.note.includes(liveSnapshotRemapNote)) {
+          return result;
+        }
+        return { ...result, note: `${liveSnapshotRemapNote}. ${result.note}` };
+      };
 
       // For trace sessions, try to derive value from trace data first
-      if (activeSession.sessionId.startsWith('trace-')) {
+      if (isTraceSession) {
         const simpleName = extractSimpleIdentifier(expressionText);
         if (simpleName) {
-          const traceRows = decodedTraceRowsRef.current;
           const preferSourceFile = evalHint?.filePath || currentFile;
           const preferFunctionName = evalHint?.functionName || null;
 
           if (traceRows && traceRows.length > 0) {
+            const scalarValue = deriveScalarStateValueFromTrace({
+              variableName: simpleName,
+              snapshotId: resolvedBaseSnapshotId,
+              traceRows,
+              sourceFiles: sourceFilesRef.current,
+            });
+            if (scalarValue) {
+              return {
+                success: true,
+                value: scalarValue,
+                note: `Value derived from trace storage data at step ${resolvedBaseSnapshotId}`,
+              };
+            }
+
             const derived = deriveStructValueFromTrace({
               variableName: simpleName,
-              snapshotId: baseSnapshotId,
+              snapshotId: resolvedBaseSnapshotId,
               traceRows,
               sourceFiles: sourceFilesRef.current,
               preferSourceFile,
@@ -238,10 +482,41 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         };
       }
 
-      const cachedSnapshot = snapshotCache.get(baseSnapshotId);
+      let remappedBaseSnapshot = snapshotCache.get(resolvedBaseSnapshotId) ?? null;
+      const traceRowAtBase =
+        decodedTraceRowsRef.current?.find((row) => row.id === resolvedBaseSnapshotId) ?? null;
+      const liveSnapshotAtBase =
+        currentSnapshot?.id === resolvedBaseSnapshotId ? currentSnapshot : remappedBaseSnapshot;
+      const traceBytecodeAddress = getTraceRowBytecodeAddress(traceRowAtBase);
+      const liveBytecodeAddress = liveSnapshotAtBase?.bytecodeAddress?.toLowerCase() ?? null;
+      const liveOpcodePc = getOpcodePc(liveSnapshotAtBase);
+      const liveSnapshotMatchesTraceExecutionPoint =
+        !traceRowAtBase ||
+        !traceBytecodeAddress ||
+        typeof traceRowAtBase.pc !== 'number' ||
+        (liveBytecodeAddress === traceBytecodeAddress && liveOpcodePc === traceRowAtBase.pc);
+
+      if (!liveSnapshotMatchesTraceExecutionPoint && !budgetExhausted()) {
+        const resolvedLiveSnapshot = await resolveLiveSnapshotFromTraceRowCb(
+          activeSession.sessionId,
+          resolvedBaseSnapshotId
+        );
+        if (
+          resolvedLiveSnapshot &&
+          isValidSnapshotId(resolvedLiveSnapshot.snapshotId, totalSnapshots)
+        ) {
+          const traceStepId = resolvedBaseSnapshotId;
+          resolvedBaseSnapshotId = resolvedLiveSnapshot.snapshotId;
+          remappedBaseSnapshot = resolvedLiveSnapshot.snapshot;
+          liveSnapshotRemapNote =
+            `Value resolved from live step ${resolvedLiveSnapshot.snapshotId} for trace step ${traceStepId}`;
+        }
+      }
+
+      const cachedSnapshot = remappedBaseSnapshot || snapshotCache.get(resolvedBaseSnapshotId);
       const activeSnapshot =
-        cachedSnapshot || (currentSnapshot?.id === baseSnapshotId ? currentSnapshot : null);
-      const listSnapshot = snapshotList.find((snap) => snap.id === baseSnapshotId);
+        cachedSnapshot || (currentSnapshot?.id === resolvedBaseSnapshotId ? currentSnapshot : null);
+      const listSnapshot = snapshotList.find((snap) => snap.id === resolvedBaseSnapshotId);
       const currentFrameId = activeSnapshot?.frameId || listSnapshot?.frameId;
       const currentTraceId = parseTraceEntryId(currentFrameId);
       const preferSourceFile =
@@ -267,7 +542,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         let evalSnapshotId: number | null = null;
         const evalContextKey = [
           activeSession.sessionId,
-          baseSnapshotId,
+          resolvedBaseSnapshotId,
           currentTraceId ?? 'na',
           preferSourceFile || '',
           preferSourceLine ?? 'na',
@@ -275,7 +550,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         ].join('|');
         const directResponse = await debugBridgeService.evaluateExpression({
           sessionId: activeSession.sessionId,
-          snapshotId: baseSnapshotId,
+          snapshotId: resolvedBaseSnapshotId,
           expression: expressionText,
         });
         if (directResponse.result.success) {
@@ -284,12 +559,12 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
               const filled = await fillUnreadFieldsFromStorage(
                 directResponse.result.value as SolValue,
                 activeSession.sessionId,
-                baseSnapshotId,
+                resolvedBaseSnapshotId,
                 rpcFallbackConfig ?? undefined
               );
-              return { success: true, value: filled };
+              return withLiveSnapshotRemapNote({ success: true, value: filled });
             }
-            return directResponse.result;
+            return withLiveSnapshotRemapNote(directResponse.result);
           }
         } else {
           const directErrorText = directResponse.result.error;
@@ -324,14 +599,14 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           }
         }
         if (evalSnapshotId === null && preferSourceFile) {
-          evalSnapshotId = findNearestHookSnapshotIdBySource(
-            snapshotList, snapshotCache, baseSnapshotId, currentTraceId,
-            preferSourceFile, preferSourceLine, SOURCE_LINE_TOLERANCE
-          );
+            evalSnapshotId = findNearestHookSnapshotIdBySource(
+              snapshotList, snapshotCache, resolvedBaseSnapshotId, currentTraceId,
+              preferSourceFile, preferSourceLine, SOURCE_LINE_TOLERANCE
+            );
 
           if (evalSnapshotId === null && preferSourceLine !== null && !budgetExhausted()) {
             const sourceMatch = await scanForHookSnapshotCb(
-              activeSession.sessionId, baseSnapshotId, currentTraceId, targetedScanOffset,
+              activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
               (detail) => matchesSourceLocation(detail, preferSourceFile, preferSourceLine, SOURCE_LINE_TOLERANCE),
               remainingBudget()
             );
@@ -340,14 +615,14 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
 
           if (evalSnapshotId === null && preferFunctionName) {
             evalSnapshotId = findNearestHookSnapshotIdByFunction(
-              snapshotList, snapshotCache, baseSnapshotId, currentTraceId,
+              snapshotList, snapshotCache, resolvedBaseSnapshotId, currentTraceId,
               preferSourceFile, preferFunctionName
             );
           }
 
           if (evalSnapshotId === null && preferFunctionName && !budgetExhausted()) {
             const functionMatch = await scanForHookSnapshotCb(
-              activeSession.sessionId, baseSnapshotId, currentTraceId, targetedScanOffset,
+              activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
               (detail) =>
                 matchesSourceLocation(detail, preferSourceFile, null, SOURCE_LINE_TOLERANCE) &&
                 functionNameMatches(detail.functionName, preferFunctionName),
@@ -358,14 +633,14 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
 
           if (evalSnapshotId === null) {
             evalSnapshotId = findNearestHookSnapshotIdBySource(
-              snapshotList, snapshotCache, baseSnapshotId, currentTraceId,
+              snapshotList, snapshotCache, resolvedBaseSnapshotId, currentTraceId,
               preferSourceFile, null, SOURCE_LINE_TOLERANCE
             );
           }
 
           if (evalSnapshotId === null && !budgetExhausted()) {
             const sourceMatch = await scanForHookSnapshotCb(
-              activeSession.sessionId, baseSnapshotId, currentTraceId, targetedScanOffset,
+              activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
               (detail) => matchesSourceLocation(detail, preferSourceFile, null, SOURCE_LINE_TOLERANCE),
               remainingBudget()
             );
@@ -374,18 +649,18 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         }
 
         if (evalSnapshotId === null && !budgetExhausted()) {
-          evalSnapshotId = await resolveEvalSnapshotIdCb(baseSnapshotId);
+          evalSnapshotId = await resolveEvalSnapshotIdCb(resolvedBaseSnapshotId);
         }
         if (evalSnapshotId === null && !budgetExhausted()) {
           const fallback = await scanForHookSnapshotCb(
-            activeSession.sessionId, baseSnapshotId, currentTraceId, targetedScanOffset,
+            activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
             undefined, remainingBudget()
           );
           if (fallback) evalSnapshotId = fallback.snapshotId;
         }
         if (evalSnapshotId === null && currentTraceId !== null && !budgetExhausted()) {
           const broadFallback = await scanForHookSnapshotCb(
-            activeSession.sessionId, baseSnapshotId, null, targetedScanOffset,
+            activeSession.sessionId, resolvedBaseSnapshotId, null, targetedScanOffset,
             undefined, remainingBudget()
           );
           if (broadFallback) evalSnapshotId = broadFallback.snapshotId;
@@ -400,7 +675,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           }
           return {
             success: false,
-            error: hookContextMismatchError(baseSnapshotId, currentTraceId, preferSourceFile),
+            error: hookContextMismatchError(resolvedBaseSnapshotId, currentTraceId, preferSourceFile),
           };
         }
         if (!isValidSnapshotId(evalSnapshotId, totalSnapshots)) {
@@ -444,25 +719,25 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           evalSnapshotId = null;
           if (preferSourceFile) {
             evalSnapshotId = findNearestHookSnapshotIdBySource(
-              workingList, workingCache, baseSnapshotId, currentTraceId,
+              workingList, workingCache, resolvedBaseSnapshotId, currentTraceId,
               preferSourceFile, preferSourceLine, SOURCE_LINE_TOLERANCE
             );
             if (evalSnapshotId === null) {
               evalSnapshotId = findNearestHookSnapshotIdBySource(
-                workingList, workingCache, baseSnapshotId, currentTraceId,
+                workingList, workingCache, resolvedBaseSnapshotId, currentTraceId,
                 preferSourceFile, null, SOURCE_LINE_TOLERANCE
               );
             }
             if (evalSnapshotId === null && preferFunctionName) {
               evalSnapshotId = findNearestHookSnapshotIdByFunction(
-                workingList, workingCache, baseSnapshotId, currentTraceId,
+                workingList, workingCache, resolvedBaseSnapshotId, currentTraceId,
                 preferSourceFile, preferFunctionName
               );
             }
           }
           if (evalSnapshotId === null && !budgetExhausted()) {
             const fallbackScan = await scanForHookSnapshotCb(
-              activeSession.sessionId, baseSnapshotId, currentTraceId, targetedScanOffset,
+              activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
               undefined, remainingBudget()
             );
             evalSnapshotId = fallbackScan?.snapshotId ?? null;
@@ -480,7 +755,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           }
           return {
             success: false,
-            error: hookContextMismatchError(baseSnapshotId, currentTraceId, preferSourceFile),
+            error: hookContextMismatchError(resolvedBaseSnapshotId, currentTraceId, preferSourceFile),
           };
         }
         setLimitedCacheEntry(
@@ -546,9 +821,18 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           if (!simpleName) return null;
           const traceRows = decodedTraceRowsRef.current;
           if (!traceRows || traceRows.length === 0) return null;
+          const scalarValue = deriveScalarStateValueFromTrace({
+            variableName: simpleName,
+            snapshotId: resolvedBaseSnapshotId,
+            traceRows,
+            sourceFiles,
+          });
+          if (scalarValue) {
+            return scalarValue;
+          }
           return deriveStructValueFromTrace({
             variableName: simpleName,
-            snapshotId: baseSnapshotId,
+            snapshotId: resolvedBaseSnapshotId,
             traceRows,
             sourceFiles,
             preferSourceFile,
@@ -564,7 +848,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         if (response.result.success && isNullishEvalValue(response.result.value) && simpleName) {
           const variableMatch = await getSimpleNameHint();
           if (variableMatch?.value && !isNullishEvalValue(variableMatch.value)) {
-            return { success: true, value: variableMatch.value };
+            return withLiveSnapshotRemapNote({ success: true, value: variableMatch.value });
           }
           let traceFallback = deriveTraceFallback();
           if (traceFallback) {
@@ -575,7 +859,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
                 traceFallback, activeSession.sessionId, finalSnapshotId, rpcFallbackConfig ?? undefined
               );
             }
-            return { success: true, value: traceFallback };
+            return withLiveSnapshotRemapNote({ success: true, value: traceFallback });
           }
         }
 
@@ -586,9 +870,9 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
               response.result.value as SolValue, activeSession.sessionId,
               evalSnapshotId, rpcFallbackConfig ?? undefined
             );
-            return { success: true, value: filled };
+            return withLiveSnapshotRemapNote({ success: true, value: filled });
           }
-          return response.result;
+          return withLiveSnapshotRemapNote(response.result);
         }
 
         const errorText = response.result.error;
@@ -613,29 +897,30 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
             if (response.result.success) {
               return {
                 ...response.result,
-                note: `Value resolved from step ${fallback.snapshotId} (nearest source-level snapshot to current step ${baseSnapshotId})`,
+                note: `Value resolved from step ${fallback.snapshotId} (nearest source-level snapshot to current step ${resolvedBaseSnapshotId})`,
               };
             }
           }
 
           if (simpleName && !budgetExhausted()) {
-            const variableMatch = await findVariableMatch(simpleName, baseSnapshotId);
+            const variableMatch = await findVariableMatch(simpleName, resolvedBaseSnapshotId);
+
             if (variableMatch?.value && !isNullishEvalValue(variableMatch.value)) {
               return {
                 success: true,
                 value: variableMatch.value,
-                note: `Value resolved from step ${variableMatch.snapshotId} (nearest source-level snapshot to current step ${baseSnapshotId})`,
+                note: `Value resolved from step ${variableMatch.snapshotId} (nearest source-level snapshot to current step ${resolvedBaseSnapshotId})`,
               };
             }
           }
 
           const opcodeTraceFallback = deriveTraceFallback();
           if (opcodeTraceFallback) {
-            return {
+            return withLiveSnapshotRemapNote({
               success: true,
               value: opcodeTraceFallback,
-              note: `Value derived from trace data (current step ${baseSnapshotId} is an opcode-only snapshot)`,
-            };
+              note: `Value derived from trace data (current step ${resolvedBaseSnapshotId} is an opcode-only snapshot)`,
+            });
           }
 
           return {
@@ -653,12 +938,12 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
               snapshotId: variableMatch.snapshotId,
               expression: expressionText,
             });
-            if (response.result.success) return response.result;
+            if (response.result.success) return withLiveSnapshotRemapNote(response.result);
 
             if (expressionText === missingName) {
               const directValue = variableMatch.value;
               if (directValue && !isNullishEvalValue(directValue)) {
-                return { success: true, value: directValue };
+                return withLiveSnapshotRemapNote({ success: true, value: directValue });
               }
             }
           }
@@ -673,7 +958,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
               traceFallback, activeSession.sessionId, finalSnapshotId, rpcFallbackConfig ?? undefined
             );
           }
-          return { success: true, value: traceFallback };
+          return withLiveSnapshotRemapNote({ success: true, value: traceFallback });
         }
 
         if (missingName) {
@@ -681,12 +966,12 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
             success: false,
             error: createEvalError('variable_not_visible', {
               variableName: missingName,
-              snapshotId: baseSnapshotId,
+              snapshotId: resolvedBaseSnapshotId,
             }).message,
           };
         }
 
-        return response.result;
+        return withLiveSnapshotRemapNote(response.result);
       } catch (err) {
         if (isSessionNotFoundError(err)) {
           setSessionInvalid(true);
@@ -713,6 +998,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       snapshotCache,
       snapshotList,
       resolveEvalSnapshotIdCb,
+      resolveLiveSnapshotFromTraceRowCb,
       scanForHookSnapshotCb,
       waitForLiveSessionReadyCb,
       rpcFallbackConfig,

@@ -66,6 +66,27 @@ type StorageRangeAtResult = {
   nextKey: string | null;
 };
 
+type SerializedBreakpoint =
+  | {
+      loc: {
+        Opcode: {
+          bytecode_address: string;
+          pc: number;
+        };
+      };
+      condition: string | null;
+    }
+  | {
+      loc: {
+        Source: {
+          bytecode_address: string;
+          file_path: string;
+          line_number: number;
+        };
+      };
+      condition: string | null;
+    };
+
 function buildDebugAnalysisOptions(chainId: number): Record<string, unknown> {
   const etherscanApiKey = networkConfigManager.getEtherscanApiKey(chainId);
 
@@ -78,6 +99,32 @@ function buildDebugAnalysisOptions(chainId: number): Record<string, unknown> {
     collectSnapshots: true,
     artifactSourcePriority: networkConfigManager.getSourcePriority(),
     ...(etherscanApiKey ? { etherscanApiKey } : {}),
+  };
+}
+
+function serializeBreakpoint(breakpoint: GetBreakpointHitsRequest['breakpoints'][number]): SerializedBreakpoint {
+  const condition = breakpoint.condition ?? null;
+  if (breakpoint.location.type === 'opcode') {
+    return {
+      loc: {
+        Opcode: {
+          bytecode_address: breakpoint.location.bytecodeAddress,
+          pc: breakpoint.location.pc,
+        },
+      },
+      condition,
+    };
+  }
+
+  return {
+    loc: {
+      Source: {
+        bytecode_address: breakpoint.location.bytecodeAddress,
+        file_path: breakpoint.location.filePath,
+        line_number: breakpoint.location.lineNumber,
+      },
+    },
+    condition,
   };
 }
 
@@ -643,8 +690,26 @@ class DebugBridgeService {
    * Get breakpoint hits
    */
   async getBreakpointHits(request: GetBreakpointHitsRequest): Promise<GetBreakpointHitsResponse> {
-    const result = await this.rpcCall(request.sessionId, 'edb_getBreakpointHits', [request.breakpoints]);
-    return { hits: (result as number[]) || [] };
+    const enabledBreakpoints = request.breakpoints
+      .filter((breakpoint) => !!breakpoint.location)
+      .map(serializeBreakpoint);
+
+    if (enabledBreakpoints.length === 0) {
+      return { hits: [] };
+    }
+
+    const results = await Promise.all(
+      enabledBreakpoints.map((breakpoint) =>
+        this.rpcCall(request.sessionId, 'edb_getBreakpointHits', [breakpoint])
+          .then((result) => (Array.isArray(result) ? result : []))
+          .catch(() => [])
+      )
+    );
+
+    const hits = Array.from(new Set(results.flat().filter((id): id is number => Number.isInteger(id))))
+      .sort((a, b) => a - b);
+
+    return { hits };
   }
 
   /**

@@ -47,6 +47,7 @@ export {
 export {
   getSourceLineText,
   deriveStructValueFromTrace,
+  deriveScalarStateValueFromTrace,
   computeDynamicArrayDataSlot,
   fillUnreadFieldsFromStorage,
   matchesSourceLocation,
