@@ -49,7 +49,7 @@
       "destination": "https://repo.sourcify.dev/:path*"
     },
     {
-      "source": "/:path((?!api/).*)",
+      "source": "/:path((?!api/|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],
