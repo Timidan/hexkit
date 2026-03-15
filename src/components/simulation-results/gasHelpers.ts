@@ -79,6 +79,16 @@ export function resolveFunctionName(
 
   if (isDecodedFunction(result.functionName)) return result.functionName.trim();
 
+  if (isTxReplay) {
+    if (isDecodedFunction(traceFn)) return traceFn.trim();
+    if (isDecodedFunction(entryFn)) return entryFn.trim();
+    if (traceFn && isJustSelector(traceFn)) return traceFn;
+    if (entryFn && isJustSelector(entryFn)) return entryFn;
+    if (selector) return selector;
+    if (!rawInput || rawInput === "0x" || rawInput.length <= 2) return "transfer";
+    return "\u2014";
+  }
+
   if (isDecodedFunction(traceFn)) return traceFn.trim();
   if (isDecodedFunction(entryFn)) return entryFn.trim();
   if (decodedEntryFn) return decodedEntryFn;
@@ -95,12 +105,6 @@ export function resolveFunctionName(
     if (r?.name === 'DELEGATECALL' && r?.entryMeta?.function && !isJustSelector(r.entryMeta.function)) {
       return r.entryMeta.function;
     }
-  }
-
-  if (isTxReplay) {
-    if (traceFn && isJustSelector(traceFn)) return traceFn;
-    if (entryFn && isJustSelector(entryFn)) return entryFn;
-    if (selector) return selector;
   }
 
   if (selector) return selector;

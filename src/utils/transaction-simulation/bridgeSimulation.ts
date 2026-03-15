@@ -19,6 +19,7 @@ import { getSimulatorBridgeUrl, getBridgeHeaders } from "../env";
 import { cacheRawTraceText } from "../traceRawTextCache";
 import { networkConfigManager } from "../../config/networkConfig";
 import { classifySimulationError } from "../errorParser";
+import { lookupFunctionSignatures } from "../signatureDatabase";
 
 import {
   type BridgeSimulationResponsePayload,
@@ -43,6 +44,31 @@ const SIMULATOR_BRIDGE_URL = getSimulatorBridgeUrl();
 const SIMULATOR_BRIDGE_ENDPOINT = SIMULATOR_BRIDGE_URL
   ? SIMULATOR_BRIDGE_URL.replace(/\/+$/, "")
   : "";
+const selectorFunctionNameCache = new Map<string, string | null>();
+
+async function lookupReplayFunctionName(selector: string | null | undefined): Promise<string | null> {
+  const normalizedSelector = typeof selector === "string" ? selector.trim().toLowerCase() : "";
+  if (!/^0x[a-f0-9]{8}$/.test(normalizedSelector)) {
+    return null;
+  }
+
+  if (selectorFunctionNameCache.has(normalizedSelector)) {
+    return selectorFunctionNameCache.get(normalizedSelector) ?? null;
+  }
+
+  try {
+    const response = await lookupFunctionSignatures([normalizedSelector]);
+    const match = response?.result?.function?.[normalizedSelector]?.find(
+      (entry) => typeof entry?.name === "string" && entry.name.trim().length > 0
+    );
+    const functionName = match?.name?.split("(")[0]?.trim() || null;
+    selectorFunctionNameCache.set(normalizedSelector, functionName);
+    return functionName;
+  } catch {
+    selectorFunctionNameCache.set(normalizedSelector, null);
+    return null;
+  }
+}
 
 export const postSimulatorJob = async (
   payload: Record<string, unknown>,
@@ -625,6 +651,10 @@ export const replayTransactionWithSimulator = async (
           null,
         type: tx.type ?? null,
       };
+
+      if (!transactionMetadata.functionName && typeof tx.data === "string" && tx.data.length >= 10) {
+        transactionMetadata.functionName = await lookupReplayFunctionName(tx.data.slice(0, 10));
+      }
     }
   } catch {
     // Could not fetch transaction metadata, continuing without
