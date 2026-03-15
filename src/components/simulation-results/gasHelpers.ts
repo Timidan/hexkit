@@ -41,6 +41,31 @@ export function resolveFunctionName(
   const isDecodedFunction = (fn: unknown): fn is string =>
     typeof fn === "string" && fn.trim().length > 0 && !isJustSelector(fn.trim());
   const rows = Array.isArray(decodedTrace?.rows) ? decodedTrace.rows : [];
+  const getBestDecodedTraceFunction = (
+    pickCandidate: (row: any) => unknown,
+  ): string | null => {
+    let bestMatch: { depth: number; id: number; fn: string } | null = null;
+    for (const row of rows as any[]) {
+      const candidate = pickCandidate(row);
+      if (!isDecodedFunction(candidate)) {
+        continue;
+      }
+      const candidateDepth = Number.isFinite(Number(row?.depth))
+        ? Number(row.depth)
+        : Number.MAX_SAFE_INTEGER;
+      const candidateId = Number.isFinite(Number(row?.id))
+        ? Number(row.id)
+        : Number.MAX_SAFE_INTEGER;
+      if (
+        !bestMatch ||
+        candidateDepth < bestMatch.depth ||
+        (candidateDepth === bestMatch.depth && candidateId < bestMatch.id)
+      ) {
+        bestMatch = { depth: candidateDepth, id: candidateId, fn: candidate.trim() };
+      }
+    }
+    return bestMatch?.fn ?? null;
+  };
   const selector = rawInput && rawInput.length >= 10 ? rawInput.slice(0, 10) : null;
   const isTxReplay =
     contractContext?.simulationOrigin === "tx-hash-replay" ||
@@ -49,26 +74,15 @@ export function resolveFunctionName(
   const traceFn = decodedTrace?.callMeta?.function;
   const firstRow = rows[0] as any;
   const entryFn = firstRow?.entryMeta?.function;
-  let bestDecodedEntry: { depth: number; fn: string } | null = null;
-  for (const row of rows as any[]) {
-    const candidate = row?.entryMeta?.function;
-    if (!isDecodedFunction(candidate)) {
-      continue;
-    }
-    const candidateDepth = Number.isFinite(Number(row?.depth))
-      ? Number(row.depth)
-      : Number.MAX_SAFE_INTEGER;
-    if (!bestDecodedEntry || candidateDepth < bestDecodedEntry.depth) {
-      bestDecodedEntry = { depth: candidateDepth, fn: candidate.trim() };
-    }
-  }
-  const decodedEntryFn = bestDecodedEntry?.fn ?? null;
+  const decodedEntryFn = getBestDecodedTraceFunction((row) => row?.entryMeta?.function);
+  const decodedRowFn = getBestDecodedTraceFunction((row) => row?.fn);
 
   if (isDecodedFunction(result.functionName)) return result.functionName.trim();
 
   if (isDecodedFunction(traceFn)) return traceFn.trim();
   if (isDecodedFunction(entryFn)) return entryFn.trim();
   if (decodedEntryFn) return decodedEntryFn;
+  if (decodedRowFn) return decodedRowFn;
 
   if (isDecodedFunction(rootCall?.functionName)) return rootCall.functionName.trim();
   if (isDecodedFunction(rootCall?.label)) return rootCall.label.trim();
