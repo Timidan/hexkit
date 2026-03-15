@@ -175,6 +175,20 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
   const extracted = extractInnerMessage(rawError);
   const lower = `${rawError}\n${extracted}`.toLowerCase();
 
+  // Provider-side request timeout / tier limitations
+  if (
+    lower.includes('request timeout on the free tier') ||
+    lower.includes('upgrade your tier') ||
+    (lower.includes('http error 408') && lower.includes('transport error'))
+  ) {
+    return {
+      type: 'rpc',
+      message: 'Your RPC provider timed out serving this historical replay.',
+      suggestion: 'This provider tier may not support this archival query. Use a paid archival tier or switch to a different archive RPC in Settings.',
+      technicalDetails: rawError,
+    };
+  }
+
   // Historical state not available (non-archival RPC)
   if (
     (lower.includes('historical state') && lower.includes('not available')) ||
