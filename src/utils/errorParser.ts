@@ -163,7 +163,7 @@ function extractInnerMessage(raw: string): string {
     .replace(/^Database\(EdbDBError\s*\{\s*message:\s*"/i, '')
     .replace(/"\s*\}\s*\)\s*$/i, '');
 
-  return stripped;
+  return stripped.replace(/\s+Location:\s+.*$/is, '').trim();
 }
 
 /**
@@ -240,6 +240,24 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
       type: 'network',
       message: 'Failed to connect to the RPC node.',
       suggestion: 'Check your internet connection or try a different RPC provider in Settings.',
+      technicalDetails: rawError,
+    };
+  }
+
+  if (lower.includes('target transaction not found')) {
+    return {
+      type: 'network',
+      message: 'Transaction not found on the selected network.',
+      suggestion: 'Switch to the correct network and try the replay again.',
+      technicalDetails: rawError,
+    };
+  }
+
+  if (lower.includes('could not detect network') || lower.includes('nonetwork')) {
+    return {
+      type: 'network',
+      message: 'Could not connect to the configured RPC for this network.',
+      suggestion: 'Switch to App Default RPC or configure a custom RPC in Settings.',
       technicalDetails: rawError,
     };
   }

@@ -14,22 +14,22 @@ import type { Chain } from "../types";
 // Public RPC fallbacks (used only when user hasn't configured a provider
 // OR when user's provider doesn't support the chain)
 const PUBLIC_RPC_URLS = {
-  1: "https://eth.llamarpc.com",
-  11155111: "https://rpc.sepolia.ethpandaops.io",
-  8453: "https://base.llamarpc.com",
-  84532: "https://sepolia.base.org",
-  137: "https://polygon.llamarpc.com",
-  17000: "https://ethereum-holesky.publicnode.com",
+  1: "https://ethereum-rpc.publicnode.com",
+  11155111: "https://ethereum-sepolia-rpc.publicnode.com",
+  8453: "https://base-rpc.publicnode.com",
+  84532: "https://base-sepolia-rpc.publicnode.com",
+  137: "https://polygon-bor-rpc.publicnode.com",
+  17000: "https://holesky.rpc.thirdweb.com",
   4202: "https://rpc.sepolia-api.lisk.com",
-  80002: "https://rpc-amoy.polygon.technology",
-  42161: "https://arbitrum.llamarpc.com",
-  421614: "https://sepolia-rollup.arbitrum.io/rpc",
-  10: "https://optimism.llamarpc.com",
+  80002: "https://polygon-amoy-bor-rpc.publicnode.com",
+  42161: "https://arbitrum-one-rpc.publicnode.com",
+  421614: "https://arbitrum-sepolia-rpc.publicnode.com",
+  10: "https://optimism-rpc.publicnode.com",
   11155420: "https://sepolia.optimism.io",
-  56: "https://binance.llamarpc.com",
-  97: "https://bsc-testnet.public.blastapi.io",
-  43114: "https://rpc.ankr.com/avalanche",
-  100: "https://rpc.ankr.com/gnosis",
+  56: "https://bsc-dataseed.binance.org",
+  97: "https://bsc-testnet-rpc.publicnode.com",
+  43114: "https://api.avax.network/ext/bc/C/rpc",
+  100: "https://rpc.gnosischain.com",
 } as const;
 
 export const SUPPORTED_CHAINS: Chain[] = [
@@ -410,4 +410,3 @@ export const getExplorerUrl = (chainId: number, type: "tx" | "address" | "block"
       return "";
   }
 };
-

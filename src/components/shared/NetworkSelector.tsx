@@ -31,7 +31,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 1,
     name: "Ethereum",
-    rpcUrl: "https://eth.llamarpc.com",
+    rpcUrl: "https://ethereum-rpc.publicnode.com",
     blockExplorer: "https://etherscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -41,7 +41,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 137,
     name: "Polygon",
-    rpcUrl: "https://polygon.llamarpc.com",
+    rpcUrl: "https://polygon-bor-rpc.publicnode.com",
     blockExplorer: "https://polygonscan.com",
     isTestnet: false,
     category: "mainnet",
@@ -51,7 +51,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 42161,
     name: "Arbitrum One",
-    rpcUrl: "https://arbitrum.llamarpc.com",
+    rpcUrl: "https://arbitrum-one-rpc.publicnode.com",
     blockExplorer: "https://arbiscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -61,7 +61,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 10,
     name: "Optimism",
-    rpcUrl: "https://optimism.llamarpc.com",
+    rpcUrl: "https://optimism-rpc.publicnode.com",
     blockExplorer: "https://optimistic.etherscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -71,7 +71,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 8453,
     name: "Base",
-    rpcUrl: "https://base.llamarpc.com",
+    rpcUrl: "https://base-rpc.publicnode.com",
     blockExplorer: "https://basescan.org",
     isTestnet: false,
     category: "mainnet",
@@ -81,7 +81,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 56,
     name: "BNB Smart Chain",
-    rpcUrl: "https://binance.llamarpc.com",
+    rpcUrl: "https://bsc-dataseed.binance.org",
     blockExplorer: "https://bscscan.com",
     isTestnet: false,
     category: "mainnet",
@@ -91,7 +91,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 100,
     name: "Gnosis Chain",
-    rpcUrl: "https://rpc.ankr.com/gnosis",
+    rpcUrl: "https://rpc.gnosischain.com",
     blockExplorer: "https://gnosisscan.io",
     isTestnet: false,
     category: "mainnet",
@@ -101,7 +101,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 43114,
     name: "Avalanche",
-    rpcUrl: "https://rpc.ankr.com/avalanche",
+    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
     blockExplorer: "https://snowtrace.io",
     isTestnet: false,
     category: "mainnet",
@@ -115,7 +115,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     name: "Sepolia",
     rpcUrl: API_KEY
       ? `https://eth-sepolia.g.alchemy.com/v2/${API_KEY}`
-      : "https://rpc.sepolia.ethpandaops.io",
+      : "https://ethereum-sepolia-rpc.publicnode.com",
     blockExplorer: "https://sepolia.etherscan.io",
     isTestnet: true,
     category: "testnet",
@@ -125,7 +125,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 17000,
     name: "Holesky",
-    rpcUrl: "https://ethereum-holesky.publicnode.com",
+    rpcUrl: "https://holesky.rpc.thirdweb.com",
     blockExplorer: "https://holesky.etherscan.io",
     isTestnet: true,
     category: "testnet",
@@ -135,7 +135,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 80002,
     name: "Polygon Amoy",
-    rpcUrl: "https://rpc-amoy.polygon.technology",
+    rpcUrl: "https://polygon-amoy-bor-rpc.publicnode.com",
     blockExplorer: "https://amoy.polygonscan.com",
     isTestnet: true,
     category: "testnet",
@@ -145,7 +145,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 421614,
     name: "Arbitrum Sepolia",
-    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+    rpcUrl: "https://arbitrum-sepolia-rpc.publicnode.com",
     blockExplorer: "https://sepolia.arbiscan.io",
     isTestnet: true,
     category: "testnet",
@@ -177,7 +177,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     name: "Base Sepolia",
     rpcUrl: API_KEY
       ? `https://base-sepolia.g.alchemy.com/v2/${API_KEY}`
-      : "https://sepolia.base.org",
+      : "https://base-sepolia-rpc.publicnode.com",
     blockExplorer: "https://sepolia.basescan.org",
     isTestnet: true,
     category: "testnet",
@@ -187,7 +187,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
   {
     id: 97,
     name: "BNB Testnet",
-    rpcUrl: "https://bsc-testnet.public.blastapi.io",
+    rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
     blockExplorer: "https://testnet.bscscan.com",
     isTestnet: true,
     category: "testnet",

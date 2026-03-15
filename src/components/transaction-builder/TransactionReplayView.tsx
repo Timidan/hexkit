@@ -41,13 +41,36 @@ import {
 } from "./types";
 import { shortenAddress } from "../shared/AddressDisplay";
 
+function formatReplayRpcError(rawError: string, networkName: string, mode: string): string {
+  const trimmed = rawError.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (lower.includes('could not detect network') || lower.includes('nonetwork')) {
+    if (mode === 'DEFAULT') {
+      return `Could not connect to the App Default RPC for ${networkName}. Configure a custom RPC in Settings if this network remains unavailable.`;
+    }
+    return `Could not connect to the configured ${mode} RPC for ${networkName}. Check your API key or switch providers in Settings.`;
+  }
+
+  if (lower.includes('403') || lower.includes('forbidden')) {
+    if (mode === 'DEFAULT') {
+      return `The App Default RPC for ${networkName} rejected the request. Configure a custom RPC in Settings to continue.`;
+    }
+    return `The configured ${mode} RPC rejected the request. Check your API key or switch providers in Settings.`;
+  }
+
+  return trimmed || "Failed to fetch transaction";
+}
+
+const RPC_AUTO_SWITCH_NOTICE_KEY = "web3-toolkit:rpc-auto-switch-notice";
+
 export const TransactionReplayView: React.FC<{
   modeToggle: ReactNode;
 }> = ({ modeToggle }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { setSimulation } = useSimulation();
-  const { resolveRpcUrl } = useNetworkConfig();
+  const { config, resolveRpcUrl, saveConfig } = useNetworkConfig();
   const [selectedNetwork, setSelectedNetwork] = useState<ExtendedChain>(defaultReplayNetwork);
   const [txHash, setTxHash] = useState("");
   const [blockTag, setBlockTag] = useState("");
@@ -55,6 +78,7 @@ export const TransactionReplayView: React.FC<{
   const [isSimulating, setIsSimulating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [bridgeWarning, setBridgeWarning] = useState<string | null>(null);
+  const [rpcNotice, setRpcNotice] = useState<string | null>(null);
   // When true, form was prefilled from a clone resimulation - don't auto-run
   const [noAutoReplay, setNoAutoReplay] = useState(false);
   const [pendingAutoReplayToken, setPendingAutoReplayToken] = useState<number | null>(null);
@@ -151,6 +175,40 @@ export const TransactionReplayView: React.FC<{
     }
   }, [pendingAutoReplayToken, noAutoReplay, txHash, isSimulating]);
 
+  useEffect(() => {
+    const handleAutoSwitch = (event: Event) => {
+      const detail = (event as CustomEvent<{ note?: string }>).detail;
+      if (detail?.note) {
+        setRpcNotice(detail.note);
+      }
+    };
+
+    window.addEventListener('network-config-auto-switched', handleAutoSwitch);
+    return () => window.removeEventListener('network-config-auto-switched', handleAutoSwitch);
+  }, []);
+
+  useEffect(() => {
+    if (config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()) {
+      setRpcNotice("Alchemy was selected without an API key. Switched back to App Default RPC.");
+      saveConfig({ rpcMode: "DEFAULT" });
+      return;
+    }
+
+    if (config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()) {
+      setRpcNotice("Infura was selected without a Project ID. Switched back to App Default RPC.");
+      saveConfig({ rpcMode: "DEFAULT" });
+    }
+  }, [config.rpcMode, config.alchemyApiKey, config.infuraProjectId, saveConfig]);
+
+  const handleNetworkChange = useCallback((network: ExtendedChain) => {
+    setRpcNotice(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+      window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+    }
+    setSelectedNetwork(network);
+  }, []);
+
   // Debounced effect to fetch transaction preview when hash/network changes
   useEffect(() => {
     const trimmedHash = txHash.trim();
@@ -180,6 +238,18 @@ export const TransactionReplayView: React.FC<{
       setTxPreview(null);
 
       try {
+        const missingProviderNotice =
+          config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()
+            ? "Alchemy was selected without an API key. Switched back to App Default RPC."
+            : config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()
+              ? "Infura was selected without a Project ID. Switched back to App Default RPC."
+              : null;
+
+        if (missingProviderNotice) {
+          setRpcNotice(missingProviderNotice);
+          saveConfig({ rpcMode: "DEFAULT" });
+        }
+
         // Convert ExtendedChain to Chain for RPC resolution
         const chainForRpc: Chain = {
           id: selectedNetwork.id,
@@ -191,13 +261,22 @@ export const TransactionReplayView: React.FC<{
         // Use user's configured RPC if available, otherwise fall back to default
         const rpcResolution = resolveRpcUrl(chainForRpc.id, selectedNetwork.rpcUrl);
         const rpcUrl = rpcResolution.url;
+        const persistedNotice =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY) ||
+              window.sessionStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY)
+            : null;
+        if (persistedNotice) {
+          setRpcNotice(persistedNotice);
+        } else if (rpcResolution.note) {
+          setRpcNotice(rpcResolution.note);
+        }
 
         if (!rpcUrl) {
-          const providerMode = rpcResolution.mode || 'DEFAULT';
-          const providerName = providerMode === 'ALCHEMY' ? 'Alchemy' : providerMode === 'INFURA' ? 'Infura' : providerMode;
           setTxFetchStatus("error");
           setTxFetchError(
-            `No RPC available for ${selectedNetwork.name}. ${providerName} may not support this chain — switch to Default mode or configure a custom RPC in Settings.`
+            rpcResolution.note ||
+            `No RPC available for ${selectedNetwork.name}. Switch to App Default RPC or configure a custom RPC in Settings.`
           );
           return;
         }
@@ -226,7 +305,13 @@ export const TransactionReplayView: React.FC<{
       } catch (err: any) {
         if (abortController.signal.aborted) return;
         setTxFetchStatus("error");
-        setTxFetchError(err?.message || "Failed to fetch transaction");
+        setTxFetchError(
+          formatReplayRpcError(
+            err?.message || "Failed to fetch transaction",
+            selectedNetwork?.name || "this network",
+            resolveRpcUrl(selectedNetwork.id, selectedNetwork.rpcUrl).mode || 'DEFAULT'
+          )
+        );
       }
     }, 500); // 500ms debounce
 
@@ -336,6 +421,11 @@ export const TransactionReplayView: React.FC<{
     setEnableDebug(false);
     setFormError(null);
     setBridgeWarning(null);
+    setRpcNotice(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+      window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+    }
     setTxPreview(null);
     setTxFetchStatus("idle");
     setTxFetchError(null);
@@ -377,7 +467,14 @@ export const TransactionReplayView: React.FC<{
                       autoComplete="off"
                       spellCheck={false}
                       value={txHash}
-                      onChange={(event) => setTxHash(event.target.value)}
+                      onChange={(event) => {
+                        setRpcNotice(null);
+                        if (typeof window !== "undefined") {
+                          window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+                          window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+                        }
+                        setTxHash(event.target.value);
+                      }}
                       placeholder="0x0000…0000"
                       className={cn(
                         "h-12 pl-4 pr-[120px] font-mono text-sm tracking-tight transition-all duration-300",
@@ -407,7 +504,7 @@ export const TransactionReplayView: React.FC<{
                       <NetworkSelector
                         className="scale-90 opacity-90 hover:opacity-100 transition-opacity"
                         selectedNetwork={selectedNetwork}
-                        onNetworkChange={setSelectedNetwork}
+                        onNetworkChange={handleNetworkChange}
                         networks={EXTENDED_NETWORKS}
                         showTestnets={true}
                         size="sm"
@@ -441,6 +538,13 @@ export const TransactionReplayView: React.FC<{
               </div>
 
               {/* Transaction Preview / Validation Status */}
+              {rpcNotice && (
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
+                  <AlertTriangleIcon width={16} height={16} className="text-yellow-300" />
+                  <span className="text-sm text-yellow-100">{rpcNotice}</span>
+                </div>
+              )}
+
               {txHash.trim() && /^0x[a-fA-F0-9]{64}$/.test(txHash.trim()) && (
                 <div className="rounded-lg border border-border/50 overflow-hidden">
                   {txFetchStatus === "fetching" && (

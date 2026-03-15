@@ -331,22 +331,22 @@ const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
 
 // Public RPC fallbacks — archival-capable free endpoints (may be rate-limited)
 const PUBLIC_RPC_FALLBACKS: Record<number, string> = {
-  1: 'https://eth.llamarpc.com',
-  11155111: 'https://rpc.sepolia.ethpandaops.io',
-  8453: 'https://base.llamarpc.com',
-  84532: 'https://sepolia.base.org',
-  137: 'https://polygon.llamarpc.com',
-  80002: 'https://rpc-amoy.polygon.technology',
-  17000: 'https://ethereum-holesky.publicnode.com',
+  1: 'https://ethereum-rpc.publicnode.com',
+  11155111: 'https://ethereum-sepolia-rpc.publicnode.com',
+  8453: 'https://base-rpc.publicnode.com',
+  84532: 'https://base-sepolia-rpc.publicnode.com',
+  137: 'https://polygon-bor-rpc.publicnode.com',
+  80002: 'https://polygon-amoy-bor-rpc.publicnode.com',
+  17000: 'https://holesky.rpc.thirdweb.com',
   4202: 'https://rpc.sepolia-api.lisk.com',
-  42161: 'https://arbitrum.llamarpc.com',
-  421614: 'https://sepolia-rollup.arbitrum.io/rpc',
-  10: 'https://optimism.llamarpc.com',
+  42161: 'https://arbitrum-one-rpc.publicnode.com',
+  421614: 'https://arbitrum-sepolia-rpc.publicnode.com',
+  10: 'https://optimism-rpc.publicnode.com',
   11155420: 'https://sepolia.optimism.io',
-  56: 'https://binance.llamarpc.com',
-  97: 'https://bsc-testnet.public.blastapi.io',
-  43114: 'https://rpc.ankr.com/avalanche',
-  100: 'https://rpc.ankr.com/gnosis',
+  56: 'https://bsc-dataseed.binance.org',
+  97: 'https://bsc-testnet-rpc.publicnode.com',
+  43114: 'https://api.avax.network/ext/bc/C/rpc',
+  100: 'https://rpc.gnosischain.com',
 };
 
 interface OldRpcSettings {
@@ -461,6 +461,47 @@ function writeConfig(config: NetworkConfig): void {
   window.dispatchEvent(new CustomEvent('network-config-updated'));
 }
 
+function autoSwitchProviderModeToDefault(
+  config: NetworkConfig,
+  providerLabel: 'Alchemy' | 'Infura',
+  fallbackUrl: string
+): RpcResolution {
+  const note = fallbackUrl
+    ? `${providerLabel} was selected without an API key. Switched back to App Default RPC.`
+    : `${providerLabel} was selected without an API key. Switched back to App Default RPC, but no default RPC is configured for this network.`;
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem('web3-toolkit:rpc-auto-switch-notice', note);
+    window.sessionStorage.setItem('web3-toolkit:rpc-auto-switch-notice', note);
+    window.dispatchEvent(
+      new CustomEvent('network-config-auto-switched', {
+        detail: { note, provider: providerLabel },
+      })
+    );
+  }
+
+  writeConfig({
+    ...config,
+    rpcMode: 'DEFAULT',
+  });
+
+  if (fallbackUrl) {
+    return {
+      url: fallbackUrl,
+      mode: 'DEFAULT',
+      isFallback: true,
+      note,
+    };
+  }
+
+  return {
+    url: '',
+    mode: 'DEFAULT',
+    isFallback: true,
+    note,
+  };
+}
+
 /** Private/reserved IP ranges that should be rejected for user-supplied RPC URLs */
 const PRIVATE_IP_PATTERNS = [
   /^https?:\/\/10\.\d+\.\d+\.\d+/i,
@@ -561,6 +602,10 @@ export const networkConfigManager = {
       const apiKey = config.alchemyApiKey?.trim();
       const builder = ALCHEMY_ENDPOINTS[chainId];
 
+      if (!apiKey) {
+        return autoSwitchProviderModeToDefault(config, 'Alchemy', fallbackUrl);
+      }
+
       if (apiKey && builder) {
         return {
           url: builder(apiKey),
@@ -595,6 +640,10 @@ export const networkConfigManager = {
     if (config.rpcMode === 'INFURA') {
       const projectId = config.infuraProjectId?.trim();
       const builder = INFURA_ENDPOINTS[chainId];
+
+      if (!projectId) {
+        return autoSwitchProviderModeToDefault(config, 'Infura', fallbackUrl);
+      }
 
       if (projectId && builder) {
         return {
