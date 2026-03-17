@@ -10,7 +10,7 @@
  * All components MUST use this module instead of direct localStorage access.
  */
 
-export type RpcProviderMode = 'DEFAULT' | 'ALCHEMY' | 'INFURA' | 'CUSTOM';
+export type RpcProviderMode = 'DEFAULT' | 'ALCHEMY' | 'INFURA' | 'CUSTOM' | 'LOCAL';
 export type ExplorerKeyMode = 'default' | 'personal';
 
 export type AbiSourceType = 'sourcify' | 'etherscan' | 'blockscout';
@@ -26,6 +26,9 @@ export interface NetworkConfig {
   alchemyApiKey?: string;
   infuraProjectId?: string;
   customRpcUrl?: string;
+
+  /** Local dev chain URL (workspace mode) */
+  localRpcUrl?: string;
 
   // Explorer API Keys
   etherscanKeyMode: ExplorerKeyMode;
@@ -567,6 +570,33 @@ export const networkConfigManager = {
         url: normalizeUrl(chainOverride.customRpcUrl),
         mode: 'CUSTOM',
         isFallback: false,
+      };
+    }
+
+    // Handle LOCAL mode (workspace local dev chain)
+    if (config.rpcMode === 'LOCAL') {
+      const localUrl = config.localRpcUrl?.trim();
+      if (localUrl) {
+        return {
+          url: localUrl,
+          mode: 'LOCAL',
+          isFallback: false,
+          note: 'Local dev chain',
+        };
+      }
+      if (config.allowPublicRpcFallback && fallbackUrl) {
+        return {
+          url: fallbackUrl,
+          mode: 'DEFAULT',
+          isFallback: true,
+          note: 'Local mode selected but no URL configured. Using public fallback.',
+        };
+      }
+      return {
+        url: '',
+        mode: 'LOCAL',
+        isFallback: false,
+        note: 'Local mode selected but no URL configured.',
       };
     }
 
