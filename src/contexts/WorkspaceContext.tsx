@@ -72,7 +72,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [snapshots, setSnapshots] = useState<NamedSnapshot[]>([]);
   const [watches, setWatches] = useState<WatchExpression[]>([]);
 
-  // Load persisted state on mount
+  // Load persisted state on mount; cleanup on unmount
   useEffect(() => {
     (async () => {
       const contracts = await storageRef.current.getDeployedContracts();
@@ -80,6 +80,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       const arts = await storageRef.current.getArtifacts();
       setArtifacts(arts as CompilationArtifact[]);
     })();
+
+    return () => {
+      chainManagerRef.current.disconnect();
+      fileServiceRef.current.close();
+    };
   }, []);
 
   const connectToNode = useCallback(async (url: string) => {
@@ -95,6 +100,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     chainManagerRef.current.on('disconnect', () => {
       setIsConnected(false);
+      setNodeType(null);
+      setChainInfo(null);
+      setAccounts([]);
+      setRpcUrl(null);
     });
 
     chainManagerRef.current.on('reconnect', () => {
@@ -109,6 +118,23 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setNodeType(result.type);
       setRpcUrl(chainManagerRef.current.rpcUrl);
       setChainInfo(chainManagerRef.current.chainInfo);
+
+      chainManagerRef.current.on('chainUpdate', (info) => {
+        if (info) setChainInfo(info);
+      });
+
+      chainManagerRef.current.on('disconnect', () => {
+        setIsConnected(false);
+        setNodeType(null);
+        setChainInfo(null);
+        setAccounts([]);
+        setRpcUrl(null);
+      });
+
+      chainManagerRef.current.on('reconnect', () => {
+        setIsConnected(true);
+      });
+
       return true;
     }
     return false;

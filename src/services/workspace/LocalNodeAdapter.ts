@@ -70,7 +70,11 @@ export abstract class BaseNodeAdapter implements ILocalNodeAdapter {
 
   private static _rpcIdCounter = 0;
 
-  constructor(protected rpcUrl: string) {}
+  protected rpcUrl: string;
+
+  constructor(rpcUrl: string) {
+    this.rpcUrl = rpcUrl;
+  }
 
   /** Send a JSON-RPC call to the local node */
   protected async rpc<T = unknown>(method: string, params: unknown[] = []): Promise<T> {

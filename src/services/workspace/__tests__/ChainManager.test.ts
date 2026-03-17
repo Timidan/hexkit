@@ -161,7 +161,7 @@ describe('ChainManager', () => {
 
     // The disconnect fetch should have been called
     const disconnectCall = mockFetch.mock.calls.find(
-      ([url]) => typeof url === 'string' && url.includes('/chain/disconnect')
+      (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('/chain/disconnect')
     );
     expect(disconnectCall).toBeDefined();
   });

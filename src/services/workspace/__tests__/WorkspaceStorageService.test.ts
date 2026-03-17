@@ -24,7 +24,7 @@ describe('WorkspaceStorageService', () => {
     await service.saveDeployedContract(contract);
     const contracts = await service.getDeployedContracts();
     expect(contracts).toHaveLength(1);
-    expect(contracts[0].name).toBe('MyToken');
+    expect((contracts[0] as Record<string, unknown>).name).toBe('MyToken');
   });
 
   it('saves and retrieves compilation artifacts', async () => {
@@ -43,7 +43,7 @@ describe('WorkspaceStorageService', () => {
     await service.saveArtifact(artifact);
     const artifacts = await service.getArtifacts();
     expect(artifacts).toHaveLength(1);
-    expect(artifacts[0].contractName).toBe('MyToken');
+    expect((artifacts[0] as Record<string, unknown>).contractName).toBe('MyToken');
   });
 
   it('saves and retrieves transaction history', async () => {
