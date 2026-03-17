@@ -3,3 +3,8 @@ export type { ILocalNodeAdapter, CallParams } from './LocalNodeAdapter';
 export { BaseNodeAdapter } from './LocalNodeAdapter';
 export { AnvilAdapter, HardhatAdapter, GanacheAdapter } from './adapters';
 export * from './types';
+export { FileAccessService } from './FileAccessService';
+export type { FileNode } from './FileAccessService';
+export { CompilationService } from './CompilationService';
+export type { Toolchain, ToolchainInfo, CompilationResult } from './CompilationService';
+export { WorkspaceStorageService } from './WorkspaceStorageService';
