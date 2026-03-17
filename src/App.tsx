@@ -24,6 +24,7 @@ import { useBreakpoint } from "./hooks/useBreakpoint";
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
 const StorageManagerModal = React.lazy(() => import("./components/StorageManagerModal"));
+const WorkspacePage = React.lazy(() => import("./components/workspace/WorkspacePage"));
 
 function App() {
   const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
@@ -35,6 +36,7 @@ function App() {
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
+  const isWorkspacePage = location.pathname.startsWith("/workspace");
 
   useApplyRainbowKitTheme();
 
@@ -72,6 +74,12 @@ function App() {
                 <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
                   <Routes>
                     <Route path="/simulation/:id" element={<SimulationResultsPage />} />
+                  </Routes>
+                </Suspense>
+              ) : isWorkspacePage ? (
+                <Suspense fallback={<LoadingSpinner text="Loading workspace" fullPage />}>
+                  <Routes>
+                    <Route path="/workspace/*" element={<WorkspacePage />} />
                   </Routes>
                 </Suspense>
               ) : isHomePage ? (
