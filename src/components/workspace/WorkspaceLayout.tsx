@@ -10,38 +10,35 @@ import { WorkspaceStatusBar } from './WorkspaceStatusBar';
 import { FileExplorer } from './panels/FileExplorer';
 import { ChainControlPanel } from './panels/ChainControlPanel';
 import { ConsolePanel } from './panels/ConsolePanel';
+import { CodeViewer } from './panels/CodeViewer';
+import { SearchPanel } from './panels/SearchPanel';
+import { OutlinePanel } from './panels/OutlinePanel';
+import { HistoryPanel } from './panels/HistoryPanel';
+import { SettingsPanel } from './panels/SettingsPanel';
 
 export function WorkspaceLayout() {
   const [activeView, setActiveView] = useState<WorkspaceView>('files');
 
   return (
-    <div className="flex flex-col h-screen w-screen">
+    <div className="flex flex-col h-screen w-screen bg-zinc-950">
       <WorkspaceToolbar />
       <div className="flex flex-1 overflow-hidden">
         <ActivityRail activeView={activeView} onViewChange={setActiveView} />
         <ResizablePanelGroup orientation="horizontal">
           <ResizablePanel defaultSize="18%" minSize="15%" maxSize="25%">
-            {activeView === 'files' && <FileExplorer />}
-            {activeView === 'search' && (
-              <div className="p-3 text-sm text-muted-foreground">Search — coming soon</div>
-            )}
-            {activeView === 'outline' && (
-              <div className="p-3 text-sm text-muted-foreground">Outline — coming soon</div>
-            )}
-            {activeView === 'history' && (
-              <div className="p-3 text-sm text-muted-foreground">Deploy history — coming soon</div>
-            )}
-            {activeView === 'settings' && (
-              <div className="p-3 text-sm text-muted-foreground">Settings — coming soon</div>
-            )}
+            <div className="h-full bg-zinc-950">
+              {activeView === 'files' && <FileExplorer />}
+              {activeView === 'search' && <SearchPanel />}
+              {activeView === 'outline' && <OutlinePanel />}
+              {activeView === 'history' && <HistoryPanel />}
+              {activeView === 'settings' && <SettingsPanel />}
+            </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize="52%" minSize="40%">
             <ResizablePanelGroup orientation="vertical">
               <ResizablePanel defaultSize="70%">
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Editor — open a file to begin
-                </div>
+                <CodeViewer />
               </ResizablePanel>
               <ResizableHandle />
               <ResizablePanel defaultSize="30%" minSize="15%">

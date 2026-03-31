@@ -1,6 +1,9 @@
 // src/services/workspace/FileAccessService.ts
 
 import { getSimulatorBridgeUrl } from '@/utils/env';
+import type { CompilationArtifact } from './types';
+
+export type Toolchain = 'foundry' | 'hardhat' | 'none';
 
 export interface FileNode {
   name: string;
@@ -153,6 +156,163 @@ export class FileAccessService {
       }
     }
     return entries;
+  }
+
+  /** Detect toolchain by checking for config files via the directory handle */
+  async detectToolchainLocal(): Promise<Toolchain> {
+    if (!this.directoryHandle) return 'none';
+
+    try {
+      await this.directoryHandle.getFileHandle('foundry.toml');
+      return 'foundry';
+    } catch { /* not foundry */ }
+
+    for (const name of ['hardhat.config.ts', 'hardhat.config.js']) {
+      try {
+        await this.directoryHandle.getFileHandle(name);
+        return 'hardhat';
+      } catch { /* not this config */ }
+    }
+
+    return 'none';
+  }
+
+  /** Scan pre-compiled artifacts from out/ (Foundry) or artifacts/ (Hardhat) */
+  async scanLocalArtifacts(): Promise<{ toolchain: Toolchain; artifacts: CompilationArtifact[] }> {
+    if (!this.directoryHandle) return { toolchain: 'none', artifacts: [] };
+
+    const toolchain = await this.detectToolchainLocal();
+    if (toolchain === 'foundry') return { toolchain, artifacts: await this.scanFoundryOut() };
+    if (toolchain === 'hardhat') return { toolchain, artifacts: await this.scanHardhatArtifacts() };
+    return { toolchain: 'none', artifacts: [] };
+  }
+
+  /** Scan Foundry out/ directory for compiled contract JSON */
+  private async scanFoundryOut(): Promise<CompilationArtifact[]> {
+    let outDir: FileSystemDirectoryHandle;
+    try {
+      outDir = await this.directoryHandle!.getDirectoryHandle('out');
+    } catch {
+      return [];
+    }
+
+    // Determine which source dirs are test/script so we can skip their artifacts
+    const testScriptDirs = new Set<string>();
+    for (const dirName of ['test', 'script', 'scripts']) {
+      try {
+        await this.directoryHandle!.getDirectoryHandle(dirName);
+        testScriptDirs.add(dirName);
+      } catch { /* dir doesn't exist */ }
+    }
+
+    const results: CompilationArtifact[] = [];
+
+    // out/<SourceFile>.sol/<ContractName>.json
+    for await (const [solDirName, solDirHandle] of (outDir as any).entries()) {
+      if (solDirHandle.kind !== 'directory' || !solDirName.endsWith('.sol')) continue;
+
+      for await (const [jsonName, jsonHandle] of (solDirHandle as any).entries()) {
+        if (jsonHandle.kind !== 'file' || !jsonName.endsWith('.json')) continue;
+
+        try {
+          const file = await (jsonHandle as FileSystemFileHandle).getFile();
+          const data = JSON.parse(await file.text());
+          if (!data.abi || !data.bytecode?.object) continue;
+
+          const bytecodeHex: string = data.bytecode.object;
+
+          // Skip empty bytecode (interfaces, abstract contracts, libraries with no code)
+          if (!bytecodeHex || bytecodeHex === '0x' || bytecodeHex === '0x0' || bytecodeHex.length <= 4) continue;
+
+          // Skip test/script artifacts by checking metadata source path
+          const sourcePath: string = data.metadata?.settings?.compilationTarget
+            ? Object.keys(data.metadata.settings.compilationTarget)[0] ?? ''
+            : '';
+          const isTestOrScript = sourcePath && testScriptDirs.has(sourcePath.split('/')[0]);
+          if (isTestOrScript) continue;
+
+          // Skip common test helper contracts by name
+          const contractName = jsonName.replace('.json', '');
+          if (contractName === 'Test' || contractName === 'Script' || contractName === 'Vm' ||
+              contractName === 'StdAssertions' || contractName === 'StdCheats' ||
+              contractName === 'StdError' || contractName === 'StdInvariant' ||
+              contractName === 'StdStorage' || contractName === 'StdUtils' ||
+              contractName === 'StdStyle' || contractName === 'console' ||
+              contractName === 'console2' || contractName.startsWith('Std')) continue;
+
+          results.push({
+            contractName,
+            abi: data.abi,
+            bytecode: bytecodeHex.startsWith('0x') ? bytecodeHex : `0x${bytecodeHex}`,
+            deployedBytecode: data.deployedBytecode?.object ?? '',
+            sourceMap: data.bytecode?.sourceMap ?? '',
+            deployedSourceMap: data.deployedBytecode?.sourceMap ?? '',
+            ast: data.ast ?? null,
+            storageLayout: data.storageLayout ?? null,
+            sourceFile: solDirName,
+            compilerVersion: data.metadata?.compiler?.version ?? '',
+            contentHash: data.metadata?.contentHash ?? '',
+          });
+        } catch { /* skip unparseable files */ }
+      }
+    }
+
+    return results;
+  }
+
+  /** Scan Hardhat artifacts/contracts/ directory for compiled contract JSON */
+  private async scanHardhatArtifacts(): Promise<CompilationArtifact[]> {
+    let artifactsDir: FileSystemDirectoryHandle;
+    try {
+      artifactsDir = await this.directoryHandle!.getDirectoryHandle('artifacts');
+    } catch {
+      return [];
+    }
+
+    let contractsDir: FileSystemDirectoryHandle;
+    try {
+      contractsDir = await artifactsDir.getDirectoryHandle('contracts');
+    } catch {
+      return [];
+    }
+
+    const results: CompilationArtifact[] = [];
+
+    // artifacts/contracts/<SourceFile>.sol/<ContractName>.json
+    for await (const [solDirName, solDirHandle] of (contractsDir as any).entries()) {
+      if (solDirHandle.kind !== 'directory' || !solDirName.endsWith('.sol')) continue;
+
+      for await (const [jsonName, jsonHandle] of (solDirHandle as any).entries()) {
+        if (jsonHandle.kind !== 'file' || !jsonName.endsWith('.json')) continue;
+        if (jsonName.endsWith('.dbg.json')) continue;
+
+        try {
+          const file = await (jsonHandle as FileSystemFileHandle).getFile();
+          const data = JSON.parse(await file.text());
+          if (!data.abi || !data.bytecode) continue;
+
+          const bytecodeHex: string = data.bytecode;
+          // Skip empty bytecodes (interfaces, abstract contracts)
+          if (!bytecodeHex || bytecodeHex === '0x' || bytecodeHex === '0x0' || bytecodeHex.length <= 4) continue;
+
+          results.push({
+            contractName: data.contractName ?? jsonName.replace('.json', ''),
+            abi: data.abi,
+            bytecode: bytecodeHex.startsWith('0x') ? bytecodeHex : `0x${bytecodeHex}`,
+            deployedBytecode: data.deployedBytecode ?? '',
+            sourceMap: '',
+            deployedSourceMap: '',
+            ast: null,
+            storageLayout: null,
+            sourceFile: data.sourceName ?? solDirName,
+            compilerVersion: '',
+            contentHash: '',
+          });
+        } catch { /* skip unparseable files */ }
+      }
+    }
+
+    return results;
   }
 
   close(): void {

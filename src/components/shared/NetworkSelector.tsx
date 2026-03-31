@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronDown, Network, Check } from "lucide-react";
+import { ChevronDown, Network, Check, Plug } from "lucide-react";
 import type { Chain } from "../../types";
 import ChainIcon, { type ChainKey } from "../icons/ChainIcon";
 import {
@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const API_KEY = import.meta.env.VITE_API_KEY || "";
+
+type NetworkCategory = "live" | "testnet" | "local";
 
 // Enhanced chain configuration with testnet support
 export interface ExtendedChain extends Partial<Chain> {
@@ -194,6 +196,36 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     color: "#f3ba2f",
     chainKey: "BSC",
   },
+
+  // Local dev nodes
+  {
+    id: 31337,
+    name: "Anvil (default)",
+    rpcUrl: "http://localhost:8545",
+    category: "local",
+    color: "#4ade80",
+  },
+  {
+    id: 31337,
+    name: "Hardhat (default)",
+    rpcUrl: "http://localhost:8545",
+    category: "local",
+    color: "#f7df1e",
+  },
+  {
+    id: 1337,
+    name: "Ganache (default)",
+    rpcUrl: "http://localhost:7545",
+    category: "local",
+    color: "#e4a663",
+  },
+  {
+    id: 31337,
+    name: "Localhost :8546",
+    rpcUrl: "http://localhost:8546",
+    category: "local",
+    color: "#94a3b8",
+  },
 ];
 
 export interface NetworkSelectorProps {
@@ -201,6 +233,10 @@ export interface NetworkSelectorProps {
   onNetworkChange: (network: ExtendedChain) => void;
   networks?: ExtendedChain[];
   showTestnets?: boolean;
+  /** Show a "Local" tab with dev node presets and custom URL input */
+  showLocal?: boolean;
+  /** Called when user submits a custom RPC URL from the local tab */
+  onCustomUrlConnect?: (url: string) => void;
   className?: string;
   ariaLabel?: string;
   size?: "sm" | "md" | "lg";
@@ -212,27 +248,45 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   onNetworkChange,
   networks = EXTENDED_NETWORKS,
   showTestnets = false,
+  showLocal = false,
+  onCustomUrlConnect,
   className = "",
   ariaLabel,
   size = "md",
   variant = "default",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [networkCategory, setNetworkCategory] = useState<"live" | "testnet">(
-    selectedNetwork?.isTestnet ? "testnet" : showTestnets ? "testnet" : "live"
+  const [customUrl, setCustomUrl] = useState("");
+  const [networkCategory, setNetworkCategory] = useState<NetworkCategory>(
+    selectedNetwork?.category === "local"
+      ? "local"
+      : selectedNetwork?.isTestnet
+        ? "testnet"
+        : showLocal
+          ? "local"
+          : showTestnets
+            ? "testnet"
+            : "live"
   );
 
   useEffect(() => {
     if (!selectedNetwork) return;
-    setNetworkCategory(selectedNetwork.isTestnet ? "testnet" : "live");
-  }, [selectedNetwork?.id, selectedNetwork?.isTestnet]);
+    if (selectedNetwork.category === "local") {
+      setNetworkCategory("local");
+    } else {
+      setNetworkCategory(selectedNetwork.isTestnet ? "testnet" : "live");
+    }
+  }, [selectedNetwork?.id, selectedNetwork?.isTestnet, selectedNetwork?.category]);
 
-  const filteredNetworks = networks.filter((network) =>
-    networkCategory === "testnet" ? network.isTestnet : !network.isTestnet
-  );
+  const filteredNetworks = networks.filter((network) => {
+    if (networkCategory === "local") return network.category === "local";
+    if (networkCategory === "testnet") return network.isTestnet;
+    return !network.isTestnet && network.category !== "local";
+  });
 
-  const mainnetCount = networks.filter((n) => !n.isTestnet).length;
+  const mainnetCount = networks.filter((n) => !n.isTestnet && n.category !== "local").length;
   const testnetCount = networks.filter((n) => n.isTestnet).length;
+  const localCount = networks.filter((n) => n.category === "local").length;
 
   const iconSize = size === "sm" ? 16 : size === "lg" ? 24 : 20;
   const isInlineVariant = variant === "inline";
@@ -377,11 +431,12 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           <div className="p-3 border-b border-border/50">
             <div className="text-xs text-muted-foreground mb-2">
               {mainnetCount} Live • {testnetCount} Testnets
+              {showLocal && ` • ${localCount} Local`}
             </div>
 
             <Tabs
               value={networkCategory}
-              onValueChange={(v) => setNetworkCategory(v as "live" | "testnet")}
+              onValueChange={(v) => setNetworkCategory(v as NetworkCategory)}
               className="w-full"
             >
               <TabsList className="w-full h-8 bg-muted/50 p-0.5">
@@ -405,18 +460,69 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
                   />
                   Testnet
                 </TabsTrigger>
+                {showLocal && (
+                  <TabsTrigger
+                    value="local"
+                    className="flex-1 h-7 text-xs gap-1.5 data-[state=active]:bg-background"
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-blue-500"
+                      aria-hidden
+                    />
+                    Local
+                  </TabsTrigger>
+                )}
               </TabsList>
             </Tabs>
           </div>
 
+          {/* Custom URL input for local tab */}
+          {networkCategory === "local" && onCustomUrlConnect && (
+            <div className="p-2 border-b border-border/50">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (customUrl.trim()) {
+                    onCustomUrlConnect(customUrl.trim());
+                    setIsOpen(false);
+                  }
+                }}
+                className="flex gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="http://localhost:8545"
+                  className="flex-1 h-8 px-2.5 text-xs bg-muted/50 border border-border rounded-md text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
+                />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2.5 text-xs shrink-0"
+                  disabled={!customUrl.trim()}
+                >
+                  <Plug size={14} className="mr-1" />
+                  Connect
+                </Button>
+              </form>
+            </div>
+          )}
+
           {/* Network list */}
           <div className="max-h-[280px] overflow-y-auto">
             <div className="p-1">
-              {filteredNetworks.map((network) => {
-                const isSelected = selectedNetwork?.id === network.id;
+              {filteredNetworks.map((network, idx) => {
+                const isSelected =
+                  selectedNetwork?.id === network.id &&
+                  selectedNetwork?.rpcUrl === network.rpcUrl;
+                const key = network.category === "local"
+                  ? `${network.name}-${network.rpcUrl}`
+                  : String(network.id);
                 return (
                   <Button
-                    key={network.id}
+                    key={key}
                     type="button"
                     variant="ghost"
                     onClick={() => handleSelectNetwork(network)}
@@ -437,13 +543,20 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
                           : "rgba(255,255,255,0.1)",
                       }}
                     >
-                      {renderNetworkIcon(network, 20)}
+                      {network.category === "local"
+                        ? <Network size={20} className="text-muted-foreground" />
+                        : renderNetworkIcon(network, 20)}
                     </div>
 
                     <div className="flex-1 text-left">
                       <div className="font-medium text-sm text-foreground">
                         {network.name}
                       </div>
+                      {network.category === "local" && network.rpcUrl && (
+                        <div className="text-[10px] text-muted-foreground/60 font-mono truncate">
+                          {network.rpcUrl}
+                        </div>
+                      )}
                     </div>
 
                     {isSelected && (
