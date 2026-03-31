@@ -418,14 +418,18 @@ export default function ExecutionSection(): React.ReactElement | null {
                           chainId: appSelectedChain as any,
                         });
 
-                        // Wait a moment for the network switch to complete
-                        await new Promise((resolve) =>
-                          setTimeout(resolve, 1500)
-                        );
+                        // Poll for network switch completion (up to 5s)
+                        let updatedChainId: number | undefined;
+                        for (let attempt = 0; attempt < 10; attempt++) {
+                          await new Promise((resolve) =>
+                            setTimeout(resolve, 500)
+                          );
+                          updatedChainId = await getWalletChainId(
+                            walletClient
+                          );
+                          if (updatedChainId !== undefined && updatedChainId === appSelectedChain) break;
+                        }
 
-                        const updatedChainId = await getWalletChainId(
-                          walletClient
-                        );
                         if (
                           updatedChainId !==
                             undefined &&
@@ -511,18 +515,18 @@ export default function ExecutionSection(): React.ReactElement | null {
                       functionName: selectedFunctionObj.name,
                       args: args,
                     });
-                    // Show transaction success notification
                     const networkName =
                       selectedNetwork?.name ||
                       "Unknown Network";
                     const explorerUrl =
                       selectedNetwork?.explorerUrl ||
                       "https://etherscan.io";
+                    // Show pending notification while waiting for receipt
                     showNotification({
-                      type: "success",
-                      title: "Transaction Sent",
-                      message: `Transaction submitted on ${networkName}`,
-                      duration: 8000,
+                      type: "info",
+                      title: "Transaction Pending",
+                      message: `Waiting for confirmation on ${networkName}...`,
+                      duration: 60000,
                       action: {
                         label: "View on Explorer",
                         onClick: () =>
@@ -532,6 +536,74 @@ export default function ExecutionSection(): React.ReactElement | null {
                           ),
                       },
                     });
+                    // Wait for the transaction receipt to check actual status
+                    if (publicClient) {
+                      try {
+                        const receipt = await publicClient.waitForTransactionReceipt({
+                          hash,
+                          timeout: 120_000,
+                        });
+                        if (receipt.status === "reverted") {
+                          showError(
+                            "Transaction Reverted",
+                            `Transaction was mined but reverted on ${networkName}.`,
+                            10000
+                          );
+                          setFunctionResult({
+                            data: null,
+                            error: `Transaction reverted (tx: ${hash})`,
+                            isLoading: false,
+                          });
+                        } else {
+                          showNotification({
+                            type: "success",
+                            title: "Transaction Confirmed",
+                            message: `Transaction confirmed on ${networkName}`,
+                            duration: 8000,
+                            action: {
+                              label: "View on Explorer",
+                              onClick: () =>
+                                window.open(
+                                  `${explorerUrl}/tx/${hash}`,
+                                  "_blank"
+                                ),
+                            },
+                          });
+                        }
+                      } catch {
+                        // Receipt fetch timed out or failed — let user check manually
+                        showNotification({
+                          type: "warning",
+                          title: "Receipt Unavailable",
+                          message: `Transaction sent on ${networkName} but receipt could not be confirmed. Check explorer.`,
+                          duration: 8000,
+                          action: {
+                            label: "View on Explorer",
+                            onClick: () =>
+                              window.open(
+                                `${explorerUrl}/tx/${hash}`,
+                                "_blank"
+                              ),
+                          },
+                        });
+                      }
+                    } else {
+                      // No publicClient — fallback to old behavior
+                      showNotification({
+                        type: "success",
+                        title: "Transaction Sent",
+                        message: `Transaction submitted on ${networkName}`,
+                        duration: 8000,
+                        action: {
+                          label: "View on Explorer",
+                          onClick: () =>
+                            window.open(
+                              `${explorerUrl}/tx/${hash}`,
+                              "_blank"
+                            ),
+                        },
+                      });
+                    }
                   }
                 } catch (error: any) {
                   const parsedError = parseError(error);

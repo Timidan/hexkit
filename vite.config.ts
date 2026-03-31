@@ -227,6 +227,34 @@ export default defineConfig(() => {
           rewrite: (path) =>
             path.replace(/^\/api\/lisk-sepolia-blockscout/, "/api"),
         },
+        "/api/lisk-blockscout": {
+          target: "https://blockscout.lisk.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/lisk-blockscout/, "/api"),
+        },
+        "/api/optimism-blockscout": {
+          target: "https://optimism.blockscout.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/optimism-blockscout/, "/api"),
+        },
+        "/api/sepolia-blockscout": {
+          target: "https://eth-sepolia.blockscout.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/sepolia-blockscout/, "/api"),
+        },
+        "/api/gnosis-blockscout": {
+          target: "https://gnosis.blockscout.com",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/gnosis-blockscout/, "/api"),
+        },
         // Proxy for Sourcify repo
         "/api/repo": {
           target: "https://repo.sourcify.dev",

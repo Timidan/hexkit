@@ -306,10 +306,13 @@ const ALCHEMY_ENDPOINTS: Record<number, (key: string) => string> = {
   97: (key) => `https://bnb-testnet.g.alchemy.com/v2/${key}`,
   43114: (key) => `https://avax-mainnet.g.alchemy.com/v2/${key}`,
   100: (key) => `https://gnosis-mainnet.g.alchemy.com/v2/${key}`,
+  1135: (key) => `https://lisk-mainnet.g.alchemy.com/v2/${key}`,
   4202: (key) => `https://lisk-sepolia.g.alchemy.com/v2/${key}`,
 };
 
 // Infura chain support
+// NOTE: Only include chains that Infura actually supports.
+// Unsupported chains will fall back to public RPC via autoSwitchProviderModeToDefault.
 const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
   1: (key) => `https://mainnet.infura.io/v3/${key}`,
   11155111: (key) => `https://sepolia.infura.io/v3/${key}`,
@@ -322,11 +325,7 @@ const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
   421614: (key) => `https://arbitrum-sepolia.infura.io/v3/${key}`,
   10: (key) => `https://optimism-mainnet.infura.io/v3/${key}`,
   11155420: (key) => `https://optimism-sepolia.infura.io/v3/${key}`,
-  56: (key) => `https://bsc-mainnet.infura.io/v3/${key}`,
-  97: (key) => `https://bsc-testnet.infura.io/v3/${key}`,
   43114: (key) => `https://avalanche-mainnet.infura.io/v3/${key}`,
-  100: (key) => `https://gnosis-mainnet.infura.io/v3/${key}`,
-  4202: (key) => `https://lisk-sepolia.infura.io/v3/${key}`,
 };
 
 // Public RPC fallbacks — archival-capable free endpoints (may be rate-limited)
@@ -338,6 +337,7 @@ const PUBLIC_RPC_FALLBACKS: Record<number, string> = {
   137: 'https://polygon.drpc.org',
   80002: 'https://polygon-amoy.gateway.tenderly.co',
   17000: 'https://holesky.drpc.org',
+  1135: 'https://rpc.api.lisk.com',
   4202: 'https://rpc.sepolia-api.lisk.com',
   42161: 'https://arbitrum.drpc.org',
   421614: 'https://arbitrum-sepolia.drpc.org',

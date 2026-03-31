@@ -99,6 +99,16 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = [
     chainKey: "GNO",
   },
   {
+    id: 1135,
+    name: "Lisk",
+    rpcUrl: "https://rpc.api.lisk.com",
+    blockExplorer: "https://blockscout.lisk.com",
+    isTestnet: false,
+    category: "mainnet",
+    color: "#0f74ff",
+    chainKey: "LISK",
+  },
+  {
     id: 43114,
     name: "Avalanche",
     rpcUrl: "https://api.avax.network/ext/bc/C/rpc",

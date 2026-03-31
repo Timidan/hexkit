@@ -45,6 +45,22 @@
       "destination": "https://sepolia-blockscout.lisk.com/:path*"
     },
     {
+      "source": "/api/lisk-blockscout/:path*",
+      "destination": "https://blockscout.lisk.com/:path*"
+    },
+    {
+      "source": "/api/optimism-blockscout/:path*",
+      "destination": "https://optimism.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/sepolia-blockscout/:path*",
+      "destination": "https://eth-sepolia.blockscout.com/:path*"
+    },
+    {
+      "source": "/api/gnosis-blockscout/:path*",
+      "destination": "https://gnosis.blockscout.com/:path*"
+    },
+    {
       "source": "/api/repo/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },

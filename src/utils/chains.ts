@@ -20,6 +20,7 @@ const PUBLIC_RPC_URLS = {
   84532: "https://sepolia.base.org",
   137: "https://polygon.drpc.org",
   17000: "https://holesky.drpc.org",
+  1135: "https://rpc.api.lisk.com",
   4202: "https://rpc.sepolia-api.lisk.com",
   80002: "https://polygon-amoy.gateway.tenderly.co",
   42161: "https://arbitrum.drpc.org",
@@ -145,6 +146,26 @@ export const SUPPORTED_CHAINS: Chain[] = [
         name: "Holesky Etherscan",
         url: "https://api-holesky.etherscan.io/api",
         type: "etherscan",
+      },
+    ],
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+  },
+  {
+    id: 1135,
+    name: "Lisk",
+    rpcUrl: PUBLIC_RPC_URLS[1135],
+    explorerUrl: "https://blockscout.lisk.com",
+    blockExplorer: "https://blockscout.lisk.com",
+    apiUrl: "https://blockscout.lisk.com/api",
+    explorers: [
+      {
+        name: "Blockscout",
+        url: "https://blockscout.lisk.com/api",
+        type: "blockscout",
       },
     ],
     nativeCurrency: {

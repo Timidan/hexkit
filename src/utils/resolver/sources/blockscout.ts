@@ -19,6 +19,9 @@ const BLOCKSCOUT_APIS: Record<number, string[]> = {
   137: ['https://polygon.blockscout.com/api'],
   42161: ['https://arbitrum.blockscout.com/api'],
   10: ['https://optimism.blockscout.com/api'],
+  11155111: ['https://eth-sepolia.blockscout.com/api'],
+  100: ['https://gnosis.blockscout.com/api'],
+  1135: ['https://blockscout.lisk.com/api'],
   4202: ['https://sepolia-blockscout.lisk.com/api'],
 };
 
@@ -27,7 +30,11 @@ const CHAIN_PROXIES: Record<number, string> = {
   1: '/api/eth-blockscout',   // Ethereum mainnet
   137: '/api/polygon-blockscout',
   42161: '/api/arbitrum-blockscout',
+  10: '/api/optimism-blockscout',
+  11155111: '/api/sepolia-blockscout',
+  100: '/api/gnosis-blockscout',
   84532: '/api/base-sepolia-blockscout',
+  1135: '/api/lisk-blockscout',
   4202: '/api/lisk-sepolia-blockscout',
   8453: '/api/blockscout', // Base mainnet uses default blockscout proxy
 };

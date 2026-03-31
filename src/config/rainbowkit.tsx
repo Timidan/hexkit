@@ -34,6 +34,31 @@ const API_KEY = import.meta.env.VITE_API_KEY || '';
 if (!API_KEY && import.meta.env.DEV) console.warn('[RainbowKit] No API key found — using public RPC fallbacks');
 
 // Wagmi v2 compatible configuration without WalletConnect dependency
+const liskMainnet = {
+  id: 1135,
+  name: 'Lisk',
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.api.lisk.com'],
+    },
+    public: {
+      http: ['https://rpc.api.lisk.com'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Lisk Explorer',
+      url: 'https://blockscout.lisk.com',
+    },
+  },
+  testnet: false,
+} as const satisfies Chain;
+
 const liskSepolia = {
   id: 4202,
   name: 'Lisk Sepolia',
@@ -59,7 +84,7 @@ const liskSepolia = {
   testnet: true,
 } as const satisfies Chain;
 
-const chains = [mainnet, polygon, arbitrum, optimism, base, liskSepolia] as const;
+const chains = [mainnet, polygon, arbitrum, optimism, base, liskMainnet, liskSepolia] as const;
 
 const walletConnectProjectId = (
   import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID ||
@@ -133,6 +158,7 @@ export const RpcAwareWagmiProvider: React.FC<{ children: React.ReactNode }> = ({
       [arbitrum.id]: http(rpc(arbitrum.id)),
       [optimism.id]: http(rpc(optimism.id)),
       [base.id]: http(rpc(base.id)),
+      [liskMainnet.id]: http(rpc(liskMainnet.id)),
       [liskSepolia.id]: http(rpc(liskSepolia.id)),
     };
 
