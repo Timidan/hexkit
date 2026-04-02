@@ -69,7 +69,64 @@ function formatSimulationBridgeError(rawError: string): string {
     : classified.message;
 }
 
+const ALCHEMY_MISSING_KEY_NOTICE =
+  "Alchemy was selected without an API key. Switched back to App Default RPC.";
+const INFURA_MISSING_KEY_NOTICE =
+  "Infura was selected without a Project ID. Switched back to App Default RPC.";
 const RPC_AUTO_SWITCH_NOTICE_KEY = "web3-toolkit:rpc-auto-switch-notice";
+
+type RpcNoticeConfig = {
+  rpcMode: "DEFAULT" | "ALCHEMY" | "INFURA" | "CUSTOM";
+  alchemyApiKey?: string;
+  infuraProjectId?: string;
+};
+
+function getMissingProviderNotice(config: RpcNoticeConfig): string | null {
+  if (config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()) {
+    return ALCHEMY_MISSING_KEY_NOTICE;
+  }
+
+  if (config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()) {
+    return INFURA_MISSING_KEY_NOTICE;
+  }
+
+  return null;
+}
+
+function clearPersistedRpcAutoSwitchNotice() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+  window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
+}
+
+function getPersistedRpcAutoSwitchNotice(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    window.localStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY) ||
+    window.sessionStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY)
+  );
+}
+
+function shouldClearAutoSwitchNotice(
+  notice: string | null | undefined,
+  config: Pick<RpcNoticeConfig, "alchemyApiKey" | "infuraProjectId">
+): boolean {
+  if (notice === ALCHEMY_MISSING_KEY_NOTICE) {
+    return Boolean(config.alchemyApiKey?.trim());
+  }
+
+  if (notice === INFURA_MISSING_KEY_NOTICE) {
+    return Boolean(config.infuraProjectId?.trim());
+  }
+
+  return false;
+}
 
 export const TransactionReplayView: React.FC<{
   modeToggle: ReactNode;
@@ -195,24 +252,26 @@ export const TransactionReplayView: React.FC<{
   }, []);
 
   useEffect(() => {
-    if (config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()) {
-      setRpcNotice("Alchemy was selected without an API key. Switched back to App Default RPC.");
+    const missingProviderNotice = getMissingProviderNotice(config);
+    if (missingProviderNotice) {
+      setRpcNotice(missingProviderNotice);
       saveConfig({ rpcMode: "DEFAULT" });
       return;
     }
 
-    if (config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()) {
-      setRpcNotice("Infura was selected without a Project ID. Switched back to App Default RPC.");
-      saveConfig({ rpcMode: "DEFAULT" });
+    const persistedNotice = getPersistedRpcAutoSwitchNotice();
+    if (shouldClearAutoSwitchNotice(persistedNotice, config)) {
+      clearPersistedRpcAutoSwitchNotice();
     }
-  }, [config.rpcMode, config.alchemyApiKey, config.infuraProjectId, saveConfig]);
+
+    setRpcNotice((currentNotice) =>
+      shouldClearAutoSwitchNotice(currentNotice, config) ? null : currentNotice
+    );
+  }, [config, saveConfig]);
 
   const handleNetworkChange = useCallback((network: ExtendedChain) => {
     setRpcNotice(null);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-      window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-    }
+    clearPersistedRpcAutoSwitchNotice();
     setSelectedNetwork(network);
   }, []);
 
@@ -245,13 +304,7 @@ export const TransactionReplayView: React.FC<{
       setTxPreview(null);
 
       try {
-        const missingProviderNotice =
-          config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()
-            ? "Alchemy was selected without an API key. Switched back to App Default RPC."
-            : config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()
-              ? "Infura was selected without a Project ID. Switched back to App Default RPC."
-              : null;
-
+        const missingProviderNotice = getMissingProviderNotice(config);
         if (missingProviderNotice) {
           setRpcNotice(missingProviderNotice);
           saveConfig({ rpcMode: "DEFAULT" });
@@ -268,12 +321,10 @@ export const TransactionReplayView: React.FC<{
         // Use user's configured RPC if available, otherwise fall back to default
         const rpcResolution = resolveRpcUrl(chainForRpc.id, selectedNetwork.rpcUrl);
         const rpcUrl = rpcResolution.url;
-        const persistedNotice =
-          typeof window !== "undefined"
-            ? window.localStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY) ||
-              window.sessionStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY)
-            : null;
-        if (persistedNotice) {
+        const persistedNotice = getPersistedRpcAutoSwitchNotice();
+        if (shouldClearAutoSwitchNotice(persistedNotice, config)) {
+          clearPersistedRpcAutoSwitchNotice();
+        } else if (persistedNotice) {
           setRpcNotice(persistedNotice);
         } else if (rpcResolution.note) {
           setRpcNotice(rpcResolution.note);
@@ -429,10 +480,7 @@ export const TransactionReplayView: React.FC<{
     setFormError(null);
     setBridgeWarning(null);
     setRpcNotice(null);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-      window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-    }
+    clearPersistedRpcAutoSwitchNotice();
     setTxPreview(null);
     setTxFetchStatus("idle");
     setTxFetchError(null);
@@ -476,10 +524,7 @@ export const TransactionReplayView: React.FC<{
                       value={txHash}
                       onChange={(event) => {
                         setRpcNotice(null);
-                        if (typeof window !== "undefined") {
-                          window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-                          window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-                        }
+                        clearPersistedRpcAutoSwitchNotice();
                         setTxHash(event.target.value);
                       }}
                       placeholder="0x0000…0000"
