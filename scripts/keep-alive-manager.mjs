@@ -186,6 +186,44 @@ function looksLikeKeepAliveSimulationResult(result) {
   return Boolean(result && typeof result === "object");
 }
 
+function normalizeKeepAliveDebugSession(result) {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const rawSession =
+    result.debugSession && typeof result.debugSession === "object"
+      ? result.debugSession
+      : result.debug_session && typeof result.debug_session === "object"
+        ? result.debug_session
+        : null;
+
+  if (!rawSession) {
+    return null;
+  }
+
+  const rpcPortRaw = rawSession.rpcPort ?? rawSession.rpc_port;
+  const snapshotCountRaw = rawSession.snapshotCount ?? rawSession.snapshot_count;
+  const rpcUrl =
+    typeof rawSession.rpcUrl === "string"
+      ? rawSession.rpcUrl
+      : typeof rawSession.rpc_url === "string"
+        ? rawSession.rpc_url
+        : "";
+  const rpcPort = Number(rpcPortRaw);
+  const snapshotCount = Number(snapshotCountRaw ?? 0);
+
+  if (!Number.isInteger(rpcPort) || rpcPort <= 0 || !rpcUrl) {
+    return null;
+  }
+
+  return {
+    rpcPort,
+    rpcUrl,
+    snapshotCount: Number.isFinite(snapshotCount) ? snapshotCount : 0,
+  };
+}
+
 /**
  * Parse stderr chunk from edb-simulator, extracting __EDB_PROGRESS__ lines.
  * @param {Buffer} chunk
@@ -310,17 +348,18 @@ export function runSimulationWithKeepAlive(payload, options = {}) {
       recentBuffer = Buffer.alloc(0);
       clearFileParseTimer();
 
+      const debugSession = normalizeKeepAliveDebugSession(result);
       let session = null;
-      if (result.debugSession) {
+      if (debugSession) {
         enforceKeepAliveCapacity();
         const sessionId = `keep-alive-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         createdSessionId = sessionId;
         session = {
           sessionId,
           process: child,
-          rpcPort: result.debugSession.rpcPort,
-          rpcUrl: result.debugSession.rpcUrl,
-          snapshotCount: result.debugSession.snapshotCount || 0,
+          rpcPort: debugSession.rpcPort,
+          rpcUrl: debugSession.rpcUrl,
+          snapshotCount: debugSession.snapshotCount,
           createdAt: Date.now(),
           lastAccessedAt: Date.now(),
           tempFile,
@@ -330,6 +369,9 @@ export function runSimulationWithKeepAlive(payload, options = {}) {
           `[simulator-bridge] keep-alive session created: ${sessionId} on port ${session.rpcPort} with ${session.snapshotCount} snapshots (RPC: ${redactRpcUrl(session.rpcUrl)})`,
         );
       } else {
+        console.warn(
+          `[simulator-bridge] keep-alive simulation parsed without a usable debug session payload; top-level keys: ${Object.keys(result).join(", ")}`,
+        );
         closeWriteStream(() => { try { unlinkSync(tempFile); } catch {} });
       }
 
