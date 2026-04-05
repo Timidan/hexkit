@@ -21,6 +21,7 @@ import {
   safeBigNumberToString,
 } from "../utils";
 import { useGridContext } from "../GridContext";
+import { getWalletClient as getWagmiWalletClient, waitForTransactionReceipt as wagmiWaitForReceipt } from "@wagmi/core";
 
 export default function ExecutionSection(): React.ReactElement | null {
   const ctx: any = useGridContext();
@@ -61,6 +62,7 @@ export default function ExecutionSection(): React.ReactElement | null {
     showInfo,
     showNotification,
     getWalletChainId,
+    wagmiConfig,
   } = ctx;
 
   if (!selectedFunctionObj) return null;
@@ -479,7 +481,22 @@ export default function ExecutionSection(): React.ReactElement | null {
                   }
 
                   if (!isSimulationMode) {
-                    const activeWalletClient = walletClient;
+                    // Get a fresh wallet client for the target chain.
+                    // The hook-based walletClient may be stale after a switchChain() call
+                    // since React hooks don't update mid-execution.
+                    let activeWalletClient = walletClient;
+                    const targetChainId = selectedNetwork?.id;
+
+                    if (wagmiConfig && targetChainId) {
+                      try {
+                        activeWalletClient = await getWagmiWalletClient(wagmiConfig, {
+                          chainId: targetChainId,
+                        });
+                      } catch {
+                        // Fall back to hook-based client if action fails
+                      }
+                    }
+
                     if (!activeWalletClient) {
                       showError(
                         "Wallet Not Available",
@@ -514,6 +531,7 @@ export default function ExecutionSection(): React.ReactElement | null {
                       abi: contractABI,
                       functionName: selectedFunctionObj.name,
                       args: args,
+                      chain: targetChainId ? { id: targetChainId } : undefined,
                     });
                     const networkName =
                       selectedNetwork?.name ||
@@ -537,10 +555,13 @@ export default function ExecutionSection(): React.ReactElement | null {
                       },
                     });
                     // Wait for the transaction receipt to check actual status
-                    if (publicClient) {
+                    // Use wagmi core's waitForTransactionReceipt with explicit chainId
+                    // to avoid stale publicClient closure after chain switch
+                    if (wagmiConfig) {
                       try {
-                        const receipt = await publicClient.waitForTransactionReceipt({
+                        const receipt = await wagmiWaitForReceipt(wagmiConfig, {
                           hash,
+                          chainId: targetChainId,
                           timeout: 120_000,
                         });
                         if (receipt.status === "reverted") {
@@ -588,7 +609,7 @@ export default function ExecutionSection(): React.ReactElement | null {
                         });
                       }
                     } else {
-                      // No publicClient — fallback to old behavior
+                      // No wagmiConfig — fallback to old behavior
                       showNotification({
                         type: "success",
                         title: "Transaction Sent",

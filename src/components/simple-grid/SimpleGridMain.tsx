@@ -18,6 +18,7 @@ import {
   usePublicClient,
   useChainId,
   useSwitchChain,
+  useConfig,
 } from "wagmi";
 import { useNotifications } from "../NotificationManager";
 import { useSimulation } from "../../contexts/SimulationContext";
@@ -53,6 +54,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
   const publicClient = usePublicClient();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  const wagmiConfig = useConfig();
   const { showSuccess, showError, showWarning, showInfo, showNotification } = useNotifications();
   const navigate = useNavigate();
   const {
@@ -248,6 +250,7 @@ const SimpleGridUI: React.FC<SimpleGridUIProps> = ({
     chainId,
     switchChain,
     accountChain,
+    wagmiConfig,
     navigate,
     showSuccess,
     showError,

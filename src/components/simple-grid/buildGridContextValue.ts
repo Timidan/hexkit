@@ -92,6 +92,7 @@ interface BuildContextArgs {
   chainId: number;
   switchChain: any;
   accountChain: any;
+  wagmiConfig: any;
 
   // Router
   navigate: any;
@@ -115,7 +116,7 @@ export function buildGridContextValue(args: BuildContextArgs): any {
     isFetchingContractDetails, isFacetDataPending, resolvedContractName,
     requiresWalletForWrite, walletMissingForWrite, disableSimulationAction,
     isRestoringRef, simulationIdRef,
-    address, isConnected, walletClient, publicClient, chainId, switchChain, accountChain,
+    address, isConnected, walletClient, publicClient, chainId, switchChain, accountChain, wagmiConfig,
     navigate,
     showSuccess, showError, showWarning, showInfo, showNotification,
     setSimulation, contextSimulationId,
@@ -227,7 +228,7 @@ export function buildGridContextValue(args: BuildContextArgs): any {
     // Wagmi
     address, isConnected,
     walletClient, publicClient, chainId, switchChain,
-    accountChain,
+    accountChain, wagmiConfig,
     // Router
     navigate,
     // Simulation context
