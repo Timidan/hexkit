@@ -10,6 +10,42 @@ const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB (artifacts_inline can be large
 const FETCH_TIMEOUT_MS = 120_000; // 2 min for regular requests
 const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS", "HEAD"]);
 
+// CORS allowlist — dev servers by default; extend via EDB_CORS_ALLOWED_ORIGINS (comma-separated).
+// No credentials are used (auth is injected server-side), so reflecting a matched origin is safe.
+const DEFAULT_ALLOWED_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+]);
+
+function resolveAllowedOrigin(origin: string | undefined): string | null {
+  if (!origin) return null;
+  if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return origin;
+  const extra = process.env.EDB_CORS_ALLOWED_ORIGINS;
+  if (extra) {
+    const list = extra
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (list.includes(origin)) return origin;
+  }
+  return null;
+}
+
+function applyCors(req: VercelRequest, res: VercelResponse) {
+  const origin =
+    typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const allowed = resolveAllowedOrigin(origin);
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", allowed);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+    res.setHeader("Access-Control-Max-Age", "600");
+  }
+}
+
 function getRawBody(req: VercelRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -55,6 +91,9 @@ function extractSubPath(req: VercelRequest): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Apply CORS first so every response path (errors, preflight, streaming) carries headers.
+  applyCors(req, res);
+
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
   const defaultEtherscanApiKey = process.env.ETHERSCAN_API_KEY;
@@ -148,9 +187,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     res.status(upstream.status);
-    for (const key of ["content-type", "vary"]) {
-      const value = upstream.headers.get(key);
-      if (value) res.setHeader(key, value);
+    const upstreamContentType = upstream.headers.get("content-type");
+    if (upstreamContentType) res.setHeader("content-type", upstreamContentType);
+    // Merge upstream Vary with any Vary header we set in applyCors (e.g., "Origin")
+    // so CORS cache keys remain correct.
+    const upstreamVary = upstream.headers.get("vary");
+    if (upstreamVary) {
+      const existing = res.getHeader("Vary");
+      res.setHeader(
+        "Vary",
+        existing ? `${existing}, ${upstreamVary}` : upstreamVary,
+      );
     }
 
     const buf = Buffer.from(await upstream.arrayBuffer());
