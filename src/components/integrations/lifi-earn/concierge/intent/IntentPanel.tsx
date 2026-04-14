@@ -187,12 +187,14 @@ function useMultiAssetVaults(
         totalBeforeFilter: 0,
         symbolRelaxed: false,
         relaxedFromSymbol: null,
-        rejection: { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0 },
+        rejection: { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0 },
+        highRiskVaults: [],
       }));
     }
     return intents.map((intent) => {
-      const rejection: IntentVaultsResult["rejection"] = { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0 };
-      const ranked = rankVaultsForIntent(allVaults, intent, maxResults, rejection);
+      const rejection: IntentVaultsResult["rejection"] = { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0 };
+      const highRiskCollector: EarnVault[] = [];
+      const ranked = rankVaultsForIntent(allVaults, intent, maxResults, rejection, highRiskCollector);
       return {
         ranked,
         isLoading: false,
@@ -201,6 +203,7 @@ function useMultiAssetVaults(
         symbolRelaxed: false,
         relaxedFromSymbol: null,
         rejection,
+        highRiskVaults: highRiskCollector,
       };
     });
   }, [allVaults, intents, maxResults, isLoading, isError]);
