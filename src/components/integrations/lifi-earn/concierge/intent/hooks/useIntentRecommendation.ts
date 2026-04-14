@@ -141,7 +141,8 @@ async function buildRecommendation(
   const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets);
   let lastError: string | null = null;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
     try {
       const raw = await postLlmRecommend(request);
       const text = extractGeminiText(raw);
@@ -454,9 +455,9 @@ ENTRY COST FRAMEWORK:
           { text: fullSystem },
           {
             text:
-              "INPUT:\n```json\n" +
-              JSON.stringify(userPayload, null, 2) +
-              "\n```\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.",
+              "INPUT:\n" +
+              JSON.stringify(userPayload) +
+              "\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.",
           },
         ],
       },

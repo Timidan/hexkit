@@ -35,7 +35,7 @@ function hasValidSecret(req: VercelRequest): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-const MAX_BODY_BYTES = 32 * 1024;
+const MAX_BODY_BYTES = 64 * 1024;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const allowedOrigin = getAllowedOrigin(req);
