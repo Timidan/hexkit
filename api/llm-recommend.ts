@@ -51,8 +51,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!hasValidSecret(req)) {
       return res.status(403).json({ error: "Forbidden" });
     }
-  } else if (!allowedOrigin) {
-    return res.status(403).json({ error: "Origin required" });
+  } else {
+    // No PROXY_SECRET: allow same-origin (no Origin header) and matching origins.
+    const origin = req.headers.origin;
+    if (origin && !allowedOrigin) {
+      return res.status(403).json({ error: "Origin not allowed" });
+    }
   }
 
   if (!ALLOWED_METHODS.has(req.method || "")) {

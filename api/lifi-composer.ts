@@ -54,14 +54,17 @@ export default async function handler(
   }
 
   // When PROXY_SECRET is configured, require it on every non-OPTIONS request.
-  // Origin headers are spoofable from non-browser clients, so the secret is
-  // the only reliable gate protecting the paid upstream key.
   if (PROXY_SECRET) {
     if (!hasValidSecret(req)) {
       return res.status(403).json({ error: "Forbidden" });
     }
-  } else if (!allowedOrigin) {
-    return res.status(403).json({ error: "Origin required" });
+  } else {
+    // No PROXY_SECRET: allow same-origin requests (browser omits Origin header
+    // for same-origin fetches) and requests with a matching Origin.
+    const origin = req.headers.origin;
+    if (origin && !allowedOrigin) {
+      return res.status(403).json({ error: "Origin not allowed" });
+    }
   }
 
   if (!ALLOWED_METHODS.has(req.method || "")) {
