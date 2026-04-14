@@ -126,6 +126,25 @@ export async function fetchComposerQuote(params: {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // Parse LI.FI error codes into user-friendly messages
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed.code === 1002) {
+        throw new Error(
+          "No route available for this swap. The amount may be too small or there's no liquidity path for this token pair."
+        );
+      }
+      if (parsed.code === 1001) {
+        throw new Error(
+          "Route found but transaction couldn't be generated. Try a larger amount."
+        );
+      }
+      if (parsed.message) {
+        throw new Error(parsed.message);
+      }
+    } catch (e) {
+      if (e instanceof Error && !e.message.startsWith("Composer")) throw e;
+    }
     throw new Error(`Composer error: ${res.status} ${body}`);
   }
 
