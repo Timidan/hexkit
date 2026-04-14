@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Scales,
   Play,
+  Warning,
 } from "@phosphor-icons/react";
 import { Textarea } from "../../../../../components/ui/textarea";
 import ChainIcon from "../../../../icons/ChainIcon";
@@ -392,7 +393,15 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     rejection,
     symbolRelaxed,
     relaxedFromSymbol,
+    highRiskVaults,
   } = useVaultsByIntent(singleIntent, 20);
+
+  // Toggle for showing high-risk vaults in recommendations
+  const [showHighRisk, setShowHighRisk] = useState(false);
+  const effectiveRanked = useMemo(() => {
+    if (!showHighRisk || highRiskVaults.length === 0) return ranked;
+    return [...ranked, ...highRiskVaults];
+  }, [ranked, highRiskVaults, showHighRisk]);
 
   // Multi-asset vault queries — one per held token
   const perAssetVaults = useMultiAssetVaults(perAssetIntents, 20);
@@ -485,16 +494,16 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   // Single-target recommendation
   const singleRecArgs = useMemo(
     () =>
-      intent && synthAsset && ranked.length > 0
+      intent && synthAsset && effectiveRanked.length > 0
         ? {
             synthChainId: synthAsset.chainId,
             synthTokenAddress: synthAsset.token.address,
             intent,
-            rankedVaults: ranked,
+            rankedVaults: effectiveRanked,
             walletAssets: idleAssets,
           }
         : null,
-    [intent, synthAsset, ranked, idleAssets],
+    [intent, synthAsset, effectiveRanked, idleAssets],
   );
 
   const {
@@ -897,7 +906,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
             </div>
           ) : vaultsLoading && !isMyAssetsMode ? (
             <VaultLoadingNotice />
-          ) : !isMyAssetsMode && ranked.length === 0 ? (
+          ) : !isMyAssetsMode && effectiveRanked.length === 0 ? (
             <EmptyResults
               totalBeforeFilter={totalBeforeFilter}
               rejection={rejection}
@@ -996,10 +1005,28 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                     resultCount={presentationProps.resultCount}
                   />
                   {!isMyAssetsMode && (
-                    <p className="px-1 text-xs text-muted-foreground/70">
-                      Picked from {ranked.length} intent-filtered vault
-                      {ranked.length === 1 ? "" : "s"} (of {totalBeforeFilter} total).
-                    </p>
+                    <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground/70">
+                      <span>
+                        Picked from {effectiveRanked.length} intent-filtered vault
+                        {effectiveRanked.length === 1 ? "" : "s"} (of {totalBeforeFilter} total).
+                      </span>
+                      {rejection.highRisk > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowHighRisk((p) => !p)}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                            showHighRisk
+                              ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                              : "border-border/40 bg-background/30 text-muted-foreground hover:border-amber-500/30 hover:text-amber-400"
+                          }`}
+                        >
+                          <Warning size={11} weight="bold" />
+                          {showHighRisk
+                            ? `Hiding ${rejection.highRisk} high-risk`
+                            : `${rejection.highRisk} high-risk hidden`}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </>
               )}

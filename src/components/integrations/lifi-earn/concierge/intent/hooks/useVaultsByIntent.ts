@@ -54,7 +54,10 @@ export interface IntentVaultsResult {
     tvlBelowFloor: number;
     protocolExcluded: number;
     protocolNotIncluded: number;
+    highRisk: number;
   };
+  /** Top 2 high-risk vaults that were filtered out — available for opt-in display. */
+  highRiskVaults: EarnVault[];
 }
 
 /**
@@ -88,13 +91,17 @@ export function useVaultsByIntent(
         tvlBelowFloor: 0,
         protocolExcluded: 0,
         protocolNotIncluded: 0,
+        highRisk: 0,
       },
+      highRiskVaults: [],
     });
     if (!allVaults || allVaults.length === 0) return mkBlank();
     if (!intent) return mkBlank();
 
     const result = mkBlank();
-    const ranked = rankVaultsForIntent(allVaults, intent, maxResults, result.rejection);
+    const highRiskCollector: EarnVault[] = [];
+    const ranked = rankVaultsForIntent(allVaults, intent, maxResults, result.rejection, highRiskCollector);
+    result.highRiskVaults = highRiskCollector;
 
     // If the strict symbol filter produced zero results and there IS a
     // target_symbol, retry without it — surfaces cross-asset vaults the user
@@ -102,7 +109,9 @@ export function useVaultsByIntent(
     if (ranked.length === 0 && intent.target_symbol && result.rejection.symbolMismatch > 0) {
       const relaxedIntent: ParsedIntent = { ...intent, target_symbol: null };
       const relaxedResult = mkBlank();
-      const relaxedRanked = rankVaultsForIntent(allVaults, relaxedIntent, maxResults, relaxedResult.rejection);
+      const relaxedHighRisk: EarnVault[] = [];
+      const relaxedRanked = rankVaultsForIntent(allVaults, relaxedIntent, maxResults, relaxedResult.rejection, relaxedHighRisk);
+      relaxedResult.highRiskVaults = relaxedHighRisk;
       return {
         ...relaxedResult,
         ranked: relaxedRanked,
@@ -155,7 +164,8 @@ export function rankVaultsForIntent(
   allVaults: EarnVault[],
   intent: ParsedIntent,
   maxResults: number,
-  rejection: IntentVaultsResult["rejection"]
+  rejection: IntentVaultsResult["rejection"],
+  highRiskOut: EarnVault[] = [],
 ): EarnVault[] {
   const targetSymbol = intent.target_symbol?.toUpperCase() ?? null;
   const targetAliases = targetSymbol !== null ? symbolAliasSet(targetSymbol) : null;
@@ -202,8 +212,10 @@ export function rankVaultsForIntent(
       continue;
     }
     // Exclude high-risk vaults (high APY + low TVL) from recommendations.
+    // Collect up to 2 for opt-in display behind a toggle.
     if (isHighRiskVault(v)) {
-      rejection.apyAboveCeiling++;
+      rejection.highRisk++;
+      if (highRiskOut.length < 2) highRiskOut.push(v);
       continue;
     }
     if (minTvl !== null && Number(v.analytics.tvl.usd) < minTvl) {

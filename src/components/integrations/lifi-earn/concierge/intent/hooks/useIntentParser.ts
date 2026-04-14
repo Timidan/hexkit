@@ -104,9 +104,9 @@ RESULT_COUNT RULES:
 - Clamp to [1, 4]. If user says a number > 4, return 4.
 
 OBJECTIVE RULES:
-- "safest" when user emphasizes safety/low risk/battle-tested/TVL.
-- "highest" when user emphasizes max APY/yield/returns.
-- "balanced" otherwise.
+- "safest" — user explicitly prioritizes safety, low risk, battle-tested protocols, or high TVL.
+- "highest" — user explicitly asks for maximum APY, highest yield, or max returns.
+- "balanced" — user wants a good vault overall, or did not express a specific preference. Words like "best", "top", "good" imply quality across both yield and safety — use "balanced" unless there is a clear signal toward one extreme.
 
 OTHER FIELDS:
 - "target_chain_id" must be one of the chain_ids in CHAIN_REGISTRY below. Never invent a chain id.
@@ -114,13 +114,13 @@ OTHER FIELDS:
 - "include_protocols" and "exclude_protocols" must contain slugs from PROTOCOL_REGISTRY below.
 - "min_tvl_usd" is a raw USD number (10000000 for "$10M TVL floor").
 
-EXAMPLES:
-- "top 3 best vaults" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":3}
-- "safest vault above 5% APY" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":5,"max_apy_pct":null,"objective":"safest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":1}
-- "I need 10% on my ETH" → {"target_symbol":"ETH","my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":10,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
-- "best vaults for each of my assets" → {"target_symbol":null,"my_assets":true,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
-- "give me top three best vaults for me to pool my assets in" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":3}
-- "consolidate into one vault" → {"target_symbol":null,"my_assets":true,"routing_mode":"consolidate","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"balanced","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
+DISAMBIGUATION EXAMPLES (for tricky fields only — use your judgment for objective):
+- "my ETH" → my_assets=false, target_symbol="ETH" (possessive + specific token = targeted search)
+- "each of my assets" / "my portfolio" → my_assets=true
+- "pool my assets in" / "invest in" → my_assets=false (generic action phrase)
+- "top 3" → result_count=3, "a vault" / "the best vault" → result_count=1
+- "consolidate into one vault" → my_assets=true, routing_mode="consolidate"
+- "I need 10% on my ETH" → target_symbol="ETH", min_apy_pct=10
 
 If the user gives a clearly non-yield or off-topic message, return all-null/default values.`;
 
