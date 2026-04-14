@@ -10,6 +10,7 @@ interface UseComposerQuoteParams {
   fromAddress: string;
   toAddress: string;
   fromAmount: string;
+  underlyingSymbols?: string[];
   enabled?: boolean;
 }
 

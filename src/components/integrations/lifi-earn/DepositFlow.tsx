@@ -29,6 +29,7 @@ import type { AssetMovementResult } from "../../../utils/transaction-simulation/
 import { getCachedTokenMetadata, fetchTokenMetadata } from "../../../utils/tokenMovements";
 import { networkConfigManager } from "../../../config/networkConfig";
 import { useComposerQuote } from "./hooks/useComposerQuote";
+import { fetchComposerQuote } from "./earnApi";
 import { useTokenAllowance } from "./hooks/useTokenAllowance";
 import { useTokenBalance } from "./hooks/useTokenBalance";
 import { TokenIcon } from "./TokenIcon";
@@ -40,6 +41,7 @@ type FlowState =
   | "quoting"
   | "simulating"
   | "approving"
+  | "swapping"
   | "executing"
   | "success"
   | "error";
@@ -190,8 +192,18 @@ export function DepositFlow({
 
   const supportedChain = SUPPORTED_CHAINS.find((c) => c.id === fromChainForQuote);
 
-  const underlyingTokens = vault.underlyingTokens ?? [];
+  const underlyingTokens = useMemo(
+    () => vault.underlyingTokens ?? [],
+    [vault.underlyingTokens],
+  );
   const firstToken = underlyingTokens[0];
+
+  // Stable symbol list for the Composer error hint — avoids busting the
+  // react-query cache with a new array reference every render.
+  const underlyingSymbols = useMemo(
+    () => underlyingTokens.map((t) => t.symbol),
+    [underlyingTokens],
+  );
 
   const tokens = useMemo(() => {
     const seen = new Set(underlyingTokens.map((t) => t.address.toLowerCase()));
@@ -220,6 +232,7 @@ export function DepositFlow({
     status: "idle",
   });
   const [simulateFirst, setSimulateFirst] = useState(false);
+  const [twoStepLabel, setTwoStepLabel] = useState<string | null>(null);
 
   // Reset state when vault/override changes so reopening the drawer for a
   // different vault doesn't leak stale state.
@@ -239,6 +252,7 @@ export function DepositFlow({
     setTxHash(null);
     setSpenderCheck({ status: "idle" });
     setSimulateFirst(false);
+    setTwoStepLabel(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     vault.slug,
@@ -270,8 +284,25 @@ export function DepositFlow({
     fromAddress: address ?? "",
     toAddress: address ?? "",
     fromAmount: fromAmountRaw?.toString() ?? "0",
+    underlyingSymbols,
     enabled: isConnected && !!fromAmountRaw && fromAmountRaw.gt(0),
   });
+
+  // When Composer can't route fromToken → vault directly (1002), detect if a
+  // two-step flow is possible: swap fromToken → underlying, then deposit.
+  // Only enabled for same-chain deposits — cross-chain two-step would need
+  // bridge settlement polling between steps which isn't implemented yet.
+  const isTwoStepEligible = useMemo(() => {
+    if (!quoteError) return false;
+    if (fromChainForQuote !== vault.chainId) return false;
+    const msg = (quoteErrorObj as Error)?.message ?? "";
+    if (!msg.includes("No route available")) return false;
+    if (!selectedToken || underlyingTokens.length === 0) return false;
+    const fromAddr = selectedToken.address.toLowerCase();
+    return !underlyingTokens.some(
+      (t) => t.address.toLowerCase() === fromAddr,
+    );
+  }, [quoteError, quoteErrorObj, selectedToken, underlyingTokens, fromChainForQuote, vault.chainId]);
 
   const {
     data: allowanceStr,
@@ -751,6 +782,261 @@ export function DepositFlow({
     }
   }
 
+  async function handleTwoStepExecute() {
+    if (!address || !selectedToken || !fromAmountRaw) return;
+    const underlying = underlyingTokens[0];
+    if (!underlying) return;
+
+    setFlowState("swapping");
+    setErrorMsg(null);
+    setTwoStepLabel("Fetching swap route…");
+
+    try {
+      if (walletChain?.id !== fromChainForQuote) {
+        await switchChainAsync({ chainId: fromChainForQuote });
+      }
+
+      let walletClient = await getWagmiWalletClient(wagmiConfig, {
+        chainId: fromChainForQuote,
+      });
+      if (!walletClient) {
+        throw new Error("No wallet client available. Please connect your wallet.");
+      }
+
+      // ── Step 1: Swap fromToken → underlying ──────────────────────────
+      const swapQ = await fetchComposerQuote({
+        fromChain: fromChainForQuote,
+        toChain: vault.chainId,
+        fromToken: selectedToken.address,
+        toToken: underlying.address,
+        fromAddress: address,
+        toAddress: address,
+        fromAmount: fromAmountRaw.toString(),
+      });
+
+      // Step 1a: Approve fromToken for the swap if needed
+      if (!isNativeToken(selectedToken.address)) {
+        setTwoStepLabel("Checking swap approval…");
+        const spender = swapQ.estimate.approvalAddress;
+        const currentAllowance = await readAllowanceOnChain(
+          selectedToken.address,
+          address,
+          spender,
+          fromChainForQuote,
+        );
+        if (currentAllowance.lt(fromAmountRaw)) {
+          setTwoStepLabel(`Approve ${selectedToken.symbol} for swap…`);
+          await sendInlineApproval(
+            walletClient,
+            selectedToken.address,
+            spender,
+            fromChainForQuote,
+          );
+        }
+      }
+
+      // Step 1b: Execute the swap
+      setTwoStepLabel(`Swapping ${selectedToken.symbol} → ${underlying.symbol}…`);
+      const swapHash = await walletClient.sendTransaction({
+        to: swapQ.transactionRequest.to as `0x${string}`,
+        data: swapQ.transactionRequest.data as `0x${string}`,
+        value: swapQ.transactionRequest.value
+          ? BigInt(swapQ.transactionRequest.value)
+          : undefined,
+        gas: swapQ.transactionRequest.gasLimit
+          ? BigInt(swapQ.transactionRequest.gasLimit)
+          : undefined,
+        chain: { id: fromChainForQuote } as any,
+      });
+
+      setTxHash(swapHash);
+      onBroadcast?.(swapHash);
+      setTwoStepLabel("Confirming swap…");
+
+      const swapReceipt = await wagmiWaitForReceipt(wagmiConfig, {
+        hash: swapHash,
+        chainId: fromChainForQuote,
+        timeout: 120_000,
+      });
+      if (swapReceipt.status === "reverted") {
+        throw new Error("Swap transaction reverted onchain");
+      }
+
+      // ── Step 2: Deposit underlying → vault ───────────────────────────
+      setFlowState("executing");
+      setTwoStepLabel("Fetching deposit route…");
+
+      // Read the actual on-chain balance of the underlying token after the
+      // swap — using toAmountMin would leave dust un-deposited if the swap
+      // delivered more than the slippage-adjusted minimum.
+      const actualBalance = await readBalanceOnChain(
+        underlying.address,
+        address,
+        vault.chainId,
+      );
+      const depositAmount = actualBalance.gt(0)
+        ? actualBalance.toString()
+        : swapQ.estimate.toAmountMin;
+
+      const depositQ = await fetchComposerQuote({
+        fromChain: vault.chainId,
+        toChain: vault.chainId,
+        fromToken: underlying.address,
+        toToken: vault.address,
+        fromAddress: address,
+        toAddress: address,
+        fromAmount: depositAmount,
+      });
+
+      // Switch chain if the vault is on a different chain
+      if (walletChain?.id !== vault.chainId) {
+        await switchChainAsync({ chainId: vault.chainId });
+      }
+      walletClient = await getWagmiWalletClient(wagmiConfig, {
+        chainId: vault.chainId,
+      });
+      if (!walletClient) {
+        throw new Error("No wallet client available. Please connect your wallet.");
+      }
+
+      // Step 2a: Approve underlying for the deposit if needed
+      if (!isNativeToken(underlying.address)) {
+        setTwoStepLabel(`Checking ${underlying.symbol} deposit approval…`);
+        const depositSpender = depositQ.estimate.approvalAddress;
+        const depositAllowance = await readAllowanceOnChain(
+          underlying.address,
+          address,
+          depositSpender,
+          vault.chainId,
+        );
+        const depositAmountBN = ethers.BigNumber.from(depositAmount);
+        if (depositAllowance.lt(depositAmountBN)) {
+          setTwoStepLabel(`Approve ${underlying.symbol} for deposit…`);
+          await sendInlineApproval(
+            walletClient,
+            underlying.address,
+            depositSpender,
+            vault.chainId,
+          );
+        }
+      }
+
+      // Step 2b: Execute the deposit
+      setTwoStepLabel("Depositing into vault…");
+      const depositHash = await walletClient.sendTransaction({
+        to: depositQ.transactionRequest.to as `0x${string}`,
+        data: depositQ.transactionRequest.data as `0x${string}`,
+        value: depositQ.transactionRequest.value
+          ? BigInt(depositQ.transactionRequest.value)
+          : undefined,
+        gas: depositQ.transactionRequest.gasLimit
+          ? BigInt(depositQ.transactionRequest.gasLimit)
+          : undefined,
+        chain: { id: vault.chainId } as any,
+      });
+
+      setTxHash(depositHash);
+      setTwoStepLabel("Confirming deposit…");
+
+      const depositReceipt = await wagmiWaitForReceipt(wagmiConfig, {
+        hash: depositHash,
+        chainId: vault.chainId,
+        timeout: 120_000,
+      });
+      if (depositReceipt.status === "reverted") {
+        throw new Error("Deposit transaction reverted onchain");
+      }
+
+      setFlowState("success");
+      setTwoStepLabel(null);
+      refetchBalance();
+      onConfirmed?.();
+    } catch (err: unknown) {
+      const msg = formatTxError(err);
+      setErrorMsg(msg);
+      setFlowState("error");
+      setTwoStepLabel(null);
+      onError?.(msg);
+    }
+  }
+
+  /** Read ERC-20 allowance directly from the chain via RPC. */
+  async function readAllowanceOnChain(
+    tokenAddress: string,
+    owner: string,
+    spender: string,
+    chainId: number,
+  ): Promise<ethers.BigNumber> {
+    const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
+    if (!chain) return ethers.BigNumber.from(0);
+    const resolution = networkConfigManager.resolveRpcUrl(chainId, chain.rpcUrl);
+    if (!resolution.url) return ethers.BigNumber.from(0);
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      resolution.url,
+      chainId,
+    );
+    const erc20 = new ethers.Contract(
+      tokenAddress,
+      ["function allowance(address,address) view returns (uint256)"],
+      provider,
+    );
+    return erc20.allowance(owner, spender);
+  }
+
+  /** Read ERC-20 (or native) balance directly from the chain via RPC. */
+  async function readBalanceOnChain(
+    tokenAddress: string,
+    owner: string,
+    chainId: number,
+  ): Promise<ethers.BigNumber> {
+    const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
+    if (!chain) return ethers.BigNumber.from(0);
+    const resolution = networkConfigManager.resolveRpcUrl(chainId, chain.rpcUrl);
+    if (!resolution.url) return ethers.BigNumber.from(0);
+    const provider = new ethers.providers.StaticJsonRpcProvider(
+      resolution.url,
+      chainId,
+    );
+    if (isNativeToken(tokenAddress)) {
+      return provider.getBalance(owner);
+    }
+    const erc20 = new ethers.Contract(
+      tokenAddress,
+      ["function balanceOf(address) view returns (uint256)"],
+      provider,
+    );
+    return erc20.balanceOf(owner);
+  }
+
+  /** Send an ERC-20 max-approval and wait for confirmation. */
+  async function sendInlineApproval(
+    walletClient: Awaited<ReturnType<typeof getWagmiWalletClient>>,
+    tokenAddress: string,
+    spender: string,
+    chainId: number,
+  ) {
+    const iface = new ethers.utils.Interface([
+      "function approve(address spender, uint256 amount) returns (bool)",
+    ]);
+    const data = iface.encodeFunctionData("approve", [
+      spender,
+      ethers.constants.MaxUint256,
+    ]) as `0x${string}`;
+    const hash = await walletClient.sendTransaction({
+      to: tokenAddress as `0x${string}`,
+      data,
+      chain: { id: chainId } as any,
+    });
+    const receipt = await wagmiWaitForReceipt(wagmiConfig, {
+      hash,
+      chainId,
+      timeout: 120_000,
+    });
+    if (receipt.status === "reverted") {
+      throw new Error("Approval transaction reverted onchain");
+    }
+  }
+
   if (!supportedChain) {
     return (
       <div className="rounded-lg border border-border/40 bg-muted/10 p-3">
@@ -767,6 +1053,7 @@ export function DepositFlow({
   const isBusy =
     flowState === "simulating" ||
     flowState === "approving" ||
+    flowState === "swapping" ||
     flowState === "executing";
 
   return (
@@ -961,10 +1248,22 @@ export function DepositFlow({
                   Fetching quote…
                 </div>
               )}
-              {quoteError && (
+              {quoteError && !isTwoStepEligible && (
                 <div className="flex items-center gap-1.5 text-destructive">
                   <XCircle className="h-3 w-3" />
                   {(quoteErrorObj as Error)?.message ?? "Failed to fetch quote"}
+                </div>
+              )}
+              {isTwoStepEligible && (
+                <div className="rounded-md border border-yellow-500/40 bg-yellow-500/5 p-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-sm text-yellow-600">
+                    <Warning className="h-3.5 w-3.5 shrink-0" />
+                    No direct route — two-step deposit available
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Step 1: Swap {selectedToken?.symbol} → {underlyingTokens[0]?.symbol}.{" "}
+                    Step 2: Deposit {underlyingTokens[0]?.symbol} into vault.
+                  </p>
                 </div>
               )}
               {quote && !quoteError && (() => {
@@ -1237,8 +1536,20 @@ export function DepositFlow({
             panel above. Outline variant on the CTA keeps it from lighting
             up blue.
           */}
+          {/* Two-step progress indicator */}
+          {twoStepLabel && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 rounded-md border border-border/40 bg-background/30 p-2.5 text-sm text-muted-foreground"
+            >
+              <CircleNotch className="h-3.5 w-3.5 animate-spin shrink-0 text-emerald-500" />
+              <span>{twoStepLabel}</span>
+            </motion.div>
+          )}
+
           <div className="flex flex-col items-center gap-2 pt-1">
-            {!needsApproval && !simResult?.success && (
+            {!needsApproval && !isTwoStepEligible && !simResult?.success && (
               <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
                 <Switch
                   checked={simulateFirst}
@@ -1250,13 +1561,67 @@ export function DepositFlow({
             )}
 
             {(() => {
+              // Two-step mode: the CTA is always "Deposit (2 steps)"
+              if (isTwoStepEligible) {
+                const twoStepBusy =
+                  flowState === "swapping" || flowState === "executing";
+                const disabled =
+                  twoStepBusy ||
+                  flowState === "success" ||
+                  insufficientBalance ||
+                  !fromAmountRaw ||
+                  fromAmountRaw.isZero();
+
+                const ctaKey = twoStepBusy
+                  ? flowState === "swapping"
+                    ? "swapping"
+                    : "depositing"
+                  : "two-step";
+                const ctaLabel = twoStepBusy ? (
+                  <>
+                    <CircleNotch className="h-3 w-3 animate-spin mr-1.5" />
+                    {flowState === "swapping" ? "Swapping…" : "Depositing…"}
+                  </>
+                ) : insufficientBalance ? (
+                  "Insufficient balance"
+                ) : (
+                  "Deposit (2 steps)"
+                );
+
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-6 text-sm overflow-hidden"
+                    disabled={disabled}
+                    onClick={handleTwoStepExecute}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={ctaKey}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{
+                          duration: 0.2,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="inline-flex items-center"
+                      >
+                        {ctaLabel}
+                      </motion.span>
+                    </AnimatePresence>
+                  </Button>
+                );
+              }
+
+              // Single-step mode (existing logic)
               const disabled =
                 !quote ||
                 isBusy ||
                 flowState === "success" ||
                 insufficientBalance;
 
-              // Determine which CTA to show and its key for AnimatePresence
               let ctaKey: string;
               let ctaLabel: React.ReactNode;
               let ctaHandler: () => void;

@@ -105,6 +105,8 @@ export async function fetchComposerQuote(params: {
   toAddress: string;
   // smallest-unit decimal string
   fromAmount: string;
+  /** Vault's underlying token symbols — used for clearer error messages. */
+  underlyingSymbols?: string[];
 }): Promise<ComposerQuoteResponse> {
   const url = new URL(`${window.location.origin}${COMPOSER_PROXY}/v1/quote`);
   url.searchParams.set("fromChain", String(params.fromChain));
@@ -130,8 +132,12 @@ export async function fetchComposerQuote(params: {
     try {
       const parsed = JSON.parse(body);
       if (parsed.code === 1002) {
+        const syms = params.underlyingSymbols;
+        const hint = syms?.length
+          ? ` Try depositing with ${syms.join("/")} directly — Composer can't always swap into this vault's underlying token in one step.`
+          : "";
         throw new Error(
-          "No route available for this swap. The amount may be too small or there's no liquidity path for this token pair."
+          `No route available for this deposit. The amount may be too small or there's no liquidity path.${hint}`
         );
       }
       if (parsed.code === 1001) {
