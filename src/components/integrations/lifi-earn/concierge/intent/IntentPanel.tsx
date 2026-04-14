@@ -408,7 +408,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   // The asset's chain/symbol populate the card header; address is a sentinel.
   const synthAsset = useMemo<IdleAsset | null>(() => {
     if (!intent || isMyAssetsMode) return null;
-    const chainId = intent.target_chain_id ?? 1;
+    const chainId = intent.target_chain_id ?? 0;
     const chainName =
       intent.target_chain_id !== null
         ? (chainNameById.get(intent.target_chain_id) ??
@@ -442,6 +442,45 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     }
     return map;
   }, [isMyAssetsMode, dedupedAssets, synthAsset]);
+
+  // Presentation props for the non-portfolio card header.
+  // Computed here so VaultRecommendations doesn't infer mode from token symbols.
+  const presentationProps = useMemo(() => {
+    if (isMyAssetsMode || !intent) {
+      return {
+        headerTitle: null as string | null,
+        headerChainId: null as number | null,
+        headerNotice: null as string | null,
+        resultCount: intent?.result_count ?? null,
+      };
+    }
+
+    if (symbolRelaxed && relaxedFromSymbol) {
+      return {
+        headerTitle: `Top Vaults (swap from ${relaxedFromSymbol})`,
+        headerChainId: intent.target_chain_id ?? null,
+        headerNotice: `No ${relaxedFromSymbol} vaults matched your criteria. Showing top vaults reachable via swap.`,
+        resultCount: intent.result_count ?? null,
+      };
+    }
+
+    if (intent.target_symbol) {
+      return {
+        headerTitle: `${intent.target_symbol.toUpperCase()} Vaults`,
+        headerChainId: intent.target_chain_id ?? null,
+        headerNotice: null,
+        resultCount: intent.result_count ?? null,
+      };
+    }
+
+    // Generic discovery
+    return {
+      headerTitle: "Top Vaults",
+      headerChainId: null,
+      headerNotice: null,
+      resultCount: intent.result_count ?? null,
+    };
+  }, [isMyAssetsMode, intent, symbolRelaxed, relaxedFromSymbol]);
 
   // Single-target recommendation
   const singleRecArgs = useMemo(
@@ -831,6 +870,12 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                 }
               />
             ))}
+            {intent!.result_count !== null && (
+              <Chip
+                label={`Show ${intent!.result_count}`}
+                onRemove={() => handleChipRemove({ result_count: null })}
+              />
+            )}
           </div>
         </div>
       )}
@@ -945,6 +990,10 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                           ? relaxedFromSymbol
                           : primaryHeldSymbol
                     }
+                    headerTitle={presentationProps.headerTitle}
+                    headerChainId={presentationProps.headerChainId}
+                    headerNotice={presentationProps.headerNotice}
+                    resultCount={presentationProps.resultCount}
                   />
                   {!isMyAssetsMode && (
                     <p className="px-1 text-xs text-muted-foreground/70">

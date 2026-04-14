@@ -243,5 +243,22 @@ export function rankVaultsForIntent(
     });
   }
 
+  // For generic discovery (no target symbol), apply protocol-diversity cap
+  // so the LLM sees options across protocols, not 12 Aave vaults.
+  // Skip when the user explicitly filtered by protocol (e.g. "top 4 Aave vaults").
+  if (targetSymbol === null && includeProtocols.length === 0) {
+    const protoCounts = new Map<string, number>();
+    const diverse: EarnVault[] = [];
+    for (const v of sorted) {
+      const proto = (v.protocol.name ?? "").toLowerCase();
+      const count = protoCounts.get(proto) ?? 0;
+      if (count >= 3) continue;
+      protoCounts.set(proto, count + 1);
+      diverse.push(v);
+      if (diverse.length >= maxResults) break;
+    }
+    return diverse;
+  }
+
   return sorted.slice(0, maxResults);
 }

@@ -63,6 +63,13 @@ export const parsedIntentSchema = z.object({
     .array(z.string().trim().min(1))
     .max(16)
     .describe("Protocol slugs the user explicitly ruled out (denylist)"),
+  result_count: z
+    .number()
+    .int()
+    .min(1)
+    .max(4)
+    .nullable()
+    .describe("How many vault results the user wants (1-4). null = default 4 slots."),
 });
 
 export type ParsedIntent = z.infer<typeof parsedIntentSchema>;
@@ -78,4 +85,5 @@ export const DEFAULT_INTENT: ParsedIntent = {
   min_tvl_usd: null,
   include_protocols: [],
   exclude_protocols: [],
+  result_count: null,
 };

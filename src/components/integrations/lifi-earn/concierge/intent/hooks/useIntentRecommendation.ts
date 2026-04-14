@@ -10,6 +10,38 @@ import type { EarnVault } from "../../../types";
 import type { IdleAsset } from "../../types";
 import type { ParsedIntent } from "../schema";
 
+const ALIAS_GROUPS: ReadonlyArray<ReadonlySet<string>> = [
+  new Set(["ETH", "WETH"]),
+  new Set(["BTC", "WBTC", "CBBTC", "TBTC"]),
+  new Set(["USDC", "USDC.E", "USDBC"]),
+  new Set(["USDT", "USDT.E"]),
+  new Set(["MATIC", "WMATIC", "POL"]),
+  new Set(["AVAX", "WAVAX"]),
+  new Set(["BNB", "WBNB"]),
+];
+
+function normalizeUnderlyingKey(vault: EarnVault): string {
+  const symbols = (vault.underlyingTokens ?? [])
+    .map((t) => {
+      const upper = t.symbol.toUpperCase();
+      for (const group of ALIAS_GROUPS) {
+        if (group.has(upper)) return [...group].sort().join("/");
+      }
+      return upper;
+    })
+    .sort();
+  return `${vault.chainId}:${(vault.protocol.name ?? "").toLowerCase()}:${symbols.join("+")}`;
+}
+
+function isDuplicatePick(
+  a: RecommendationPick,
+  b: RecommendationPick,
+): boolean {
+  if (a.vaultSlug === b.vaultSlug) return true;
+  if (a.vault.address && b.vault.address && a.vault.chainId === b.vault.chainId && a.vault.address.toLowerCase() === b.vault.address.toLowerCase()) return true;
+  return normalizeUnderlyingKey(a.vault) === normalizeUnderlyingKey(b.vault);
+}
+
 // "live" → call Gemini, "off" → skip LLM entirely and use rules fallback.
 const LLM_MODE =
   (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
@@ -17,7 +49,8 @@ const LLM_MODE =
 
 // How many of the already-ranked intent vaults we surface to the LLM. Must
 // stay low — candidate payload size drives token cost and latency.
-const MAX_CANDIDATES = 8;
+const MAX_CANDIDATES_DEFAULT = 8;
+const MAX_CANDIDATES_DISCOVERY = 12;
 
 interface IntentRecommendationArgs {
   /** Synthetic key used as forChainId/forTokenAddress in the returned rec. */
@@ -56,7 +89,7 @@ export function useIntentRecommendation(
       args?.synthChainId ?? 0,
       args?.synthTokenAddress ?? "",
       intentCacheKey(args?.intent),
-      args?.rankedVaults.slice(0, MAX_CANDIDATES).map((v) => v.slug).join(",") ?? "",
+      args?.rankedVaults.slice(0, args?.intent?.target_symbol === null && !args?.intent?.my_assets ? MAX_CANDIDATES_DISCOVERY : MAX_CANDIDATES_DEFAULT).map((v) => v.slug).join(",") ?? "",
       args?.walletAssets.map((a) => `${a.chainId}:${a.token.symbol}`).join(",") ?? "",
     ] as const,
     enabled: !!args && args.rankedVaults.length > 0,
@@ -83,7 +116,11 @@ async function buildRecommendation(
   args: IntentRecommendationArgs
 ): Promise<IntentRecommendationResult> {
   const { synthChainId, synthTokenAddress, intent, rankedVaults } = args;
-  const candidates = rankedVaults.slice(0, MAX_CANDIDATES);
+  const maxCandidates =
+    intent.target_symbol === null && !intent.my_assets
+      ? MAX_CANDIDATES_DISCOVERY
+      : MAX_CANDIDATES_DEFAULT;
+  const candidates = rankedVaults.slice(0, maxCandidates);
 
   // Only one vault → no meaningful ranking. Return it directly as best pick
   // with a rules-derived rationale. No LLM round-trip.
@@ -168,13 +205,24 @@ async function buildRecommendation(
         }
       }
 
+      // Deduplicate alternatives against best/safest picks
+      const dedupedAlts: RecommendationPick[] = [];
+      const seenPicks: RecommendationPick[] = [];
+      if (bestPick) seenPicks.push(bestPick);
+      if (finalSafest) seenPicks.push(finalSafest);
+      for (const alt of alternatives) {
+        if (seenPicks.some((sp) => isDuplicatePick(sp, alt))) continue;
+        if (dedupedAlts.some((da) => isDuplicatePick(da, alt))) continue;
+        dedupedAlts.push(alt);
+      }
+
       return {
         recommendation: {
           forChainId: synthChainId,
           forTokenAddress: synthTokenAddress.toLowerCase(),
           bestPick,
           safestPick: finalSafest,
-          alternatives,
+          alternatives: dedupedAlts,
           source: "ai",
           topRationale: rec.best_pick?.rationale ?? "",
         },
@@ -289,6 +337,15 @@ OBJECTIVE:
 
 TVL AND LIQUIDITY: High TVL = deep liquidity = low slippage. Vaults < $500K TVL are risky. For "safest" picks, strongly weight TVL and established protocols (Aave, Compound, Morpho, Euler).`;
 
+  const isDiscovery = intent.target_symbol === null && !intent.my_assets;
+  const discoveryGuidance = isDiscovery
+    ? `\n\nDISCOVERY MODE: The user is exploring the vault universe broadly. Rank by the stated objective without asset-specific constraints. Diversity is valuable — prefer recommending vaults across different protocols and chains rather than multiple vaults from the same protocol. Do not recommend multiple vaults that hold the same underlying token on the same chain.`
+    : "";
+
+  const dedupGuidance = `\n\nWRAPPED TOKEN EQUIVALENCE: ETH/WETH, BTC/WBTC, MATIC/WMATIC are the same economic asset. Do not recommend two vaults as separate picks if they differ only in wrapped vs. unwrapped token naming.`;
+
+  const fullSystem = system + discoveryGuidance + dedupGuidance;
+
   // Build a compact portfolio summary for the LLM
   const portfolio = walletAssets
     .filter((a) => a.amountUsd != null && a.amountUsd > 0.5)
@@ -312,7 +369,7 @@ TVL AND LIQUIDITY: High TVL = deep liquidity = low slippage. Vaults < $500K TVL 
       include_protocols: intent.include_protocols,
       exclude_protocols: intent.exclude_protocols,
     },
-    wallet_portfolio: portfolio.length > 0 ? portfolio : "wallet not connected",
+    wallet_portfolio: portfolio,
     candidates: candidates.map((v) => ({
       slug: v.slug,
       name: v.name ?? v.slug,
@@ -341,7 +398,7 @@ TVL AND LIQUIDITY: High TVL = deep liquidity = low slippage. Vaults < $500K TVL 
       {
         role: "user",
         parts: [
-          { text: system },
+          { text: fullSystem },
           {
             text:
               "INPUT:\n```json\n" +
@@ -370,6 +427,7 @@ function intentCacheKey(intent: ParsedIntent | undefined): string {
     intent.min_tvl_usd ?? "",
     intent.include_protocols.join("+"),
     intent.exclude_protocols.join("+"),
+    intent.result_count ?? "",
   ].join("|");
 }
 

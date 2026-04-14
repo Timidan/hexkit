@@ -79,19 +79,50 @@ function buildParseRequest(
 Rules:
 - Return ONLY JSON matching the shape below. No prose, no code fences, no commentary.
 - Use null for any field the user did not specify. Never invent values.
-- "my_assets": set to true when the user references their OWN portfolio, wallet, holdings, bag, or balance (e.g. "best vaults for my assets", "find yield for what I hold", "put my tokens to work", "best for my portfolio"). When my_assets is true, the UI will fan out per-asset recommendations for every token the user holds — so target_symbol should be null.
-- "routing_mode": ONLY meaningful when my_assets is true. Determines how multiple assets are routed:
-  • "per-asset" (default): each asset goes to its own best vault. Triggered by PLURAL "vaults" (e.g. "best vaults for my assets", "find vaults for what I hold").
-  • "consolidate": ALL assets funnel into ONE single vault via swaps/bridges. Triggered by SINGULAR "vault" or explicit consolidation language (e.g. "best vault for my assets", "put everything into one vault", "consolidate my portfolio", "combine all into one").
-  The singular/plural distinction in the user's message is the primary signal. When in doubt, default to "per-asset".
-- "target_symbol" is the token the user wants to EARN YIELD ON (e.g. "put USDC into..." → "USDC"). Uppercase it. If the user says "put my ETH into a USDC vault", the target_symbol is "USDC" (the destination), not "ETH" (the source). When my_assets is true, set target_symbol to null.
-- If the user says "best vault for my ETH even if I need to swap" or "find me the highest yield vault regardless of token", set target_symbol to null — this tells the system to search ALL vaults and auto-swap the user's tokens at deposit time via LI.FI.
-- "target_chain_id" must be one of the chain_ids in CHAIN_REGISTRY below. Never invent a chain id. If the user names a chain that isn't in the registry, use null.
-- "objective" is "safest" when the user emphasizes safety/low risk/battle-tested/TVL, "highest" when they emphasize max APY/yield/returns, "balanced" otherwise.
-- "min_apy_pct" and "max_apy_pct" are raw percents (5 means ≥5%), never fractions.
-- "include_protocols" and "exclude_protocols" must contain slugs from PROTOCOL_REGISTRY below. If the user says "only Aave" use include_protocols=["aave-v3"]. If they say "no Pendle", use exclude_protocols=["pendle"]. Empty arrays if unspecified.
-- "min_tvl_usd" is a raw USD number (10000000 for "$10M TVL floor"). null if unspecified.
-- If the user gives a clearly non-yield or off-topic message, return DEFAULT_INTENT with empty fields.`;
+
+MY_ASSETS RULES:
+- "my_assets": set to true ONLY when the user wants per-holding recommendations across their wallet. Trigger phrases: "my assets", "my portfolio", "each of my tokens", "all my holdings", "my bag", "my balance", "what I have", "put my holdings to work".
+- Set to false for single-token references with possessive language: "my ETH" means target_symbol="ETH", my_assets=false. The word "my" before a specific token name indicates which token to target, NOT a wallet scan.
+- Set to false for generic discovery: "top 3 vaults", "best yield opportunities", "where should I earn" — these are broad searches, not wallet scans.
+- "pool my assets in" or "invest in" are generic action phrases — set my_assets=false unless the user clearly references multiple specific holdings.
+
+ROUTING_MODE RULES:
+- ONLY meaningful when my_assets is true.
+- "per-asset" (default): each asset goes to its own best vault. Triggered by PLURAL "vaults".
+- "consolidate": ALL assets funnel into ONE vault. Triggered by SINGULAR "vault" or explicit consolidation language.
+
+TARGET_SYMBOL RULES:
+- The token the user wants to EARN YIELD ON (destination, not source). Uppercase it.
+- "put my ETH into a USDC vault" → target_symbol="USDC" (destination).
+- "top 3 best vaults" → target_symbol=null (broad discovery).
+- When my_assets is true, set target_symbol to null.
+- If the user says "best vault regardless of token" or "find me the highest yield vault", set to null.
+
+RESULT_COUNT RULES:
+- Parse explicit counts: "top 3" → 3, "best 5" → 4 (clamp to max 4), "give me one" → 1, "a vault" → 1, "the best vault" → 1.
+- Plural without count ("best vaults", "top vaults") → null (default 4 slots).
+- Clamp to [1, 4]. If user says a number > 4, return 4.
+
+OBJECTIVE RULES:
+- "safest" when user emphasizes safety/low risk/battle-tested/TVL.
+- "highest" when user emphasizes max APY/yield/returns.
+- "balanced" otherwise.
+
+OTHER FIELDS:
+- "target_chain_id" must be one of the chain_ids in CHAIN_REGISTRY below. Never invent a chain id.
+- "min_apy_pct" and "max_apy_pct" are raw percents (5 means ≥5%).
+- "include_protocols" and "exclude_protocols" must contain slugs from PROTOCOL_REGISTRY below.
+- "min_tvl_usd" is a raw USD number (10000000 for "$10M TVL floor").
+
+EXAMPLES:
+- "top 3 best vaults" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":3}
+- "safest vault above 5% APY" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":5,"max_apy_pct":null,"objective":"safest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":1}
+- "I need 10% on my ETH" → {"target_symbol":"ETH","my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":10,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
+- "best vaults for each of my assets" → {"target_symbol":null,"my_assets":true,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
+- "give me top three best vaults for me to pool my assets in" → {"target_symbol":null,"my_assets":false,"routing_mode":"per-asset","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"highest","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":3}
+- "consolidate into one vault" → {"target_symbol":null,"my_assets":true,"routing_mode":"consolidate","target_chain_id":null,"min_apy_pct":null,"max_apy_pct":null,"objective":"balanced","min_tvl_usd":null,"include_protocols":[],"exclude_protocols":[],"result_count":null}
+
+If the user gives a clearly non-yield or off-topic message, return all-null/default values.`;
 
   const shape = {
     target_symbol: "string | null",
@@ -104,6 +135,7 @@ Rules:
     min_tvl_usd: "number | null",
     include_protocols: "string[]",
     exclude_protocols: "string[]",
+    result_count: "number (1-4) | null",
   };
 
   const payload = {

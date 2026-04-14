@@ -28,9 +28,15 @@ interface VaultRecommendationsProps {
   perAssetDestinations?: Map<string, EarnVault>;
   onPick: (vault: EarnVault, selectionKey: string) => void;
   isLoading?: boolean;
-  /** When set, the source token symbol the user holds — used to show
-   *  "Swap required" badges on vaults that accept a different token. */
   sourceTokenSymbol?: string | null;
+  /** Explicit card header title for non-portfolio mode (e.g. "Top Vaults", "ETH Vaults"). Null = derive from asset symbol (portfolio mode). */
+  headerTitle?: string | null;
+  /** Chain ID to show in card header. Null = hide chain icon. */
+  headerChainId?: number | null;
+  /** Notice text to show above recommendations (e.g. symbol-relaxation warning). */
+  headerNotice?: string | null;
+  /** Cap on visible vault slots. 1 = Best only, 2 = Best+Safest, 3 = +1 Alt, 4/null = all. */
+  resultCount?: number | null;
 }
 
 export function VaultRecommendations({
@@ -41,6 +47,10 @@ export function VaultRecommendations({
   onPick,
   isLoading = false,
   sourceTokenSymbol,
+  headerTitle,
+  headerChainId,
+  headerNotice,
+  resultCount,
 }: VaultRecommendationsProps) {
   if (selections.size === 0) {
     return (
@@ -66,71 +76,96 @@ export function VaultRecommendations({
     );
   }
 
+  // Determine how many slots to show based on resultCount
+  const maxSlots = resultCount != null ? Math.min(Math.max(resultCount, 1), 4) : 4;
+
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {relevant.map((rec) => {
-        const key = `${rec.forChainId}:${rec.forTokenAddress}`;
-        const sel = selections.get(key);
-        if (!sel) return null;
+    <div className="space-y-2">
+      {headerNotice && (
+        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-400">
+          {headerNotice}
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {relevant.map((rec) => {
+          const key = `${rec.forChainId}:${rec.forTokenAddress}`;
+          const sel = selections.get(key);
+          if (!sel) return null;
 
-        const activeDestination =
-          perAssetDestinations?.get(key) ?? destination;
+          const activeDestination =
+            perAssetDestinations?.get(key) ?? destination;
 
-        // Build 4 slots: Best, Safest, 2 alternatives. Empty → muted placeholder.
-        const slots: Array<{ label: string; pick: RecommendationPick | null }> = [
-          { label: "Best", pick: rec.bestPick },
-          { label: "Safest", pick: rec.safestPick },
-          ...rec.alternatives
-            .slice(0, 2)
-            .map((p) => ({ label: "Alt", pick: p })),
-        ];
-        while (slots.length < 4) slots.push({ label: "—", pick: null });
+          // Build slots, respecting maxSlots cap.
+          // When capped to fewer slots, prefer populated picks so a missing
+          // bestPick doesn't hide a valid safestPick or alternative.
+          const allSlots: Array<{ label: string; pick: RecommendationPick | null }> = [
+            { label: "Best", pick: rec.bestPick },
+            { label: "Safest", pick: rec.safestPick },
+            ...rec.alternatives
+              .slice(0, 2)
+              .map((p) => ({ label: "Alt", pick: p })),
+          ];
+          // Sort populated picks first so capping never hides a valid recommendation.
+          const populated = allSlots.filter((s) => s.pick !== null);
+          const empty = allSlots.filter((s) => s.pick === null);
+          const slots = [...populated, ...empty].slice(0, maxSlots);
+          while (slots.length < maxSlots && slots.length < 4) {
+            slots.push({ label: "—", pick: null });
+          }
 
-        return (
-          <Card key={key} className="p-3">
-            <div className="mb-2.5 flex items-center gap-2">
-              <span className="text-sm font-semibold tracking-tight">
-                {sel.asset.token.symbol}
-              </span>
-              <span className="text-muted-foreground/50">·</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex cursor-help">
-                    <ChainIcon chainId={sel.asset.chainId} size={16} rounded={999} />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {sel.asset.chainName}
-                </TooltipContent>
-              </Tooltip>
-              <Badge
-                variant={rec.source === "ai" ? "default" : "secondary"}
-                className="ml-auto text-[9px]"
-              >
-                {rec.source === "ai" ? "AI" : "Rules"}
-              </Badge>
-            </div>
+          const displayTitle = headerTitle ?? sel.asset.token.symbol;
+          const displayChainId = headerTitle != null ? headerChainId : sel.asset.chainId;
 
-            <div className="grid grid-cols-2 gap-1.5">
-              {slots.map((slot, idx) => (
-                <VaultPill
-                  key={`${slot.label}-${idx}`}
-                  label={slot.label}
-                  pick={slot.pick}
-                  isDestination={
-                    !!activeDestination &&
-                    !!slot.pick &&
-                    activeDestination.slug === slot.pick.vaultSlug
-                  }
-                  onPick={(v) => onPick(v, key)}
-                  sourceTokenSymbol={sourceTokenSymbol}
-                  sourceChainId={sel.asset.chainId}
-                />
-              ))}
-            </div>
-          </Card>
-        );
-      })}
+          return (
+            <Card key={key} className={maxSlots === 1 ? "p-3 sm:col-span-2" : "p-3"}>
+              <div className="mb-2.5 flex items-center gap-2">
+                <span className="text-sm font-semibold tracking-tight">
+                  {displayTitle}
+                </span>
+                {displayChainId != null && displayChainId > 0 && (
+                  <>
+                    <span className="text-muted-foreground/50">·</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex cursor-help">
+                          <ChainIcon chainId={displayChainId} size={16} rounded={999} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {sel.asset.chainName}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+                <Badge
+                  variant={rec.source === "ai" ? "default" : "secondary"}
+                  className="ml-auto text-[9px]"
+                >
+                  {rec.source === "ai" ? "AI" : "Rules"}
+                </Badge>
+              </div>
+
+              <div className={maxSlots === 1 ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-2 gap-1.5"}>
+                {slots.map((slot, idx) => (
+                  <VaultPill
+                    key={`${slot.label}-${idx}`}
+                    label={slot.label}
+                    pick={slot.pick}
+                    isDestination={
+                      !!activeDestination &&
+                      !!slot.pick &&
+                      activeDestination.slug === slot.pick.vaultSlug
+                    }
+                    onPick={(v) => onPick(v, key)}
+                    sourceTokenSymbol={sourceTokenSymbol}
+                    sourceChainId={sel.asset.chainId > 0 ? sel.asset.chainId : undefined}
+                  />
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
