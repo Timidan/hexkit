@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@phosphor-icons/react";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { AnimatedTabContent } from "./ui/animated-tabs";
 import { Button } from "./ui/button";
@@ -45,7 +45,6 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
     formatAddressWithName, normalizeValue,
   } = state;
 
-  // Show loading state while fetching from history
   if (isLoadingFromHistory) {
     return (
       <div className="sim-results-page">
@@ -115,11 +114,10 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const errorMessage = result.error || result.revertReason || null;
 
   const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-  const isDebugOverlayActive = isDebugging;
 
   return (
     <div className="sim-results-page">
-      {!isDebugOverlayActive && (
+      {!isDebugging && (
         <>
           <ResultsHeader
             statusColor={statusColor}
@@ -164,7 +162,6 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
             setHighlightedValue={setHighlightedValue}
           />
 
-          {/* Tab Navigation using shadcn Tabs */}
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as SimulatorTab)}
@@ -179,7 +176,6 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
               </TabsList>
             </nav>
 
-            {/* Tab Content - blur transition on switch */}
             <AnimatedTabContent activeKey={activeTab} className="sim-tab-content responsive-scroll">
               {activeTab === "summary" && (
                 <SummaryTab
@@ -227,7 +223,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
         </>
       )}
 
-      {isDebugOverlayActive && (
+      {isDebugging && (
         <Suspense
           fallback={(
             <div className="sim-results-page">

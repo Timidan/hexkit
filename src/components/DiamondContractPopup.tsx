@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, AlertTriangle, ExternalLink, Gem, Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import { MagnifyingGlass, Warning, ArrowSquareOut, Diamond, Copy, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { useNotifications } from './NotificationManager';
 import type { DiamondFacet } from '../utils/diamondFacetFetcher';
 import SelectorDecoder, { type DecodedSelector } from './shared/SelectorDecoder';
@@ -94,13 +94,8 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
     ];
 
     const diamondContract = new ethers.Contract(diamondAddress, diamondABI, provider);
-
-    try {
-      const selectors: string[] = await diamondContract.facetFunctionSelectors(facetAddress);
-      return selectors.map((selector: string) => selector.toLowerCase());
-    } catch (error) {
-      throw new Error(`Failed to fetch selectors: ${error}`);
-    }
+    const selectors: string[] = await diamondContract.facetFunctionSelectors(facetAddress);
+    return selectors.map((selector: string) => selector.toLowerCase());
   };
 
   const handleCopyWithToast = async (text: string, label: string) => {
@@ -219,11 +214,10 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] p-0 gap-0 overflow-hidden">
-        {/* Header */}
         <DialogHeader className="p-5 pb-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Gem className="h-6 w-6 text-blue-500" />
+              <Diamond className="h-6 w-6 text-blue-500" />
               <div>
                 <DialogTitle className="text-lg">Diamond Contract Details</DialogTitle>
                 <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground font-mono">
@@ -246,13 +240,12 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                 rel="noreferrer"
                 className="p-2 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 transition-colors"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ArrowSquareOut className="h-4 w-4" />
               </a>
             )}
           </div>
         </DialogHeader>
 
-        {/* Content */}
         <div className="flex flex-1 overflow-hidden min-h-[500px]">
           {/* Facet List Sidebar */}
           <div className="w-[280px] border-r border-border bg-muted/30 overflow-auto">
@@ -292,11 +285,9 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
             </div>
           </div>
 
-          {/* Facet Details */}
           <div className="flex-1 overflow-auto p-5">
             {selectedFacet && (
               <div className="space-y-6">
-                {/* Facet Header */}
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold">
@@ -319,7 +310,6 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                   </div>
                 </div>
 
-                {/* Functions */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-semibold">
@@ -333,12 +323,12 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                     >
                       {expandedFunctions ? (
                         <>
-                          <ChevronUp className="h-3 w-3 mr-1" />
+                          <CaretUp className="h-3 w-3 mr-1" />
                           Collapse
                         </>
                       ) : (
                         <>
-                          <ChevronDown className="h-3 w-3 mr-1" />
+                          <CaretDown className="h-3 w-3 mr-1" />
                           Expand
                         </>
                       )}
@@ -347,7 +337,7 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
 
                   {!selectedFacet.isVerified && isLoadingSelectors[selectedFacet.address] && (
                     <Alert className="mb-4 bg-blue-500/10 border-blue-500/30">
-                      <Search className="h-4 w-4 animate-spin" />
+                      <MagnifyingGlass className="h-4 w-4 animate-spin" />
                       <AlertDescription className="text-blue-400">
                         Loading function selectors...
                       </AlertDescription>
@@ -368,7 +358,7 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
 
                   {!selectedFacet.isVerified && (
                     <Alert className="mb-4 bg-amber-500/10 border-amber-500/30">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      <Warning className="h-4 w-4 text-amber-500" />
                       <AlertDescription className="text-amber-400">
                         Unverified Facet - Function names resolved using signature database
                       </AlertDescription>
@@ -416,7 +406,6 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                   </div>
                 </div>
 
-                {/* ABI Section */}
                 {selectedFacet.abi && selectedFacet.abi.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-3">
@@ -430,12 +419,12 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
                         >
                           {expandedABI ? (
                             <>
-                              <ChevronUp className="h-3 w-3 mr-1" />
+                              <CaretUp className="h-3 w-3 mr-1" />
                               Collapse
                             </>
                           ) : (
                             <>
-                              <ChevronDown className="h-3 w-3 mr-1" />
+                              <CaretDown className="h-3 w-3 mr-1" />
                               Expand
                             </>
                           )}

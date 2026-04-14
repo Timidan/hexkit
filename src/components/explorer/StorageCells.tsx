@@ -1,9 +1,8 @@
 import React from 'react';
-import { Database, Hash, Shield, Braces, AlertCircle } from 'lucide-react';
+import { Database, Hash, Shield, BracketsCurly, WarningCircle } from '@phosphor-icons/react';
 import { middleTruncate } from './storageViewerHelpers';
 import type { ResolvedSlot } from './storageViewerTypes';
 
-/** Click to copy cell -- no tooltip, middle-truncated display, brief "Copied!" flash */
 export const CopyableCell: React.FC<{
   value: string;
   fullValue?: string;
@@ -38,7 +37,6 @@ export const CopyableCell: React.FC<{
   );
 };
 
-/** Clickable value -- click to copy, brief "Copied!" flash, no tooltip */
 export const ClickableValue: React.FC<{
   value: string;
   rawValue?: string;
@@ -82,13 +80,12 @@ export const ClickableValue: React.FC<{
   );
 };
 
-/** Decode kind icon */
 export function DecodeKindIcon({ kind }: { kind: ResolvedSlot['decodeKind'] }) {
   switch (kind) {
     case 'exact': return <Database className="h-3 w-3 text-blue-400" />;
     case 'derived': return <Hash className="h-3 w-3 text-yellow-400" />;
     case 'proxy_slot': return <Shield className="h-3 w-3 text-purple-400" />;
-    case 'namespace_root': return <Braces className="h-3 w-3 text-cyan-400" />;
-    case 'unknown': return <AlertCircle className="h-3 w-3 text-muted-foreground" />;
+    case 'namespace_root': return <BracketsCurly className="h-3 w-3 text-cyan-400" />;
+    case 'unknown': return <WarningCircle className="h-3 w-3 text-muted-foreground" />;
   }
 }

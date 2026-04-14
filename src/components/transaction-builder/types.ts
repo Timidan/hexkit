@@ -108,10 +108,8 @@ export const mapExtendedToChain = (network: ExtendedChain): Chain => {
     id: network.id,
     name: network.name,
     rpcUrl: network.rpcUrl ?? "",
-    explorerUrl: network.blockExplorer ?? "",
-    blockExplorer: network.blockExplorer ?? "",
-    apiUrl: "",
-    explorers: [],
+    explorerUrl: network.blockExplorer,
+    blockExplorer: network.blockExplorer,
     nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
   };
 };

@@ -67,6 +67,23 @@ const CHAIN_ID_TO_TW: Record<number, string> = {
   324: "zksync",
 };
 
+// Chain ID to Zapper chain name (for icon fallbacks)
+const CHAIN_ID_TO_ZAPPER: Record<number, string> = {
+  1: "ethereum",
+  10: "optimism",
+  56: "binance-smart-chain",
+  137: "polygon",
+  250: "fantom",
+  42161: "arbitrum",
+  43114: "avalanche",
+  8453: "base",
+  324: "zksync",
+  5000: "mantle",
+  59144: "linea",
+  534352: "scroll",
+  1101: "polygon-zkevm",
+};
+
 /**
  * Get token icon URL
  * Uses 1inch for Ethereum (supports lowercase), Trust Wallet for other chains
@@ -95,6 +112,35 @@ export function getTokenIconUrl(tokenAddress: string, chainId: number = 1): stri
 
   // Fallback to 1inch (may not have all tokens but worth trying)
   return `https://tokens-data.1inch.io/images/${addr}.png`;
+}
+
+/**
+ * Get ordered list of icon URLs to try for a token.
+ * Use with cascading onError to find the first working source.
+ */
+export function getTokenIconUrls(tokenAddress: string, chainId: number = 1): string[] {
+  const addr = tokenAddress.toLowerCase();
+  const urls: string[] = [];
+
+  // 1. Zapper (good coverage of DeFi/vault tokens)
+  const zapperChain = CHAIN_ID_TO_ZAPPER[chainId];
+  if (zapperChain) {
+    urls.push(`https://storage.googleapis.com/zapper-fi-assets/tokens/${zapperChain}/${addr}.png`);
+  }
+
+  // 2. 1inch (good for mainnet)
+  urls.push(`https://tokens-data.1inch.io/images/${addr}.png`);
+
+  // 3. Trust Wallet (checksummed)
+  const twChain = CHAIN_ID_TO_TW[chainId];
+  if (twChain) {
+    try {
+      const checksummed = ethers.utils.getAddress(addr);
+      urls.push(`https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${twChain}/assets/${checksummed}/logo.png`);
+    } catch { /* skip */ }
+  }
+
+  return urls;
 }
 
 // Chain ID to DeFiLlama chain name mapping
@@ -285,10 +331,16 @@ export async function fetchTokenMetadata(
   try {
     const contract = new ethers.Contract(tokenAddress, ERC20_METADATA_ABI, provider);
     const [symbol, name, decimals] = await Promise.all([
-      contract.symbol().catch(() => fallback.symbol),
+      contract.symbol().catch(() => null),
       contract.name().catch(() => fallback.name),
       contract.decimals().catch(() => 18),
     ]);
+
+    // If symbol() failed (returned null) or looks like an address, don't
+    // cache — a subsequent call with a better provider might succeed.
+    if (!symbol || symbol.startsWith("0x")) {
+      return fallback;
+    }
 
     const metadata: TokenMetadata = { symbol, name, decimals };
     tokenMetadataCache.set(cacheKey, metadata);
@@ -308,6 +360,15 @@ export async function fetchTokenMetadata(
  */
 export function setTokenMetadataCache(tokenAddress: string, metadata: TokenMetadata) {
   tokenMetadataCache.set(tokenAddress.toLowerCase(), metadata);
+}
+
+/**
+ * Synchronous lookup against the pre-seeded metadata cache. Returns `null` if
+ * nothing is known — callers should fall back to their own sources rather
+ * than triggering an RPC round-trip inside a render path.
+ */
+export function getCachedTokenMetadata(tokenAddress: string): TokenMetadata | null {
+  return tokenMetadataCache.get(tokenAddress.toLowerCase()) ?? null;
 }
 
 // Pre-cache common tokens (Ethereum Mainnet)
@@ -587,10 +648,11 @@ export function aggregateBalanceChanges(
 
       // Use the actual token address stored in info (tokenKey may include tokenId for NFTs)
       const tokenAddress = info.tokenAddress;
-      // Get cached metadata
+      // Get cached metadata — ignore entries whose symbol looks like a
+      // truncated address (these are stale failures from earlier RPC calls).
       const metadata = tokenMetadataCache.get(tokenAddress);
-      // Prefer on-chain metadata symbol when available to avoid stale/misattributed labels.
-      const symbol = metadata?.symbol || info.tokenSymbol || tokenAddress.slice(0, 8) + "...";
+      const cachedSymbol = metadata?.symbol && !metadata.symbol.startsWith("0x") ? metadata.symbol : null;
+      const symbol = cachedSymbol || info.tokenSymbol || tokenAddress.slice(0, 8) + "...";
 
       // ERC-721 tokens are indivisible (no decimals), ERC-1155 typically uses whole numbers too
       // Only ERC-20 tokens have meaningful decimals

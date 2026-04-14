@@ -129,6 +129,7 @@ export const TransactionSummary: React.FC<TransactionSummaryProps> = ({
                   <span style={{ cursor: "help", display: "inline-flex" }}>
                     <ChainIcon
                       chain={networkToChainKey[network] || "ETH"}
+                      chainId={chainId}
                       size={18}
                       rounded={4}
                     />

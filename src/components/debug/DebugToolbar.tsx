@@ -1,26 +1,19 @@
-/**
- * Debug Toolbar Component
- *
- * Navigation controls for stepping through debug snapshots.
- * Primary controls: Previous, Next, Step Up, Step Over
- * Advanced controls: hidden in dropdown menu
- */
 
 import React, { useMemo, useState } from 'react';
 import {
   SkipBack,
-  ChevronLeft,
-  ChevronRight,
+  CaretLeft,
+  CaretRight,
   SkipForward,
   Play,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  CornerRightUp,
+  ArrowLineDown,
+  ArrowLineUp,
+  ArrowBendRightUp,
   ArrowRight,
   Pause,
-  Braces,
-  MoreHorizontal,
-} from 'lucide-react';
+  BracketsCurly,
+  DotsThree,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '../ui/hover-card';
 import { Badge } from '../ui/badge';
@@ -59,14 +52,11 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
   } = useDebug();
   const { contractContext } = useSimulation();
 
-  // Evaluate modal state
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
 
   const isActive = session !== null;
   const debugExplicitlyDisabled = (contractContext as any)?.debugEnabled === false;
   const prepInProgress = debugPrepState?.status === 'queued' || debugPrepState?.status === 'preparing';
-  // Check session first: if a session exists (live or trace), enable evaluate.
-  // Only gate on debugEnabled when there's NO session — as a hint to the user.
   const evaluateDisabledReason: string | null = prepInProgress
     ? `Debug session preparing${debugPrepState?.stage ? ` (${debugPrepState.stage})` : ''}...`
     : !isActive
@@ -136,7 +126,6 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
     <div
       className={`flex items-center gap-1 px-3 py-1.5 bg-transparent border-b border-border/50 ${className || ''}`}
     >
-      {/* PRIMARY STEP CONTROLS */}
       <div className="flex items-center border border-border/30 rounded-md overflow-hidden divide-x divide-border/20">
         <HoverCard>
           <HoverCardTrigger asChild>
@@ -147,7 +136,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
               disabled={!canStepNext || isLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded-none"
             >
-              <CornerRightUp className="h-3.5 w-3.5" />
+              <ArrowBendRightUp className="h-3.5 w-3.5" />
               <span>Step Out</span>
             </Button>
           </HoverCardTrigger>
@@ -189,7 +178,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
               disabled={!canStepPrev || isLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded-none"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <CaretLeft className="h-3.5 w-3.5" />
               <span>Prev</span>
             </Button>
           </HoverCardTrigger>
@@ -210,7 +199,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
               disabled={!canStepNext || isLoading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded-none"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <CaretRight className="h-3.5 w-3.5" />
               <span>Next</span>
             </Button>
           </HoverCardTrigger>
@@ -223,7 +212,6 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
         </HoverCard>
       </div>
 
-      {/* EVALUATE EXPRESSION */}
       <HoverCard>
         <HoverCardTrigger asChild>
           <Button
@@ -233,7 +221,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
             disabled={!!evaluateDisabledReason}
             className={`group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent hover:border-stone-400/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isTraceBasedSession ? 'opacity-70' : ''}`}
           >
-            <Braces className="h-3.5 w-3.5 transition-transform group-hover:scale-110 group-hover:rotate-6" />
+            <BracketsCurly className="h-3.5 w-3.5 transition-transform group-hover:scale-110 group-hover:rotate-6" />
             <span>Evaluate</span>
             <span className="text-[8px] text-amber-500/70 font-semibold ml-0.5">beta</span>
           </Button>
@@ -255,7 +243,6 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
         </HoverCardContent>
       </HoverCard>
 
-      {/* ADVANCED CONTROLS - Dropdown */}
       <DropdownMenu>
         <HoverCard>
           <HoverCardTrigger asChild>
@@ -266,7 +253,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
                 disabled={!isActive}
                 className="flex items-center px-2 py-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <DotsThree className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
           </HoverCardTrigger>
@@ -294,14 +281,14 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
             onClick={stepPrevCall}
             disabled={!canStepPrev || isLoading}
           >
-            <ArrowUpFromLine className="h-4 w-4 mr-2" />
+            <ArrowLineUp className="h-4 w-4 mr-2" />
             Previous Call
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={stepNextCall}
             disabled={!canStepNext || isLoading}
           >
-            <ArrowDownToLine className="h-4 w-4 mr-2" />
+            <ArrowLineDown className="h-4 w-4 mr-2" />
             Next Call
             <span className="ml-auto text-xs text-muted-foreground">F11</span>
           </DropdownMenuItem>
@@ -320,10 +307,8 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Snapshot Counter */}
       <div className="flex items-center gap-2">
         {isActive && (
           <Badge variant="secondary" className="font-mono text-xs h-7 px-3">
@@ -338,7 +323,6 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
         )}
       </div>
 
-      {/* Evaluate Expression Modal */}
       <EvaluateModal
         open={isEvalModalOpen}
         onOpenChange={setIsEvalModalOpen}

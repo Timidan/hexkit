@@ -5,7 +5,7 @@ import { Badge } from "../ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { ScrollArea } from "../ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { AlertCircle } from "lucide-react";
+import { WarningCircle } from "@phosphor-icons/react";
 import {
   HoverCard,
   HoverCardTrigger,
@@ -111,7 +111,7 @@ const SearchTab: React.FC<SearchTabProps> = ({
         )}
         {error && (
           <Alert variant="destructive" className="py-2 mt-2">
-            <AlertCircle className="h-3 w-3" />
+            <WarningCircle className="h-3 w-3" />
             <AlertTitle className="text-xs">Search backend error</AlertTitle>
             <AlertDescription className="text-xs">{error}</AlertDescription>
           </Alert>

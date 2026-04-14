@@ -40,15 +40,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: "bridge_not_configured" });
   }
 
-  // Method allowlist
-  if (!ALLOWED_METHODS.has(req.method || "GET")) {
-    return res.status(405).json({ error: "method_not_allowed" });
-  }
-
-  // OPTIONS passthrough
+  // OPTIONS preflight — CORS headers already set above
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
+  }
+
+  // EDB proxy uses origin allowlist only — reject requests from unknown origins.
+  if (
+    !resolveAllowedOrigin(
+      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+    )
+  ) {
+    return res.status(403).json({ error: "origin_required" });
+  }
+
+  // Method allowlist
+  if (!ALLOWED_METHODS.has(req.method || "GET")) {
+    return res.status(405).json({ error: "method_not_allowed" });
   }
 
   // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes

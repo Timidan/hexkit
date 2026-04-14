@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Search, X, Square, CheckCircle2 } from "lucide-react";
+import { MagnifyingGlass, X, Square, CheckCircle } from "@phosphor-icons/react";
 import { ethers } from "ethers";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -148,9 +148,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
             )}
           />
 
-          {/* Controls Container */}
           <div className="absolute right-1.5 flex items-center h-9 gap-1 px-1">
-            {/* Clear Button - minimal, just icon */}
             {contractAddress && (
               <Button
                 type="button"
@@ -165,7 +163,6 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               </Button>
             )}
 
-            {/* Network Selector */}
             <NetworkSelector
               className="scale-90 opacity-90 hover:opacity-100 transition-opacity"
               selectedNetwork={selectedExtendedNetwork}
@@ -182,7 +179,6 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
               variant="input"
             />
 
-            {/* Search / Cancel Button */}
             {onFetchABI && (
               isLoading && onCancel ? (
                 <Button
@@ -223,7 +219,7 @@ const ContractAddressInput: React.FC<ContractAddressInputProps> = ({
                   ) : isLoading ? (
                     <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                   ) : (
-                    <Search size={16} />
+                    <MagnifyingGlass size={16} />
                   )}
                 </Button>
               )

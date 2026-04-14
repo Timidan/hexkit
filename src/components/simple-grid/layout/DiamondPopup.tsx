@@ -5,6 +5,7 @@
 import React from "react";
 import DiamondContractPopup from "../../DiamondContractPopup";
 import { useGridContext } from "../GridContext";
+import { getExplorerBaseUrlFromApiUrl } from "../../../utils/chains";
 
 export default function DiamondPopup(): React.ReactElement {
   const ctx: any = useGridContext();
@@ -24,10 +25,13 @@ export default function DiamondPopup(): React.ReactElement {
       facets={diamondFacets}
       networkName={selectedNetwork?.name || "Unknown Network"}
       blockExplorerUrl={
-        selectedNetwork?.explorers
-          ?.find((e: { type?: string; url?: string }) => e.type === "blockscout")
-          ?.url?.replace("/api", "")
-          ?.replace("/api/", "") || selectedNetwork?.blockExplorer
+        getExplorerBaseUrlFromApiUrl(
+          selectedNetwork?.explorers?.find(
+            (e: { type?: string; url?: string }) => e.type === "blockscout"
+          )?.url
+        ) ||
+        selectedNetwork?.blockExplorer ||
+        selectedNetwork?.explorerUrl
       }
       chain={selectedNetwork || undefined}
     />

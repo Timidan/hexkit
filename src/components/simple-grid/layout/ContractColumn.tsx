@@ -8,7 +8,7 @@
  * - ContractInfoCard: Full contract info card with badges and function counts
  */
 import React from "react";
-import { History } from "lucide-react";
+import { ClockCounterClockwise } from "@phosphor-icons/react";
 import {
   Select,
   SelectContent,
@@ -67,7 +67,7 @@ export default function ContractColumn(): React.ReactElement {
             aria-label="Simulation History"
             className="cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
           >
-            <History className="h-5 w-5" />
+            <ClockCounterClockwise className="h-5 w-5" />
           </Button>
         )}
       </div>

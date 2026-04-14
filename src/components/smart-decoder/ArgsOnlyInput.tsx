@@ -1,13 +1,9 @@
-/**
- * ArgsOnlyInput – self-contained UI for the "Args Only" decode mode.
- * Extracted from SmartDecoder.tsx (pure structural split – no behaviour changes).
- */
 import React from 'react';
 import {
   Plus,
-  Trash2,
-  ChevronDown,
-} from 'lucide-react';
+  Trash,
+  CaretDown,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
@@ -79,7 +75,7 @@ const ArgsOnlyInput: React.FC<ArgsOnlyInputProps> = ({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <InputGroupButton variant="ghost" className="font-mono text-xs gap-0.5 !pr-1">
-                    {param.type} <ChevronDown className="size-2.5 opacity-50" />
+                    {param.type} <CaretDown className="size-2.5 opacity-50" />
                   </InputGroupButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto">
@@ -100,7 +96,7 @@ const ArgsOnlyInput: React.FC<ArgsOnlyInputProps> = ({
             {argsOnlyParams.length > 1 && (
               <InputGroupAddon align="inline-end">
                 <InputGroupButton variant="ghost" size="icon-xs" onClick={() => removeArgsOnlyParam(i)}>
-                  <Trash2 className="size-2.5" />
+                  <Trash className="size-2.5" />
                 </InputGroupButton>
               </InputGroupAddon>
             )}

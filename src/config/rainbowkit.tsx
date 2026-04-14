@@ -12,14 +12,8 @@ import {
   coinbaseWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import {
-  mainnet,
-  polygon,
-  arbitrum,
-  optimism,
-  base,
-} from 'wagmi/chains';
-import type { Chain } from 'wagmi/chains';
+import type { Chain as WagmiChain } from 'wagmi/chains';
+import { CHAIN_REGISTRY, isTestnet } from '../chains/registry';
 import {
   QueryClientProvider,
   QueryClient,
@@ -27,64 +21,26 @@ import {
 import React from 'react';
 import { useNetworkConfig } from "../contexts/NetworkConfigContext";
 
-// Get API key from environment (VITE_ prefix required for Vite exposure)
-const API_KEY = import.meta.env.VITE_API_KEY || '';
+// Convert our registry Chain type to wagmi's Chain type
+function toWagmiChain(chain: { id: number; name: string; rpcUrl: string; nativeCurrency: { name: string; symbol: string; decimals: number }; explorerUrl?: string }): WagmiChain {
+  return {
+    id: chain.id,
+    name: chain.name,
+    nativeCurrency: chain.nativeCurrency,
+    rpcUrls: {
+      default: { http: [chain.rpcUrl] },
+    },
+    ...(chain.explorerUrl ? {
+      blockExplorers: {
+        default: { name: 'Explorer', url: chain.explorerUrl },
+      },
+    } : {}),
+    ...(isTestnet(chain.id) ? { testnet: true } : {}),
+  } as WagmiChain;
+}
 
-// Only log in development mode to avoid leaking config status
-if (!API_KEY && import.meta.env.DEV) console.warn('[RainbowKit] No API key found — using public RPC fallbacks');
-
-// Wagmi v2 compatible configuration without WalletConnect dependency
-const liskMainnet = {
-  id: 1135,
-  name: 'Lisk',
-  nativeCurrency: {
-    name: 'Ether',
-    symbol: 'ETH',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.api.lisk.com'],
-    },
-    public: {
-      http: ['https://rpc.api.lisk.com'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Lisk Explorer',
-      url: 'https://blockscout.lisk.com',
-    },
-  },
-  testnet: false,
-} as const satisfies Chain;
-
-const liskSepolia = {
-  id: 4202,
-  name: 'Lisk Sepolia',
-  nativeCurrency: {
-    name: 'Lisk Sepolia Ether',
-    symbol: 'ETH',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.sepolia-api.lisk.com'],
-    },
-    public: {
-      http: ['https://rpc.sepolia-api.lisk.com'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Lisk Sepolia Explorer',
-      url: 'https://sepolia-blockscout.lisk.com',
-    },
-  },
-  testnet: true,
-} as const satisfies Chain;
-
-const chains = [mainnet, polygon, arbitrum, optimism, base, liskMainnet, liskSepolia] as const;
+const wagmiChains = CHAIN_REGISTRY.map(toWagmiChain);
+const chains = wagmiChains as unknown as readonly [WagmiChain, ...WagmiChain[]];
 
 const walletConnectProjectId = (
   import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID ||
@@ -120,52 +76,23 @@ const web3ToolkitTheme: Theme = darkTheme({
 
 export { queryClient, RainbowKitProvider, WagmiProvider, QueryClientProvider, web3ToolkitTheme };
 
-const fallbackRpcFor = (chain: Chain) => {
-  // When no env API key, return '' so resolveRpcUrl falls through to our
-  // curated PUBLIC_RPC_FALLBACKS (which are in the CSP whitelist).
-  // Wagmi's built-in chain defaults (e.g. eth.merkle.io) are NOT in the CSP.
-  if (!API_KEY) return '';
-  switch (chain.id) {
-    case mainnet.id:
-      return `https://eth-mainnet.g.alchemy.com/v2/${API_KEY}`;
-    case polygon.id:
-      return `https://polygon-mainnet.g.alchemy.com/v2/${API_KEY}`;
-    case arbitrum.id:
-      return `https://arb-mainnet.g.alchemy.com/v2/${API_KEY}`;
-    case optimism.id:
-      return `https://opt-mainnet.g.alchemy.com/v2/${API_KEY}`;
-    case base.id:
-      return `https://base-mainnet.g.alchemy.com/v2/${API_KEY}`;
-    default:
-      return '';
-  }
-};
-
 export const RpcAwareWagmiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { resolveRpcUrl, configVersion } = useNetworkConfig();
 
   const config = React.useMemo(() => {
-    // Resolve RPC URLs — use explicit URL or undefined to let viem use chain defaults.
-    // IMPORTANT: only pass undefined when we have no URL at all; never let empty strings
-    // silently fall through to viem's built-in chain defaults (which may not be in our CSP).
-    const rpc = (chainId: number) => {
-      const resolved = resolveRpcUrl(chainId, fallbackRpcFor({ id: chainId } as Chain)).url;
-      return resolved ? resolved : undefined;
-    };
-    const resolvedTransports: Record<number, ReturnType<typeof http>> = {
-      [mainnet.id]: http(rpc(mainnet.id)),
-      [polygon.id]: http(rpc(polygon.id)),
-      [arbitrum.id]: http(rpc(arbitrum.id)),
-      [optimism.id]: http(rpc(optimism.id)),
-      [base.id]: http(rpc(base.id)),
-      [liskMainnet.id]: http(rpc(liskMainnet.id)),
-      [liskSepolia.id]: http(rpc(liskSepolia.id)),
-    };
+    const transports: Record<number, ReturnType<typeof http>> = {};
+    for (const chain of CHAIN_REGISTRY) {
+      const resolution = resolveRpcUrl(chain.id, chain.rpcUrl);
+      // Use resolved URL when available, otherwise fall back to the chain's
+      // registry RPC. Wallet connectivity always needs an RPC; the
+      // allowPublicRpcFallback setting governs explorer/debugger features only.
+      transports[chain.id] = http(resolution.url || chain.rpcUrl || undefined);
+    }
 
     return createConfig({
       connectors,
       chains,
-      transports: resolvedTransports,
+      transports,
     });
   }, [configVersion, resolveRpcUrl]);
 
@@ -175,42 +102,21 @@ export const RpcAwareWagmiProvider: React.FC<{ children: React.ReactNode }> = ({
 // Export a hook to apply theme colors as CSS variables
 export function useApplyRainbowKitTheme() {
   React.useEffect(() => {
-    // Apply theme colors as CSS variables
     const root = document.documentElement;
-    // RainbowKit Theme structure varies by version - safely access properties
     const themeObj = web3ToolkitTheme as Record<string, unknown>;
 
-    // Try to extract colors, shadows, radii from various possible structures
     const themeColors = (themeObj.colors ?? (themeObj as any).darkMode?.colors ?? {}) as Record<string, string>;
     const themeShadows = (themeObj.shadows ?? (themeObj as any).darkMode?.shadows ?? {}) as Record<string, string>;
     const themeRadii = (themeObj.radii ?? (themeObj as any).darkMode?.radii ?? {}) as Record<string, string>;
 
-    // Apply colors
-    if (themeColors && typeof themeColors === 'object') {
-      Object.entries(themeColors).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          root.style.setProperty(`--rk-colors-${key}`, value);
-        }
-      });
-    }
-
-    // Apply shadows
-    if (themeShadows && typeof themeShadows === 'object') {
-      Object.entries(themeShadows).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          root.style.setProperty(`--rk-shadows-${key}`, value);
-        }
-      });
-    }
-
-    // Apply radii
-    if (themeRadii && typeof themeRadii === 'object') {
-      Object.entries(themeRadii).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          root.style.setProperty(`--rk-radii-${key}`, value);
-        }
-      });
-    }
-
+    Object.entries(themeColors).forEach(([key, value]) => {
+      if (typeof value === 'string') root.style.setProperty(`--rk-colors-${key}`, value);
+    });
+    Object.entries(themeShadows).forEach(([key, value]) => {
+      if (typeof value === 'string') root.style.setProperty(`--rk-shadows-${key}`, value);
+    });
+    Object.entries(themeRadii).forEach(([key, value]) => {
+      if (typeof value === 'string') root.style.setProperty(`--rk-radii-${key}`, value);
+    });
   }, []);
 }

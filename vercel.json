@@ -1,14 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/edb",
-      "destination": "/api/edb-proxy"
-    },
-    {
-      "source": "/api/edb/:path*",
-      "destination": "/api/edb-proxy?path=:path*"
-    },
-    {
       "source": "/api/sourcify/repository/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },
@@ -63,6 +55,14 @@
     {
       "source": "/api/repo/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
+    },
+    {
+      "source": "/api/lifi-earn/:path*",
+      "destination": "https://earn.li.fi/:path*"
+    },
+    {
+      "source": "/api/lifi-composer/:path*",
+      "destination": "/api/lifi-composer?path=:path*"
     },
     {
       "source": "/:path((?!api/|assets/|.*\\..*).*)",

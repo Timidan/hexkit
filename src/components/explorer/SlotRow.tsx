@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, History, Layers, Sparkles } from 'lucide-react';
+import { ArrowRight, ClockCounterClockwise, Stack, Sparkle } from '@phosphor-icons/react';
 import { Badge } from '../ui/badge';
 import { CopyButton } from '../ui/copy-button';
 import { CopyableCell, ClickableValue } from './StorageCells';
@@ -15,8 +15,6 @@ import { ZERO_VALUE, SLOT_TABLE_GRID } from './storageViewerTypes';
 import type { ResolvedSlot } from './storageViewerTypes';
 import PackingVisualizer from './storage-viewer/PackingVisualizer';
 import { cn } from '../../lib/utils';
-
-// ─── Sub-components ─────────────────────────────────────────────────
 
 export interface SlotRowWithInspectorProps {
   slot: ResolvedSlot;
@@ -95,7 +93,6 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
             )}
           </span>
         </div>
-        {/* Hover actions -- appear over the right side */}
         <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex gap-1">
           {isReference ? (
             <button
@@ -121,8 +118,6 @@ export const SlotRowWithInspector: React.FC<SlotRowWithInspectorProps> = React.m
 });
 SlotRowWithInspector.displayName = 'SlotRowWithInspector';
 
-// ─── Inline Inspector (expanded detail view) ────────────────────────
-
 interface InlineInspectorProps {
   slot: ResolvedSlot;
 }
@@ -137,7 +132,7 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
     <div className="px-3 py-3 bg-muted/5 border-t border-border/20 space-y-3">
       <div>
         <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-          <Sparkles className="h-3 w-3 text-primary" />
+          <Sparkle className="h-3 w-3 text-primary" />
           Resolution
         </div>
         <div className="bg-muted/10 rounded border border-border/20 p-2 space-y-2">
@@ -151,7 +146,7 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
               </Badge>
               {hasMutation && (
                 <Badge variant="outline" className="text-[10px] h-5 text-amber-300 border-amber-500/30">
-                  <History className="h-2.5 w-2.5 mr-1" />
+                  <ClockCounterClockwise className="h-2.5 w-2.5 mr-1" />
                   Changed
                 </Badge>
               )}
@@ -168,7 +163,6 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
         </div>
       </div>
 
-      {/* Row 1: Slot + Raw Value + Copy buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <div className="text-xs text-muted-foreground mb-0.5 flex items-center justify-between">
@@ -197,7 +191,6 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
         )}
       </div>
 
-      {/* Row 2: Decoded Fields Table */}
       {hasDecodedFields && !isZero && (
         <div>
           <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -239,11 +232,10 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
         </div>
       )}
 
-      {/* Row 3: Packing Visualization */}
       {hasPackingViz && (
         <div>
           <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-            <Layers className="h-3 w-3 text-cyan-400" />
+            <Stack className="h-3 w-3 text-cyan-400" />
             Slot Packing Layout
           </div>
           <div className="bg-muted/10 rounded border border-border/20 p-2">
@@ -252,7 +244,6 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
         </div>
       )}
 
-      {/* Row 4: Before/After diff */}
       {(slot.before || slot.after) && (
         <div>
           <div className="text-xs text-muted-foreground mb-0.5">State Diff</div>

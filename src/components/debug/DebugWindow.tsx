@@ -1,13 +1,6 @@
-/**
- * Debug Window Component
- *
- * Full-page overlay for the EDB debugger with IDE-style layout.
- * Layout: Execution Tree (left) | Source Code (center) | State Panel (right)
- * Bottom toolbar for navigation controls.
- */
 
 import React, { useEffect, useMemo } from 'react';
-import { X, Bug, Square } from 'lucide-react';
+import { X, Bug, Square } from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import {
   ResizableHandle,
@@ -40,9 +33,6 @@ function mapArgsToRecord(args?: TraceArg[] | null): Record<string, unknown> | un
   return Object.fromEntries(entries);
 }
 
-/**
- * Inner debug window that uses the debug context
- */
 const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) => {
   const {
     session,
@@ -63,21 +53,16 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
   } = useDebug();
   const { contractContext, currentSimulation, decodedTraceRows } = useSimulation();
 
-  // Compute position in snapshot list for display (1-indexed)
   const currentPosition = useMemo(() => {
     if (currentSnapshotId === null) return 0;
     const index = snapshotList.findIndex(s => s.id === currentSnapshotId);
     return index >= 0 ? index + 1 : 0;
   }, [currentSnapshotId, snapshotList]);
 
-  // Use decoded trace rows from context
-  // Falls back to decoding locally only if context doesn't have rows
   const decodedTrace = useMemo(() => {
-    // Prefer rows from context (already filtered by traceDecoder)
     if (decodedTraceRows && decodedTraceRows.length > 0) {
       return { rows: decodedTraceRows };
     }
-    // Fallback: decode locally if context doesn't have rows yet
     if (!currentSimulation?.rawTrace) return null;
     try {
       return decodeTrace(currentSimulation.rawTrace as Parameters<typeof decodeTrace>[0]);
@@ -155,8 +140,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
     };
   }, [contractContext, currentSimulation, decodedInput, decodedOutput]);
 
-  // Update current executing address and source file when snapshot changes
-  // This is critical for Diamond proxy support - shows which facet's source to display
   useEffect(() => {
     if (currentSnapshotId === null || !decodedTrace?.rows) {
       setCurrentExecutingAddress(null);
@@ -164,11 +147,9 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
       return;
     }
 
-    // Find the trace row for the current snapshot
     const row = decodedTrace.rows.find(r => r.id === currentSnapshotId);
     if (!row) return;
 
-    // Update executing address
     if (row.entryMeta?.codeAddress) {
       setCurrentExecutingAddress(row.entryMeta.codeAddress.toLowerCase());
     } else if (row.entryMeta?.target) {
@@ -177,8 +158,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
       setCurrentExecutingAddress(null);
     }
 
-    // Update source file and line
-    // For internal calls, prefer the call site (srcLine).
     if (row.isInternalCall) {
       const callSiteFile = row.srcSourceFile || row.sourceFile || row.destSourceFile;
       const callSiteLine = row.srcLine ?? row.line ?? row.destLine;
@@ -237,10 +216,8 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
     setEvalHint,
   ]);
 
-  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle if no input is focused
       const activeElement = document.activeElement;
       const isInputFocused =
         activeElement instanceof HTMLInputElement ||
@@ -274,15 +251,12 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
     }
   }, [isDebugging, session, stepNext, stepPrev, closeDebugWindow]);
 
-  // Don't render if not debugging
   if (!isDebugging) {
     return null;
   }
 
-  // Check if simulation has debug session info
   const hasDebugSessionInfo = !!currentSimulation?.debugSession;
 
-  // No active session - show loading, error, or no-session state
   if (!session) {
     return (
       <div className={`debug-window debug-window--loading ${className || ''}`}>
@@ -336,7 +310,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
   return (
     <div className={`debug-window ${className || ''}`}>
-      {/* Header */}
       <div className="debug-window__header">
         <div className="debug-window__title">
           <Bug className="h-5 w-5 text-cyan-400" />
@@ -364,13 +337,10 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
         </div>
       </div>
 
-      {/* Main Debug View - IDE-style layout with resizable panels */}
       <div className="debug-window__content">
         <ResizablePanelGroup orientation="horizontal" className="debug-window__main">
-          {/* Left Panel - Execution Tree + Stack Trace */}
           <ResizablePanel defaultSize="20%" minSize="15%" maxSize="35%">
             <ResizablePanelGroup orientation="vertical" className="h-full">
-              {/* Top - Execution Tree */}
               <ResizablePanel defaultSize="70%" minSize="30%">
                 <div className="debug-window__execution">
                   <ExecutionTree
@@ -382,7 +352,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
               <ResizableHandle />
 
-              {/* Bottom - Stack Trace (call ancestry) */}
               <ResizablePanel defaultSize="30%" minSize="15%" maxSize="50%">
                 <StackTracePanel className="h-full" />
               </ResizablePanel>
@@ -391,17 +360,14 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
           <ResizableHandle />
 
-          {/* Right Area - Source Code + State Panel stacked vertically */}
           <ResizablePanel defaultSize="80%">
             <div className="debug-window__right-area">
               <ResizablePanelGroup orientation="vertical" className="debug-window__vertical-panels">
-                {/* Top - Source Code + Toolbar */}
                 <ResizablePanel defaultSize="70%" minSize="30%">
                   <div className="debug-window__source-area">
                     <div className="debug-window__source">
                       <SourceViewPanel className="h-full" />
                     </div>
-                    {/* Toolbar between source and state panel */}
                     <div className="debug-window__toolbar">
                       <DebugToolbar />
                     </div>
@@ -410,7 +376,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
                 <ResizableHandle />
 
-                {/* Bottom - State/Details Panel */}
                 <ResizablePanel defaultSize="30%" minSize="15%" maxSize="50%">
                   <div className="debug-window__state-panel">
                     <DebugStatePanel className="h-full" simulationContext={simulationContext} />
@@ -427,9 +392,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
 DebugWindowInner.displayName = 'DebugWindowInner';
 
-/**
- * Main Debug Window component with context provider
- */
 export const DebugWindow: React.FC<DebugWindowProps> = React.memo((props) => {
   return (
     <DebugProvider>
@@ -440,10 +402,6 @@ export const DebugWindow: React.FC<DebugWindowProps> = React.memo((props) => {
 
 DebugWindow.displayName = 'DebugWindow';
 
-/**
- * Debug Window that uses existing context (no provider wrapper)
- * Use this when DebugProvider is already in the component tree
- */
 export const DebugWindowWithContext: React.FC<DebugWindowProps> = React.memo((props) => {
   return <DebugWindowInner {...props} />;
 });

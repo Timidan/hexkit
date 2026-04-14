@@ -28,6 +28,16 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
     description:
       "Browse your past EVM transaction simulations. Review traces, state changes, and gas usage from previous simulation runs.",
   },
+  "/integrations": {
+    title: "Integrations — DeFi Protocols & Tools",
+    description:
+      "Browse DeFi protocol integrations, yield vaults, and tools across the Ethereum ecosystem.",
+  },
+  "/integrations/lifi-earn": {
+    title: "LI.FI Earn — Yield Vaults & DeFi Protocols",
+    description:
+      "Browse DeFi yield vaults, simulate deposits, and manage positions across protocols. Powered by LI.FI Earn.",
+  },
 };
 
 /**

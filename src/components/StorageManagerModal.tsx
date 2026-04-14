@@ -7,10 +7,9 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Loader2, Trash2, HardDrive, AlertTriangle } from "lucide-react";
+import { CircleNotch, Trash, HardDrive, Warning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-// Services & caches
 import { simulationHistoryService } from "../services/SimulationHistoryService";
 import { contractCache } from "../utils/resolver/ContractCache";
 import {
@@ -69,20 +68,16 @@ async function scanSimulationHistory(): Promise<Omit<StorageCategory, "clearing"
   try {
     const sims = await simulationHistoryService.getSimulations(undefined, true);
     const count = sims.length;
-    // Rough size estimate: we can't easily get IDB size, so estimate from count
-    // Average sim is ~50-500KB depending on trace data
-    // For a better estimate, we serialize a sample
     let sizeBytes = 0;
     if (count > 0) {
-      // Sample the first sim fully to estimate avg size
       try {
         const fullSim = await simulationHistoryService.getSimulation(sims[0].id);
         if (fullSim) {
           const sampleSize = JSON.stringify(fullSim).length * 2;
-          sizeBytes = sampleSize * count; // rough extrapolation
+          sizeBytes = sampleSize * count;
         }
       } catch {
-        sizeBytes = count * 100_000; // fallback: 100KB per sim
+        sizeBytes = count * 100_000;
       }
     }
     return {
@@ -139,7 +134,6 @@ async function scanContractCache(): Promise<Omit<StorageCategory, "clearing">> {
   try {
     const stats = await contractCache.getStats();
     const count = stats.persistedSize;
-    // Rough estimate: ~5KB per contract entry
     const sizeBytes = count * 5_000;
     return {
       id: "contract-cache",
@@ -287,7 +281,6 @@ const StorageManagerModal: React.FC<StorageManagerModalProps> = ({ isOpen, onClo
       );
       try {
         await clearCategory(id);
-        // Re-scan to update numbers
         await scan();
       } catch (err) {
         console.error(`[StorageManager] Failed to clear ${id}:`, err);
@@ -331,7 +324,7 @@ const StorageManagerModal: React.FC<StorageManagerModalProps> = ({ isOpen, onClo
 
         {scanning && categories.length === 0 ? (
           <div className="flex items-center justify-center py-8 gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <CircleNotch className="h-4 w-4 animate-spin" />
             Scanning storage...
           </div>
         ) : (
@@ -369,9 +362,9 @@ const StorageManagerModal: React.FC<StorageManagerModalProps> = ({ isOpen, onClo
                     )}
                   >
                     {cat.clearing ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <CircleNotch className="h-3 w-3 animate-spin" />
                     ) : (
-                      <Trash2 className="h-3 w-3" />
+                      <Trash className="h-3 w-3" />
                     )}
                   </Button>
                 </div>
@@ -380,7 +373,6 @@ const StorageManagerModal: React.FC<StorageManagerModalProps> = ({ isOpen, onClo
           </div>
         )}
 
-        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t">
           <div className="text-xs text-muted-foreground">
             Total: <span className="font-medium text-foreground">{formatBytes(totalSize)}</span>
@@ -396,12 +388,12 @@ const StorageManagerModal: React.FC<StorageManagerModalProps> = ({ isOpen, onClo
               >
                 {clearingAll ? (
                   <>
-                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    <CircleNotch className="h-3 w-3 animate-spin mr-1" />
                     Clearing...
                   </>
                 ) : (
                   <>
-                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    <Warning className="h-3 w-3 mr-1" />
                     Clear All
                   </>
                 )}

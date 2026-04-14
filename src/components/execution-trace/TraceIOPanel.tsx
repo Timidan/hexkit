@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import { CopyButton } from "../ui/copy-button";
 import { Button } from "../ui/button";
 import { formatParamValue } from "./traceTypes";
@@ -64,7 +64,6 @@ const TraceIOPanel: React.FC<TraceIOPanelProps> = ({
 
   return (
     <div className="exec-io-container">
-      {/* Input Panel */}
       <div className="exec-io-panel">
         <div className="exec-io-header">
           <span>INPUT</span>
@@ -140,9 +139,9 @@ const TraceIOPanel: React.FC<TraceIOPanelProps> = ({
               >
                 <span className={`exec-io-caret ${inputExpanded ? "expanded" : ""}`}>
                   {inputExpanded ? (
-                    <ChevronDown size={12} strokeWidth={2} />
+                    <CaretDown size={12} />
                   ) : (
-                    <ChevronRight size={12} strokeWidth={2} />
+                    <CaretRight size={12} />
                   )}
                 </span>
                 <span className="exec-io-bracket">{"{"}</span>
@@ -203,7 +202,6 @@ const TraceIOPanel: React.FC<TraceIOPanelProps> = ({
         </div>
       </div>
 
-      {/* Output Panel */}
       <div className="exec-io-panel">
         <div className="exec-io-header">
           <span>OUTPUT</span>
@@ -249,9 +247,9 @@ const TraceIOPanel: React.FC<TraceIOPanelProps> = ({
               >
                 <span className={`exec-io-caret ${outputExpanded ? "expanded" : ""}`}>
                   {outputExpanded ? (
-                    <ChevronDown size={12} strokeWidth={2} />
+                    <CaretDown size={12} />
                   ) : (
-                    <ChevronRight size={12} strokeWidth={2} />
+                    <CaretRight size={12} />
                   )}
                 </span>
                 <span className="exec-io-bracket">{"{"}</span>

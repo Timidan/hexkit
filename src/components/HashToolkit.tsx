@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, AnimatedSelectValue }
 import { Alert, AlertDescription } from './ui/alert';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { AnimatedTabContent } from './ui/animated-tabs';
-import { AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { WarningCircle, Plus, Trash } from '@phosphor-icons/react';
 import { ToolIcon, HashIcon } from './icons/IconLibrary';
 
 type HashOperation = 'keccak256' | 'sha256' | 'abi.encode' | 'abi.encodePacked';
@@ -44,8 +44,6 @@ const HashToolkit: React.FC = () => {
           }
           data = hex;
         } else {
-          data = ethers.utils.toUtf8Bytes(rawInput) as unknown as string;
-          // ethers keccak256/sha256 accept byte arrays
           if (operation === 'keccak256') {
             return { output: ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawInput)), error: null };
           } else {
@@ -59,7 +57,6 @@ const HashToolkit: React.FC = () => {
           return { output: ethers.utils.sha256(data), error: null };
         }
       } else {
-        // abi.encode or abi.encodePacked
         const validParams = abiParams.filter(p => p.type.trim() && p.value.trim());
         if (validParams.length === 0) return { output: '', error: null };
 
@@ -67,19 +64,15 @@ const HashToolkit: React.FC = () => {
         const values = validParams.map(p => {
           const t = p.type.trim();
           const v = p.value.trim();
-          // Parse numeric types
           if (t.startsWith('uint') || t.startsWith('int')) {
             return ethers.BigNumber.from(v);
           }
-          // Parse bool
           if (t === 'bool') {
             return v === 'true' || v === '1';
           }
-          // Parse bytes (fixed size)
           if (t.match(/^bytes\d+$/)) {
             return v.startsWith('0x') ? v : '0x' + v;
           }
-          // Parse array types
           if (t.endsWith('[]')) {
             try { return JSON.parse(v); } catch { return v; }
           }
@@ -99,7 +92,6 @@ const HashToolkit: React.FC = () => {
     }
   }, [operation, rawInput, inputEncoding, abiParams, isSimpleHash]);
 
-  // For simple hashes, also show the 4-byte selector slice
   const selectorSlice = isSimpleHash && result.output ? result.output.slice(0, 10) : '';
 
   const addParam = () => setAbiParams([...abiParams, { type: '', value: '' }]);
@@ -116,7 +108,6 @@ const HashToolkit: React.FC = () => {
         <ToolIcon width={14} height={14} />
         Hash Toolkit
       </div>
-      {/* Operation selector */}
       <Tabs value={operation} onValueChange={(v) => setOperation(v as HashOperation)} className="mb-1">
         <div className="flex justify-center overflow-x-auto pb-1">
           <TabsList className="tool-pill-tabs h-auto w-auto bg-transparent p-0">
@@ -204,7 +195,7 @@ const HashToolkit: React.FC = () => {
                 </InputGroup>
                 {abiParams.length > 1 && (
                   <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => removeParam(i)}>
-                    <Trash2 width={10} height={10} />
+                    <Trash width={10} height={10} />
                   </Button>
                 )}
               </div>
@@ -215,7 +206,7 @@ const HashToolkit: React.FC = () => {
 
       {result.error && (
         <Alert variant="destructive" className="py-2">
-          <AlertCircle className="h-3 w-3" />
+          <WarningCircle className="h-3 w-3" />
           <AlertDescription className="text-xs">{result.error}</AlertDescription>
         </Alert>
       )}

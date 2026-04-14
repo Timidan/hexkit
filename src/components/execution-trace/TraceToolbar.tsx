@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Bug } from "lucide-react";
+import { Bug } from "@phosphor-icons/react";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -39,7 +39,6 @@ const TraceToolbar: React.FC<TraceToolbarProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!dropdownOpen) return;
     const handleClick = (e: MouseEvent) => {
@@ -55,7 +54,6 @@ const TraceToolbar: React.FC<TraceToolbarProps> = ({
 
   return (
     <div className="exec-trace-toolbar">
-      {/* Search */}
       <div className="exec-trace-search">
         <Input
           type="search"
@@ -92,7 +90,6 @@ const TraceToolbar: React.FC<TraceToolbarProps> = ({
         </div>
       </div>
 
-      {/* Filters */}
       <div className="exec-trace-filters">
         <div className="exec-filter-checkbox">
           <Checkbox

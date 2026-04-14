@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { Zap, Play, Code2, GitCompare, Database } from "lucide-react";
+import { Lightning, Play, Code, GitDiff, Database } from "@phosphor-icons/react";
 import {
   SearchIcon,
   HashtagIcon,
@@ -10,8 +10,6 @@ import {
   FileTextIcon,
   ZapIcon,
 } from "./icons/IconLibrary";
-
-// ─── Sub-tab definitions per top-level tool ───
 
 interface SubTab {
   id: string;
@@ -49,7 +47,7 @@ const TOOLS: ToolDef[] = [
     label: "Transaction Utils",
     shortLabel: "Tx Utils",
     subTabs: [
-      { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Zap width={12} height={12} /> },
+      { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
       { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
     ],
   },
@@ -59,20 +57,28 @@ const TOOLS: ToolDef[] = [
     label: "Source Tools",
     shortLabel: "Source",
     subTabs: [
-      { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code2 width={12} height={12} /> },
-      { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitCompare width={12} height={12} /> },
+      { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code width={12} height={12} /> },
+      { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitDiff width={12} height={12} /> },
       { id: "storage", label: "Storage", shortLabel: "Storage", paramKey: "tool", icon: <Database width={12} height={12} /> },
     ],
   },
+  {
+    id: "integrations",
+    route: "/integrations",
+    label: "Integrations",
+    shortLabel: "Integrate",
+    subTabs: [
+      { id: "lifi-earn", label: "LI.FI Earn", shortLabel: "LI.FI", paramKey: "route", icon: <img src="/logos/lifi.png" alt="" width={14} height={14} className="opacity-80" /> },
+    ],
+  },
 ];
-
-// ─── Helpers ───
 
 function getActiveToolId(pathname: string): string {
   if (pathname.startsWith("/builder")) return "builder";
   if (pathname.startsWith("/simulations")) return "builder";
   if (pathname.startsWith("/database")) return "database";
   if (pathname.startsWith("/explorer")) return "explorer";
+  if (pathname.startsWith("/integrations")) return "integrations";
   return "database";
 }
 
@@ -88,14 +94,21 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   ) {
     return "simulation";
   }
+  // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn)
+  if (tool.subTabs[0]?.paramKey === "route") {
+    const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+    for (const sub of tool.subTabs) {
+      if (sub.id === segment) return sub.id;
+    }
+    return tool.subTabs[0].id;
+  }
+
   for (const sub of tool.subTabs) {
     const val = params.get(sub.paramKey);
     if (val === sub.id) return sub.id;
   }
   return tool.subTabs[0].id;
 }
-
-// ─── Indicator measurement ───
 
 function measureBtn(
   rowEl: HTMLElement | null,
@@ -110,7 +123,6 @@ function measureBtn(
   return { left: btnRect.left - rowRect.left, width: btnRect.width };
 }
 
-// ─── Spring config ───
 const SPRING = { stiffness: 320, damping: 30, mass: 0.8 };
 const SUB_STAGGER = { staggerChildren: 0.04, delayChildren: 0.06 };
 const SUB_ITEM: Variants = {
@@ -123,8 +135,6 @@ const SUB_ITEM: Variants = {
   },
   exit: { opacity: 0, y: 4, scale: 0.95, transition: { duration: 0.12 } },
 };
-
-// ─── Component ───
 
 const Navigation: React.FC = () => {
   const location = useLocation();
@@ -140,7 +150,6 @@ const Navigation: React.FC = () => {
   const mainRowRef = useRef<HTMLDivElement>(null);
   const subRowRef = useRef<HTMLDivElement>(null);
 
-  // ─── Cursor spotlight ───
   const spotlightX = useMotionValue(0);
   const spotlightY = useMotionValue(0);
   const spotlightOpacity = useMotionValue(0);
@@ -160,15 +169,12 @@ const Navigation: React.FC = () => {
     spotlightOpacity.set(0);
   }, [spotlightOpacity]);
 
-  // ─── Main indicator springs ───
   const mainLeft = useSpring(0, SPRING);
   const mainWidth = useSpring(0, SPRING);
 
-  // ─── Sub indicator springs ───
   const subLeft = useSpring(0, SPRING);
   const subWidth = useSpring(0, SPRING);
 
-  // Track whether initial measurement has happened (suppress animation on mount)
   const hasMountedRef = useRef(false);
   const [hasInitialRender, setHasInitialRender] = useState(true);
 
@@ -201,20 +207,16 @@ const Navigation: React.FC = () => {
     syncSubIndicator();
   }, [syncMainIndicator, syncSubIndicator]);
 
-  // Measure synchronously after each render so the indicator starts from the current layout.
   useLayoutEffect(() => {
     syncIndicators();
   }, [syncIndicators]);
 
-  // Measure on tool / sub-tab change
   useEffect(() => {
-    // RAF for immediate attempt
     const raf = requestAnimationFrame(() => {
       syncIndicators();
       hasMountedRef.current = true;
       setHasInitialRender((prev) => (prev ? false : prev));
     });
-    // Delayed attempt — AnimatePresence exit+enter may take ~150ms
     const timer = window.setTimeout(() => {
       syncIndicators();
     }, 200);
@@ -224,36 +226,24 @@ const Navigation: React.FC = () => {
     };
   }, [activeToolId, activeSubId, syncIndicators]);
 
-  // Re-measure on resize
   useEffect(() => {
-    const onResize = () => {
-      syncIndicators();
-    };
+    const onResize = () => syncIndicators();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [syncIndicators]);
 
-  // Re-measure when web fonts settle after a hard refresh.
   useEffect(() => {
     let cancelled = false;
     const fontSet = document.fonts;
-
-    const handleFontsSettled = () => {
-      if (!cancelled) {
-        syncIndicators();
-      }
-    };
-
+    const handleFontsSettled = () => { if (!cancelled) syncIndicators(); };
     fontSet.ready.then(handleFontsSettled);
     fontSet.addEventListener("loadingdone", handleFontsSettled);
-
     return () => {
       cancelled = true;
       fontSet.removeEventListener("loadingdone", handleFontsSettled);
     };
   }, [syncIndicators]);
 
-  // Re-measure if the nav rows resize due to font swaps or content changes.
   useEffect(() => {
     const rows = [mainRowRef.current, subRowRef.current].filter(
       (row): row is HTMLDivElement => row !== null,
@@ -268,10 +258,7 @@ const Navigation: React.FC = () => {
     return () => observer.disconnect();
   }, [syncIndicators]);
 
-  // ─── Pressed state for tactile feedback ───
   const [pressedTab, setPressedTab] = useState<string | null>(null);
-
-  // ─── Handlers ───
 
   const handleToolClick = (tool: ToolDef) => {
     if (tool.id === activeToolId) return;
@@ -280,6 +267,13 @@ const Navigation: React.FC = () => {
 
   const handleSubTabClick = (sub: SubTab) => {
     if (sub.id === activeSubId) return;
+
+    // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
+    if (sub.paramKey === "route") {
+      navigate(`${activeTool.route}/${sub.id}`);
+      return;
+    }
+
     const params = new URLSearchParams(location.search);
     params.set(sub.paramKey, sub.id);
     // Use the tool's canonical route when the current path doesn't match
@@ -308,7 +302,6 @@ const Navigation: React.FC = () => {
             background: `radial-gradient(180px circle at ${spotlightX.get()}px ${spotlightY.get()}px, rgba(255,255,255,0.06), transparent 70%)`,
             opacity: spotlightOpacity,
           }}
-          // Re-render spotlight on every mouse move via subscription
           ref={(el) => {
             if (!el) return;
             const unsub1 = spotlightX.on("change", (x) => {
@@ -320,17 +313,13 @@ const Navigation: React.FC = () => {
             const unsub3 = spotlightOpacity.on("change", (o) => {
               el.style.opacity = String(o);
             });
-            // Store cleanup for when ref detaches
             (el as any).__spotlightUnsub = () => { unsub1(); unsub2(); unsub3(); };
           }}
         />
 
-        {/* Inner refraction edge (liquid glass) */}
         <div className="capsule-refraction" />
 
-        {/* ── Top row: tools ── */}
         <div className="capsule-main-row" ref={mainRowRef}>
-          {/* Spring-animated indicator */}
           <motion.div
             className="capsule-indicator"
             style={{ left: mainLeft, width: mainWidth }}
@@ -356,12 +345,10 @@ const Navigation: React.FC = () => {
           ))}
         </div>
 
-        {/* ── Bottom row: sub-tabs (collapsible) ── */}
         <div className={`capsule-sub${hasSubTabs ? " open" : ""}`}>
           <div className="capsule-sub-inner">
             <div className="capsule-divider" />
             <div className="capsule-sub-row" ref={subRowRef}>
-              {/* Spring-animated sub indicator */}
               <motion.div
                 className="capsule-sub-indicator"
                 style={{ left: subLeft, width: subWidth }}

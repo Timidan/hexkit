@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { GitCompare, Loader2, Copy, Check } from 'lucide-react';
+import { GitDiff, CircleNotch, Copy, Check } from '@phosphor-icons/react';
 import { getChainById } from '@/utils/chains';
 import { getSharedProvider } from '@/utils/providerPool';
 import { prepareBytecode, diffHexChars, type NormalizeMode, type DiffChar } from '@/utils/bytecodeDiff';
@@ -27,7 +27,6 @@ const INITIAL_SIDE: BytecodeSide = {
   error: null,
 };
 
-/** Tiny copy-to-clipboard button */
 const CopyBtn: React.FC<{ text: string; label: string }> = ({ text, label }) => {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -46,7 +45,6 @@ const CopyBtn: React.FC<{ text: string; label: string }> = ({ text, label }) => 
   );
 };
 
-/** Render a DiffChar[] as spans */
 const HexDiffText: React.FC<{ chars: DiffChar[] }> = ({ chars }) => {
   // Group consecutive chars by their state to reduce DOM nodes
   const spans: { text: string; cls: string }[] = [];
@@ -164,14 +162,12 @@ const ContractDiff: React.FC = () => {
 
   return (
     <div className="bg-background p-3 max-w-5xl mx-auto space-y-3">
-      {/* Header */}
       <div className="flex items-center justify-center gap-2 mb-1">
-        <GitCompare width={16} height={16} className="text-muted-foreground" />
+        <GitDiff width={16} height={16} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold">Bytecode Diff</h2>
         <span className="text-[10px] text-muted-foreground">Compare runtime bytecode</span>
       </div>
 
-      {/* Address inputs */}
       <div className="grid grid-cols-2 gap-3">
         <SideInput
           side={left}
@@ -189,7 +185,6 @@ const ContractDiff: React.FC = () => {
         />
       </div>
 
-      {/* Compare button */}
       <div className="flex justify-center">
         <Button
           size="sm"
@@ -197,15 +192,13 @@ const ContractDiff: React.FC = () => {
           onClick={handleCompare}
           disabled={isLoading || !left.address.trim() || !right.address.trim()}
         >
-          <GitCompare width={12} height={12} />
+          <GitDiff width={12} height={12} />
           Compare
         </Button>
       </div>
 
-      {/* Diff viewer */}
       {hasBothBytecodes && diff && (
         <div className="space-y-2">
-          {/* Toolbar */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-muted-foreground">Metadata:</span>
@@ -226,13 +219,11 @@ const ContractDiff: React.FC = () => {
             </Badge>
           </div>
 
-          {/* Stats row */}
           <div className="grid grid-cols-2 gap-3">
             <BytecodeStats prepared={leftPrepared!} label="Contract 1" rawBytecode={left.bytecode} />
             <BytecodeStats prepared={rightPrepared!} label="Contract 2" rawBytecode={right.bytecode} />
           </div>
 
-          {/* Side-by-side hex diff */}
           <div className="cdiff-container">
             <div className="cdiff-side-by-side">
               <div className="cdiff-panel-label">Contract 1</div>
@@ -252,7 +243,6 @@ const ContractDiff: React.FC = () => {
         </div>
       )}
 
-      {/* Empty state */}
       {!hasBothBytecodes && !isLoading && (
         <div className="text-center py-8 text-muted-foreground text-xs">
           Enter two contract addresses and click Compare to see bytecode differences
@@ -261,8 +251,6 @@ const ContractDiff: React.FC = () => {
     </div>
   );
 };
-
-/* ─── Sub-components ─────────────────────────────────────────── */
 
 interface SideInputProps {
   side: BytecodeSide;
@@ -301,7 +289,7 @@ const SideInput: React.FC<SideInputProps> = ({ side, setSide, label, onFetch, pr
     {side.error && <p className="text-[10px] text-destructive">{side.error}</p>}
     {side.loading && (
       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-        <Loader2 width={10} height={10} className="animate-spin" />
+        <CircleNotch width={10} height={10} className="animate-spin" />
         Fetching bytecode...
       </p>
     )}

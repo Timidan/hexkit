@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Shield } from 'lucide-react';
+import { Shield } from '@phosphor-icons/react';
 import type { Source, ProxyInfo, ProxyType } from '@/utils/resolver/types';
 
 type BadgeSize = 'sm' | 'md' | 'lg';

@@ -161,6 +161,7 @@ export default function ContractInfoCard(): React.ReactElement | null {
             return (
               <span style={{ lineHeight: 0 }}>
                 <ChainIcon
+                  chainId={selectedNetwork?.id}
                   chain={
                     (badge?.label as
                       | "ETH"

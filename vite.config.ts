@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -96,8 +96,53 @@ function devExplorerProxy(): Plugin {
   };
 }
 
+// ── Gemini AI Studio LLM proxy (dev server) ────────────────────────────────
+
+function llmProxyPlugin(envObj: Record<string, string>): Plugin {
+  return {
+    name: "llm-proxy",
+    configureServer(server) {
+      server.middlewares.use("/api/llm-recommend", async (req, res) => {
+        if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
+        if (req.method !== "POST") { res.statusCode = 405; res.end('{"error":"method_not_allowed"}'); return; }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        const body = Buffer.concat(chunks).toString("utf-8");
+
+        const model = envObj.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
+        const apiKey = envObj.GEMINI_API_KEY || "";
+        if (!apiKey) { res.statusCode = 500; res.end('{"error":"No GEMINI_API_KEY"}'); return; }
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        const gemHeaders: Record<string, string> = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
+
+        try {
+          const upstream = await fetch(url, { method: "POST", headers: gemHeaders, body, signal: AbortSignal.timeout(55_000) });
+          const text = await upstream.text();
+          res.statusCode = upstream.status;
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("X-Gemini-Model", model);
+          res.end(text);
+        } catch (err: any) {
+          console.error(`[llm-proxy] ${model} failed:`, err?.message);
+          res.statusCode = 502;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Upstream failed" }));
+        }
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  // Vite does NOT auto-populate process.env with .env files at config time.
+  // We load non-VITE_ server-side vars (e.g. LIFI_API_KEY) manually so the
+  // dev proxies below can inject them as upstream headers.
+  const env = loadEnv(mode, process.cwd(), "");
+  const LIFI_API_KEY = env.LIFI_API_KEY || process.env.LIFI_API_KEY || "";
+
   return {
     plugins: [
       react({
@@ -106,6 +151,7 @@ export default defineConfig(() => {
       tailwindcss(),
       injectBridgeCsp(),
       devExplorerProxy(),
+      llmProxyPlugin(env),
     ],
     esbuild: {
       logOverride: { "this-is-undefined-in-esm": "silent" },
@@ -255,6 +301,24 @@ export default defineConfig(() => {
           rewrite: (path) =>
             path.replace(/^\/api\/gnosis-blockscout/, "/api"),
         },
+        // Proxy for LI.FI Earn Data API (no auth needed, but no CORS headers)
+        "/api/lifi-earn": {
+          target: "https://earn.li.fi",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/lifi-earn/, ""),
+        },
+        // Proxy for LI.FI Composer API (needs API key — handled by serverless fn in prod)
+        "/api/lifi-composer": {
+          target: "https://li.quest",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/lifi-composer/, ""),
+          headers: {
+            "x-lifi-api-key": LIFI_API_KEY,
+          },
+        },
+        // Gemini is handled by llmProxyPlugin() below — not a static proxy
         // Proxy for Sourcify repo
         "/api/repo": {
           target: "https://repo.sourcify.dev",

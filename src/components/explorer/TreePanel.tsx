@@ -1,14 +1,14 @@
 import React from 'react';
 import {
-  ChevronRight,
-  ChevronDown,
+  CaretRight,
+  CaretDown,
   Eye,
-  Loader2,
+  CircleNotch,
   Plus,
-  Trash2,
-  Layers,
-  PanelLeftClose,
-} from 'lucide-react';
+  Trash,
+  Stack,
+  SidebarSimple,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -77,7 +77,7 @@ export const TreePanel: React.FC<TreePanelProps> = ({
     <div className="px-2 py-1.5 flex items-center justify-between border-b border-border/30">
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Storage Tree</span>
       <button onClick={() => setTreeOpen(false)} className="p-0.5 rounded hover:bg-muted/40 text-muted-foreground/60 hover:text-muted-foreground transition-colors" title="Collapse tree">
-        <PanelLeftClose className="h-3.5 w-3.5" />
+        <SidebarSimple className="h-3.5 w-3.5" />
       </button>
     </div>
       <ScrollArea className="flex-1">
@@ -96,9 +96,9 @@ export const TreePanel: React.FC<TreePanelProps> = ({
                     className="w-full flex items-center gap-1 px-2 py-1 text-xs hover:bg-muted/30 transition-colors"
                   >
                     {isExpanded ? (
-                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      <CaretDown className="h-3 w-3 text-muted-foreground" />
                     ) : (
-                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                      <CaretRight className="h-3 w-3 text-muted-foreground" />
                     )}
                     <span className="font-medium">{groupLabel}</span>
                     <Badge variant="secondary" className="text-[10px] h-4 ml-auto">
@@ -126,7 +126,7 @@ export const TreePanel: React.FC<TreePanelProps> = ({
                             }`}
                           >
                             {slot.isPacked && (
-                              <Layers className="h-2.5 w-2.5 text-cyan-400 shrink-0" />
+                              <Stack className="h-2.5 w-2.5 text-cyan-400 shrink-0" />
                             )}
                             <span className="truncate flex-1">
                               {slot.label
@@ -152,11 +152,10 @@ export const TreePanel: React.FC<TreePanelProps> = ({
           )}
         </div>
 
-        {/* Slot Derivation / Probe section */}
         <Collapsible>
           <div className="border-t border-border/30 px-2 py-1.5">
             <CollapsibleTrigger className="w-full flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronRight className="h-3 w-3 transition-transform [[data-state=open]>&]:rotate-90" />
+              <CaretRight className="h-3 w-3 transition-transform [[data-state=open]>&]:rotate-90" />
               Probe Slot
             </CollapsibleTrigger>
           </div>
@@ -237,7 +236,7 @@ export const TreePanel: React.FC<TreePanelProps> = ({
                       />
                       {nestedKeys.length > 1 && (
                         <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => removeNestedKey(i)}>
-                          <Trash2 className="h-2.5 w-2.5" />
+                          <Trash className="h-2.5 w-2.5" />
                         </Button>
                       )}
                     </div>
@@ -269,7 +268,7 @@ export const TreePanel: React.FC<TreePanelProps> = ({
                 disabled={manualSlotReading || !contractAddress.trim() || !computedSlot.hex}
               >
                 {manualSlotReading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <CircleNotch className="h-3 w-3 animate-spin" />
                 ) : (
                   <Eye className="h-3 w-3" />
                 )}

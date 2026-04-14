@@ -310,6 +310,16 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
     };
   }
 
+  // RPC node gone / gRPC cancellation (common with free-tier dRPC, Polygon public RPCs)
+  if (lower.includes('410 gone') || lower.includes('grpc context cancellation') || lower.includes('status 410')) {
+    return {
+      type: 'rpc',
+      message: 'The RPC node dropped the simulation request.',
+      suggestion: 'The public RPC may be overloaded. Try again, or switch to Alchemy/Infura with an API key in Settings > RPC.',
+      technicalDetails: rawError,
+    };
+  }
+
   // Generic RPC error codes
   if (lower.includes('error code -32')) {
     const inner = extractInnerMessage(rawError);

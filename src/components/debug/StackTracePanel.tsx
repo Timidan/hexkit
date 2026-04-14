@@ -1,12 +1,6 @@
-/**
- * Stack Trace Panel Component
- *
- * Dedicated collapsible panel for displaying call stack,
- * Collapsible call stack display panel.
- */
 
 import React from 'react';
-import { X, Layers, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Stack, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -22,9 +16,6 @@ interface StackTracePanelProps {
   onClose?: () => void;
 }
 
-/**
- * Stack frame row with file:line format
- */
 const StackFrame: React.FC<{
   frame: DebugCallFrame;
   onClick?: () => void;
@@ -65,9 +56,6 @@ const StackFrame: React.FC<{
   );
 };
 
-/**
- * Main Stack Trace Panel component
- */
 export const StackTracePanel: React.FC<StackTracePanelProps> = React.memo(({
   className,
   isCollapsed = false,
@@ -76,18 +64,15 @@ export const StackTracePanel: React.FC<StackTracePanelProps> = React.memo(({
 }) => {
   const { callStack, goToSnapshot } = useDebug();
 
-  // Navigate to the trace row when clicking a stack frame
   const handleFrameClick = (frame: DebugCallFrame) => {
-    // Use rowId directly - in trace mode, row IDs are snapshot IDs
     goToSnapshot(frame.rowId);
   };
 
   return (
     <div className={cn('stack-trace', isCollapsed && 'stack-trace--collapsed', className)}>
-      {/* Header */}
       <div className="stack-trace__header">
         <div className="stack-trace__title">
-          <Layers className="h-4 w-4" />
+          <Stack className="h-4 w-4" />
           <span>Stack Trace</span>
           <Badge variant="outline" className="stack-trace__count">
             {callStack.length}
@@ -103,9 +88,9 @@ export const StackTracePanel: React.FC<StackTracePanelProps> = React.memo(({
               className="stack-trace__toggle"
             >
               {isCollapsed ? (
-                <ChevronUp className="h-3 w-3" />
+                <CaretUp className="h-3 w-3" />
               ) : (
-                <ChevronDown className="h-3 w-3" />
+                <CaretDown className="h-3 w-3" />
               )}
             </Button>
           )}
@@ -122,7 +107,6 @@ export const StackTracePanel: React.FC<StackTracePanelProps> = React.memo(({
         </div>
       </div>
 
-      {/* Content */}
       {!isCollapsed && (
         <ScrollArea className="stack-trace__content">
           {callStack.length === 0 ? (
@@ -131,7 +115,6 @@ export const StackTracePanel: React.FC<StackTracePanelProps> = React.memo(({
             </div>
           ) : (
             <div className="stack-trace__frames">
-              {/* Show frames in reverse order (current at top) */}
               {[...callStack].reverse().map((frame, idx) => (
                 <StackFrame
                   key={idx}

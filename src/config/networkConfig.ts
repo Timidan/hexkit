@@ -10,6 +10,8 @@
  * All components MUST use this module instead of direct localStorage access.
  */
 
+import { PUBLIC_RPC_MAP } from '../chains/registry';
+
 export type RpcProviderMode = 'DEFAULT' | 'ALCHEMY' | 'INFURA' | 'CUSTOM';
 export type ExplorerKeyMode = 'default' | 'personal';
 
@@ -328,26 +330,7 @@ const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
   43114: (key) => `https://avalanche-mainnet.infura.io/v3/${key}`,
 };
 
-// Public RPC fallbacks — archival-capable free endpoints (may be rate-limited)
-const PUBLIC_RPC_FALLBACKS: Record<number, string> = {
-  1: 'https://ethereum-rpc.publicnode.com',
-  11155111: 'https://sepolia.drpc.org',
-  8453: 'https://mainnet.base.org',
-  84532: 'https://sepolia.base.org',
-  137: 'https://polygon.drpc.org',
-  80002: 'https://polygon-amoy.gateway.tenderly.co',
-  17000: 'https://holesky.drpc.org',
-  1135: 'https://rpc.api.lisk.com',
-  4202: 'https://rpc.sepolia-api.lisk.com',
-  42161: 'https://arbitrum.drpc.org',
-  421614: 'https://arbitrum-sepolia.drpc.org',
-  10: 'https://mainnet.optimism.io',
-  11155420: 'https://sepolia.optimism.io',
-  56: 'https://bsc-mainnet.drpc.org',
-  97: 'https://bsc-testnet.drpc.org',
-  43114: 'https://api.avax.network/ext/bc/C/rpc',
-  100: 'https://rpc.gnosischain.com',
-};
+const PUBLIC_RPC_FALLBACKS: Record<number, string> = PUBLIC_RPC_MAP;
 
 interface OldRpcSettings {
   mode?: RpcProviderMode;
@@ -535,16 +518,10 @@ function isUrlSafeFromSsrf(url: string): boolean {
 migrateSecretsToMemory();
 
 export const networkConfigManager = {
-  /**
-   * Get the current network configuration
-   */
   getConfig(): NetworkConfig {
     return readConfig();
   },
 
-  /**
-   * Save network configuration
-   */
   saveConfig(config: Partial<NetworkConfig>): void {
     const current = readConfig();
     writeConfig({
@@ -553,9 +530,6 @@ export const networkConfigManager = {
     });
   },
 
-  /**
-   * Resolve the RPC URL for a given chain
-   */
   resolveRpcUrl(chainId: number, defaultUrl?: string): RpcResolution {
     const config = readConfig();
     const fallbackUrl = defaultUrl || PUBLIC_RPC_FALLBACKS[chainId] || '';
@@ -683,9 +657,6 @@ export const networkConfigManager = {
     };
   },
 
-  /**
-   * Get the personal Etherscan API key when personal mode is enabled.
-   */
   getEtherscanApiKey(chainId?: number): string | undefined {
     const config = readConfig();
     if (config.etherscanKeyMode !== 'personal') {
@@ -700,49 +671,31 @@ export const networkConfigManager = {
     return config.etherscanApiKey?.trim() || undefined;
   },
 
-  /**
-   * Get Blockscout API key
-   */
   getBlockscoutApiKey(): string | undefined {
     const config = readConfig();
     return config.blockscoutApiKey?.trim() || undefined;
   },
 
-  /**
-   * Get ABI source priority order
-   */
   getSourcePriority(): AbiSourceType[] {
     const config = readConfig();
     return config.sourcePriority || DEFAULT_CONFIG.sourcePriority;
   },
 
-  /**
-   * Check if public RPC fallback is allowed
-   */
   isFallbackAllowed(): boolean {
     const config = readConfig();
     return config.allowPublicRpcFallback ?? true;
   },
 
-  /**
-   * Get the current RPC mode
-   */
   getRpcMode(): RpcProviderMode {
     const config = readConfig();
     return config.rpcMode || 'DEFAULT';
   },
 
-  /**
-   * Check if Alchemy is configured and supports a chain
-   */
   isAlchemyAvailable(chainId: number): boolean {
     const config = readConfig();
     return !!(config.alchemyApiKey?.trim() && ALCHEMY_ENDPOINTS[chainId]);
   },
 
-  /**
-   * Check if Infura is configured and supports a chain
-   */
   isInfuraAvailable(chainId: number): boolean {
     const config = readConfig();
     return !!(config.infuraProjectId?.trim() && INFURA_ENDPOINTS[chainId]);

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { ChevronDown, Network, Check } from "lucide-react";
+import { CaretDown, Globe, Check } from "@phosphor-icons/react";
 import type { Chain } from "../../types";
 import ChainIcon, { type ChainKey } from "../icons/ChainIcon";
+import { CHAIN_REGISTRY, isTestnet } from "../../chains/registry";
 import {
   Popover,
   PopoverContent,
@@ -11,7 +12,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const API_KEY = import.meta.env.VITE_API_KEY || "";
+// Map chain IDs to their ChainKey icon identifiers
+const CHAIN_KEY_MAP: Record<number, ChainKey> = {
+  1: "ETH", 10: "OP", 137: "POLY", 8453: "BASE", 42161: "ARB",
+  56: "BSC", 100: "GNO", 1135: "LISK", 43114: "AVAX",
+  // Testnets inherit parent chain icon
+  11155111: "ETH", 17000: "ETH", 84532: "BASE", 80002: "POLY",
+  421614: "ARB", 11155420: "OP", 4202: "LISK", 97: "BSC",
+};
 
 // Enhanced chain configuration with testnet support
 export interface ExtendedChain extends Partial<Chain> {
@@ -25,186 +33,16 @@ export interface ExtendedChain extends Partial<Chain> {
   chainKey?: ChainKey;
 }
 
-// Comprehensive network list with mainnets and testnets
-export const EXTENDED_NETWORKS: ExtendedChain[] = [
-  // Mainnets
-  {
-    id: 1,
-    name: "Ethereum",
-    rpcUrl: "https://ethereum-rpc.publicnode.com",
-    blockExplorer: "https://etherscan.io",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#627eea",
-    chainKey: "ETH",
-  },
-  {
-    id: 137,
-    name: "Polygon",
-    rpcUrl: "https://polygon.drpc.org",
-    blockExplorer: "https://polygonscan.com",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#8247e5",
-    chainKey: "POLY",
-  },
-  {
-    id: 42161,
-    name: "Arbitrum One",
-    rpcUrl: "https://arbitrum.drpc.org",
-    blockExplorer: "https://arbiscan.io",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#28a0f0",
-    chainKey: "ARB",
-  },
-  {
-    id: 10,
-    name: "Optimism",
-    rpcUrl: "https://mainnet.optimism.io",
-    blockExplorer: "https://optimistic.etherscan.io",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#ff0420",
-    chainKey: "OP",
-  },
-  {
-    id: 8453,
-    name: "Base",
-    rpcUrl: "https://mainnet.base.org",
-    blockExplorer: "https://basescan.org",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#0052ff",
-    chainKey: "BASE",
-  },
-  {
-    id: 56,
-    name: "BNB Smart Chain",
-    rpcUrl: "https://bsc-mainnet.drpc.org",
-    blockExplorer: "https://bscscan.com",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#f3ba2f",
-    chainKey: "BSC",
-  },
-  {
-    id: 100,
-    name: "Gnosis Chain",
-    rpcUrl: "https://rpc.gnosischain.com",
-    blockExplorer: "https://gnosisscan.io",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#3e6957",
-    chainKey: "GNO",
-  },
-  {
-    id: 1135,
-    name: "Lisk",
-    rpcUrl: "https://rpc.api.lisk.com",
-    blockExplorer: "https://blockscout.lisk.com",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#0f74ff",
-    chainKey: "LISK",
-  },
-  {
-    id: 43114,
-    name: "Avalanche",
-    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
-    blockExplorer: "https://snowtrace.io",
-    isTestnet: false,
-    category: "mainnet",
-    color: "#e84142",
-    chainKey: "AVAX",
-  },
-
-  // Testnets
-  {
-    id: 11155111,
-    name: "Sepolia",
-    rpcUrl: API_KEY
-      ? `https://eth-sepolia.g.alchemy.com/v2/${API_KEY}`
-      : "https://sepolia.drpc.org",
-    blockExplorer: "https://sepolia.etherscan.io",
-    isTestnet: true,
-    category: "testnet",
-    color: "#627eea",
-    chainKey: "ETH",
-  },
-  {
-    id: 17000,
-    name: "Holesky",
-    rpcUrl: "https://holesky.drpc.org",
-    blockExplorer: "https://holesky.etherscan.io",
-    isTestnet: true,
-    category: "testnet",
-    color: "#627eea",
-    chainKey: "ETH",
-  },
-  {
-    id: 80002,
-    name: "Polygon Amoy",
-    rpcUrl: "https://polygon-amoy.gateway.tenderly.co",
-    blockExplorer: "https://amoy.polygonscan.com",
-    isTestnet: true,
-    category: "testnet",
-    color: "#8247e5",
-    chainKey: "POLY",
-  },
-  {
-    id: 421614,
-    name: "Arbitrum Sepolia",
-    rpcUrl: "https://arbitrum-sepolia.drpc.org",
-    blockExplorer: "https://sepolia.arbiscan.io",
-    isTestnet: true,
-    category: "testnet",
-    color: "#28a0f0",
-    chainKey: "ARB",
-  },
-  {
-    id: 11155420,
-    name: "Optimism Sepolia",
-    rpcUrl: "https://sepolia.optimism.io",
-    blockExplorer: "https://sepolia-optimism.etherscan.io",
-    isTestnet: true,
-    category: "testnet",
-    color: "#ff0420",
-    chainKey: "OP",
-  },
-  {
-    id: 4202,
-    name: "Lisk Sepolia",
-    rpcUrl: "https://rpc.sepolia-api.lisk.com",
-    blockExplorer: "https://sepolia-blockscout.lisk.com",
-    isTestnet: true,
-    category: "testnet",
-    color: "#0f74ff",
-    chainKey: "LISK",
-  },
-  {
-    id: 84532,
-    name: "Base Sepolia",
-    rpcUrl: API_KEY
-      ? `https://base-sepolia.g.alchemy.com/v2/${API_KEY}`
-      : "https://sepolia.base.org",
-    blockExplorer: "https://sepolia.basescan.org",
-    isTestnet: true,
-    category: "testnet",
-    color: "#0052ff",
-    chainKey: "BASE",
-  },
-  {
-    id: 97,
-    name: "BNB Testnet",
-    rpcUrl: "https://bsc-testnet.drpc.org",
-    blockExplorer: "https://testnet.bscscan.com",
-    isTestnet: true,
-    category: "testnet",
-    color: "#f3ba2f",
-    chainKey: "BSC",
-  },
-];
+// Comprehensive network list derived from the unified chain registry.
+// Spread the full Chain object so round-tripping back to Chain preserves
+// nativeCurrency, explorers, apiUrl, etc.
+export const EXTENDED_NETWORKS: ExtendedChain[] = CHAIN_REGISTRY.map((chain) => ({
+  ...chain,
+  blockExplorer: chain.blockExplorer || chain.explorerUrl,
+  isTestnet: isTestnet(chain.id),
+  category: isTestnet(chain.id) ? "testnet" as const : "mainnet" as const,
+  chainKey: CHAIN_KEY_MAP[chain.id],
+}));
 
 export interface NetworkSelectorProps {
   selectedNetwork: ExtendedChain | null;
@@ -252,10 +90,9 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
 
   const renderNetworkIcon = (network?: ExtendedChain | null, sz = iconSize) => {
     if (!network) {
-      return <Network size={sz} className="text-muted-foreground" />;
+      return <Globe size={sz} className="text-muted-foreground" />;
     }
-    const resolvedKey = network.chainKey ?? "ETH";
-    return <ChainIcon chain={resolvedKey} size={sz} rounded={sz / 2} />;
+    return <ChainIcon chainId={network.id} chain={network.chainKey} size={sz} rounded={sz / 2} />;
   };
 
   const handleSelectNetwork = (network: ExtendedChain) => {
@@ -298,7 +135,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           )}
         >
           {renderNetworkIcon(selectedNetwork, 18)}
-          <ChevronDown
+          <CaretDown
             size={14}
             className={cn(
               "text-muted-foreground transition-transform",
@@ -352,7 +189,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
           </div>
         )}
 
-        <ChevronDown
+        <CaretDown
           size={size === "lg" ? 20 : 16}
           className={cn(
             "text-muted-foreground transition-transform",
@@ -367,7 +204,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
     <div className={cn("network-selector", className)}>
       {variant === "default" && (
         <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-          <Network size={14} />
+          <Globe size={14} />
           Network
         </label>
       )}

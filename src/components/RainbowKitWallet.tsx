@@ -1,6 +1,6 @@
 import React from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { WalletMinimal } from 'lucide-react';
+import { Wallet } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 
 interface RainbowKitWalletProps {
@@ -50,7 +50,7 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
                 aria-label="Connect wallet"
                 title="Connect wallet"
               >
-                <WalletMinimal size={18} />
+                <Wallet size={18} />
               </Button>
             );
           }
@@ -75,7 +75,7 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
                 aria-label="Switch network"
                 title={`Unsupported network · ${currentChainName}. Click to switch.`}
               >
-                <WalletMinimal size={18} />
+                <Wallet size={18} />
               </Button>
             );
           }
@@ -95,7 +95,7 @@ const RainbowKitWallet: React.FC<RainbowKitWalletProps> = ({ className = '' }) =
                 aria-label={`Wallet connected · ${displayLabel}`}
                 title={`Wallet connected · ${displayLabel}${balanceLabel}`}
               >
-                <WalletMinimal size={18} />
+                <Wallet size={18} />
               </Button>
             </>
           );

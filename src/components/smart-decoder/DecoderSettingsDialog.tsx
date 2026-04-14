@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  Settings2,
+  GearSix,
   Globe,
-  Sparkles,
-  Search,
-  Building2,
-} from 'lucide-react';
+  Sparkle,
+  MagnifyingGlass,
+  Buildings,
+} from '@phosphor-icons/react';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +49,7 @@ const DecoderSettingsDialog: React.FC<DecoderSettingsDialogProps> = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5 text-muted-foreground" />
+            <GearSix className="h-5 w-5 text-muted-foreground" />
             Advanced Settings
           </DialogTitle>
           <DialogDescription>
@@ -58,7 +58,6 @@ const DecoderSettingsDialog: React.FC<DecoderSettingsDialogProps> = ({
         </DialogHeader>
 
         <div className="space-y-6 pt-2">
-          {/* Explorer Mode Section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Globe className="h-4 w-4 text-muted-foreground" />
@@ -106,12 +105,10 @@ const DecoderSettingsDialog: React.FC<DecoderSettingsDialogProps> = ({
 
           <Separator />
 
-          {/* Toggle Settings */}
           <div className="space-y-4">
-            {/* Heuristic Decoding */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <Sparkles className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                <Sparkle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                 <div className="space-y-0.5">
                   <Label htmlFor="heuristics" className="text-sm font-medium cursor-pointer">
                     Heuristic decoding
@@ -128,10 +125,9 @@ const DecoderSettingsDialog: React.FC<DecoderSettingsDialogProps> = ({
               />
             </div>
 
-            {/* Signature Databases */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <Search className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                <MagnifyingGlass className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                 <div className="space-y-0.5">
                   <Label htmlFor="signatures" className="text-sm font-medium cursor-pointer">
                     Signature databases
@@ -148,10 +144,9 @@ const DecoderSettingsDialog: React.FC<DecoderSettingsDialogProps> = ({
               />
             </div>
 
-            {/* Alternative Attempts */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <Building2 className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
+                <Buildings className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
                 <div className="space-y-0.5">
                   <Label htmlFor="alternatives" className="text-sm font-medium cursor-pointer">
                     Alternative attempts

@@ -5,7 +5,7 @@ import {
   FileTextIcon,
   TrashIcon,
 } from "../icons/IconLibrary";
-import { Upload, ChevronDown } from "lucide-react";
+import { UploadSimple, CaretDown } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { CopyButton } from "../ui/copy-button";
 import { Badge } from "../ui/badge";
@@ -108,7 +108,7 @@ const CustomTab: React.FC<CustomTabProps> = ({
             </FieldLabel>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={openFileModal} size="sm">
-                <Upload className="h-4 w-4" />
+                <UploadSimple className="h-4 w-4" />
                 Select Folder
               </Button>
               {contractPath && (
@@ -330,7 +330,7 @@ const CustomTab: React.FC<CustomTabProps> = ({
               >
                 <TrashIcon width={10} height={10} />
               </Button>
-              <ChevronDown
+              <CaretDown
                 width={12}
                 height={12}
                 className={`transition-transform ${customOpen ? "rotate-180" : ""}`}
