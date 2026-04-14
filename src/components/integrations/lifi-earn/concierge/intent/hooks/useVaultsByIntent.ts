@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEarnVaults } from "../../../earnApi";
 import type { EarnVault } from "../../../types";
+import { isHighRiskVault } from "../../../VaultList";
 import type { ParsedIntent } from "../schema";
 
 /**
@@ -197,6 +198,11 @@ export function rankVaultsForIntent(
       continue;
     }
     if (maxApy !== null && apy > maxApy) {
+      rejection.apyAboveCeiling++;
+      continue;
+    }
+    // Exclude high-risk vaults (high APY + low TVL) from recommendations.
+    if (isHighRiskVault(v)) {
       rejection.apyAboveCeiling++;
       continue;
     }
