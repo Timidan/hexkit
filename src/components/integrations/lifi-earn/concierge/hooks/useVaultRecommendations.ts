@@ -414,6 +414,17 @@ function safeParseJson(text: string): unknown {
     try {
       return JSON.parse(stripped);
     } catch {
+      // Thinking models sometimes prepend prose before the JSON object.
+      // Find the first `{` and last `}` and try parsing that substring.
+      const first = stripped.indexOf("{");
+      const last = stripped.lastIndexOf("}");
+      if (first >= 0 && last > first) {
+        try {
+          return JSON.parse(stripped.slice(first, last + 1));
+        } catch {
+          /* fall through */
+        }
+      }
       return null;
     }
   }

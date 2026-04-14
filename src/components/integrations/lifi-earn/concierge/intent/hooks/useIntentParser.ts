@@ -204,6 +204,15 @@ function safeParseJson(text: string): unknown {
     try {
       return JSON.parse(stripped);
     } catch {
+      const first = stripped.indexOf("{");
+      const last = stripped.lastIndexOf("}");
+      if (first >= 0 && last > first) {
+        try {
+          return JSON.parse(stripped.slice(first, last + 1));
+        } catch {
+          /* fall through */
+        }
+      }
       return null;
     }
   }
