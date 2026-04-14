@@ -110,7 +110,7 @@ function llmProxyPlugin(envObj: Record<string, string>): Plugin {
         for await (const chunk of req) chunks.push(chunk as Buffer);
         const body = Buffer.concat(chunks).toString("utf-8");
 
-        const model = envObj.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
+        const model = envObj.GEMINI_MODEL || "gemini-2.5-flash-lite";
         const apiKey = envObj.GEMINI_API_KEY || "";
         if (!apiKey) { res.statusCode = 500; res.end('{"error":"No GEMINI_API_KEY"}'); return; }
 
