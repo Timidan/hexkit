@@ -86,10 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // EDB proxy uses origin allowlist only — reject requests from unknown origins.
+  // Origin check: allow same-origin requests (no Origin header) and allowlisted origins.
   const reqOrigin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
   const reqHost = typeof req.headers.host === "string" ? req.headers.host : undefined;
-  if (!resolveAllowedOrigin(reqOrigin, reqHost)) {
+  if (reqOrigin && !resolveAllowedOrigin(reqOrigin, reqHost)) {
     return res.status(403).json({ error: "origin_required" });
   }
 
