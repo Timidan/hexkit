@@ -99,7 +99,12 @@ export function useIntentRecommendation(
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<IntentRecommendationResult> => {
       if (!args) return { recommendation: null, llmError: null };
-      return buildRecommendation(args);
+      // eslint-disable-next-line no-console
+      console.error("[intent-rec] 🔥 queryFn CALLED — candidates:", args.rankedVaults.length, "LLM_MODE:", LLM_MODE, "objective:", args.intent.objective);
+      const result = await buildRecommendation(args);
+      // eslint-disable-next-line no-console
+      console.error("[intent-rec] 🔥 result source:", result.recommendation?.source, "llmError:", result.llmError);
+      return result;
     },
   });
 
@@ -125,6 +130,8 @@ async function buildRecommendation(
   // Only one vault → no meaningful ranking. Return it directly as best pick
   // with a rules-derived rationale. No LLM round-trip.
   if (candidates.length <= 1) {
+    // eslint-disable-next-line no-console
+    console.error("[intent-rec] 🔥 SKIP: candidates.length <=1:", candidates.length);
     return {
       recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
       llmError: null,
@@ -132,6 +139,8 @@ async function buildRecommendation(
   }
 
   if (LLM_MODE === "off") {
+    // eslint-disable-next-line no-console
+    console.error("[intent-rec] 🔥 SKIP: LLM_MODE is off");
     return {
       recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
       llmError: null,
@@ -170,6 +179,11 @@ async function buildRecommendation(
         return { vaultSlug: p.vault_slug, vault: v, rationale: p.rationale };
       };
 
+      // eslint-disable-next-line no-console
+      console.error("[intent-rec] 🔥 LLM returned best:", rec.best_pick?.vault_slug, "safest:", rec.safest_pick?.vault_slug, "alts:", rec.alternatives?.length);
+      // eslint-disable-next-line no-console
+      console.error("[intent-rec] 🔥 candidate slugs:", [...candidates.map((v) => v.slug)]);
+
       const bestPick = resolve(rec.best_pick);
       const safestPick = resolve(rec.safest_pick);
       const alternatives = rec.alternatives
@@ -179,6 +193,8 @@ async function buildRecommendation(
       // If the LLM returned slugs outside the candidate list, both picks
       // resolve to null. Fall back to rules so users get usable results.
       if (!bestPick && !safestPick && candidates.length > 0) {
+        // eslint-disable-next-line no-console
+        console.error("[intent-rec] 🔥 SLUG MISMATCH — LLM slugs not in candidates! best:", rec.best_pick?.vault_slug, "safest:", rec.safest_pick?.vault_slug);
         return {
           recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
           llmError: "LLM returned unknown vault slugs — used rules fallback",
