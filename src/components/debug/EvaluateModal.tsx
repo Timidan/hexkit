@@ -1,12 +1,6 @@
-/**
- * Evaluate Expression Modal
- *
- * A modal dialog for evaluating Solidity expressions during debugging.
- * Modal for evaluating Solidity expressions during debug sessions.
- */
 
 import React, { Suspense, useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Loader2, AlertCircle, Info } from 'lucide-react';
+import { CircleNotch, WarningCircle, Info } from '@phosphor-icons/react';
 import {
   Dialog,
   DialogContent,
@@ -60,9 +54,6 @@ async function withTimeout<T>(
   }
 }
 
-/**
- * Check if a result has unread fields that need storage access
- */
 function hasUnreadFields(value: SolValue | DebugVariable): boolean {
   if (value.value === 'unread') return true;
   if (value.children) {
@@ -71,21 +62,15 @@ function hasUnreadFields(value: SolValue | DebugVariable): boolean {
   return false;
 }
 
-/**
- * Convert a SolValue/DebugVariable to ComplexValueNode format for the tree viewer
- */
 function solValueToNode(value: SolValue | DebugVariable, label: string): ComplexValueNode {
-  // Check if this is an array type
   const isArray = value.type?.includes('[]') || value.type?.includes('[');
 
   const children = value.children?.map((child, index) =>
     solValueToNode(child, child.name || `[${index}]`)
   );
 
-  // Determine if this is a struct/object that should show field count
   const hasChildren = children && children.length > 0;
 
-  // For arrays, show the count
   let displayValue: string | undefined;
   if (isArray) {
     const count = children?.length ?? 0;
@@ -103,13 +88,8 @@ function solValueToNode(value: SolValue | DebugVariable, label: string): Complex
   };
 }
 
-/**
- * Build the root node wrapped in a "result" structure
- */
 function buildResultNode(value: SolValue, expressionName: string): ComplexValueNode {
   const resultChild = solValueToNode(value, 'result');
-
-  // Wrap in a root object with { "result": { ... } } structure
   return {
     label: expressionName || 'Evaluation',
     type: 'object',
@@ -138,9 +118,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   const [startLiveError, setStartLiveError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Check if in trace mode (no eval support).
-  // Use `=== true` so that a null session doesn't default to trace mode —
-  // that case is handled by `!session` in shouldEnsureLiveSession instead.
   const chainId = currentSimulation?.chainId || contractContext?.networkId || 1;
   const chain = getChainById(chainId);
   const rpcUrl = chain ? resolveRpcUrl(chain.id, chain.rpcUrl).url : null;
@@ -177,14 +154,12 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
       ? currentSnapshotId
       : null;
 
-  // Focus input when modal opens
   useEffect(() => {
     if (open && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
 
-  // Clear result when expression changes
   useEffect(() => {
     setResult(null);
   }, [expression]);
@@ -252,7 +227,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
         );
         return true;
       } catch {
-        // Fall back to starting a fresh live session below.
+        // fall through to start a fresh live session
       }
     }
 
@@ -323,7 +298,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     const expressionText = expression.trim();
     if (!expressionText) return;
 
-    // Fast-fail: debug mode was explicitly disabled AND no session exists
     if ((contractContext as any)?.debugEnabled === false && !session) {
       setResult({
         type: 'error',
@@ -349,7 +323,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     setResult({ type: 'pending' });
 
     try {
-      // Try evaluation first - trace mode can derive structs from trace data
       let evalResult = await withTimeout(
         evaluateExpression(expressionText),
         EVALUATION_TIMEOUT_MS,
@@ -369,7 +342,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
           evalResult.error?.toLowerCase().includes('session not found') ||
           evalResult.error?.includes('initializing'));
 
-      // Only try to start a live session if evaluation explicitly requires it
       if (needsLiveSession) {
         const restarted = await ensureLiveSession(true);
         if (restarted) {
@@ -383,13 +355,9 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
         }
       }
 
-      // Check if result has unread fields that need storage access
-      // If so, start a live session to fill them properly
       if (evalResult.success && evalResult.value && hasUnreadFields(evalResult.value)) {
-        // debugLog: Result has unread fields, starting live session to fill them
         const restarted = await ensureLiveSession();
         if (restarted) {
-          // Re-evaluate with live session - this will call fillUnreadFieldsFromStorage
           const liveResult = await withTimeout(
             evaluateExpression(expressionText),
             EVALUATION_TIMEOUT_MS,
@@ -451,7 +419,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 flex-1 min-h-0">
-          {/* Expression Input */}
           <div className="space-y-2 flex-shrink-0">
             <label className="text-sm font-medium">Expression</label>
             <Input
@@ -465,7 +432,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
             />
           </div>
 
-          {/* Result Section */}
           <div className="flex flex-col flex-1 min-h-0 space-y-2">
             <label className="text-sm font-medium flex-shrink-0">Result</label>
             <div
@@ -499,13 +465,13 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
                     </div>
                   ) : result.type === 'pending' ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <CircleNotch className="h-4 w-4 animate-spin" />
                       {result.note || 'Evaluating...'}
                     </div>
                   ) : result.type === 'error' ? (
                     <div className="space-y-2">
                       <div className="flex items-start gap-2 text-destructive">
-                        <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <WarningCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                         <div className="text-sm font-medium">Evaluation Error</div>
                       </div>
                       <pre className="text-sm text-destructive/80 whitespace-pre-wrap font-mono bg-destructive/10 rounded p-3">
@@ -547,7 +513,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
           </div>
         </div>
 
-        {/* Footer Actions */}
         <div className="flex justify-end gap-2 mt-4 flex-shrink-0 pt-2 border-t border-border">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -558,7 +523,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
           >
             {isEvaluating ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <CircleNotch className="h-4 w-4 mr-2 animate-spin" />
                 Evaluating...
               </>
             ) : isPrepInFlightForCurrentSimulation ? (

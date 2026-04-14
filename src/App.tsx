@@ -79,7 +79,7 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                 </Routes>
               ) : (
-                <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder")) && "app-fullwidth")}>
+                <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder") || location.pathname.startsWith("/integrations")) && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
 
                   <main className="content">

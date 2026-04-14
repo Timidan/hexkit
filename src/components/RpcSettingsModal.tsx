@@ -20,7 +20,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Checkbox } from "./ui/checkbox";
-import { Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeSlash, CheckCircle, WarningCircle, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 interface RpcSettingsModalProps {
@@ -86,13 +86,10 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     initialSyncRef.current = true;
   }, [isOpen]);
 
-  // Flush pending save when modal unmounts / closes (Radix Dialog unmounts content on close,
-  // so the flush MUST be in a cleanup function — effect bodies don't run on unmount)
   const formStateRef = useRef(formState);
   formStateRef.current = formState;
   useEffect(() => {
     if (!isOpen) return;
-    // Cleanup runs when isOpen flips false OR component unmounts (Dialog close)
     return () => {
       if (autoSaveTimer.current) {
         window.clearTimeout(autoSaveTimer.current);
@@ -153,7 +150,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
     setAutoSaveState("saving");
 
     autoSaveTimer.current = window.setTimeout(() => {
-      autoSaveTimer.current = null; // Mark as fired so flush cleanup doesn't redundantly save
+      autoSaveTimer.current = null;
       networkConfigManager.saveConfig({
         rpcMode: formState.mode,
         alchemyApiKey: formState.alchemyApiKey.trim(),
@@ -187,7 +184,6 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* Provider Tabs */}
           <Tabs
             value={formState.mode}
             onValueChange={(value) =>
@@ -225,7 +221,6 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
             </TabsList>
           </Tabs>
 
-          {/* Provider Config - constant height */}
           <div className="space-y-2">
             <Label
               htmlFor="provider-input"
@@ -314,7 +309,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                       ? showAlchemyKey
                       : showInfuraKey
                   ) ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeSlash className="h-4 w-4" />
                   ) : (
                     <Eye className="h-4 w-4" />
                   )}
@@ -328,7 +323,6 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
             )}
           </div>
 
-          {/* Etherscan API Key */}
           <div className="space-y-2 pt-3 border-t">
             <div className="flex items-center gap-2">
               <Label>Etherscan-Style Explorer Key</Label>
@@ -403,7 +397,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                     onClick={() => setShowEtherscanKey(!showEtherscanKey)}
                   >
                     {showEtherscanKey ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeSlash className="h-4 w-4" />
                     ) : (
                       <Eye className="h-4 w-4" />
                     )}
@@ -442,24 +436,23 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* Footer with status */}
         <div className="flex items-center justify-between pt-3 border-t">
           <div className="flex items-center gap-1.5 text-xs">
             {autoSaveState === "saving" && (
               <>
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <CircleNotch className="h-3 w-3 animate-spin text-muted-foreground" />
                 <span className="text-muted-foreground">Saving...</span>
               </>
             )}
             {autoSaveState === "saved" && (
               <>
-                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                <CheckCircle className="h-3 w-3 text-emerald-500" />
                 <span className="text-emerald-500">Saved</span>
               </>
             )}
             {autoSaveState === "error" && (
               <>
-                <AlertCircle className="h-3 w-3 text-destructive" />
+                <WarningCircle className="h-3 w-3 text-destructive" />
                 <span className="text-destructive">Check fields</span>
               </>
             )}

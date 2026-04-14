@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertCircle } from "lucide-react";
+import { WarningCircle } from "@phosphor-icons/react";
 import { AnimatedTabContent } from "./ui/animated-tabs";
 import { Alert, AlertDescription } from "./ui/alert";
 import "../styles/SignatureDatabase.css";
@@ -26,7 +26,6 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
   return (
     <div className="bg-background px-2 py-3 sm:px-3 md:px-3 max-w-4xl mx-auto">
       <div className="tool-content-container responsive-scroll">
-        {/* Animated tab content with blur transition */}
         <AnimatedTabContent activeKey={db.activeTab}>
           {db.activeTab === "lookup" && (
             <LookupTab
@@ -105,16 +104,14 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
           )}
         </AnimatedTabContent>
 
-        {/* Error Display */}
         {db.error && db.activeTab !== "search" && (
           <Alert variant="destructive" className="mt-3 py-2">
-            <AlertCircle className="h-3 w-3" />
+            <WarningCircle className="h-3 w-3" />
             <AlertDescription className="text-xs">{db.error}</AlertDescription>
           </Alert>
         )}
       </div>
 
-      {/* File Upload Modal */}
       <FileUploadModal
         showFileModal={db.showFileModal}
         setShowFileModal={db.setShowFileModal}

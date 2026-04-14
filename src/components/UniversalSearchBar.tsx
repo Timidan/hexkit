@@ -18,41 +18,41 @@ import {
   type RecentSearch,
 } from "@/hooks/useUniversalSearch";
 import {
-  Search,
-  Code2,
-  GitCompare,
+  MagnifyingGlass,
+  Code,
+  GitDiff,
   Database,
   Play,
-  Zap,
+  Lightning,
   Hash,
-  ListTree,
-  RotateCcw,
+  TreeStructure,
+  ArrowCounterClockwise,
   Command as CommandIcon,
   Globe,
   FileCode,
   Wrench,
   FileText,
-  Settings,
+  GearSix,
   HardDrive,
   Wallet,
   X,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  Code2,
-  GitCompare,
+  Code2: Code,
+  GitCompare: GitDiff,
   Database,
   Play,
-  Zap,
+  Zap: Lightning,
   Hash,
-  ListTree,
-  RotateCcw,
+  ListTree: TreeStructure,
+  RotateCcw: ArrowCounterClockwise,
   Globe,
   FileCode,
   Wrench,
   FileText,
-  Search,
-  Settings,
+  Search: MagnifyingGlass,
+  Settings: GearSix,
   HardDrive,
   Wallet,
 };
@@ -105,7 +105,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
     pages,
   } = useUniversalSearch();
 
-  // Cmd/Ctrl+K shortcut
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -154,7 +153,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
 
   return (
     <>
-      {/* Trigger button in top bar */}
       <Button
         type="button"
         variant="outline"
@@ -169,7 +167,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
         aria-label="Open command palette (Ctrl+K)"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <Search className="size-3.5 shrink-0 opacity-60" />
+          <MagnifyingGlass className="size-3.5 shrink-0 opacity-60" />
           <span className="truncate text-xs opacity-60">
             Search or type a command...
           </span>
@@ -179,7 +177,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
         </kbd>
       </Button>
 
-      {/* Command Dialog */}
       <CommandDialog
         open={open}
         onOpenChange={handleOpenChange}
@@ -193,7 +190,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
           onValueChange={setQuery}
         />
 
-        {/* Type detection badge */}
         {badge && (
           <div className="flex items-center gap-2 px-4 pb-2 pt-1">
             <Badge variant={badge.variant} size="sm">
@@ -211,7 +207,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
             </CommandEmpty>
           )}
 
-          {/* Recent Searches */}
           {inputType === "empty" && recentSearches.length > 0 && (
             <CommandGroup heading="Recent Searches">
               {recentSearches.map((recent, i) => (
@@ -220,7 +215,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
                   value={`recent:${recent.query}:${recent.toolId}`}
                   onSelect={() => handleRecentSelect(recent)}
                 >
-                  <RotateCcw className="mr-2 size-4 opacity-50" />
+                  <ArrowCounterClockwise className="mr-2 size-4 opacity-50" />
                   <span className="font-mono text-xs truncate">
                     {recent.query}
                   </span>
@@ -237,7 +232,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
             </CommandGroup>
           )}
 
-          {/* Smart Results (input-type-based tools) */}
           {matchingTools.length > 0 && (
             <CommandGroup heading="Smart Results" forceMount>
               {matchingTools.map((tool) => {
@@ -263,7 +257,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
 
           <CommandSeparator />
 
-          {/* Pages */}
           <CommandGroup heading="Pages">
             {pages.map((page) => {
               const Icon = ICON_MAP[page.icon];
@@ -283,7 +276,6 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
 
           <CommandSeparator />
 
-          {/* Actions */}
           <CommandGroup heading="Actions">
             <CommandItem
               value="action:wallet:Connect Wallet"
@@ -316,7 +308,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
                   onOpenRpcSettings();
                 }}
               >
-                <Settings className="mr-2 size-4 opacity-70" />
+                <GearSix className="mr-2 size-4 opacity-70" />
                 <span>RPC Settings</span>
               </CommandItem>
             )}

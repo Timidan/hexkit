@@ -10,10 +10,10 @@ export interface Chain {
   id: number;
   name: string;
   rpcUrl: string;
-  explorerUrl: string;
-  blockExplorer: string; // Add blockExplorer property
-  apiUrl: string; // Primary API (for backward compatibility)
-  explorers: ExplorerAPI[]; // Multiple explorer APIs
+  explorerUrl?: string;
+  blockExplorer?: string;
+  apiUrl?: string;
+  explorers?: ExplorerAPI[];
   nativeCurrency: {
     name: string;
     symbol: string;

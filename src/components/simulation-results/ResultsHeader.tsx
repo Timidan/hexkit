@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeft, Share2, RefreshCw, Download } from "lucide-react";
+import { ArrowLeft, ShareNetwork, ArrowsClockwise, DownloadSimple } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "../ui/hover-card";
 import { DebugPillButton } from "./DebugPillButton";
@@ -70,7 +70,7 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
               size="icon"
               aria-label="Export test script"
             >
-              <Download size={18} />
+              <DownloadSimple size={18} />
             </Button>
           </HoverCardTrigger>
           <HoverCardContent>Export EDB test script</HoverCardContent>
@@ -81,7 +81,7 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
           size="icon"
           aria-label="Share simulation"
         >
-          <Share2 size={18} />
+          <ShareNetwork size={18} />
         </Button>
         <DebugPillButton
           debugPrepState={debugPrepState}
@@ -94,7 +94,7 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
           onCancelPrep={cancelDebugPrep}
         />
         <Button onClick={handleReSimulate} variant="ghost" className="gap-2">
-          <RefreshCw size={16} />
+          <ArrowsClockwise size={16} />
           Re-Simulate
         </Button>
       </div>

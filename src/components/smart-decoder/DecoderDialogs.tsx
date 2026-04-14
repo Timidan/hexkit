@@ -1,11 +1,11 @@
 import React from 'react';
 import {
   CheckCircle,
-  Sparkles,
-  Upload,
-  Search,
-  AlertCircle,
-} from 'lucide-react';
+  Sparkle,
+  UploadSimple,
+  MagnifyingGlass,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import {
   Dialog,
   DialogContent,
@@ -26,25 +26,38 @@ import {
 import { type ExtendedChain, EXTENDED_NETWORKS } from '../shared/NetworkSelector';
 import ContractAddressInput from '../contract/ContractAddressInput';
 import type { Chain } from '../../types';
-import type { ContractConfirmationState } from './types';
+import { getChainById } from '../../utils/chains';
+import { ETHERSCAN_INSTANCES, BLOCKSCOUT_INSTANCES, type ContractConfirmationState } from './types';
 import '../../styles/SignatureDatabase.css';
 
 /* Map ExtendedChain ↔ Chain for ContractAddressInput compatibility */
-const extendedToChain = (ext: ExtendedChain): Chain => ({
-  id: ext.id,
-  name: ext.name,
-  rpcUrl: ext.rpcUrl ?? '',
-  explorerUrl: ext.blockExplorer ?? '',
-  blockExplorer: ext.blockExplorer ?? '',
-  apiUrl: '',
-  explorers: [],
-  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-});
+const extendedToChain = (ext: ExtendedChain): Chain => {
+  const registry = getChainById(ext.id);
+  if (registry) return registry;
+  return {
+    id: ext.id,
+    name: ext.name,
+    rpcUrl: ext.rpcUrl ?? '',
+    explorerUrl: ext.blockExplorer,
+    blockExplorer: ext.blockExplorer,
+    nativeCurrency: (ext as any).nativeCurrency ?? { name: 'ETH', symbol: 'ETH', decimals: 18 },
+  };
+};
 
 const chainToExtended = (chain: Chain): ExtendedChain | null =>
   EXTENDED_NETWORKS.find((n) => n.id === chain.id) ?? null;
 
-const SUPPORTED_AS_CHAINS: Chain[] = EXTENDED_NETWORKS.map(extendedToChain);
+// Restrict the lookup-network dropdown to chains that actually have an
+// Etherscan or Blockscout entry — otherwise selecting them in single-chain
+// mode immediately fails with "no explorer integration yet".
+const CHAINS_WITH_EXPLORER = new Set<number>([
+  ...ETHERSCAN_INSTANCES.map((i) => Number(i.chainId)),
+  ...BLOCKSCOUT_INSTANCES.map((i) => Number(i.chainId)),
+]);
+
+const SUPPORTED_AS_CHAINS: Chain[] = EXTENDED_NETWORKS
+  .filter((ext) => CHAINS_WITH_EXPLORER.has(ext.id))
+  .map(extendedToChain);
 
 /* ------------------------------------------------------------------ */
 /*  Enrich Modal                                                       */
@@ -84,7 +97,7 @@ export const EnrichModal: React.FC<EnrichModalProps> = ({
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <Sparkle className="h-4 w-4 text-primary" />
             Enrich Decode
           </DialogTitle>
           <DialogDescription>
@@ -111,7 +124,7 @@ export const EnrichModal: React.FC<EnrichModalProps> = ({
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  <UploadSimple className="h-3.5 w-3.5 mr-1.5" />
                   Upload File
                 </Button>
                 <Button
@@ -232,7 +245,7 @@ export const SearchProgress: React.FC<SearchProgressProps> = ({ steps }) => {
   return (
     <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 mt-3">
       <div className="flex items-center gap-2 text-xs font-medium text-blue-400 mb-2">
-        <Search className="h-3 w-3 animate-pulse" />
+        <MagnifyingGlass className="h-3 w-3 animate-pulse" />
         Searching explorers...
       </div>
       <div className="space-y-0.5">
@@ -267,7 +280,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
   return (
     <div className="border border-red-500/30 bg-red-500/5 rounded-lg p-3 mt-3">
       <div className="flex items-start gap-2">
-        <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+        <WarningCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
         <p className="text-sm text-red-400 whitespace-pre-wrap">{error}</p>
       </div>
     </div>

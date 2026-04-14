@@ -1,12 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Bug, Loader2 } from "lucide-react";
+import { CaretDown, CaretRight, Bug, CircleNotch } from "@phosphor-icons/react";
 import { formatParamValue } from "./traceTypes";
 import type { TraceRow, TraceFilters, FrameHierarchyEntry } from "./traceTypes";
 import { Button } from "../ui/button";
 import { shortenAddress } from "../shared/AddressDisplay";
 import { ColorizedSnippet } from "@/lib/monaco";
 
-// ── Extracted helpers & components ──────────────────────────────────
 import {
   splitTopLevel,
   compactPreviewValue,
@@ -23,8 +22,6 @@ import {
   buildDecodeInterface,
   decodeOutputForRowFn,
 } from "./traceRowComponents";
-
-// ── Hook props interface ────────────────────────────────────────────
 
 interface TraceRowRendererProps {
   filters: TraceFilters;
@@ -108,7 +105,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [decodeInterface, contractContext?.selectedFunction],
   );
 
-  // Re-create inline HighlightableValue with current highlight state bound.
   const InlineHighlightableValue: React.FC<{
     value: string | undefined | null;
     className?: string;
@@ -125,7 +121,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [highlightedValue, normalizeValue, setHighlightedValue],
   );
 
-  // Render vertical depth lines
   const renderDepthLines = useCallback((depth: number, activeRails?: Set<number>) => {
     if (depth <= 0) return null;
     const width = depth * 20;
@@ -163,7 +158,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [sourceTexts],
   );
 
-  // Render source snippet with Monaco syntax highlighting
   const renderSnippet = useCallback(
     (row: TraceRow) => {
       const lineNum = typeof row.line === "number" ? row.line : Number(row.line);
@@ -183,7 +177,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [resolveSourceContent],
   );
 
-  // Render debug button for a trace row
   const renderDebugButton = useCallback(
     (row: TraceRow) => {
       if (!debugSession) return null;
@@ -213,14 +206,13 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
           title={isPending ? "Opening debugger..." : "Open in debugger at this step"}
           aria-label={isPending ? "Opening debugger" : "Open in debugger at this step"}
         >
-          {isPending ? <Loader2 size={12} className="animate-spin" /> : <Bug size={12} />}
+          {isPending ? <CircleNotch size={12} className="animate-spin" /> : <Bug size={12} />}
         </Button>
       );
     },
     [debugSession, openDebugAtSnapshot, pendingDebugSnapshotId],
   );
 
-  // Main render function
   const renderTraceRow = useCallback(
     (row: TraceRow, index: number, visibleIdx: number) => {
       const isCurrentStep = index === currentStepIndex;
@@ -271,7 +263,7 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                 )}
               </div>
               <span className="exec-trace-chevron">
-                <ChevronDown size={12} strokeWidth={2} />
+                <CaretDown size={12} />
               </span>
               <span className="exec-trace-depth">{row.depth ?? 0}</span>
               <span className={getGlobalAddressTag(row.from) === "Sender" ? "exec-trace-sender" : "exec-trace-address-plain"}>
@@ -395,15 +387,14 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                     >
                       {isActualParent &&
                         (isCollapsed ? (
-                          <ChevronRight size={12} strokeWidth={2} />
+                          <CaretRight size={12} />
                         ) : (
-                          <ChevronDown size={12} strokeWidth={2} />
+                          <CaretDown size={12} />
                         ))}
                     </span>
                   );
                 })()}
                 <div className="exec-trace-details">
-                  {/* Entry frame */}
                   {isExplicitEntry && row.entryMeta && !row.jumpDestFn && (
                     <>
                       <span className={getGlobalAddressTag(row.entryMeta.caller) === "Sender" ? "exec-trace-sender" : "exec-trace-address-plain"}>
@@ -525,7 +516,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                       })()}
                     </>
                   )}
-                  {/* SLOAD */}
                   {row.opcodeName === "SLOAD" && row.storageSlot && (
                     <>
                       <InlineHighlightableValue value={getRowAddress(row)} className="exec-trace-contract-name">
@@ -550,7 +540,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                       <span className="exec-trace-storage-bracket">{"]"}</span>
                     </>
                   )}
-                  {/* SSTORE */}
                   {row.opcodeName === "SSTORE" && row.storageSlot && (
                     <>
                       <InlineHighlightableValue value={getRowAddress(row)} className="exec-trace-contract-name">
@@ -571,7 +560,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                       <span className="exec-trace-storage-bracket">{"]"}</span>
                     </>
                   )}
-                  {/* LOG opcode */}
                   {row.opcodeName?.startsWith("LOG") &&
                     (row.decodedLog ? (
                       (() => {
@@ -639,7 +627,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
                     ) : row.value ? (
                       <span className="exec-trace-log-raw">{row.value}</span>
                     ) : null)}
-                  {/* JUMP with decoded function */}
                   {row.jumpDestFn && (
                     <>
                       <InlineHighlightableValue value={getRowAddress(row)} className="exec-trace-address">
@@ -739,7 +726,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     ],
   );
 
-  // ── Render expanded content (snippet or no-source notice) ──────────
   const renderExpandedContent = useCallback(
     (row: TraceRow): React.ReactNode => {
       const lineNum = typeof row.line === "number" ? row.line : Number(row.line);
@@ -777,7 +763,6 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [resolveSourceContent, renderSnippet],
   );
 
-  // ── Stable ref wrapper ──────────────────────────────────────────────
   const renderTraceRowRef = useRef(renderTraceRow);
   renderTraceRowRef.current = renderTraceRow;
 

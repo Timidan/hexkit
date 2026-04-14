@@ -1,7 +1,3 @@
-/**
- * useDecodeHandlers – decode handler logic extracted from SmartDecoder.tsx.
- * Pure structural split – no behaviour changes.
- */
 import { useCallback, type MutableRefObject } from 'react';
 import { ethers } from 'ethers';
 import {
@@ -43,10 +39,6 @@ import {
   fetchContractNameFromEtherscanInstances,
   fetchContractNameFromBlockscoutInstances,
 } from './useAbiLookup';
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
 
 interface AbiItemLike {
   type?: string;
@@ -136,10 +128,6 @@ export interface DecodeHandlersDeps {
   resetDecodingState: () => void;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Hook                                                               */
-/* ------------------------------------------------------------------ */
-
 export function useDecodeHandlers(deps: DecodeHandlersDeps) {
   const {
     calldata, contractAddress, lookupMode, selectedLookupNetwork, manualABI,
@@ -155,7 +143,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     toolkit, addDecodingStep, cancelActiveLookup, resetDecodingState,
   } = deps;
 
-  // --- ABI confirmation flow (fetchABIWithConfirmation) ---
   const fetchABIWithConfirmation = useCallback(async (address: string): Promise<AbiItemLike[]> => {
     return new Promise((resolve, reject) => {
       cancelActiveLookup();
@@ -254,9 +241,7 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
                 if (!fetchedDisplayName) fetchedDisplayName = await fetchContractNameFromBlockscoutInstances(address, chainIdForLookup, signal);
               }
               if (fetchedDisplayName) resolvedContractNameForModal = fetchedDisplayName;
-            } catch {
-              // Unable to resolve contract name during lookup
-            }
+            } catch { /* best effort */ }
 
             setContractConfirmation({
               show: true,
@@ -282,7 +267,7 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
                     }
                     if (ctx.abi && ctx.abi.length > 0) finalAbi = ctx.abi;
                     if (ctx.name) finalName = ctx.name;
-                  } catch { /* Proxy resolution failed */ }
+                  } catch { /* best effort */ }
                 }
 
                 const fc = finalAbi.filter((item: any) => item.type === 'function').length;
@@ -322,7 +307,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     setContractConfirmation, setProxyInfo, setImplementationAbiUsed, setResolvedImplementationAddress,
   ]);
 
-  // --- Contract ABI Decode ---
   const handleContractABIDecode = useCallback(async () => {
     if (!contractAddress.trim()) { setError('Please enter a contract address'); return; }
     if (lookupMode === 'single' && !selectedLookupNetwork) { addDecodingStep(' Select a network before starting a targeted lookup.'); setError('Select a network to target before decoding.'); return; }
@@ -352,7 +336,7 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
       if (lookupMode === 'single' && selectedLookupNetwork) {
         addDecodingStep(' Resolving contract (ABI + proxy detection)...');
         const resolvedChain = getChainById(selectedLookupNetwork.id);
-        const chain: Chain = resolvedChain || { id: selectedLookupNetwork.id, name: selectedLookupNetwork.name, rpcUrl: '', explorerUrl: '', blockExplorer: '', apiUrl: '', explorers: [], nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } };
+        const chain: Chain = resolvedChain || { id: selectedLookupNetwork.id, name: selectedLookupNetwork.name, rpcUrl: '', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } };
         const ctx = await resolveContractContext(contractAddress.trim(), chain, { abi: true, proxy: true, onProgress: (step, detail) => { addDecodingStep(` ${step}${detail ? ` (${detail})` : ''}`); } });
         if (ctx.proxyInfo?.isProxy) {
           setProxyInfo(ctx.proxyInfo);
@@ -402,7 +386,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     setProxyInfo, setImplementationAbiUsed, setResolvedImplementationAddress,
   ]);
 
-  // --- Manual ABI Decode ---
   const handleManualABIDecode = useCallback(() => {
     if (!manualABI.trim()) { setError('Please provide an ABI'); return; }
     try {
@@ -440,7 +423,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     }
   }, [calldata, manualABI, addDecodingStep, toolkit, setDecodedResult, setError, setShowFallbackOptions, setContractABI, setContractMetadata, setAbiSource]);
 
-  // --- ABI File Selection ---
   const handleAbiFileSelection = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) { setUploadedABIFileName(null); return; }
@@ -456,7 +438,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     }
   }, [setError, setUploadedABIFileName, setAbiAcquisitionMode]);
 
-  // --- Args-only decode ---
   const handleArgsOnlyDecode = useCallback(() => {
     if (!argsOnlyData.trim()) { setError('Please enter hex-encoded data to decode'); return; }
     const validParams = argsOnlyParams.filter(p => p.type.trim());
@@ -506,7 +487,6 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
     }
   }, [argsOnlyData, argsOnlyParams, addDecodingStep, toolkit, resetDecodingState, setDecodedResult, setError, setIsDecoding, setAbiSource]);
 
-  // --- Smart Decode (main handler) ---
   const handleSmartDecode = useCallback(async () => {
     if (!calldata.trim()) { setError('Please enter calldata to decode'); return; }
     setIsDecoding(true);

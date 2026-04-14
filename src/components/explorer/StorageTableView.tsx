@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  Search,
-  ChevronRight,
-  Loader2,
-  PanelLeftOpen,
-  Radar,
+  MagnifyingGlass,
+  CaretRight,
+  CircleNotch,
+  SidebarSimple,
+  Broadcast,
   Square,
-  RotateCw,
-} from 'lucide-react';
+  ArrowClockwise,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -89,10 +89,9 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
 }) => (
   <div className="flex-1 min-w-0 flex flex-col h-full">
     <div className="h-full flex flex-col">
-      {/* Inline loading banner */}
       {isResolvingInBackground && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 border-b border-primary/10 text-xs text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin shrink-0 text-primary" />
+          <CircleNotch className="h-3 w-3 animate-spin shrink-0 text-primary" />
           <span>
             {loadingPhase === 'seeding'
               ? 'Reading storage slots\u2026'
@@ -108,12 +107,11 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
           </span>
         </div>
       )}
-      {/* Breadcrumb */}
       {pathSegments.length > 0 && (
         <div className="px-3 py-1.5 flex items-center gap-1 text-xs border-b border-border/30 bg-muted/5">
           {!treeOpen && (
             <button onClick={() => setTreeOpen(true)} className="p-0.5 rounded hover:bg-muted/40 text-muted-foreground/60 hover:text-muted-foreground transition-colors mr-1" title="Show tree">
-              <PanelLeftOpen className="h-3.5 w-3.5" />
+              <SidebarSimple className="h-3.5 w-3.5" />
             </button>
           )}
           <button
@@ -124,7 +122,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
           </button>
           {pathSegments.map((seg, i) => (
             <React.Fragment key={`${seg.baseSlot}-${i}`}>
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+              <CaretRight className="h-3 w-3 text-muted-foreground" />
               {i < pathSegments.length - 1 ? (
                 <button
                   onClick={() => navigateTo(i)}
@@ -140,7 +138,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
         </div>
       )}
 
-      {/* Key Input Panel */}
       {pathSegments.length > 0 && (() => {
         const currentSeg = pathSegments[pathSegments.length - 1];
         const isArrayDrillDown = currentSeg.slotKind === 'dynamic_array';
@@ -176,7 +173,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
 
         return (
           <div className="px-3 py-2 border-b border-border/30 bg-muted/5 flex items-center gap-2">
-            <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+            <MagnifyingGlass className="h-3 w-3 text-muted-foreground shrink-0" />
             <Input
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
@@ -191,7 +188,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
               title="Lookup key"
             >
               {isLookingUp ? (
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <CircleNotch className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
                 <svg
                   width="18"
@@ -235,7 +232,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
         <div className="flex items-center gap-1.5">
           {!treeOpen && (
             <button onClick={() => setTreeOpen(true)} className="p-0.5 rounded hover:bg-muted/40 text-muted-foreground/60 hover:text-muted-foreground transition-colors" title="Show tree">
-              <PanelLeftOpen className="h-3.5 w-3.5" />
+              <SidebarSimple className="h-3.5 w-3.5" />
             </button>
           )}
           <span>Slots ({displayRows.length})</span>
@@ -260,7 +257,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
                 className="h-5 text-[10px] gap-1"
                 onClick={handleRescanDiscovery}
               >
-                <RotateCw className="h-2.5 w-2.5" />
+                <ArrowClockwise className="h-2.5 w-2.5" />
                 Rescan
               </Button>
             ) : discovery.state.phase === 'idle' ? (
@@ -270,7 +267,7 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
                 className="h-5 text-[10px] gap-1"
                 onClick={handleStartDiscovery}
               >
-                <Radar className="h-2.5 w-2.5" />
+                <Broadcast className="h-2.5 w-2.5" />
                 Scan
               </Button>
             ) : null}
@@ -286,7 +283,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
       <div className="flex-1 overflow-auto">
        <div className="min-w-[720px] w-full">
         <>
-            {/* Table header */}
             <div ref={tableHeaderRef} className={`grid ${isMappingView ? MAPPING_TABLE_GRID : SLOT_TABLE_GRID} gap-2 px-3 py-1 text-[11px] text-muted-foreground uppercase tracking-wider border-b border-border/20 sticky top-0 bg-background z-10 text-left`}>
               {isMappingView ? (
                 <>
@@ -305,7 +301,6 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
               )}
             </div>
 
-            {/* Rows */}
             <div>
               {isMappingView ? displayRows.map((slot) => {
                 const keyMeta = keyBySlot.get(slot.slot.toLowerCase());

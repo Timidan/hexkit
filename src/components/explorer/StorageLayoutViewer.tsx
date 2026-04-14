@@ -1,11 +1,11 @@
 import React from 'react';
 import {
-  CheckCircle2,
-  EyeOff,
-} from 'lucide-react';
+  CheckCircle,
+  EyeSlash,
+} from '@phosphor-icons/react';
 import { Badge } from '../ui/badge';
 import ContractAddressInput from '../contract/ContractAddressInput';
-import { SUPPORTED_CHAINS } from '../../utils/chains';
+import { getExplorerChains } from '../../utils/chains';
 import StorageSlotGraph from './storage-viewer/StorageSlotGraph';
 import { StorageSkeleton, StorageGridIcon } from './StorageSkeleton';
 import { StorageToolbar } from './StorageToolbar';
@@ -13,15 +13,15 @@ import { StorageTableView } from './StorageTableView';
 import { TreePanel } from './TreePanel';
 import { useStorageViewerState } from './useStorageViewerState';
 
-// ─── Main Component ──────────────────────────────────────────────
-
 const StorageLayoutViewer: React.FC = () => {
   const state = useStorageViewerState();
+  // Only chains with a configured explorer API — the storage loader needs
+  // source/ABI data and would otherwise fall over with "No … API available".
+  const explorerChains = React.useMemo(() => getExplorerChains(), []);
 
   return (
     <>
       <div className="h-full flex flex-col bg-background">
-        {/* ── Top Toolbar ── */}
         <div className="border-b border-border/50 px-4 py-3 space-y-2 flex-shrink-0">
           <div className="flex justify-center">
             <div className="flex items-end gap-3 w-full max-w-lg">
@@ -30,7 +30,7 @@ const StorageLayoutViewer: React.FC = () => {
                 onAddressChange={state.setContractAddress}
                 selectedNetwork={state.selectedChain}
                 onNetworkChange={state.setSelectedChain}
-                supportedChains={SUPPORTED_CHAINS}
+                supportedChains={explorerChains}
                 isLoading={state.isLoading || state.isFetchPending}
                 error={state.error}
                 onFetchABI={state.handleFetch}
@@ -42,7 +42,7 @@ const StorageLayoutViewer: React.FC = () => {
               {state.hasSession && (
                 <div className="pb-1.5">
                   <Badge variant="outline" className="text-[10px] h-5 text-green-400 border-green-400/30 gap-1 whitespace-nowrap">
-                    <CheckCircle2 className="w-2.5 h-2.5" />
+                    <CheckCircle className="w-2.5 h-2.5" />
                     EDB Enhanced
                   </Badge>
                 </div>
@@ -67,10 +67,9 @@ const StorageLayoutViewer: React.FC = () => {
           )}
         </div>
 
-        {/* ── Hidden Slots Info Banner ── */}
         {state.filter === 'resolved' && state.stats.unknown > 0 && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 border-b border-border/20 text-xs text-muted-foreground">
-            <EyeOff className="h-3 w-3 shrink-0" />
+            <EyeSlash className="h-3 w-3 shrink-0" />
             <span>
               {state.stats.unknown} slot{state.stats.unknown !== 1 ? 's' : ''} hidden — types could not be determined from available source data
             </span>
@@ -83,12 +82,10 @@ const StorageLayoutViewer: React.FC = () => {
           </div>
         )}
 
-        {/* ── Main Content: Skeleton / Table / Empty ── */}
         {state.showSkeleton ? (
           <StorageSkeleton phase={state.loadingPhase} slotCount={state.evidence.length} />
         ) : state.showTable ? (
           <div className="flex-1 min-h-0 w-full flex responsive-scroll">
-              {/* Left Panel: Collapsible Storage Tree + Probe */}
               {state.treeOpen && (
               <TreePanel
                 treeGroups={state.treeGroups}
@@ -118,7 +115,6 @@ const StorageLayoutViewer: React.FC = () => {
               />
               )}
 
-              {/* Right Panel: Slot Table */}
               <StorageTableView
                 treeOpen={state.treeOpen}
                 setTreeOpen={state.setTreeOpen}

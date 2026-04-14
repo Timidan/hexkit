@@ -1,5 +1,5 @@
 import * as React from "react"
-import { GripVerticalIcon } from "lucide-react"
+import { DotsSixVertical as GripVerticalIcon } from "@phosphor-icons/react"
 import {
   Panel,
   Group,

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle, ArrowSquareOut } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { animate, stagger } from "animejs";
@@ -17,7 +17,11 @@ import {
 import type { SourceFile } from "@/utils/resolver/sourceExtractor";
 import type { Source, ProxyInfo, TokenInfo } from "@/utils/resolver/types";
 import type { Chain } from "@/types";
-import { SUPPORTED_CHAINS, getChainById } from "@/utils/chains";
+import {
+  getExplorerChains,
+  getChainById,
+  getExplorerBaseUrlFromApiUrl,
+} from "@/utils/chains";
 import { isAddress } from "ethers/lib/utils";
 import {
   SourceBadge,
@@ -54,17 +58,18 @@ interface SourceVariant {
 }
 
 const ContractExplorer: React.FC = () => {
-  // Input state
+  // Only chains with a configured explorer API — without one, the ABI/source
+  // fetch would bail out with "No … API available" immediately.
+  const explorerChains = React.useMemo(() => getExplorerChains(), []);
+
   const [addressInput, setAddressInput] = useState("");
   const [selectedChain, setSelectedChain] = useState<Chain>(
-    getChainById(1) || SUPPORTED_CHAINS[0],
+    getChainById(1) || explorerChains[0],
   );
 
-  // Fetch state
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Result state
   const [sourceFiles, setSourceFiles] = useState<SourceFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
@@ -77,15 +82,12 @@ const ContractExplorer: React.FC = () => {
     "address" | "chainId" | "proxyInfo" | "tokenInfo" | "tokenType"
   > | null>(null);
 
-  // Abort controller for cancellation
   const abortRef = useRef<AbortController | null>(null);
 
-  // Animation refs
   const resultsRef = useRef<HTMLDivElement>(null);
   const prevSourceFilesLength = useRef(0);
   const [hasAnimated, setHasAnimated] = useState(false);
 
-  // Animate results entrance when files appear
   useEffect(() => {
     if (
       sourceFiles.length > 0 &&
@@ -121,7 +123,6 @@ const ContractExplorer: React.FC = () => {
     prevSourceFilesLength.current = sourceFiles.length;
   }, [sourceFiles.length]);
 
-  // Handle network selection
   const handleNetworkChange = useCallback(
     (chain: Chain) => {
       setSelectedChain(chain);
@@ -139,13 +140,11 @@ const ContractExplorer: React.FC = () => {
     [sourceFiles.length],
   );
 
-  // Handle address input (ContractAddressInput passes string directly)
   const handleAddressChange = useCallback((value: string) => {
     setAddressInput(value);
     setError(null);
   }, []);
 
-  // Fetch contract source
   const fetchContract = useCallback(async () => {
     const address = addressInput.trim();
 
@@ -173,7 +172,6 @@ const ContractExplorer: React.FC = () => {
     setBaseContractInfo(null);
 
     try {
-      // Single unified call: ABI + proxy detection + token detection
       const ctx = await resolveContractContext(address, selectedChain, {
         abi: true,
         proxy: true,
@@ -188,7 +186,6 @@ const ContractExplorer: React.FC = () => {
 
       const variants: SourceVariant[] = [];
 
-      // Proxy source (only if verified and has files)
       if (ctx.verified && ctx.metadata) {
         const { files, mainFile } = extractSourceFiles({
           address: ctx.address,
@@ -224,7 +221,6 @@ const ContractExplorer: React.FC = () => {
         }
       }
 
-      // Implementation source (only if verified and has files)
       if (ctx.implementationVerified && ctx.implementationMetadata) {
         const { files, mainFile } = extractSourceFiles({
           address: ctx.implementationAddress || ctx.address,
@@ -311,16 +307,17 @@ const ContractExplorer: React.FC = () => {
     setError(null);
   }, []);
 
-  // Get explorer URL for the contract
   const getExplorerUrl = useCallback(() => {
     if (!contractInfo) return null;
-    const chain = SUPPORTED_CHAINS.find((c) => c.id === contractInfo.chainId);
-    const explorerUrl = chain?.blockExplorer || chain?.explorers?.[0]?.url;
+    const chain = getChainById(contractInfo.chainId);
+    const explorerUrl =
+      chain?.blockExplorer ||
+      chain?.explorerUrl ||
+      getExplorerBaseUrlFromApiUrl(chain?.explorers?.[0]?.url);
     if (!explorerUrl) return null;
     return `${explorerUrl}/address/${contractInfo.address}`;
   }, [contractInfo]);
 
-  // Auto-fetch if address is provided via URL params
   const location = useLocation();
   const lastAutoFetchedAddress = useRef<string | null>(null);
   useEffect(() => {
@@ -336,15 +333,12 @@ const ContractExplorer: React.FC = () => {
       lastAutoFetchedAddress.current = address;
       setAddressInput(address);
       if (chainId) {
-        const chain = SUPPORTED_CHAINS.find(
-          (c) => c.id === parseInt(chainId, 10),
-        );
+        const chain = getChainById(parseInt(chainId, 10));
         if (chain) setSelectedChain(chain);
       }
     }
   }, [location.search]);
 
-  // Trigger fetch when addressInput changes from URL params
   useEffect(() => {
     if (
       lastAutoFetchedAddress.current &&
@@ -354,7 +348,6 @@ const ContractExplorer: React.FC = () => {
     }
   }, [addressInput, fetchContract]);
 
-  // Update displayed files when source variant changes
   useEffect(() => {
     if (!selectedSourceId || sourceVariants.length === 0) return;
     const variant = sourceVariants.find((v) => v.id === selectedSourceId);
@@ -379,10 +372,8 @@ const ContractExplorer: React.FC = () => {
     }
   }, [selectedSourceId, sourceVariants, baseContractInfo]);
 
-  // Single layout - input always centered at top, results appear below
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Centered card container - always in same position */}
       <div className="flex justify-center">
         <div className="w-full max-w-lg border border-border rounded-lg p-5">
           <ContractAddressInput
@@ -390,7 +381,7 @@ const ContractExplorer: React.FC = () => {
             onAddressChange={handleAddressChange}
             selectedNetwork={selectedChain}
             onNetworkChange={handleNetworkChange}
-            supportedChains={SUPPORTED_CHAINS}
+            supportedChains={explorerChains}
             isLoading={isLoading}
             error={error}
             onFetchABI={fetchContract}
@@ -399,7 +390,6 @@ const ContractExplorer: React.FC = () => {
         </div>
       </div>
 
-      {/* Empty state - shown when no contract is loaded */}
       {sourceFiles.length === 0 && !isLoading && !error && (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
           <div className="text-4xl opacity-40">--</div>
@@ -413,24 +403,21 @@ const ContractExplorer: React.FC = () => {
         </div>
       )}
 
-      {/* Results section - only show when we have files */}
       {sourceFiles.length > 0 && (
         <div ref={resultsRef}>
           {/* Contract Info Bar */}
           {contractInfo && (
             <div className="flex flex-wrap items-center justify-center gap-2 py-2 text-xs">
-              {/* Contract name */}
               <div
                 className="info-badge flex items-center gap-1.5"
                 style={{ opacity: hasAnimated ? 1 : 0 }}
               >
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <CheckCircle className="h-3.5 w-3.5 text-green-500" />
                 <span className="font-medium">
                   {contractInfo.name || "Unknown"}
                 </span>
               </div>
 
-              {/* Diamond badge (shown for diamond proxies) */}
               {contractInfo.proxyInfo?.proxyType === "diamond" && (
                 <div
                   className="info-badge"
@@ -444,7 +431,6 @@ const ContractExplorer: React.FC = () => {
                 </div>
               )}
 
-              {/* Proxy type badge (non-diamond proxies) */}
               {contractInfo.proxyInfo?.isProxy &&
                 contractInfo.proxyInfo.proxyType !== "diamond" && (
                   <div
@@ -458,7 +444,6 @@ const ContractExplorer: React.FC = () => {
                   </div>
                 )}
 
-              {/* Token type badge */}
               {contractInfo.tokenType && (
                 <div
                   className="info-badge"
@@ -472,7 +457,6 @@ const ContractExplorer: React.FC = () => {
                 </div>
               )}
 
-              {/* Source badge */}
               {contractInfo.source && (
                 <div
                   className="info-badge"
@@ -482,7 +466,6 @@ const ContractExplorer: React.FC = () => {
                 </div>
               )}
 
-              {/* Compiler version */}
               {contractInfo.compilerVersion && (
                 <Badge
                   variant="outline"
@@ -493,7 +476,6 @@ const ContractExplorer: React.FC = () => {
                 </Badge>
               )}
 
-              {/* File count */}
               <Badge
                 variant="outline"
                 className="info-badge text-[10px] h-5"
@@ -502,7 +484,6 @@ const ContractExplorer: React.FC = () => {
                 {sourceFiles.length} file{sourceFiles.length !== 1 ? "s" : ""}
               </Badge>
 
-              {/* Explorer link */}
               {getExplorerUrl() && (
                 <a
                   href={getExplorerUrl()!}
@@ -512,13 +493,12 @@ const ContractExplorer: React.FC = () => {
                   style={{ opacity: hasAnimated ? 1 : 0 }}
                 >
                   Explorer
-                  <ExternalLink className="h-3 w-3" />
+                  <ArrowSquareOut className="h-3 w-3" />
                 </a>
               )}
             </div>
           )}
 
-          {/* Source Code Viewer */}
           <div
             className="code-viewer flex border border-border rounded-lg overflow-hidden bg-background responsive-scroll"
             style={{
@@ -527,7 +507,6 @@ const ContractExplorer: React.FC = () => {
               opacity: hasAnimated ? 1 : 0,
             }}
           >
-            {/* Source Variant Selector (Proxy vs Implementation) */}
             {sourceVariants.length > 1 && (
               <div className="flex flex-col gap-0 border-r border-border w-28 shrink-0 overflow-y-auto">
                 {sourceVariants.map((variant) => (

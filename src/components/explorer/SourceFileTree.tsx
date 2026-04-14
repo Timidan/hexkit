@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronRight, ChevronDown, FileCode, Folder, FolderOpen } from 'lucide-react';
+import { CaretRight, CaretDown, FileCode, Folder, FolderOpen } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { SourceFile } from '@/utils/resolver/sourceExtractor';
@@ -18,9 +18,6 @@ interface SourceFileTreeProps {
   className?: string;
 }
 
-/**
- * Build a hierarchical tree structure from flat file paths
- */
 function buildFileTree(files: SourceFile[]): FileTreeNode[] {
   const root: FileTreeNode[] = [];
 
@@ -112,9 +109,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         {isDirectory ? (
           <>
             {isExpanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <CaretDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <CaretRight className="h-4 w-4 shrink-0 text-muted-foreground" />
             )}
             {isExpanded ? (
               <FolderOpen className="h-4 w-4 shrink-0 text-amber-500" />
@@ -156,20 +153,16 @@ export const SourceFileTree: React.FC<SourceFileTreeProps> = ({
   onSelect,
   className,
 }) => {
-  // Build tree structure
   const tree = useMemo(() => buildFileTree(files), [files]);
 
-  // Track expanded directories - start with all expanded
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
     const paths = new Set<string>();
-    // Expand all parent directories of selected file
     if (selectedPath) {
       const parts = selectedPath.split('/');
       for (let i = 0; i < parts.length - 1; i++) {
         paths.add(parts.slice(0, i + 1).join('/'));
       }
     }
-    // Also expand root-level directories
     for (const node of tree) {
       if (node.type === 'directory') {
         paths.add(node.path);

@@ -1,16 +1,6 @@
-/**
- * Execution Tree Component
- *
- * Displays a hierarchical view of function calls and opcodes,
- *
- * Uses a FLAT LIST approach (like TraceViewer) where:
- * - Rows are rendered in order with depth-based indentation
- * - Collapse works by hiding rows with deeper depth
- * - No complex tree structure needed
- */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { AlertTriangle, Filter, Minus, Plus } from 'lucide-react';
+import { Warning, Funnel, Minus, Plus } from '@phosphor-icons/react';
 import { useDebug } from '../../contexts/DebugContext';
 import { ScrollArea } from '../ui/scroll-area';
 import { Button } from '../ui/button';
@@ -26,16 +16,10 @@ import type { SnapshotListItem } from '../../types/debug';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import './ExecutionTree.css';
 
-/** Display filter options for the execution tree */
 type DisplayFilter = 'summarized' | 'verbose' | 'functions' | 'storage' | 'events' | 'calls';
 
-/** Opcodes that represent storage access */
 const STORAGE_OPCODES = ['SLOAD', 'SSTORE'];
-
-/** Opcodes that represent event emission */
 const EVENT_OPCODES = ['LOG0', 'LOG1', 'LOG2', 'LOG3', 'LOG4'];
-
-/** Opcodes that represent external calls */
 const CALL_OPCODES = ['CALL', 'STATICCALL', 'DELEGATECALL', 'CALLCODE', 'CREATE', 'CREATE2'];
 
 const FILTER_OPTIONS: { value: DisplayFilter; label: string }[] = [
@@ -53,7 +37,6 @@ interface ExecutionTreeProps {
   traceRows?: DecodedTraceRow[];
 }
 
-/** Flattened row for display */
 interface FlatRow {
   id: string;
   name: string;
@@ -62,12 +45,9 @@ interface FlatRow {
   isRevert: boolean;
   isFunction: boolean;
   contractName?: string;
-  hasChildren: boolean; // Based on next row's depth
+  hasChildren: boolean;
 }
 
-/**
- * Filter decoded trace rows based on display filter
- */
 function filterDecodedTraceRows(
   rows: DecodedTraceRow[],
   filter: DisplayFilter
@@ -101,10 +81,6 @@ function filterDecodedTraceRows(
   });
 }
 
-/**
- * Convert decoded trace rows to flat rows for display
- * hasChildren is computed based on the filtered rows (next row depth > current depth)
- */
 function toFlatRows(rows: DecodedTraceRow[]): FlatRow[] {
   const result: FlatRow[] = [];
 
@@ -112,7 +88,6 @@ function toFlatRows(rows: DecodedTraceRow[]): FlatRow[] {
     const row = rows[i];
     const depth = row.visualDepth ?? row.depth ?? 0;
 
-    // Compute hasChildren from the next row in the filtered list
     const nextRow = rows[i + 1];
     const nextDepth = nextRow ? (nextRow.visualDepth ?? nextRow.depth ?? 0) : 0;
     const hasChildren = nextRow !== undefined && nextDepth > depth;
@@ -120,7 +95,6 @@ function toFlatRows(rows: DecodedTraceRow[]): FlatRow[] {
     const isCallOpcode = CALL_OPCODES.includes(row.name);
     const isFunction = row.isInternalCall || isCallOpcode;
 
-    // Determine display name
     let displayName: string;
     if (row.isInternalCall && row.destFn) {
       displayName = row.destFn;
@@ -134,7 +108,6 @@ function toFlatRows(rows: DecodedTraceRow[]): FlatRow[] {
       displayName = row.name || 'OP';
     }
 
-    // Get contract name
     const contractName = row.contract
       || row.entryMeta?.codeContractName
       || row.entryMeta?.targetContractName
@@ -155,9 +128,6 @@ function toFlatRows(rows: DecodedTraceRow[]): FlatRow[] {
   return result;
 }
 
-/**
- * Filter snapshots based on display filter (fallback for when traceRows not available)
- */
 function filterSnapshots(
   snapshots: SnapshotListItem[],
   filter: DisplayFilter
@@ -196,9 +166,6 @@ function filterSnapshots(
   });
 }
 
-/**
- * Convert snapshots to flat rows (fallback)
- */
 function snapshotsToFlatRows(snapshots: SnapshotListItem[]): FlatRow[] {
   const result: FlatRow[] = [];
   let currentDepth = 0;
@@ -232,7 +199,6 @@ function snapshotsToFlatRows(snapshots: SnapshotListItem[]): FlatRow[] {
     }
   }
 
-  // Recalculate hasChildren based on actual depths
   for (let i = 0; i < result.length; i++) {
     const row = result[i];
     const nextRow = result[i + 1];
@@ -242,16 +208,11 @@ function snapshotsToFlatRows(snapshots: SnapshotListItem[]): FlatRow[] {
   return result;
 }
 
-/**
- * Apply collapse filtering to flat rows
- * When a row is collapsed, hide all following rows with deeper depth
- */
 function applyCollapseFilter(rows: FlatRow[], collapsedIds: Set<string>): FlatRow[] {
   const result: FlatRow[] = [];
-  const collapsedDepths: number[] = []; // Stack of depths where ancestors are collapsed
+  const collapsedDepths: number[] = [];
 
   for (const row of rows) {
-    // Pop collapsed ancestors that we've exited (depth <= their depth)
     while (
       collapsedDepths.length > 0 &&
       row.depth <= collapsedDepths[collapsedDepths.length - 1]
@@ -259,15 +220,12 @@ function applyCollapseFilter(rows: FlatRow[], collapsedIds: Set<string>): FlatRo
       collapsedDepths.pop();
     }
 
-    // If we're inside a collapsed ancestor, skip this row
     if (collapsedDepths.length > 0) {
       continue;
     }
 
-    // This row is visible
     result.push(row);
 
-    // If this row is collapsed, add its depth to the stack
     if (collapsedIds.has(row.id)) {
       collapsedDepths.push(row.depth);
     }
@@ -276,9 +234,6 @@ function applyCollapseFilter(rows: FlatRow[], collapsedIds: Set<string>): FlatRo
   return result;
 }
 
-/**
- * Calculate active rails for each row
- */
 function calculateActiveRails(rows: FlatRow[]): Map<number, Set<number>> {
   const railsMap = new Map<number, Set<number>>();
   const parentStack: Array<{ depth: number; endIdx: number }> = [];
@@ -286,35 +241,27 @@ function calculateActiveRails(rows: FlatRow[]): Map<number, Set<number>> {
   rows.forEach((row, idx) => {
     const depth = row.depth;
 
-    // Pop parents that have ended
     while (parentStack.length > 0 && parentStack[parentStack.length - 1].endIdx < idx) {
       parentStack.pop();
     }
-
-    // Pop parents at same or deeper depth
     while (parentStack.length > 0 && parentStack[parentStack.length - 1].depth >= depth) {
       parentStack.pop();
     }
 
-    // Check if this row has visible children
     const nextRow = rows[idx + 1];
     const hasVisibleChildren = nextRow !== undefined && nextRow.depth > depth;
 
-    // Record active rails
     const activeDepths = new Set<number>();
     for (const parent of parentStack) {
       activeDepths.add(parent.depth + 1);
     }
-
     if (hasVisibleChildren) {
       activeDepths.add(depth + 1);
     }
-
     if (activeDepths.size > 0) {
       railsMap.set(idx, activeDepths);
     }
 
-    // If this row has children, add to stack
     if (hasVisibleChildren) {
       let endIdx = idx;
       for (let i = idx + 1; i < rows.length; i++) {
@@ -333,9 +280,6 @@ function calculateActiveRails(rows: FlatRow[]): Map<number, Set<number>> {
   return railsMap;
 }
 
-/**
- * Row component
- */
 const ExecutionRow: React.FC<{
   row: FlatRow;
   index: number;
@@ -356,7 +300,6 @@ const ExecutionRow: React.FC<{
       )}
       onClick={onSelect}
     >
-      {/* Vertical rails */}
       {row.depth > 0 && (
         <div className="execution-tree__guides">
           {Array.from({ length: row.depth }).map((_, idx) => (
@@ -371,7 +314,6 @@ const ExecutionRow: React.FC<{
         </div>
       )}
 
-      {/* Collapse toggle */}
       {hasVisibleChildren ? (
         <Button
           type="button"
@@ -391,10 +333,9 @@ const ExecutionRow: React.FC<{
         <span className="execution-tree__toggle-spacer" />
       )}
 
-      {/* Label */}
       <div className="execution-tree__label">
         {row.isRevert && (
-          <AlertTriangle className="h-3 w-3 text-destructive mr-1" />
+          <Warning className="h-3 w-3 text-destructive mr-1" />
         )}
         <span className={cn(
           'execution-tree__name',
@@ -413,15 +354,11 @@ const ExecutionRow: React.FC<{
   );
 };
 
-/**
- * Main Execution Tree component
- */
 export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ className, traceRows }) => {
   const { snapshotList, currentSnapshotId, goToSnapshot } = useDebug();
   const [displayFilter, setDisplayFilter] = useState<DisplayFilter>('summarized');
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
-  // Toggle collapse
   const handleToggleCollapse = useCallback((rowId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setCollapsedIds(prev => {
@@ -435,10 +372,8 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
     });
   }, []);
 
-  // Determine data source
   const useTraceRows = traceRows && traceRows.length > 0;
 
-  // Get filtered flat rows (before collapse)
   const filteredRows = useMemo(() => {
     if (useTraceRows) {
       const filtered = filterDecodedTraceRows(traceRows!, displayFilter);
@@ -449,12 +384,10 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
     }
   }, [useTraceRows, traceRows, snapshotList, displayFilter]);
 
-  // Apply collapse filtering
   const visibleRows = useMemo(() => {
     return applyCollapseFilter(filteredRows, collapsedIds);
   }, [filteredRows, collapsedIds]);
 
-  // Recalculate hasChildren for visible rows (after collapse filtering)
   const rowHasVisibleChildren = useMemo(() => {
     const map = new Map<string, boolean>();
     for (let i = 0; i < visibleRows.length; i++) {
@@ -465,7 +398,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
     return map;
   }, [visibleRows]);
 
-  // For showing toggle: use pre-collapse hasChildren (so collapsed parents still show toggle)
   const rowCanCollapse = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const row of filteredRows) {
@@ -474,22 +406,18 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
     return map;
   }, [filteredRows]);
 
-  // Calculate rails
   const activeRailsMap = useMemo(() => calculateActiveRails(visibleRows), [visibleRows]);
 
-  // Find selected row
   const selectedRowId = useMemo(() => {
     if (currentSnapshotId === null) return null;
     const found = visibleRows.find(r => r.snapshotId === currentSnapshotId);
     return found?.id ?? null;
   }, [visibleRows, currentSnapshotId]);
 
-  // Handle row selection
   const handleSelect = useCallback((row: FlatRow) => {
     goToSnapshot(row.snapshotId);
   }, [goToSnapshot]);
 
-  // Data count for empty check
   const dataCount = useTraceRows ? traceRows!.length : snapshotList.length;
 
   if (dataCount === 0) {
@@ -504,7 +432,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
 
   return (
     <div className={cn('execution-tree', className)}>
-      {/* Header */}
       <div className="execution-tree__header">
         <div className="execution-tree__title">
           <span className="execution-tree__title-text">Execution</span>
@@ -515,7 +442,7 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
             onValueChange={(value) => setDisplayFilter(value as DisplayFilter)}
           >
             <SelectTrigger size="sm" className="execution-tree__filter-trigger">
-              <Filter className="h-3 w-3 mr-1" />
+              <Funnel className="h-3 w-3 mr-1" />
               <SelectValue placeholder="Display" />
             </SelectTrigger>
             <SelectContent>
@@ -529,7 +456,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
         </div>
       </div>
 
-      {/* Content */}
       <ScrollArea className="execution-tree__scroll">
         <div className="execution-tree__content">
           {visibleRows.length === 0 ? (
@@ -540,7 +466,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
             visibleRows.map((row, idx) => {
               const canCollapse = rowCanCollapse.get(row.id) ?? false;
               const hasVisibleChildren = rowHasVisibleChildren.get(row.id) ?? false;
-              // Show toggle if row can collapse (had children before collapse filter)
               const showToggle = canCollapse;
 
               return (

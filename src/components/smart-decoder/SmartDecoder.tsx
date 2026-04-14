@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { animate } from 'animejs';
 import {
   CheckCircle,
-  Sparkles,
-  Settings2,
-  Loader2,
+  Sparkle,
+  GearSix,
+  CircleNotch,
   Square,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
@@ -214,9 +214,7 @@ const SmartDecoder: React.FC = () => {
           }));
         }
       }
-    } catch {
-      // Could not extract parameter info from ABI
-    }
+    } catch { /* best effort */ }
 
     return [];
   };
@@ -286,7 +284,6 @@ const SmartDecoder: React.FC = () => {
     return { parameterData, hasGenericNames, hasRealNames };
   };
 
-  // --- Args-only helpers ---
   const addArgsOnlyParam = () => setArgsOnlyParams(prev => [...prev, { type: 'uint256', name: '' }]);
   const removeArgsOnlyParam = (i: number) => setArgsOnlyParams(prev => prev.filter((_, idx) => idx !== i));
   const updateArgsOnlyParam = (i: number, field: 'type' | 'name', val: string) => {
@@ -297,7 +294,6 @@ const SmartDecoder: React.FC = () => {
     });
   };
 
-  // --- Decode handlers (extracted) ---
   const {
     handleSmartDecode,
     handleContractABIDecode,
@@ -320,7 +316,6 @@ const SmartDecoder: React.FC = () => {
 
   return (
     <div className="bg-background p-4 w-full max-w-5xl mx-auto">
-      {/* Settings gear */}
       <div className="mb-3 flex justify-end">
         <Button
           type="button"
@@ -330,11 +325,10 @@ const SmartDecoder: React.FC = () => {
           onClick={() => setShowAdvancedOptions(true)}
           aria-label="Open decoder settings"
         >
-          <Settings2 className="h-4 w-4" />
+          <GearSix className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Mode Toggle */}
       <Tabs value={decodeMode} onValueChange={(v) => { setDecodeMode(v as DecodeMode); resetDecodingState(); }} className="mb-2">
         <div className="flex justify-center">
           <TabsList className="tool-pill-tabs h-auto w-auto bg-transparent p-0">
@@ -348,7 +342,6 @@ const SmartDecoder: React.FC = () => {
         </div>
       </Tabs>
 
-      {/* Main Input Section */}
       <div className="border border-border/50 rounded-lg p-3 space-y-3">
         {decodeMode === 'calldata' ? (
           <>
@@ -377,7 +370,7 @@ const SmartDecoder: React.FC = () => {
                       onClick={() => setShowEnrichModal(true)}
                       className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded transition-colors"
                     >
-                      <Sparkles className="h-3 w-3" />
+                      <Sparkle className="h-3 w-3" />
                       Enrich
                     </Button>
                   )}
@@ -385,7 +378,6 @@ const SmartDecoder: React.FC = () => {
               </div>
             </div>
 
-            {/* ABI Indicator */}
             {contractABI && (
               <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/30">
                 <div className="flex items-center gap-2">
@@ -404,7 +396,6 @@ const SmartDecoder: React.FC = () => {
               </div>
             )}
 
-            {/* Fallback suggestion */}
             {showFallbackOptions && decodedResult && !contractABI && (
               <Button
                 type="button"
@@ -414,13 +405,12 @@ const SmartDecoder: React.FC = () => {
                 onClick={() => setShowEnrichModal(true)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded border bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/15 transition-colors text-left"
               >
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                <Sparkle className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-xs text-amber-400 font-medium">Improve parameter names</span>
                 <span className="text-xs text-muted-foreground">- click to provide verified ABI</span>
               </Button>
             )}
 
-            {/* Hidden file input */}
             <input ref={fileInputRef} type="file" accept=".json,.abi" onChange={handleAbiFileSelection} className="hidden" />
           </>
         ) : (
@@ -435,7 +425,6 @@ const SmartDecoder: React.FC = () => {
           />
         )}
 
-        {/* Decode / Cancel Button */}
         <div className="flex justify-center w-full gap-2">
           <Button
             type="button"
@@ -447,7 +436,7 @@ const SmartDecoder: React.FC = () => {
           >
             <span className={`inline-flex items-center gap-1.5 transition-all duration-200 ${isDecoding ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>Decode</span>
             <span className={`absolute inset-0 inline-flex items-center justify-center gap-1.5 transition-all duration-200 ${isDecoding ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />Decoding...
+              <CircleNotch className="h-3.5 w-3.5 animate-spin" />Decoding...
             </span>
           </Button>
           {isDecoding && (
@@ -465,7 +454,6 @@ const SmartDecoder: React.FC = () => {
         </div>
       </div>
 
-      {/* Enrich Modal */}
       <EnrichModal
         open={showEnrichModal}
         onOpenChange={setShowEnrichModal}
@@ -481,7 +469,6 @@ const SmartDecoder: React.FC = () => {
         onFetchABI={() => { handleContractABIDecode(); setShowEnrichModal(false); }}
       />
 
-      {/* Settings Dialog */}
       <DecoderSettingsDialog
         open={showAdvancedOptions}
         onOpenChange={setShowAdvancedOptions}
@@ -495,7 +482,6 @@ const SmartDecoder: React.FC = () => {
         setShowAlternativeResults={setShowAlternativeResults}
       />
 
-      {/* Output Panel */}
       <DecoderOutputPanel
         decodedResult={decodedResult}
         viewMode={viewMode}
@@ -515,16 +501,12 @@ const SmartDecoder: React.FC = () => {
         getParameterDisplayData={getParameterDisplayData}
       />
 
-      {/* Contract Confirmation Dialog */}
       <ContractConfirmationDialog
         state={contractConfirmation}
         onOpenChange={() => setContractConfirmation(null)}
       />
 
-      {/* Search Progress */}
       <SearchProgress steps={currentSearchProgress} />
-
-      {/* Error Display */}
       <ErrorDisplay error={error} />
     </div>
   );

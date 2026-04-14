@@ -16,6 +16,12 @@ import { Label } from "../../ui/label";
 import { Button } from "../../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { useGridContext } from "../GridContext";
+import { getExplorerBaseUrlFromApiUrl } from "../../../utils/chains";
+
+type ExplorerLink = {
+  name?: string;
+  href: string;
+};
 
 export default function FunctionTypeSection({ children }: { children?: React.ReactNode }): React.ReactElement | null {
   const ctx: any = useGridContext();
@@ -38,6 +44,26 @@ export default function FunctionTypeSection({ children }: { children?: React.Rea
     filteredWriteFunctions,
     contractAddress,
   } = ctx;
+
+  const selectedFacetExplorerUrl =
+    getExplorerBaseUrlFromApiUrl(
+      selectedNetwork?.explorers?.find(
+        (e: { type?: string; url?: string }) => e.type === "blockscout"
+      )?.url
+    ) ||
+    selectedNetwork?.blockExplorer ||
+    selectedNetwork?.explorerUrl;
+
+  const explorerLinks =
+    selectedNetwork?.explorers
+      ?.map((explorer: { name?: string; url?: string }) => ({
+        name: explorer.name,
+        href: getExplorerBaseUrlFromApiUrl(explorer.url),
+      }))
+      .filter(
+        (explorer: { name?: string; href: string }): explorer is ExplorerLink =>
+          Boolean(explorer.href)
+      ) || [];
 
   if (
     !(
@@ -143,13 +169,7 @@ export default function FunctionTypeSection({ children }: { children?: React.Rea
 
             {selectedFacet && (
               <a
-                href={`${
-                  selectedNetwork?.explorers
-                    ?.find((e: { type?: string; url?: string }) => e.type === "blockscout")
-                    ?.url?.replace("/api", "")
-                    ?.replace("/api/", "") ||
-                  selectedNetwork?.blockExplorer
-                }/address/${selectedFacet}`}
+                href={`${selectedFacetExplorerUrl}/address/${selectedFacet}`}
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -170,8 +190,7 @@ export default function FunctionTypeSection({ children }: { children?: React.Rea
             )}
 
             {/* Multiple explorer options */}
-            {selectedNetwork?.explorers &&
-              selectedNetwork.explorers.length > 1 && (
+            {explorerLinks.length > 1 && (
                 <div
                   style={{
                     fontSize: "11px",
@@ -181,11 +200,11 @@ export default function FunctionTypeSection({ children }: { children?: React.Rea
                   }}
                 >
                   |
-                  {selectedNetwork.explorers.map(
-                    (explorer: any, index: number) => (
+                  {explorerLinks.map(
+                    (explorer: ExplorerLink, index: number) => (
                       <a
                         key={index}
-                        href={`${explorer.url?.replace("/api", "")?.replace("/api/", "")}/address/${selectedFacet || contractAddress}`}
+                        href={`${explorer.href}/address/${selectedFacet || contractAddress}`}
                         target="_blank"
                         rel="noreferrer"
                         style={{

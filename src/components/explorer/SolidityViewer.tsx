@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import type { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { cn } from '@/lib/utils';
-import { FileCode, X } from 'lucide-react';
+import { FileCode, X } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   ResizableHandle,
@@ -81,22 +81,18 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // State for open tabs
   const [openTabs, setOpenTabs] = useState<string[]>([]);
 
-  // Auto-open selected file as a tab
   useEffect(() => {
     if (selectedFile && !openTabs.includes(selectedFile)) {
       setOpenTabs(prev => [...prev, selectedFile]);
     }
   }, [selectedFile, openTabs]);
 
-  // Get file name from path
   const getFileName = useCallback((path: string) => {
     return path.split('/').pop() || path;
   }, []);
 
-  // Close a tab
   const closeTab = useCallback((path: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenTabs(prev => {
@@ -111,18 +107,15 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
     });
   }, [selectedFile, onFileSelect]);
 
-  // Get current file content
   const currentContent = selectedFile
     ? files.find(f => f.path === selectedFile)?.content || ''
     : '';
 
-  // Handle editor mount
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
     setupSolidityMonaco(monaco);
   }, []);
 
-  // Handle line highlighting
   useEffect(() => {
     if (!editorRef.current || !highlightLine) return;
 
@@ -130,10 +123,7 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
     const monaco = (window as { monaco?: typeof import('monaco-editor') }).monaco;
     if (!monaco) return;
 
-    // Clear previous decorations
     decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
-
-    // Add new decoration for highlighted line
     decorationsRef.current = editor.deltaDecorations([], [
       {
         range: new monaco.Range(highlightLine, 1, highlightLine, 1),
@@ -146,14 +136,12 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
     ]);
   }, [highlightLine, currentContent]);
 
-  // Handle scroll to line
   useEffect(() => {
     if (!editorRef.current || !scrollToLine) return;
 
     editorRef.current.revealLineInCenter(scrollToLine);
   }, [scrollToLine, currentContent]);
 
-  // Handle file selection
   const handleFileSelect = useCallback(
     (path: string) => {
       onFileSelect?.(path);
@@ -204,7 +192,6 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
         <ResizableHandle withHandle />
         <ResizablePanel id="editor-panel" defaultSize={80} minSize={40}>
           <div className="flex flex-col h-full">
-            {/* Tab bar */}
             {openTabs.length > 0 && (
               <div className="flex items-center border-b border-border bg-muted/30 overflow-x-auto shrink-0">
                 {openTabs.map(tabPath => (
@@ -235,7 +222,6 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
                 ))}
               </div>
             )}
-            {/* Editor */}
             <div className="flex-1 min-h-0">
               {editorComponent}
             </div>

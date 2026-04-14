@@ -1,12 +1,12 @@
 import React, { Suspense, useState, useEffect } from "react";
 import {
-  Settings as SettingsIcon,
+  GearSix as SettingsIcon,
   HardDrive,
-  Menu,
+  List,
   X,
-  Search,
-  Zap,
-} from "lucide-react";
+  MagnifyingGlass,
+  Lightning,
+} from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import RainbowKitWallet from "./RainbowKitWallet";
@@ -61,7 +61,6 @@ const TopBar: React.FC<TopBarProps> = ({
         className,
       )}
     >
-      {/* Left: branding */}
       <div className="flex shrink-0 items-center gap-2.5">
         <svg
           viewBox="0 0 100 100"
@@ -168,7 +167,6 @@ const TopBar: React.FC<TopBarProps> = ({
         </span>
       </div>
 
-      {/* Center: search bar trigger (absolute-center so left/right asymmetry doesn't shift it) */}
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
           className="pointer-events-auto w-full max-w-[460px]"
@@ -177,10 +175,8 @@ const TopBar: React.FC<TopBarProps> = ({
         />
       </div>
 
-      {/* Spacer so left/right still push to edges */}
       <div className="flex-1" />
 
-      {/* Right: actions */}
       <div className="flex shrink-0 items-center gap-1.5">
         {isMobile && (
           <Button
@@ -200,9 +196,10 @@ const TopBar: React.FC<TopBarProps> = ({
             title="Search"
             aria-label="Search"
           >
-            <Search size={16} />
+            <MagnifyingGlass size={16} />
           </Button>
         )}
+        <RainbowKitWallet />
         <Button
           type="button"
           variant="icon-borderless"
@@ -249,7 +246,7 @@ const TopBar: React.FC<TopBarProps> = ({
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
               <div className="flex items-start gap-2.5">
-                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <Lightning className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
                 <div>
                   <p className="text-xs font-medium leading-snug">
                     Add your personal explorer key or switch back to the app default key
@@ -262,7 +259,6 @@ const TopBar: React.FC<TopBarProps> = ({
             </PopoverContent>
           )}
         </Popover>
-        <RainbowKitWallet />
         {isMobile && onToggleMobileMenu && (
           <Button
             type="button"
@@ -272,7 +268,7 @@ const TopBar: React.FC<TopBarProps> = ({
             onClick={onToggleMobileMenu}
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
           >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {isMobileMenuOpen ? <X size={20} /> : <List size={20} />}
           </Button>
         )}
       </div>

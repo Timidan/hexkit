@@ -1,5 +1,5 @@
 import React from "react";
-import { Upload } from "lucide-react";
+import { UploadSimple } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
@@ -44,7 +44,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Upload size={16} />
+            <UploadSimple size={16} />
             Import Contract Artifacts
           </DialogTitle>
           <DialogDescription>
@@ -65,7 +65,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({
             htmlFor="contract-files"
             className="flex flex-col items-center justify-center w-full py-8 border-2 border-dashed border-border/50 rounded-lg cursor-pointer bg-muted/5 hover:bg-primary/5 hover:border-primary/30 transition-all"
           >
-            <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+            <UploadSimple className="w-8 h-8 mb-2 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               Click to browse or drag files here
             </p>

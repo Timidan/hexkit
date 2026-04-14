@@ -10,19 +10,19 @@ import React, {
 
 import '../../styles/ComplexValueViewer.css';
 import {
-  ChevronRight,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronsDownUp,
+  CaretRight,
+  CaretDown,
+  ArrowsOutSimple,
+  ArrowsInSimple,
   Wallet,
   Hash,
-  Binary,
+  NumberSquareZero,
   ToggleLeft,
-  Braces,
+  BracketsCurly,
   List,
   FileText,
-  CircleDot,
-} from 'lucide-react';
+  Crosshair,
+} from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { CopyButton } from './copy-button';
 import { Button } from './button';
@@ -70,7 +70,6 @@ const VIRTUALIZATION_THRESHOLD = 24;
 const DEFAULT_ROW_HEIGHT = 48;
 const VIRTUAL_OVERSCAN = 6;
 
-// Unified styling — neutral warm-gray badges, white text, dark bg
 const BADGE_STYLE = {
   color: 'text-zinc-300',
   bgColor: 'bg-zinc-700/60',
@@ -83,20 +82,19 @@ const typeConfig: Record<string, {
   bgColor: string;
   borderColor: string;
 }> = {
-  address:  { icon: Wallet,    ...BADGE_STYLE },
-  uint256:  { icon: Hash,      ...BADGE_STYLE },
-  uint:     { icon: Hash,      ...BADGE_STYLE },
-  int256:   { icon: Hash,      ...BADGE_STYLE },
-  bytes:    { icon: Binary,    ...BADGE_STYLE },
-  bytes32:  { icon: Binary,    ...BADGE_STYLE },
-  bool:     { icon: ToggleLeft,...BADGE_STYLE },
-  tuple:    { icon: Braces,    ...BADGE_STYLE },
-  array:    { icon: List,      ...BADGE_STYLE },
-  string:   { icon: FileText,  ...BADGE_STYLE },
-  default:  { icon: CircleDot, ...BADGE_STYLE },
+  address:  { icon: Wallet,          ...BADGE_STYLE },
+  uint256:  { icon: Hash,            ...BADGE_STYLE },
+  uint:     { icon: Hash,            ...BADGE_STYLE },
+  int256:   { icon: Hash,            ...BADGE_STYLE },
+  bytes:    { icon: NumberSquareZero, ...BADGE_STYLE },
+  bytes32:  { icon: NumberSquareZero, ...BADGE_STYLE },
+  bool:     { icon: ToggleLeft,      ...BADGE_STYLE },
+  tuple:    { icon: BracketsCurly,   ...BADGE_STYLE },
+  array:    { icon: List,            ...BADGE_STYLE },
+  string:   { icon: FileText,        ...BADGE_STYLE },
+  default:  { icon: Crosshair,       ...BADGE_STYLE },
 };
 
-// Get type configuration based on Solidity type
 const getTypeConfig = (type?: string) => {
   if (!type) return typeConfig.default;
 
@@ -164,10 +162,7 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
         className
       )}
     >
-      {/* Subtle grid background pattern */}
       <div className="absolute inset-0 cv-grid-bg opacity-[0.02] pointer-events-none" />
-
-      {/* Header with controls */}
       {showControls && node.children && node.children.length > 0 && (
         <div className="relative flex items-center justify-between px-3 py-2 border-b border-neutral-800/60 bg-transparent">
           <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
@@ -186,8 +181,8 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
                 }}
               >
                 {isAllExpanded
-                  ? <ChevronsDownUp className="h-3.5 w-3.5" />
-                  : <ChevronsUpDown className="h-3.5 w-3.5" />}
+                  ? <ArrowsInSimple className="h-3.5 w-3.5" />
+                  : <ArrowsOutSimple className="h-3.5 w-3.5" />}
               </Button>
             </HoverCardTrigger>
             <HoverCardContent side="bottom" className="text-xs">
@@ -197,7 +192,6 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
         </div>
       )}
 
-      {/* Content area */}
       <div className="relative p-2">
         <NodeRenderer
           node={node}
@@ -295,7 +289,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Depth indicator line */}
       {!isRoot && (
         <div
           className={cn(
@@ -307,9 +300,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
         />
       )}
 
-      {/* Single flowing row: [toggle] [label] [badge] [summary] [data...wraps] [copy] */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        {/* Toggle button — always stays on first line */}
         {isCollapsible ? (
           <CollapsibleTrigger asChild>
             <Button
@@ -323,9 +314,9 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               {collapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
+                <CaretRight className="h-3.5 w-3.5" />
               ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
+                <CaretDown className="h-3.5 w-3.5" />
               )}
             </Button>
           </CollapsibleTrigger>
@@ -335,7 +326,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
           </span>
         )}
 
-        {/* Label */}
         <span
           className={cn(
             'font-medium text-[13px] tracking-tight shrink-0 whitespace-nowrap',
@@ -347,7 +337,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
           {node.label}
         </span>
 
-        {/* Type badge with icon */}
         {node.type && (
           <span
             className={cn(
@@ -362,14 +351,12 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
           </span>
         )}
 
-        {/* Summary count */}
         {summary && summary.length > 0 && (
           <span className="text-[10px] text-slate-400 tabular-nums shrink-0 whitespace-nowrap">
             ({summary})
           </span>
         )}
 
-        {/* Value — truncated for long values with expand toggle */}
         {displayValue && (() => {
           const isLong = displayValue.length > 120;
           const truncated = isLong && !isValueExpanded
@@ -405,7 +392,6 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
           );
         })()}
 
-        {/* Copy button */}
         {hasCopyCapability && (
           <CopyButton
             value={simpleCopyValue}

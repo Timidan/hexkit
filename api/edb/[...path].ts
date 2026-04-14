@@ -11,7 +11,6 @@ const FETCH_TIMEOUT_MS = 120_000; // 2 min for regular requests
 const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS", "HEAD"]);
 
 // CORS allowlist — dev servers by default; extend via EDB_CORS_ALLOWED_ORIGINS (comma-separated).
-// No credentials are used (auth is injected server-side), so reflecting a matched origin is safe.
 const DEFAULT_ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
@@ -19,9 +18,14 @@ const DEFAULT_ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:4173",
 ]);
 
-function resolveAllowedOrigin(origin: string | undefined): string | null {
+function resolveAllowedOrigin(
+  origin: string | undefined,
+  host?: string,
+): string | null {
   if (!origin) return null;
   if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return origin;
+  // Allow same-host requests (covers prod + every Vercel preview deployment)
+  if (host && origin === `https://${host}`) return origin;
   const extra = process.env.EDB_CORS_ALLOWED_ORIGINS;
   if (extra) {
     const list = extra
@@ -36,7 +40,9 @@ function resolveAllowedOrigin(origin: string | undefined): string | null {
 function applyCors(req: VercelRequest, res: VercelResponse) {
   const origin =
     typeof req.headers.origin === "string" ? req.headers.origin : undefined;
-  const allowed = resolveAllowedOrigin(origin);
+  const host =
+    typeof req.headers.host === "string" ? req.headers.host : undefined;
+  const allowed = resolveAllowedOrigin(origin, host);
   if (allowed) {
     res.setHeader("Access-Control-Allow-Origin", allowed);
     res.setHeader("Vary", "Origin");
@@ -65,7 +71,6 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Apply CORS first so every response path (errors, preflight, streaming) includes headers.
   applyCors(req, res);
 
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
@@ -79,15 +84,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: "bridge_not_configured" });
   }
 
-  // Method allowlist
-  if (!ALLOWED_METHODS.has(req.method || "GET")) {
-    return res.status(405).json({ error: "method_not_allowed" });
-  }
-
   // OPTIONS preflight — CORS headers already set above
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
+  }
+
+  // Origin check: allow same-origin requests (no Origin header) and allowlisted origins.
+  const reqOrigin =
+    typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const reqHost =
+    typeof req.headers.host === "string" ? req.headers.host : undefined;
+  if (reqOrigin && !resolveAllowedOrigin(reqOrigin, reqHost)) {
+    return res.status(403).json({ error: "origin_required" });
+  }
+
+  // Method allowlist
+  if (!ALLOWED_METHODS.has(req.method || "GET")) {
+    return res.status(405).json({ error: "method_not_allowed" });
   }
 
   // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Check, Copy, AlertCircle } from "lucide-react"
+import { Check, Copy, WarningCircle as AlertCircle } from "@phosphor-icons/react"
 import { Button, type ButtonProps } from "./button"
 import { cn } from "@/lib/utils"
 import { copyTextToClipboard } from "@/utils/clipboard"

@@ -5,26 +5,31 @@ import PageSkeleton from "./shared/PageSkeleton";
 interface ToolRoute {
   path: string;
   render: () => React.ReactElement;
+  /** When true, match any pathname starting with `path` */
+  prefix?: boolean;
 }
 
 const TransactionBuilderHub = React.lazy(() => import("./TransactionBuilderHub"));
 const SignatureDatabase = React.lazy(() => import("./SignatureDatabase"));
 const SimulationHistoryPage = React.lazy(() => import("./SimulationHistoryPage"));
 const SourceTools = React.lazy(() => import("./explorer/SourceTools"));
+const IntegrationsHub = React.lazy(() => import("./integrations/IntegrationsHub"));
 
 const TOOL_ROUTES: ToolRoute[] = [
   { path: "/database", render: () => <SignatureDatabase /> },
   { path: "/builder", render: () => <TransactionBuilderHub /> },
   { path: "/simulations", render: () => <SimulationHistoryPage /> },
   { path: "/explorer", render: () => <SourceTools /> },
+  { path: "/integrations", render: () => <IntegrationsHub />, prefix: true },
 ];
 
-// Inactive route cleanup timeout (10 minutes)
+function routeMatches(route: ToolRoute, pathname: string): boolean {
+  return route.prefix ? pathname.startsWith(route.path) : route.path === pathname;
+}
+
 const INACTIVE_ROUTE_TIMEOUT_MS = 10 * 60 * 1000;
-// Cleanup check interval (1 minute)
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 
-// Transition timing (ms)
 const EXIT_MS = 150;
 const ENTER_MS = 300;
 const ENTER_EASE = "cubic-bezier(0.25,0.46,0.45,0.94)";
@@ -33,26 +38,23 @@ const PersistentTools: React.FC = () => {
   const location = useLocation();
   const elementsRef = useRef<Record<string, React.ReactElement>>({});
   const lastVisitRef = useRef<Record<string, number>>({});
-  // DOM refs for each panel wrapper, keyed by route path
   const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [visitedPaths, setVisitedPaths] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    if (TOOL_ROUTES.some((route) => route.path === location.pathname)) {
-      initial.add(location.pathname);
-      lastVisitRef.current[location.pathname] = Date.now();
+    const matched = TOOL_ROUTES.find((route) => routeMatches(route, location.pathname));
+    if (matched) {
+      initial.add(matched.path);
+      lastVisitRef.current[matched.path] = Date.now();
     }
     return initial;
   });
 
-  // The path whose panel is currently visible (drives display:block/none)
   const [visiblePath, setVisiblePath] = useState(location.pathname);
-  // Track if we're mid-animation to prevent React from overriding DOM styles
   const animatingRef = useRef(false);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const enterRafRef = useRef<number | undefined>(undefined);
 
-  // Cleanup function to remove inactive routes
   const cleanupInactiveRoutes = useCallback(() => {
     const now = Date.now();
     const currentPath = location.pathname;
@@ -90,23 +92,30 @@ const PersistentTools: React.FC = () => {
     return () => clearInterval(intervalId);
   }, [cleanupInactiveRoutes]);
 
-  // Track visited paths and update timestamps
   useEffect(() => {
-    if (TOOL_ROUTES.some((route) => route.path === location.pathname)) {
-      lastVisitRef.current[location.pathname] = Date.now();
+    const matched = TOOL_ROUTES.find((route) => routeMatches(route, location.pathname));
+    if (matched) {
+      lastVisitRef.current[matched.path] = Date.now();
 
       setVisitedPaths((prev) => {
-        if (prev.has(location.pathname)) return prev;
+        if (prev.has(matched.path)) return prev;
         const next = new Set(prev);
-        next.add(location.pathname);
+        next.add(matched.path);
         return next;
       });
     }
   }, [location.pathname]);
 
-  // Orchestrate exit → enter transition via direct DOM manipulation
+  // Resolve the route key for the current pathname so sub-route changes within
+  // a prefix route (e.g. /integrations/lifi-earn → /integrations/other) don't
+  // trigger a full panel transition — only top-level tool switches do.
+  const activeRouteKey = useMemo(() => {
+    const r = TOOL_ROUTES.find((route) => routeMatches(route, location.pathname));
+    return r?.path ?? location.pathname;
+  }, [location.pathname]);
+
   useEffect(() => {
-    const targetPath = location.pathname;
+    const targetPath = activeRouteKey;
     if (targetPath === visiblePath && !animatingRef.current) return;
     if (targetPath === visiblePath) return;
 
@@ -119,19 +128,14 @@ const PersistentTools: React.FC = () => {
 
     animatingRef.current = true;
 
-    // --- EXIT: animate old panel out via DOM ---
     if (oldPanel) {
-      // The old panel is already painted with display:block, opacity:1.
-      // Apply transition + target values directly — the browser will animate from the painted state.
       oldPanel.style.transition = `opacity ${EXIT_MS}ms ease-in, transform ${EXIT_MS}ms ease-in`;
       oldPanel.style.opacity = "0";
       oldPanel.style.transform = "scale(0.95)";
       oldPanel.style.pointerEvents = "none";
     }
 
-    // After exit duration, swap panels
     cleanupTimerRef.current = setTimeout(() => {
-      // Hide old panel, reset its styles
       if (oldPanel) {
         oldPanel.style.transition = "none";
         oldPanel.style.opacity = "";
@@ -140,7 +144,6 @@ const PersistentTools: React.FC = () => {
         oldPanel.style.display = "none";
       }
 
-      // Show new panel at enter-start position
       const newPanel = panelRefs.current[targetPath];
       if (newPanel) {
         newPanel.style.transition = "none";
@@ -149,10 +152,8 @@ const PersistentTools: React.FC = () => {
         newPanel.style.transform = "scale(0.97) translateY(12px)";
       }
 
-      // Update React state to match — wrapped in rAF to avoid batching issues
       setVisiblePath(targetPath);
 
-      // After browser paints the enter-start frame, kick the enter transition
       enterRafRef.current = requestAnimationFrame(() => {
         enterRafRef.current = requestAnimationFrame(() => {
           const panel = panelRefs.current[targetPath];
@@ -162,7 +163,6 @@ const PersistentTools: React.FC = () => {
             panel.style.transform = "scale(1) translateY(0)";
           }
 
-          // After enter completes, clean up inline styles so React can manage
           cleanupTimerRef.current = setTimeout(() => {
             const p = panelRefs.current[targetPath];
             if (p) {
@@ -170,7 +170,6 @@ const PersistentTools: React.FC = () => {
               p.style.opacity = "";
               p.style.transform = "";
             }
-            // Also ensure old panel is cleaned
             const op = panelRefs.current[oldPath];
             if (op && op.style.display !== "none") {
               op.style.display = "none";
@@ -185,10 +184,10 @@ const PersistentTools: React.FC = () => {
       clearTimeout(cleanupTimerRef.current);
       if (enterRafRef.current) cancelAnimationFrame(enterRafRef.current);
     };
-  }, [location.pathname]);
+  }, [activeRouteKey]);
 
   const activeRoute = useMemo(
-    () => TOOL_ROUTES.find((route) => route.path === location.pathname),
+    () => TOOL_ROUTES.find((route) => routeMatches(route, location.pathname)),
     [location.pathname]
   );
 

@@ -6,7 +6,7 @@ import {
   FileTextIcon,
   TrashIcon,
 } from "../icons/IconLibrary";
-import { AlertCircle, ChevronDown } from "lucide-react";
+import { WarningCircle, CaretDown } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { CopyButton } from "../ui/copy-button";
 import {
@@ -69,7 +69,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
               >
                 <TrashIcon width={12} height={12} />
               </Button>
-              <ChevronDown
+              <CaretDown
                 width={14}
                 height={14}
                 className={`transition-transform ${functionsOpen ? "rotate-180" : ""}`}
@@ -139,7 +139,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
               >
                 <TrashIcon width={12} height={12} />
               </Button>
-              <ChevronDown
+              <CaretDown
                 width={14}
                 height={14}
                 className={`transition-transform ${eventsOpen ? "rotate-180" : ""}`}
@@ -193,7 +193,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
         <Collapsible open={errorsOpen} onOpenChange={setErrorsOpen}>
           <CollapsibleTrigger className="sigdb-collapsible-header flex items-center justify-between w-full py-2.5 px-3 border bg-muted/10 hover:bg-muted/20 transition-colors text-xs">
             <div className="flex items-center gap-2">
-              <AlertCircle width={14} height={14} />
+              <WarningCircle width={14} height={14} />
               <span className="font-medium">
                 Errors ({flattenedCachedErrors.length})
               </span>
@@ -209,7 +209,7 @@ const CacheTab: React.FC<CacheTabProps> = ({
               >
                 <TrashIcon width={12} height={12} />
               </Button>
-              <ChevronDown
+              <CaretDown
                 width={14}
                 height={14}
                 className={`transition-transform ${errorsOpen ? "rotate-180" : ""}`}

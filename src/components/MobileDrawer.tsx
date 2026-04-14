@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
-import { Database, Wrench, Code2, Search, ChevronRight } from "lucide-react";
+import { Database, Wrench, Code, MagnifyingGlass, CaretRight, Stack } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 interface MobileDrawerProps {
@@ -37,11 +37,20 @@ const TOOLS = [
     id: "explorer",
     route: "/explorer",
     label: "Source Tools",
-    icon: Code2,
+    icon: Code,
     subTabs: [
       { id: "explorer", label: "Explorer", paramKey: "tool" },
       { id: "diff", label: "Contract Diff", paramKey: "tool" },
       { id: "storage", label: "Storage", paramKey: "tool" },
+    ],
+  },
+  {
+    id: "integrations",
+    route: "/integrations",
+    label: "Integrations",
+    icon: Stack,
+    subTabs: [
+      { id: "lifi-earn", label: "LI.FI Earn", paramKey: "route" },
     ],
   },
 ];
@@ -50,6 +59,7 @@ function getActiveToolId(pathname: string): string {
   if (pathname.startsWith("/builder") || pathname.startsWith("/simulations")) return "builder";
   if (pathname.startsWith("/database")) return "database";
   if (pathname.startsWith("/explorer")) return "explorer";
+  if (pathname.startsWith("/integrations")) return "integrations";
   return "database";
 }
 
@@ -75,6 +85,13 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
     subId: string,
     paramKey: string
   ) => {
+    // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
+    if (paramKey === "route") {
+      navigate(`${tool.route}/${subId}`);
+      onOpenChange(false);
+      return;
+    }
+
     const params = new URLSearchParams();
     params.set(paramKey, subId);
     navigate(
@@ -97,13 +114,12 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
           </SheetTitle>
         </SheetHeader>
 
-        {/* Search trigger */}
         <button
           type="button"
           onClick={handleSearch}
           className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
         >
-          <Search className="size-4 opacity-60" />
+          <MagnifyingGlass className="size-4 opacity-60" />
           <span className="opacity-70">Search...</span>
           <kbd className="ml-auto rounded border border-border/40 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px]">
             Ctrl+K
@@ -112,7 +128,6 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
 
         <div className="h-px bg-border/30 mx-4 my-1" />
 
-        {/* Tools + sub-tabs */}
         <nav className="flex flex-col gap-1 px-2 py-2">
           {TOOLS.map((tool) => {
             const Icon = tool.icon;
@@ -131,7 +146,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
                 >
                   <Icon className="size-4" />
                   {tool.label}
-                  <ChevronRight
+                  <CaretRight
                     className={cn(
                       "ml-auto size-3.5 transition-transform",
                       isActive && "rotate-90"
@@ -139,7 +154,6 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
                   />
                 </button>
 
-                {/* Sub-tabs (shown when tool is active) */}
                 {isActive && tool.subTabs && (
                   <div className="ml-7 mt-1 flex flex-col gap-0.5 border-l border-border/30 pl-3">
                     {tool.subTabs.map((sub) => {

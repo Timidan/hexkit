@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { AnimatedTabContent } from '../ui/animated-tabs';
 import ContractExplorer from './ContractExplorer';
-import { Code2, GitCompare, Database } from 'lucide-react';
+import { Code, GitDiff, Database } from '@phosphor-icons/react';
 
 type SourceSubTool = 'explorer' | 'diff' | 'storage';
 
@@ -59,7 +59,6 @@ const SourceTools: React.FC<SourceToolsProps> = ({ initialTool = 'explorer' }) =
     <div className="h-full flex flex-col gap-2">
       {/* Sub-tool selector is now in the capsule Navigation — driven via ?tool= URL param */}
 
-      {/* Content */}
       <div className="tool-content-container flex-1 min-h-0 overflow-hidden">
         {/* Storage tab rendered outside AnimatePresence to avoid react-resizable-panels measurement issues */}
         {activeTool === 'storage' ? (

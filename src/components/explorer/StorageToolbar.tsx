@@ -1,14 +1,14 @@
 import React from 'react';
 import {
   Database,
-  Search,
-  AlertCircle,
-  Loader2,
-  Download,
-  CheckCircle2,
-  Radar,
-  Grid2x2Check,
-} from 'lucide-react';
+  MagnifyingGlass,
+  WarningCircle,
+  CircleNotch,
+  DownloadSimple,
+  CheckCircle,
+  Broadcast,
+  GridFour,
+} from '@phosphor-icons/react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -59,11 +59,10 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
   setSlotGraphOpen,
 }) => (
   <div className="flex items-center gap-2 flex-wrap">
-    {/* Contract metadata badges */}
     <div className="flex items-center gap-1.5">
       {contractMeta?.name && (
         <Badge variant="secondary" className="text-[10px] h-5 gap-1">
-          <CheckCircle2 className="w-2.5 h-2.5 text-green-400" />
+          <CheckCircle className="w-2.5 h-2.5 text-green-400" />
           {contractMeta.name}
         </Badge>
       )}
@@ -82,9 +81,9 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
           }`}
         >
           {layoutConfidence === 'compiler' ? (
-            <CheckCircle2 className="w-2.5 h-2.5" />
+            <CheckCircle className="w-2.5 h-2.5" />
           ) : (
-            <AlertCircle className="w-2.5 h-2.5" />
+            <WarningCircle className="w-2.5 h-2.5" />
           )}
           {layoutConfidence === 'compiler' ? 'Compiler Layout' : 'Reconstructed'}
         </Badge>
@@ -98,7 +97,6 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
         <Database className="w-2.5 h-2.5" />
         {stats.total} slots
       </Badge>
-      {/* Discovery status badge */}
       {mappingEntries.length > 0 && (
         <Badge
           variant="outline"
@@ -111,9 +109,9 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
           }`}
         >
           {discovery.state.phase === 'scanning' ? (
-            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+            <CircleNotch className="w-2.5 h-2.5 animate-spin" />
           ) : discovery.state.phase === 'complete' || discovery.state.phase === 'partial' ? (
-            <Radar className="w-2.5 h-2.5" />
+            <Broadcast className="w-2.5 h-2.5" />
           ) : null}
           {discovery.state.totalKeysFound > 0
             ? `${discovery.state.totalKeysFound} keys`
@@ -149,7 +147,7 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
     <div className="flex-1" />
 
     <div className="relative">
-      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+      <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
       <Input
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -159,11 +157,11 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
     </div>
 
     <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => setSlotGraphOpen(true)}>
-      <Grid2x2Check className="h-3 w-3" />
+      <GridFour className="h-3 w-3" />
       Slot Graph
     </Button>
     <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={handleExportCsv}>
-      <Download className="h-3 w-3" />
+      <DownloadSimple className="h-3 w-3" />
       CSV
     </Button>
   </div>

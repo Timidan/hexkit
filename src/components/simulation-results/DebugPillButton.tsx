@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bug, Check, X, Loader2, Square, ChevronRight } from 'lucide-react';
+import { Bug, Check, X, CircleNotch, Square, CaretRight } from '@phosphor-icons/react';
 import type { DebugPrepState } from '../../types/debug';
 import '../../styles/DebugPillButton.css';
 
@@ -68,7 +68,7 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
       <button className="debug-pill debug-pill--preparing">
         <div className="debug-pill__fill" style={{ width: `${Math.max(2, progressPct)}%` }} />
         <span className="debug-pill__content">
-          <Loader2 size={14} className="debug-pill__spinner" />
+          <CircleNotch size={14} className="debug-pill__spinner" />
           <span className="debug-pill__stage">{stageLabel}</span>
           <span className="debug-pill__pct">{progressPct}%</span>
           <button
@@ -90,7 +90,7 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
         <span className="debug-pill__content">
           <Check size={16} strokeWidth={2.5} />
           Open Debugger
-          <ChevronRight size={14} />
+          <CaretRight size={14} />
         </span>
       </button>
     );

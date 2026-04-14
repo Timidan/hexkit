@@ -5,16 +5,16 @@
 <h1 align="center">HEXKIT</h1>
 
 <p align="center">
-  A local-first EVM developer toolkit for decoding, simulating, and debugging smart contract transactions.
+  A local-first EVM developer toolkit for decoding, simulating, debugging smart contract transactions, and managing DeFi yield.
 </p>
 
 ---
 
 ## Overview
 
-HexKit is a browser-based web3 developer toolkit built for inspecting, simulating, and debugging EVM transactions. All heavy compute -- REVM replay, instrumentation, and trace decoding -- runs locally, keeping your data private and your workflow fast.
+HexKit is a browser-based web3 developer toolkit built for inspecting, simulating, and debugging EVM transactions, with an integrated DeFi yield management layer. All heavy compute -- REVM replay, instrumentation, and trace decoding -- runs locally, keeping your data private and your workflow fast.
 
-The application pairs a React frontend with a local Rust-powered EDB (EVM Debugger) engine that provides full transaction replay, step-through debugging, and storage introspection without relying on third-party simulation services.
+The application pairs a React frontend with a local Rust-powered EDB (EVM Debugger) engine that provides full transaction replay, step-through debugging, and storage introspection without relying on third-party simulation services. The integrations layer connects to external DeFi protocols (starting with LI.FI) for cross-chain yield discovery, deposit execution, and portfolio management.
 
 ## Tech Stack
 
@@ -24,6 +24,8 @@ The application pairs a React frontend with a local Rust-powered EDB (EVM Debugg
 | Styling | Tailwind CSS v4, shadcn/ui |
 | Web3 | ethers v5, viem, wagmi, RainbowKit |
 | Simulation | REVM (Rust), EDB engine, WebSocket bridge |
+| Integrations | LI.FI SDK (Earn API, Composer), Gemini LLM |
+| API Proxies | Vercel Serverless Functions |
 | Testing | Vitest, Testing Library |
 
 ## Features
@@ -63,6 +65,30 @@ A full simulation analysis page with six tabs:
 ### Simulation History
 
 Browse past simulations stored in IndexedDB. Re-open any previous result for review or further debugging.
+
+### Integrations
+
+The `/integrations` route hosts protocol-specific modules that extend HexKit beyond debugging into active DeFi operations.
+
+#### LI.FI Earn
+
+A full yield management layer powered by the LI.FI Earn API:
+
+- **Vault Browser** -- Browse, search, and filter yield vaults across 20+ protocols and all supported EVM chains. Each vault shows live APY, TVL, underlying tokens, and protocol metadata.
+- **My Positions** -- View open earn positions for any connected wallet or arbitrary address. Shows per-position PnL and portfolio summary.
+- **Deposit / Withdraw Flows** -- Deposit into and withdraw from vaults directly through LI.FI's Composer API, which handles cross-chain swaps and bridging automatically.
+- **Vault Simulator** -- Forecast projected returns for any vault over a configurable time horizon before committing capital.
+
+#### Yield Concierge (AI-powered)
+
+An AI assistant that translates natural language yield goals into actionable vault recommendations:
+
+- **Intent Parser** -- Gemini LLM converts free-text prompts ("safest USDC vault above 5% on Arbitrum") into structured filters (token, chain, APY range, objective, protocol allow/deny lists).
+- **My Assets Mode** -- Say "best vaults for my assets" and the concierge fans out per-asset recommendations for every idle token in the connected wallet.
+- **Consolidate Mode** -- Say "best vault for my assets" (singular) and the concierge finds the top vault candidates to funnel all holdings into a single position via cross-chain swaps.
+- **Idle Sweep** -- Detects wallet tokens sitting idle (not earning yield) and suggests the best vault for each, with one-click deposit.
+- **Execution Pipeline** -- A sequential deposit queue that processes multiple deposits one after another, handling quoting, approval, execution, and cross-chain bridge status polling for each leg.
+- **Model Fallback** -- The LLM proxy tries `gemini-3.1-pro-preview` first and auto-falls back to `gemini-2.5-flash` on rate limits, keeping recommendations available without interruption.
 
 ### Contract Resolution
 
@@ -139,6 +165,17 @@ npm run dev
 
 The app works out of the box with public RPC endpoints. For better reliability, configure an Alchemy API key, Infura project ID, or a custom RPC URL through the RPC Settings modal (gear icon in the top bar).
 
+For the LI.FI Earn integration and AI concierge, set the following in `.env`:
+
+| Variable | Purpose |
+|----------|---------|
+| `LIFI_API_KEY` | LI.FI API key for Earn and Composer endpoints |
+| `GEMINI_API_KEY` | Google AI Studio API key for the yield concierge LLM |
+| `GEMINI_MODEL` | Primary Gemini model (default: `gemini-3.1-pro-preview`) |
+| `GEMINI_FALLBACK_MODEL` | Fallback on 429/503 (default: `gemini-2.5-flash`) |
+| `PROXY_SECRET` | Shared secret for API proxy authentication (production) |
+| `ALLOWED_ORIGINS` | Comma-separated allowed CORS origins (production) |
+
 ## Project Structure
 
 ```
@@ -150,6 +187,28 @@ src/
     explorer/                Source tools (explorer, diff, storage layout)
     execution-trace/         Trace viewer components
     debug/                   Debug window and panels
+    integrations/
+      IntegrationsHub.tsx    Integration router
+      lifi-earn/
+        LifiEarnPage.tsx     Main earn page (positions, vaults tabs)
+        VaultList.tsx        Vault browser with filters
+        VaultDrawer.tsx      Vault detail sheet
+        DepositFlow.tsx      Deposit transaction flow
+        WithdrawFlow.tsx     Withdraw transaction flow
+        earnApi.ts           LI.FI Earn API client
+        concierge/
+          ConciergePanel.tsx       Yield concierge tabs (idle sweep + intent)
+          IdleSweepPanel.tsx       Idle asset detection and recommendations
+          VaultRecommendations.tsx  Recommendation card grid
+          ExecutionQueue.tsx       Sequential deposit pipeline UI
+          executionMachine.ts      Reducer-based execution state machine
+          intent/
+            IntentPanel.tsx        AI intent UI (prompt, chips, results)
+            schema.ts              ParsedIntent zod schema
+            hooks/
+              useIntentParser.ts        LLM prompt → structured intent
+              useVaultsByIntent.ts      Filter + rank vaults by intent
+              useIntentRecommendation.ts  LLM-powered vault picks
     shared/                  Reusable components
     icons/                   Icon library
     ui/                      shadcn/ui primitives
@@ -168,6 +227,11 @@ src/
   styles/                    CSS modules
   config/                    App configuration
   lib/                       Shared libraries
+
+api/
+  llm-recommend.ts           Gemini LLM proxy with model fallback
+  lifi-composer.ts           LI.FI Composer quote/execute proxy
+  edb/                       EDB simulation API routes
 
 edb/
   crates/engine/             Core debug engine

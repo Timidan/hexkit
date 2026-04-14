@@ -7,7 +7,7 @@ import {
   AnimatedHashIcon,
   AnimatedFileTextIcon,
 } from "../icons/IconLibrary";
-import { AlertCircle } from "lucide-react";
+import { WarningCircle } from "@phosphor-icons/react";
 import { CopyButton } from "../ui/copy-button";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { Alert, AlertDescription } from "../ui/alert";
@@ -133,7 +133,7 @@ const ToolsTab: React.FC<ToolsTabProps> = ({
 
             {calculatorResult.error && (
               <Alert variant="destructive" className="py-2 mt-3">
-                <AlertCircle className="h-3 w-3" />
+                <WarningCircle className="h-3 w-3" />
                 <AlertDescription className="text-xs">
                   {calculatorResult.error}
                 </AlertDescription>

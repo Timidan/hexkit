@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isAddress } from 'ethers/lib/utils';
 import type { Chain } from '../../types';
-import { SUPPORTED_CHAINS, getChainById } from '../../utils/chains';
+import { getExplorerChains, getChainById } from '../../utils/chains';
 import { useStorageEvidence } from './storage-viewer/useStorageEvidence';
 import { fetchStorageLayout as fetchLayoutDirect } from './storage-viewer/fetchStorageLayout';
 import { useSlotResolution } from './storage-viewer/useSlotResolution';
@@ -36,25 +36,23 @@ export function useStorageViewerState() {
   const location = useLocation();
   const { session } = useDebug();
 
-  // Input state
   const [contractAddress, setContractAddress] = useState('');
-  const [selectedChain, setSelectedChain] = useState<Chain>(getChainById(1) || SUPPORTED_CHAINS[0]);
+  const [selectedChain, setSelectedChain] = useState<Chain>(
+    () => getChainById(1) || getExplorerChains()[0],
+  );
 
-  // Contract metadata state
   const [contractMeta, setContractMeta] = useState<{
     name: string | null;
     compilerVersion: string | null;
     proxyInfo: ProxyInfo | null;
   } | null>(null);
 
-  // View state
   const [userFilter, setUserFilter] = useState<ViewFilter>('resolved');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedSlot, setExpandedSlot] = useState<string | null>(null);
   const [treeExpandedGroups, setTreeExpandedGroups] = useState<Set<string>>(new Set(['variables', 'mappings', 'arrays']));
   const [treeOpen, setTreeOpen] = useState(false);
 
-  // Auto-collapse tree on narrow viewports
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 768px)');
     const handler = (e: MediaQueryListEvent) => { if (e.matches) setTreeOpen(false); };
@@ -63,10 +61,8 @@ export function useStorageViewerState() {
     return () => mql.removeEventListener('change', handler);
   }, []);
 
-  // Path navigation state
   const [pathSegments, setPathSegments] = useState<PathSegment[]>([]);
 
-  // Slot derivation state
   const [probeMode, setProbeMode] = useState<SlotMode>('simple');
   const [baseSlotInput, setBaseSlotInput] = useState('0');
   const [mappingKey, setMappingKey] = useState<MappingKey>({ type: 'address', value: '' });
@@ -95,7 +91,6 @@ export function useStorageViewerState() {
     readSlotFromRpc,
   } = useStorageEvidence();
 
-  // AbortController for the resolveContractContext phase (before evidence loading starts)
   const contextAbortRef = useRef<AbortController | null>(null);
 
   // Computed filter: during loading (before layout arrives), force 'all' so
@@ -128,13 +123,11 @@ export function useStorageViewerState() {
     return map;
   }, [mappingEntries]);
 
-  // Manual mapping key lookup state
   const [manualKeys, setManualKeys] = useState<Map<string, DiscoveredMappingKey[]>>(new Map());
   const [keyInput, setKeyInput] = useState('');
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [slotGraphOpen, setSlotGraphOpen] = useState(false);
 
-  // Auto-discovery state
   const discovery = useAutoDiscovery();
   const { startScan: discoveryStartScan, stopScan: discoveryStopScan } = discovery;
   const [lookbackBlocks, setLookbackBlocks] = useState(20_000);
@@ -168,8 +161,6 @@ export function useStorageViewerState() {
     return map;
   }, [isMappingView, pathSegments, mergedKeys]);
 
-  // ─── Computed Slot (from derivation inputs) ───────────────────────
-
   const computedSlot = useMemo(() => {
     try {
       const baseSlot = parseSlotInput(baseSlotInput);
@@ -202,8 +193,6 @@ export function useStorageViewerState() {
     }
   }, [probeMode, baseSlotInput, mappingKey, arrayIndex, nestedKeys]);
 
-  // ─── Computed Data (delegated to useStorageViewerData) ─────────────
-
   const { stats, filteredSlots, displayRows, treeGroups } = useStorageViewerData({
     resolvedSlots,
     filter,
@@ -219,8 +208,6 @@ export function useStorageViewerState() {
     layout,
   });
 
-  // ─── Actions ────────────────────────────────────────────────────────
-
   const handleCancel = useCallback(() => {
     contextAbortRef.current?.abort();
     contextAbortRef.current = null;
@@ -234,12 +221,10 @@ export function useStorageViewerState() {
     const addr = contractAddress.trim();
     if (!addr) return;
 
-    // Abort any previous fetch
     contextAbortRef.current?.abort();
     const controller = new AbortController();
     contextAbortRef.current = controller;
 
-    // Immediate visual feedback
     setIsFetchPending(true);
 
     performance.mark('storage-fetch-start');
@@ -280,9 +265,7 @@ export function useStorageViewerState() {
           proxyInfo: ctx.proxyInfo || null,
         });
 
-        // Build sourceBundle for AST-based storage layout reconstruction.
-        // Prefer implementation sources (proxy target), fall back to direct contract sources.
-        const metaForSources = ctx.implementationMetadata || ctx.metadata;
+            const metaForSources = ctx.implementationMetadata || ctx.metadata;
         if (metaForSources?.sources && Object.keys(metaForSources.sources).length > 0) {
           sourceBundle = {
             files: metaForSources.sources,
@@ -314,7 +297,6 @@ export function useStorageViewerState() {
       }
     }
 
-    // Build fallback addresses for layout fetching
     const fallbackAddresses: string[] = [];
     if (diamondFacets) {
       fallbackAddresses.push(...diamondFacets.map(f => f.address).filter(Boolean));
@@ -338,7 +320,6 @@ export function useStorageViewerState() {
       fallbackAddresses,
     });
 
-    // Diamond namespace discovery
     setPostLoadResolving(true);
     try {
       let facetSelectors: Map<string, string[]> | undefined;
@@ -404,7 +385,6 @@ export function useStorageViewerState() {
     performance.measure('storage-slot-table-paint', 'storage-fetch-start', 'storage-fetch-end');
   }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc, discovery]);
 
-  // URL intent handling
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const requestedAddress = params.get('address')?.trim();
@@ -412,8 +392,8 @@ export function useStorageViewerState() {
 
     const requestedChainIdRaw = params.get('chainId');
     const requestedChainId = requestedChainIdRaw ? Number.parseInt(requestedChainIdRaw, 10) : Number.NaN;
-    const fallbackChain = getChainById(1) || SUPPORTED_CHAINS[0];
-    const nextChain = SUPPORTED_CHAINS.find((chain) => chain.id === requestedChainId) || fallbackChain;
+    const fallbackChain = getChainById(1) || getExplorerChains()[0];
+    const nextChain = getChainById(requestedChainId) || fallbackChain;
 
     if (selectedChain.id !== nextChain.id) {
       setSelectedChain(nextChain);
@@ -428,7 +408,6 @@ export function useStorageViewerState() {
     };
   }, [location.search]);
 
-  // Execute URL-triggered fetch once state has synced.
   useEffect(() => {
     const pending = pendingUrlFetchRef.current;
     if (!pending) return;
@@ -440,8 +419,6 @@ export function useStorageViewerState() {
     pendingUrlFetchRef.current = null;
     void handleFetch();
   }, [contractAddress, selectedChain.id, handleFetch]);
-
-  // ─── Auto-Discovery Trigger ──────────────────────────────────────────
 
   useEffect(() => {
     if (
@@ -602,7 +579,6 @@ export function useStorageViewerState() {
     setKeyInput('');
   }, [mappingEntriesBySlot, pathSegments.length, layout]);
 
-  /** Look up a single mapping key or array index manually */
   const handleKeyLookup = useCallback(async () => {
     if (!keyInput.trim() || pathSegments.length === 0) return;
 
@@ -692,8 +668,6 @@ export function useStorageViewerState() {
     });
   }, []);
 
-  // ─── Export (must be after displayRows) ────────────────────────────
-
   const handleExportCsv = useCallback(() => {
     const rows = displayRows.map((slot) => {
       const decoded = slot.decodedFields?.map((field) => `${field.label}: ${field.decoded}`).join('; ') || '';
@@ -722,8 +696,6 @@ export function useStorageViewerState() {
     a.click();
     URL.revokeObjectURL(url);
   }, [contractAddress, displayRows]);
-
-  // ─── Render state ─────────────────────────────────────────────────
 
   const hasData = resolvedSlots.length > 0;
   const hasSession = sessionId !== null;

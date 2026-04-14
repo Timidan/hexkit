@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { ethers } from 'ethers';
-import { AlertCircle } from 'lucide-react';
+import { WarningCircle } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 import { CopyButton } from './ui/copy-button';
 import { Input } from './ui/input';
@@ -30,11 +30,7 @@ function placeholderForType(type: string): string {
   return '';
 }
 
-/**
- * Convert a user-entered string value to the JS type ethers expects
- * for a given Solidity type.
- */
-function formatValue(value: string, type: string): any {
+function formatValue(value: string, type: string): string | number | boolean | ethers.BigNumber | unknown[] {
   const v = value.trim();
   if (v === '') {
     if (type.includes('int')) return 0;
@@ -56,7 +52,6 @@ function formatValue(value: string, type: string): any {
   }
 
   if (type === 'address') {
-    // Lowercase first to strip any bad checksum, then re-checksum
     try {
       return ethers.utils.getAddress(v.toLowerCase());
     } catch {
@@ -65,7 +60,6 @@ function formatValue(value: string, type: string): any {
   }
 
   if (type.includes('int')) {
-    // Use BigNumber for large integers to avoid JS precision loss
     try {
       return ethers.BigNumber.from(v);
     } catch {
@@ -78,8 +72,7 @@ function formatValue(value: string, type: string): any {
   return v;
 }
 
-/** Build an ABI-style param list for ethers Interface from parsed params. */
-function buildAbiInputs(params: ParsedSolidityParameter[]): any[] {
+function buildAbiInputs(params: ParsedSolidityParameter[]): { name: string; type: string; components?: ReturnType<typeof buildAbiInputs> }[] {
   return params.map((p, i) => ({
     name: p.name || `param${i}`,
     type: p.type,
@@ -92,13 +85,11 @@ const CalldataEncoder: React.FC = () => {
   const [signatureInput, setSignatureInput] = useState('');
   const [paramValues, setParamValues] = useState<string[]>([]);
 
-  // ── Parse the signature / types ──────────────────────────────
   const parsed = useMemo(() => {
     const sig = signatureInput.trim();
     if (!sig) return { valid: false as const, params: [] as ParsedSolidityParameter[], funcName: '' };
 
     if (mode === 'function') {
-      // Must match: word(...)
       if (!/^\w+\(.*\)$/.test(sig)) return { valid: false as const, params: [] as ParsedSolidityParameter[], funcName: '' };
       const funcName = sig.slice(0, sig.indexOf('('));
       const paramsStr = sig.slice(sig.indexOf('(') + 1, -1);
@@ -109,14 +100,11 @@ const CalldataEncoder: React.FC = () => {
       return { valid: true as const, params, funcName };
     }
 
-    // Raw mode — just comma-separated types
     if (!areValidSolidityParams(sig)) return { valid: false as const, params: [] as ParsedSolidityParameter[], funcName: '' };
-    // Wrap in dummy function so parseFunctionSignatureParameters can parse it
     const params = parseFunctionSignatureParameters(`_encode(${sig})`);
     return { valid: true as const, params, funcName: '' };
   }, [signatureInput, mode]);
 
-  // Keep paramValues array in sync with parsed params length
   const paramCount = parsed.params.length;
   const values = useMemo(() => {
     const arr = [...paramValues];
@@ -133,10 +121,8 @@ const CalldataEncoder: React.FC = () => {
     });
   }, []);
 
-  // ── Encode ──────────────────────────────────────────────────
   const encodeResult = useMemo<{ encoded: string; error: string | null }>(() => {
     if (!parsed.valid || parsed.params.length === 0) {
-      // No params — for function mode we can still encode a no-arg call
       if (mode === 'function' && parsed.valid && parsed.funcName) {
         try {
           const abiFragment = { type: 'function' as const, name: parsed.funcName, inputs: [], outputs: [], stateMutability: 'nonpayable' as const };
@@ -149,7 +135,6 @@ const CalldataEncoder: React.FC = () => {
       return { encoded: '', error: null };
     }
 
-    // Build formatted values
     const formattedValues = parsed.params.map((p, i) => formatValue(values[i] ?? '', p.type));
 
     try {
@@ -167,7 +152,6 @@ const CalldataEncoder: React.FC = () => {
         return { encoded, error: null };
       }
 
-      // Raw mode
       const types = parsed.params.map(p => p.type);
       const encoded = ethers.utils.defaultAbiCoder.encode(types, formattedValues);
       return { encoded, error: null };
@@ -176,7 +160,6 @@ const CalldataEncoder: React.FC = () => {
     }
   }, [parsed, values, mode]);
 
-  // Reset param values when signature changes fundamentally
   const handleSignatureChange = useCallback((val: string) => {
     setSignatureInput(val);
   }, []);
@@ -189,13 +172,11 @@ const CalldataEncoder: React.FC = () => {
 
   return (
     <div className="border border-border/50 rounded-lg p-3 space-y-3">
-      {/* Header */}
       <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <ToolIcon width={14} height={14} />
         Calldata Encoder
       </div>
 
-      {/* Mode toggle */}
       <Tabs value={mode} onValueChange={handleModeChange}>
         <div className="flex justify-center">
           <TabsList className="tool-pill-tabs h-auto w-auto bg-transparent p-0">
@@ -209,7 +190,6 @@ const CalldataEncoder: React.FC = () => {
         </div>
       </Tabs>
 
-      {/* Signature / types input */}
       <div className="grid grid-cols-[100px_1fr] gap-3 items-center">
         <Label className="text-xs">
           {mode === 'function' ? 'Signature' : 'Types'}
@@ -233,7 +213,6 @@ const CalldataEncoder: React.FC = () => {
         </p>
       )}
 
-      {/* Parameter inputs */}
       {parsed.valid && parsed.params.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border/30">
           <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
@@ -258,15 +237,13 @@ const CalldataEncoder: React.FC = () => {
         </div>
       )}
 
-      {/* Error */}
       {encodeResult.error && (
         <Alert variant="destructive" className="py-2">
-          <AlertCircle className="h-3 w-3" />
+          <WarningCircle className="h-3 w-3" />
           <AlertDescription className="text-xs">{encodeResult.error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Result */}
       {encodeResult.encoded && !encodeResult.error && (
         <div className="mt-1 pt-3 border-t border-border/50 space-y-2">
           <div className="text-xs font-medium">

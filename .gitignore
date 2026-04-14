@@ -1,3 +1,6 @@
+# Service account keys
+gen-lang-client-*.json
+
 # Logs
 logs
 *.log
@@ -41,11 +44,28 @@ ICON_MAPPING.md
 app-combined-abi.json
 debug-formatter.html
 
+/video
+
 # Documentation and test files
 *.md
 !README.md
 !wcodex_work.md
+# !docs/superpowers/plans/*.md
+
+# Local tooling config
+.claude/
+.mcp.json
+
+# Submodule / nested repos
+edb
+
+# Misc
+*.pdf
 *test*
 *Test*
 *TEST*
 /tmp
+video/out
+.superpowers
+/docs
+@docs

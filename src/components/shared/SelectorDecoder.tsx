@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, Hash, Database, AlertCircle } from 'lucide-react';
+import { MagnifyingGlass, Hash, Database, WarningCircle } from '@phosphor-icons/react';
 import {
   lookupFunctionSignatures,
   getCachedSignatures,
@@ -136,7 +136,7 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
           borderRadius: '8px',
           marginBottom: '16px'
         }}>
-          <Search size={16} className="animate-spin" />
+          <MagnifyingGlass size={16} className="animate-spin" />
           <span style={{ fontSize: '15px', color: '#64b5f6' }}>
             Decoding selectors... ({progress.current}/{progress.total})
           </span>

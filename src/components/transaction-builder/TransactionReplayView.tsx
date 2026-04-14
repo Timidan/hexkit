@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
-import { Bug } from "lucide-react";
+import { Bug } from "@phosphor-icons/react";
 import {
   Loader2Icon,
   CheckCircleIcon,
@@ -310,7 +310,6 @@ export const TransactionReplayView: React.FC<{
           saveConfig({ rpcMode: "DEFAULT" });
         }
 
-        // Convert ExtendedChain to Chain for RPC resolution
         const chainForRpc: Chain = {
           id: selectedNetwork.id,
           name: selectedNetwork.name,
@@ -318,7 +317,6 @@ export const TransactionReplayView: React.FC<{
           blockExplorer: selectedNetwork.blockExplorer ?? "",
         } as Chain;
 
-        // Use user's configured RPC if available, otherwise fall back to default
         const rpcResolution = resolveRpcUrl(chainForRpc.id, selectedNetwork.rpcUrl);
         const rpcUrl = rpcResolution.url;
         const persistedNotice = getPersistedRpcAutoSwitchNotice();
@@ -414,12 +412,6 @@ export const TransactionReplayView: React.FC<{
         return;
       }
 
-      // Enrich simulation result with transaction metadata
-      // IMPORTANT: Do NOT overwrite blockNumber or timestamp from the simulation result!
-      // - simulation.blockNumber is the original tx block (from replayTransactionWithSimulator)
-      // - simulation.timestamp is the original block timestamp (Unix seconds)
-      // Only add forkBlockTag if user explicitly requested forking at a different block
-      // Generate simulation ID using cryptographically secure random UUID
       const generatedSimulationId = crypto.randomUUID();
       const enrichedSimulation = {
         ...simulation,
@@ -432,7 +424,6 @@ export const TransactionReplayView: React.FC<{
         simulationId: generatedSimulationId,
       };
 
-      // Build contract context for history storage
       const calldata = simulation.data;
       const contractContext = {
         address: simulation.to || "",
@@ -448,10 +439,8 @@ export const TransactionReplayView: React.FC<{
         debugEnabled: enableDebug === true,
       };
 
-      // Store enriched simulation in context and navigate to dedicated results page
       setSimulation(enrichedSimulation as any, contractContext);
-      const targetSimulationId = generatedSimulationId;
-      navigate(`/simulation/${targetSimulationId}`, { state: { fromSimulation: true } });
+      navigate(`/simulation/${generatedSimulationId}`, { state: { fromSimulation: true } });
     } catch (error: any) {
       const rawMessage =
         error?.message ??
@@ -535,9 +524,7 @@ export const TransactionReplayView: React.FC<{
                       )}
                     />
 
-                    {/* Controls Container */}
                     <div className="absolute right-1.5 flex items-center h-9 gap-1 px-1">
-                      {/* Clear Button */}
                       {txHash && (
                         <Button
                           type="button"
@@ -552,7 +539,6 @@ export const TransactionReplayView: React.FC<{
                         </Button>
                       )}
 
-                      {/* Network Selector */}
                       <NetworkSelector
                         className="scale-90 opacity-90 hover:opacity-100 transition-opacity"
                         selectedNetwork={selectedNetwork}
@@ -563,7 +549,6 @@ export const TransactionReplayView: React.FC<{
                         variant="input"
                       />
 
-                      {/* Replay Button */}
                       <Button
                         type="button"
                         variant="icon-borderless"
@@ -589,7 +574,6 @@ export const TransactionReplayView: React.FC<{
                 </div>
               </div>
 
-              {/* Transaction Preview / Validation Status */}
               {rpcNotice && (
                 <div className="flex items-center gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
                   <AlertTriangleIcon width={16} height={16} className="text-yellow-300" />
@@ -661,7 +645,6 @@ export const TransactionReplayView: React.FC<{
                 </div>
               )}
 
-              {/* Block Tag (optional) */}
               <div className="flex flex-col gap-3">
                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">
                   Block Tag (optional)
@@ -700,7 +683,6 @@ export const TransactionReplayView: React.FC<{
                 </div>
               </div>
 
-              {/* Reset Button */}
               <div className="flex gap-3 pt-2">
                 <Button
                   variant="outline"
@@ -711,14 +693,12 @@ export const TransactionReplayView: React.FC<{
                 </Button>
               </div>
 
-              {/* Error Display */}
               {formError && (
                 <div className="p-3 rounded-md border border-destructive/50 bg-destructive/10 text-destructive text-sm">
                   {formError}
                 </div>
               )}
 
-              {/* Warning Display */}
               {bridgeWarning && (
                 <div className="p-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 text-yellow-200 text-sm">
                   {bridgeWarning}
@@ -726,7 +706,6 @@ export const TransactionReplayView: React.FC<{
               )}
             </section>
 
-            {/* Result Section - only show loading indicator during replay */}
             {isSimulating && (
               <section style={replaySectionStyle} className="border-t border-border pt-6 mt-4">
                 <div className="flex items-center gap-3 p-4 rounded-md border border-primary/30 bg-primary/5">

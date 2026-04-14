@@ -95,22 +95,32 @@ export const postSimulatorJob = async (
 
   const url = `${SIMULATOR_BRIDGE_ENDPOINT}/simulate`;
 
+  // Legacy full-sim callers rely on this wrapper to force-enable every
+  // collector (call tree, events, storage diff, snapshots). Lite callers
+  // opt out via `liteEventsOnly: true` on the payload so their explicit
+  // `false` values actually reach the Rust side instead of being coerced
+  // back to `true` here. The Rust simulator reads the top-level
+  // `liteEventsOnly` field directly and short-circuits Steps 2/3, so the
+  // key stays on the payload instead of being stripped.
+  const isLite = payload.liteEventsOnly === true;
   if (payload.analysisOptions && typeof payload.analysisOptions === "object") {
     const ao = { ...(payload.analysisOptions as Record<string, unknown>) };
-    const collectStorage =
-      (ao.collectStorageDiffs as boolean | undefined) ??
-      (ao.collectStorageDiff as boolean | undefined) ??
-      true;
-    ao.collectStorageDiffs = collectStorage;
-    ao.collectStorageDiff = collectStorage;
-    if (ao.collectSnapshots === undefined) {
-      ao.collectSnapshots = true;
-    }
-    if (ao.collectEvents === undefined) {
-      ao.collectEvents = true;
-    }
-    if (ao.collectCallTree === undefined) {
-      ao.collectCallTree = true;
+    if (!isLite) {
+      const collectStorage =
+        (ao.collectStorageDiffs as boolean | undefined) ??
+        (ao.collectStorageDiff as boolean | undefined) ??
+        true;
+      ao.collectStorageDiffs = collectStorage;
+      ao.collectStorageDiff = collectStorage;
+      if (ao.collectSnapshots === undefined) {
+        ao.collectSnapshots = true;
+      }
+      if (ao.collectEvents === undefined) {
+        ao.collectEvents = true;
+      }
+      if (ao.collectCallTree === undefined) {
+        ao.collectCallTree = true;
+      }
     }
     payload.analysisOptions = ao;
   }
@@ -195,8 +205,17 @@ export const trySimulatorBridge = async (
   fromAddress: string,
   options?: {
     enableDebug?: boolean;
+    /**
+     * Lite mode for callers that only need event logs (e.g. Transfer-based
+     * asset movement extraction). Skips Sourcify/Blockscout/proxy/facet
+     * artifact pre-fetching entirely and ships a minimal analysisOptions
+     * payload that disables per-opcode snapshot collection on the Rust side.
+     * Roughly 5x faster than a full sim for the DepositFlow use case.
+     */
+    liteEventsOnly?: boolean;
   },
 ): Promise<SimulationResult | null> => {
+  const liteEventsOnly = options?.liteEventsOnly === true;
   const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
   const rpcUrl = resolution.url;
 
@@ -220,70 +239,80 @@ export const trySimulatorBridge = async (
       : userBlockTag
     : "latest";
 
-  try {
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+  // Lite mode skips pre-flight RPC metadata (block, nonce, fees) — the EDB
+  // engine derives what it needs from the RPC URL directly. This avoids
+  // 4 sequential round-trips to potentially slow public RPCs, saving 5-30s.
+  if (!liteEventsOnly) {
+    try {
+      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
 
-    const currentBlock =
-      typeof targetBlockTag === "number"
-        ? targetBlockTag
-        : await provider.getBlockNumber();
-    blockNumber = currentBlock;
+      const currentBlock =
+        typeof targetBlockTag === "number"
+          ? targetBlockTag
+          : await provider.getBlockNumber();
+      blockNumber = currentBlock;
 
-    const block = await provider.getBlock(currentBlock);
-    timestamp = block?.timestamp || null;
-    baseFeePerGas = block?.baseFeePerGas?.toString() || null;
+      const block = await provider.getBlock(currentBlock);
+      timestamp = block?.timestamp || null;
+      baseFeePerGas = block?.baseFeePerGas?.toString() || null;
 
-    const fromAddr =
-      fromAddress || "0x0000000000000000000000000000000000000000";
-    const accountNonce = await provider.getTransactionCount(
-      fromAddr,
-      currentBlock,
-    );
-    nonce = accountNonce;
+      const fromAddr =
+        fromAddress || "0x0000000000000000000000000000000000000000";
+      const accountNonce = await provider.getTransactionCount(
+        fromAddr,
+        currentBlock,
+      );
+      nonce = accountNonce;
 
-    if (baseFeePerGas) {
-      txType = 2;
+      if (baseFeePerGas) {
+        txType = 2;
 
-      try {
-        const feeData = await provider.getFeeData();
-        maxFeePerGas = feeData.maxFeePerGas?.toString() || null;
-        maxPriorityFeePerGas = feeData.maxPriorityFeePerGas?.toString() || null;
+        try {
+          const feeData = await provider.getFeeData();
+          maxFeePerGas = feeData.maxFeePerGas?.toString() || null;
+          maxPriorityFeePerGas =
+            feeData.maxPriorityFeePerGas?.toString() || null;
 
-        if (baseFeePerGas && maxPriorityFeePerGas) {
-          const baseFee = ethers.BigNumber.from(baseFeePerGas);
-          const priorityFee = ethers.BigNumber.from(maxPriorityFeePerGas);
-          const effectivePrice = baseFee.add(priorityFee);
-          gasPrice = effectivePrice.toString();
+          if (baseFeePerGas && maxPriorityFeePerGas) {
+            const baseFee = ethers.BigNumber.from(baseFeePerGas);
+            const priorityFee = ethers.BigNumber.from(maxPriorityFeePerGas);
+            const effectivePrice = baseFee.add(priorityFee);
+            gasPrice = effectivePrice.toString();
+          }
+        } catch (err) {
+          console.warn(
+            "[simulation] EIP-1559 fee data fetch failed:",
+            (err as Error)?.message,
+          );
         }
-      } catch (err) {
-        console.warn(
-          "[simulation] EIP-1559 fee data fetch failed:",
-          (err as Error)?.message,
-        );
+      } else {
+        txType = 0;
+        try {
+          const legacyGasPrice = await provider.getGasPrice();
+          gasPrice = legacyGasPrice?.toString() || null;
+        } catch (err) {
+          console.warn(
+            "[simulation] Legacy gas price fetch failed:",
+            (err as Error)?.message,
+          );
+        }
       }
-    } else {
-      txType = 0;
-      try {
-        const legacyGasPrice = await provider.getGasPrice();
-        gasPrice = legacyGasPrice?.toString() || null;
-      } catch (err) {
-        console.warn(
-          "[simulation] Legacy gas price fetch failed:",
-          (err as Error)?.message,
-        );
-      }
+    } catch (err) {
+      console.warn(
+        "[simulation] RPC metadata fetch failed:",
+        (err as Error)?.message,
+      );
     }
-  } catch (err) {
-    console.warn(
-      "[simulation] RPC metadata fetch failed:",
-      (err as Error)?.message,
-    );
   }
 
   let contractArtifacts: SourcifyArtifact[] | null = null;
   let contractMetadata: Record<string, unknown> | null = null;
 
-  if (transaction.to) {
+  // Lite mode skips every upstream artifact fetch — Sourcify/Blockscout,
+  // diamond facets, proxy implementations. The engine will still emit event
+  // logs from the base RPC trace, which is the only data the asset-movement
+  // path consumes. This is the single biggest pre-flight win (3-5s saved).
+  if (!liteEventsOnly && transaction.to) {
     try {
       const sourcifyResult = await buildArtifactsFromSourcify(
         transaction.to,
@@ -319,6 +348,7 @@ export const trySimulatorBridge = async (
   const sourcifyMetadata = contractMetadata;
 
   if (
+    !liteEventsOnly &&
     transaction.diamondFacetAddresses &&
     transaction.diamondFacetAddresses.length > 0
   ) {
@@ -369,6 +399,7 @@ export const trySimulatorBridge = async (
   }
 
   if (
+    !liteEventsOnly &&
     transaction.proxyImplementationAddresses &&
     transaction.proxyImplementationAddresses.length > 0
   ) {
@@ -417,17 +448,34 @@ export const trySimulatorBridge = async (
     }
   }
 
+  // In lite mode we send a bare analysisOptions object that disables every
+  // collector except events and flips quickMode on. postSimulatorJob checks
+  // for the liteEventsOnly hint on the payload and skips the legacy
+  // force-enable branch so these values actually reach the Rust side.
+  const analysisOptions = liteEventsOnly
+    ? {
+        quickMode: true,
+        collectSnapshots: false,
+        collectCallTree: false,
+        collectStorageDiff: false,
+        collectStorageDiffs: false,
+        collectEvents: true,
+        artifactSourcePriority: inferArtifactSourcePriority(sourcifyArtifacts),
+      }
+    : mergeAnalysisOptions({
+        // Debug sessions need snapshot collection for evaluator/navigation support.
+        ...(options?.enableDebug === true ? { collectSnapshots: true } : {}),
+        artifactSourcePriority: inferArtifactSourcePriority(sourcifyArtifacts),
+      });
+
   const requestPayload: Record<string, unknown> = {
     mode: "local" as const,
     rpcUrl,
     chainId: chain.id,
     transaction: buildBridgeTransactionPayload(transaction, fromAddress),
-    analysisOptions: mergeAnalysisOptions({
-      // Debug sessions need snapshot collection for evaluator/navigation support.
-      ...(options?.enableDebug === true ? { collectSnapshots: true } : {}),
-      artifactSourcePriority: inferArtifactSourcePriority(sourcifyArtifacts),
-    }),
+    analysisOptions,
     enableDebug: options?.enableDebug === true,
+    ...(liteEventsOnly ? { liteEventsOnly: true } : {}),
   };
 
   if (transaction.blockTag !== undefined) {

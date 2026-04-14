@@ -57,6 +57,38 @@ function buildDebugAnalysisOptions(params) {
   };
 }
 
+function getKeepAliveSessionError(result) {
+  if (!result || typeof result !== "object") {
+    return "Failed to create debug session — simulator returned no keep-alive session";
+  }
+
+  const error =
+    typeof result.error === "string" && result.error.trim()
+      ? result.error.trim()
+      : null;
+  if (error) {
+    return `Failed to create debug session — ${error}`;
+  }
+
+  const warning = Array.isArray(result.warnings)
+    ? result.warnings.find((entry) => typeof entry === "string" && entry.trim())
+    : null;
+  if (warning) {
+    return `Failed to create debug session — ${warning}`;
+  }
+
+  switch (result.debugLevel) {
+    case "call-trace":
+      return "Failed to create debug session — live debugging is unavailable because the simulator fell back to lightweight call-trace mode";
+    case "opcode-trace":
+      return "Failed to create debug session — live debugging is unavailable because the simulator fell back to opcode-trace mode";
+    case "eth-call-only":
+      return "Failed to create debug session — live debugging is unavailable because the simulator fell back to eth_call-only mode";
+    default:
+      return "Failed to create debug session — simulator returned no keep-alive session";
+  }
+}
+
 /**
  * Start the EDB server process if not already running
  */
@@ -181,7 +213,11 @@ export async function startDebugSession(simulationSemaphore, params) {
   );
   const { result, session } = await gatedRunSimulationWithKeepAlive(simulationSemaphore, JSON.stringify(payload));
   if (!session) {
-    throw new Error("Failed to create keep-alive debug session");
+    const message = getKeepAliveSessionError(result);
+    console.warn(
+      `[simulator-bridge] keep-alive session was not created (mode=${result?.mode ?? "unknown"}, debugLevel=${result?.debugLevel ?? "unknown"}): ${message}`,
+    );
+    throw new Error(message);
   }
 
   return {
@@ -415,7 +451,11 @@ export async function runAsyncDebugPrep(simulationSemaphore, prepareId, params) 
         sourceFiles: job.sourceFiles,
       });
     } else {
-      throw new Error("Failed to create debug session — no keep-alive session returned");
+      const message = getKeepAliveSessionError(result);
+      console.warn(
+        `[simulator-bridge] async debug prep missing keep-alive session (mode=${result?.mode ?? "unknown"}, debugLevel=${result?.debugLevel ?? "unknown"}): ${message}`,
+      );
+      throw new Error(message);
     }
   } catch (err) {
     job.status = "failed";

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, ChevronUp, Wallet, Fuel, Coins, Clock, Box, Bug } from "lucide-react";
+import { CaretDown, CaretUp, Wallet, GasPump, Coins, Clock, Cube, Bug } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -42,7 +42,6 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen || forceOpen);
 
-  // Auto-expand when forceOpen becomes true (e.g., when values are restored)
   React.useEffect(() => {
     if (forceOpen && !isOpen) {
       setIsOpen(true);
@@ -62,9 +61,9 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           {title}
         </div>
         {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          <CaretUp className="w-4 h-4 text-muted-foreground" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          <CaretDown className="w-4 h-4 text-muted-foreground" />
         )}
       </Button>
       {isOpen && <div className="p-3 space-y-3 bg-background/50">{children}</div>}
@@ -79,7 +78,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
   className,
   isSimulationMode = true,
 }) => {
-  // Initialize toggle states based on whether overrides have values
   const [useCustomGas, setUseCustomGas] = useState(
     () => !!(overrides.gas || overrides.gasPrice)
   );
@@ -87,7 +85,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
     () => !!(overrides.blockNumber || overrides.timestamp)
   );
 
-  // Sync toggle states when overrides change from external sources (e.g., resimulation)
   React.useEffect(() => {
     if (overrides.gas || overrides.gasPrice) {
       setUseCustomGas(true);
@@ -118,7 +115,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
         className
       )}
     >
-      {/* Header */}
       <div className="p-4 border-b border-border/50">
         <h3 className="text-base font-semibold text-foreground">
           Simulation Overrides
@@ -128,9 +124,7 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
         </p>
       </div>
 
-      {/* Content */}
       <div className="p-4 space-y-4">
-        {/* From Address (Impersonation) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label
@@ -164,7 +158,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
           </p>
         </div>
 
-        {/* Value (ETH to send) */}
         <div className="space-y-2">
           <Label
             htmlFor="sim-value"
@@ -185,10 +178,9 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
           </p>
         </div>
 
-        {/* Gas Settings (Collapsible) */}
         <CollapsibleSection
           title="Gas Settings"
-          icon={<Fuel className="w-4 h-4" />}
+          icon={<GasPump className="w-4 h-4" />}
           defaultOpen={false}
           forceOpen={useCustomGas}
         >
@@ -232,10 +224,9 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
           )}
         </CollapsibleSection>
 
-        {/* Block Overrides (Collapsible) */}
         <CollapsibleSection
           title="Block Overrides"
-          icon={<Box className="w-4 h-4" />}
+          icon={<Cube className="w-4 h-4" />}
           defaultOpen={false}
           forceOpen={useBlockOverrides}
         >
@@ -286,7 +277,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
           )}
         </CollapsibleSection>
 
-        {/* Debug Mode */}
         <div className="border border-border/50 rounded-lg p-3 bg-muted/20">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -309,7 +299,6 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
           </div>
         </div>
 
-        {/* State Overrides placeholder */}
         <div className="border border-dashed border-border/50 rounded-lg p-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="text-emerald-400">EDB Supported:</span>

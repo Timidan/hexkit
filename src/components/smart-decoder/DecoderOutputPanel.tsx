@@ -1,8 +1,8 @@
 import React from 'react';
 import type { JSX } from 'react';
 import {
-  ChevronRight,
-} from 'lucide-react';
+  CaretRight,
+} from '@phosphor-icons/react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import {
@@ -84,7 +84,6 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
 
   return (
     <div className="border border-border/40 rounded-sm mt-3 font-mono text-[11px] bg-black/30 backdrop-blur-sm overflow-hidden selection:bg-emerald-500/20">
-      {/* Terminal Title Bar */}
       <div className="flex items-center justify-between px-2.5 py-1.5 bg-muted/15 border-b border-border/30">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
@@ -116,7 +115,6 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
         </div>
       </div>
 
-      {/* IDE-style Code Stream */}
       <div className="divide-y divide-border/10">
         <div className="flex group hover:bg-muted/10 transition-colors">
           <div className="w-8 py-1.5 text-right pr-2 text-muted-foreground/40 border-r border-border/20 select-none tabular-nums bg-muted/5 text-[10px]">01</div>
@@ -138,7 +136,6 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
             </div>
           </div>
         </div>
-        {/* Proxy Info Row */}
         {proxyInfo?.isProxy && (
           <div className="flex group hover:bg-muted/10 transition-colors">
             <div className="w-8 py-1.5 text-right pr-2 text-muted-foreground/40 border-r border-border/20 select-none tabular-nums bg-muted/5 text-[10px]">03</div>
@@ -157,7 +154,6 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
         )}
       </div>
 
-      {/* Parameters - Terminal Style */}
       {decodedResult.args && decodedResult.args.length > 0 && (
         <div className="border-t border-border/10">
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as DecoderViewMode)}>
@@ -186,7 +182,6 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
         </div>
       )}
 
-      {/* Heuristic Analysis - Code Fold Region */}
       {heuristicResult && heuristicResult.decodedAttempts && (
         <Collapsible>
           <CollapsibleTrigger asChild>
@@ -195,7 +190,7 @@ const DecoderOutputPanel: React.FC<DecoderOutputPanelProps> = ({
               variant="ghost"
               className="w-full flex items-center gap-2 px-2.5 py-1.5 border-t border-border/10 bg-purple-500/5 hover:bg-purple-500/10 transition-colors text-left group"
             >
-              <ChevronRight className="h-3 w-3 text-purple-400/60 transition-transform group-data-[state=open]:rotate-90" />
+              <CaretRight className="h-3 w-3 text-purple-400/60 transition-transform group-data-[state=open]:rotate-90" />
               <span className="text-[10px] text-purple-400/80 uppercase tracking-wider">heuristics</span>
               {heuristicResult.bestGuess && (
                 <span className="text-[10px] text-muted-foreground/40 font-mono">

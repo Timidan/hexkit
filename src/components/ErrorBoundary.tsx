@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Warning, ArrowsClockwise } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 
 interface Props {
@@ -52,7 +52,7 @@ class ErrorBoundary extends Component<Props, State> {
             marginBottom: '16px',
             color: '#ef4444'
           }}>
-            <AlertTriangle size={24} />
+            <Warning size={24} />
             <h3 style={{ margin: 0, fontSize: '19px' }}>Something went wrong</h3>
           </div>
           
@@ -101,7 +101,7 @@ class ErrorBoundary extends Component<Props, State> {
               margin: '0 auto'
             }}
           >
-            <RefreshCw size={16} />
+            <ArrowsClockwise size={16} />
             Refresh Page
           </Button>
         </div>
