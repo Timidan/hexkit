@@ -10,6 +10,44 @@ const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB (artifacts_inline can be large
 const FETCH_TIMEOUT_MS = 120_000; // 2 min for regular requests
 const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS", "HEAD"]);
 
+// CORS allowlist — dev servers by default; extend via EDB_CORS_ALLOWED_ORIGINS (comma-separated).
+const DEFAULT_ALLOWED_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+]);
+
+function resolveAllowedOrigin(origin: string | undefined, host?: string): string | null {
+  if (!origin) return null;
+  if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return origin;
+  // Allow same-host requests (covers prod + every Vercel preview deployment)
+  if (host && origin === `https://${host}`) return origin;
+  const extra = process.env.EDB_CORS_ALLOWED_ORIGINS;
+  if (extra) {
+    const list = extra
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (list.includes(origin)) return origin;
+  }
+  return null;
+}
+
+function applyCors(req: VercelRequest, res: VercelResponse) {
+  const origin =
+    typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+  const allowed = resolveAllowedOrigin(origin, host);
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", allowed);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+    res.setHeader("Access-Control-Max-Age", "600");
+  }
+}
+
 function getRawBody(req: VercelRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -29,6 +67,8 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  applyCors(req, res);
+
   const bridgeUrl = process.env.EDB_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
   const defaultEtherscanApiKey = process.env.ETHERSCAN_API_KEY;
@@ -47,11 +87,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // EDB proxy uses origin allowlist only — reject requests from unknown origins.
-  if (
-    !resolveAllowedOrigin(
-      typeof req.headers.origin === "string" ? req.headers.origin : undefined,
-    )
-  ) {
+  const reqOrigin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const reqHost = typeof req.headers.host === "string" ? req.headers.host : undefined;
+  if (!resolveAllowedOrigin(reqOrigin, reqHost)) {
     return res.status(403).json({ error: "origin_required" });
   }
 
