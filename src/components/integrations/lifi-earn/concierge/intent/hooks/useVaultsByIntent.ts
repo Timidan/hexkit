@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEarnVaults } from "../../../earnApi";
 import type { EarnVault } from "../../../types";
-import { isHighRiskVault } from "../../../VaultList";
+import { isHighRiskVault, isCautionVault } from "../../../VaultList";
 import type { ParsedIntent } from "../schema";
 
 /**
@@ -55,9 +55,12 @@ export interface IntentVaultsResult {
     protocolExcluded: number;
     protocolNotIncluded: number;
     highRisk: number;
+    caution: number;
   };
   /** Top 2 high-risk vaults that were filtered out — available for opt-in display. */
   highRiskVaults: EarnVault[];
+  /** Top 3 caution vaults that were filtered out — available for opt-in display. */
+  cautionVaults: EarnVault[];
 }
 
 /**
@@ -92,16 +95,20 @@ export function useVaultsByIntent(
         protocolExcluded: 0,
         protocolNotIncluded: 0,
         highRisk: 0,
+        caution: 0,
       },
       highRiskVaults: [],
+      cautionVaults: [],
     });
     if (!allVaults || allVaults.length === 0) return mkBlank();
     if (!intent) return mkBlank();
 
     const result = mkBlank();
     const highRiskCollector: EarnVault[] = [];
-    const ranked = rankVaultsForIntent(allVaults, intent, maxResults, result.rejection, highRiskCollector);
+    const cautionCollector: EarnVault[] = [];
+    const ranked = rankVaultsForIntent(allVaults, intent, maxResults, result.rejection, highRiskCollector, cautionCollector);
     result.highRiskVaults = highRiskCollector;
+    result.cautionVaults = cautionCollector;
 
     // If the strict symbol filter produced zero results and there IS a
     // target_symbol, retry without it — surfaces cross-asset vaults the user
@@ -110,8 +117,10 @@ export function useVaultsByIntent(
       const relaxedIntent: ParsedIntent = { ...intent, target_symbol: null };
       const relaxedResult = mkBlank();
       const relaxedHighRisk: EarnVault[] = [];
-      const relaxedRanked = rankVaultsForIntent(allVaults, relaxedIntent, maxResults, relaxedResult.rejection, relaxedHighRisk);
+      const relaxedCaution: EarnVault[] = [];
+      const relaxedRanked = rankVaultsForIntent(allVaults, relaxedIntent, maxResults, relaxedResult.rejection, relaxedHighRisk, relaxedCaution);
       relaxedResult.highRiskVaults = relaxedHighRisk;
+      relaxedResult.cautionVaults = relaxedCaution;
       return {
         ...relaxedResult,
         ranked: relaxedRanked,
@@ -166,6 +175,7 @@ export function rankVaultsForIntent(
   maxResults: number,
   rejection: IntentVaultsResult["rejection"],
   highRiskOut: EarnVault[] = [],
+  cautionOut: EarnVault[] = [],
 ): EarnVault[] {
   const targetSymbol = intent.target_symbol?.toUpperCase() ?? null;
   const targetAliases = targetSymbol !== null ? symbolAliasSet(targetSymbol) : null;
@@ -216,6 +226,13 @@ export function rankVaultsForIntent(
     if (isHighRiskVault(v)) {
       rejection.highRisk++;
       if (highRiskOut.length < 2) highRiskOut.push(v);
+      continue;
+    }
+    // Exclude caution vaults (reward-heavy, APY spike, declining yield, micro TVL)
+    // from primary recommendations. Collect up to 3 for opt-in display.
+    if (isCautionVault(v)) {
+      rejection.caution++;
+      if (cautionOut.length < 3) cautionOut.push(v);
       continue;
     }
     if (minTvl !== null && Number(v.analytics.tvl.usd) < minTvl) {

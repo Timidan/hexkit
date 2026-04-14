@@ -84,12 +84,13 @@ MY_ASSETS RULES:
 - "my_assets": set to true ONLY when the user wants per-holding recommendations across their wallet. Trigger phrases: "my assets", "my portfolio", "each of my tokens", "all my holdings", "my bag", "my balance", "what I have", "put my holdings to work".
 - Set to false for single-token references with possessive language: "my ETH" means target_symbol="ETH", my_assets=false. The word "my" before a specific token name indicates which token to target, NOT a wallet scan.
 - Set to false for generic discovery: "top 3 vaults", "best yield opportunities", "where should I earn" — these are broad searches, not wallet scans.
-- "pool my assets in" or "invest in" are generic action phrases — set my_assets=false unless the user clearly references multiple specific holdings.
+- "invest in" is a generic action phrase — set my_assets=false unless the user clearly references multiple specific holdings.
+- "pool my assets", "put my assets", "deposit my assets" — user references "my assets" as a whole: set my_assets=true.
 
 ROUTING_MODE RULES:
 - ONLY meaningful when my_assets is true.
-- "per-asset" (default): each asset goes to its own best vault. Triggered by PLURAL "vaults".
-- "consolidate": ALL assets funnel into ONE vault. Triggered by SINGULAR "vault" or explicit consolidation language.
+- "per-asset": each asset goes to its own best vault. Triggered ONLY when user explicitly wants separate vaults per token (e.g. "best vault for each token").
+- "consolidate" (default when my_assets=true): ALL assets funnel into one or a few vaults. Triggered by "pool", "consolidate", "combine", singular "vault", a specific count of vaults ("top 3 vaults"), or any phrasing that implies bringing assets together.
 
 TARGET_SYMBOL RULES:
 - The token the user wants to EARN YIELD ON (destination, not source). Uppercase it.
@@ -117,7 +118,9 @@ OTHER FIELDS:
 DISAMBIGUATION EXAMPLES (for tricky fields only — use your judgment for objective):
 - "my ETH" → my_assets=false, target_symbol="ETH" (possessive + specific token = targeted search)
 - "each of my assets" / "my portfolio" → my_assets=true
-- "pool my assets in" / "invest in" → my_assets=false (generic action phrase)
+- "invest my USDC in a vault" → my_assets=false, target_symbol="USDC" (specific token action)
+- "top 3 vaults for my assets" / "pool my assets" → my_assets=true, routing_mode="consolidate", result_count=3
+- "best vault for each token" → my_assets=true, routing_mode="per-asset"
 - "top 3" → result_count=3, "a vault" / "the best vault" → result_count=1
 - "consolidate into one vault" → my_assets=true, routing_mode="consolidate"
 - "I need 10% on my ETH" → target_symbol="ETH", min_apy_pct=10

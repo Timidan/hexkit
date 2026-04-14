@@ -23,10 +23,10 @@ import { fetchEarnVaults } from "../../earnApi";
 import { useIdleBalances } from "../hooks/useIdleBalances";
 import { useIntentParser } from "./hooks/useIntentParser";
 import { useVaultsByIntent } from "./hooks/useVaultsByIntent";
-import { useIntentRecommendation } from "./hooks/useIntentRecommendation";
+import { useIntentRecommendation, buildRecommendation } from "./hooks/useIntentRecommendation";
 import type { ParsedIntent } from "./schema";
 import type { EarnVault } from "../../types";
-import type { IdleAsset, RecommendationPick, SelectedSource, VaultRecommendation } from "../types";
+import type { IdleAsset, SelectedSource, VaultRecommendation } from "../types";
 import { rankVaultsForIntent, type IntentVaultsResult } from "./hooks/useVaultsByIntent";
 import {
   VaultCard,
@@ -179,33 +179,39 @@ function useMultiAssetVaults(
   });
 
   return useMemo(() => {
-    if (!allVaults || intents.length === 0) {
-      return intents.map(() => ({
-        ranked: [],
-        isLoading,
-        isError,
-        totalBeforeFilter: 0,
-        symbolRelaxed: false,
-        relaxedFromSymbol: null,
-        rejection: { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0 },
-        highRiskVaults: [],
-      }));
-    }
-    return intents.map((intent) => {
-      const rejection: IntentVaultsResult["rejection"] = { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0 };
-      const highRiskCollector: EarnVault[] = [];
-      const ranked = rankVaultsForIntent(allVaults, intent, maxResults, rejection, highRiskCollector);
-      return {
-        ranked,
-        isLoading: false,
-        isError: false,
-        totalBeforeFilter: allVaults.length,
-        symbolRelaxed: false,
-        relaxedFromSymbol: null,
-        rejection,
-        highRiskVaults: highRiskCollector,
-      };
+    const mkBlank = (): IntentVaultsResult => ({
+      ranked: [],
+      isLoading,
+      isError,
+      totalBeforeFilter: 0,
+      symbolRelaxed: false,
+      relaxedFromSymbol: null,
+      rejection: { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0, caution: 0 },
+      highRiskVaults: [],
+      cautionVaults: [],
     });
+    if (!allVaults || intents.length === 0) {
+      return intents.map(() => mkBlank());
+    }
+    // All per-asset intents share the same filters (target_symbol is null for
+    // all of them since LI.FI handles swaps). Compute ranking once and reuse.
+    const first = intents[0];
+    const rejection: IntentVaultsResult["rejection"] = { notTransactional: 0, symbolMismatch: 0, chainMismatch: 0, apyBelowFloor: 0, apyAboveCeiling: 0, tvlBelowFloor: 0, protocolExcluded: 0, protocolNotIncluded: 0, highRisk: 0, caution: 0 };
+    const highRiskCollector: EarnVault[] = [];
+    const cautionCollector: EarnVault[] = [];
+    const ranked = rankVaultsForIntent(allVaults, first, maxResults, rejection, highRiskCollector, cautionCollector);
+    const result: IntentVaultsResult = {
+      ranked,
+      isLoading: false,
+      isError: false,
+      totalBeforeFilter: allVaults.length,
+      symbolRelaxed: false,
+      relaxedFromSymbol: null,
+      rejection,
+      highRiskVaults: highRiskCollector,
+      cautionVaults: cautionCollector,
+    };
+    return intents.map(() => result);
   }, [allVaults, intents, maxResults, isLoading, isError]);
 }
 
@@ -229,7 +235,7 @@ function useMultiAssetRecommendations(
     () =>
       argsList.map((a) =>
         a
-          ? `${a.synthChainId}:${a.synthTokenAddress}:${a.rankedVaults.slice(0, 8).map((v) => v.slug).join(",")}`
+          ? `${a.synthChainId}:${a.synthTokenAddress}:${a.sourceTokenSymbol ?? ""}:${a.rankedVaults.slice(0, 8).map((v) => v.slug).join(",")}`
           : "null",
       ).join("|"),
     [argsList],
@@ -237,7 +243,7 @@ function useMultiAssetRecommendations(
 
   const hasAnyArgs = argsList.some((a) => a != null);
 
-  const query = useQuery<(VaultRecommendation | null)[]>({
+  const query = useQuery<{ rec: VaultRecommendation | null; error: string | null }[]>({
     queryKey: ["multi-intent-rec", stableKey],
     enabled: hasAnyArgs,
     staleTime: 5 * 60 * 1000,
@@ -245,69 +251,26 @@ function useMultiAssetRecommendations(
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      // Fan out one recommendation per non-null arg. We use the existing
-      // `useIntentRecommendation`'s inner logic but call it as a plain async
-      // function here. Since `useIntentRecommendation` is a hook we can't call
-      // it — instead we call the same LLM pipeline directly.
-      // For now, use the rules fallback (no LLM) for per-asset mode to keep
-      // it fast and avoid N LLM round-trips. The rules fallback is decent.
-      return argsList.map((args) => {
-        if (!args || args.rankedVaults.length === 0) return null;
-        const { synthChainId, synthTokenAddress, intent, rankedVaults } = args;
-        const candidates = rankedVaults.slice(0, 8);
-        const byApy = [...candidates].sort(
-          (a, b) => (b.analytics.apy.total ?? 0) - (a.analytics.apy.total ?? 0),
-        );
-        const byTvl = [...candidates].sort(
-          (a, b) => Number(b.analytics.tvl.usd) - Number(a.analytics.tvl.usd),
-        );
-        const best = intent.objective === "safest" ? byTvl[0] : byApy[0];
-        const safest = byTvl.find((v) => !best || v.slug !== best.slug) ?? null;
-        const usedSlugs = new Set<string>();
-        if (best) usedSlugs.add(best.slug);
-        if (safest) usedSlugs.add(safest.slug);
-        const alternatives = byApy
-          .filter((v) => !usedSlugs.has(v.slug))
-          .slice(0, 2)
-          .map((v) => ({
-            vaultSlug: v.slug,
-            vault: v,
-            rationale: `${v.analytics.apy.total?.toFixed(2) ?? "—"}% APY on ${v.protocol.name}.`,
-          }));
-
-        const mkPick = (v: EarnVault | null, reason: string) =>
-          v ? { vaultSlug: v.slug, vault: v, rationale: reason } : null;
-
-        return {
-          forChainId: synthChainId,
-          forTokenAddress: synthTokenAddress.toLowerCase(),
-          bestPick: mkPick(best, best ? `${best.analytics.apy.total?.toFixed(2) ?? "—"}% APY on ${best.protocol.name}.` : ""),
-          safestPick: mkPick(safest, safest ? `Highest TVL: $${formatCompactUsdLocal(Number(safest.analytics.tvl.usd))} on ${safest.protocol.name}.` : ""),
-          alternatives,
-          source: "rules" as const,
-          topRationale: best ? `rules:best=${best.slug}` : "rules:none",
-        };
-      });
+      // Fan out parallel LLM calls — one per non-null arg.
+      return Promise.all(
+        argsList.map(async (args) => {
+          if (!args || args.rankedVaults.length === 0) return { rec: null, error: null };
+          const result = await buildRecommendation(args);
+          return { rec: result.recommendation, error: result.llmError };
+        }),
+      );
     },
   });
 
   return useMemo(() => {
     return argsList.map((_, idx) => ({
-      recommendation: query.data?.[idx] ?? null,
+      recommendation: query.data?.[idx]?.rec ?? null,
       isLoading: query.isLoading,
       isFetching: query.isFetching,
-      llmError: null,
+      llmError: query.data?.[idx]?.error ?? null,
       refetch: () => void query.refetch(),
     }));
   }, [argsList, query.data, query.isLoading, query.isFetching, query.refetch]);
-}
-
-function formatCompactUsdLocal(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "—";
-  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
-  return n.toFixed(0);
 }
 
 export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: IntentPanelProps) {
@@ -377,18 +340,32 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
       .slice(0, 6); // cap to avoid too many LLM calls
   }, [isMyAssetsMode, idleAssets]);
 
-  // For my_assets mode: create per-asset intents
+  // For my_assets mode: create per-asset intents.
+  // target_symbol is null so we search ALL vaults — the best vault for a user's
+  // BNB might be a WETH vault on Arbitrum (LI.FI handles swaps + bridging).
+  // The per-asset differentiation happens at the LLM level: the recommendation
+  // prompt receives the user's source token so it can factor in entry cost.
   const perAssetIntents = useMemo<ParsedIntent[]>(() => {
     if (!isMyAssetsMode || !intent) return [];
-    return dedupedAssets.map((a) => ({
+    return dedupedAssets.map(() => ({
       ...intent,
       my_assets: false,
-      target_symbol: a.token.symbol.toUpperCase(),
+      target_symbol: null,
     }));
   }, [isMyAssetsMode, intent, dedupedAssets]);
 
-  // Single-target mode vault query
-  const singleIntent = isMyAssetsMode ? null : intent;
+  // Single-target mode vault query (also used for consolidate — global search)
+  const singleIntent = useMemo(() => {
+    if (!intent) return null;
+    if (!isMyAssetsMode) return intent;
+    // Consolidate mode: do a global vault search (no target_symbol) using the
+    // user's APY/TVL/objective filters. Any transactional vault is a candidate
+    // because LI.FI handles swaps from the user's held tokens.
+    if (intent.routing_mode === "consolidate") {
+      return { ...intent, my_assets: false, target_symbol: null };
+    }
+    return null; // per-asset mode uses useMultiAssetVaults instead
+  }, [intent, isMyAssetsMode]);
   const {
     ranked,
     isLoading: vaultsLoading,
@@ -397,14 +374,18 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     symbolRelaxed,
     relaxedFromSymbol,
     highRiskVaults,
+    cautionVaults,
   } = useVaultsByIntent(singleIntent, 20);
 
-  // Toggle for showing high-risk vaults in recommendations
+  // Toggles for showing flagged vaults in recommendations
   const [showHighRisk, setShowHighRisk] = useState(false);
+  const [showCaution, setShowCaution] = useState(false);
   const effectiveRanked = useMemo(() => {
-    if (!showHighRisk || highRiskVaults.length === 0) return ranked;
-    return [...ranked, ...highRiskVaults];
-  }, [ranked, highRiskVaults, showHighRisk]);
+    let result = ranked;
+    if (showCaution && cautionVaults.length > 0) result = [...result, ...cautionVaults];
+    if (showHighRisk && highRiskVaults.length > 0) result = [...result, ...highRiskVaults];
+    return result;
+  }, [ranked, highRiskVaults, cautionVaults, showHighRisk, showCaution]);
 
   // Multi-asset vault queries — one per held token
   const perAssetVaults = useMultiAssetVaults(perAssetIntents, 20);
@@ -529,6 +510,8 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
         intent: perAssetIntents[idx],
         rankedVaults: vaultResult.ranked,
         walletAssets: idleAssets,
+        sourceTokenSymbol: asset.token.symbol.toUpperCase(),
+        sourceChainId: asset.chainId,
       };
     });
   }, [isMyAssetsMode, intent, dedupedAssets, perAssetVaults, perAssetIntents, idleAssets]);
@@ -562,43 +545,14 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   const [legState, legDispatch] = useReducer(legsReducer, initialLegState);
   const isConsolidateMode = intent?.routing_mode === "consolidate";
 
-  // For consolidate: collect top unique vaults across all per-asset recs
+  // For consolidate: use the global ranked vault list directly (already sorted
+  // by objective in rankVaultsForIntent). No per-asset search needed — LI.FI
+  // handles swaps from any held token into the vault's underlying asset.
   const consolidateCandidates = useMemo<EarnVault[]>(() => {
-    if (!isConsolidateMode || recommendations.length === 0) return [];
-    const seen = new Set<string>();
-    const candidates: EarnVault[] = [];
-    for (const rec of recommendations) {
-      const picks = [rec.bestPick, rec.safestPick, ...rec.alternatives].filter(
-        (p): p is RecommendationPick => p !== null,
-      );
-      for (const pick of picks) {
-        if (!seen.has(pick.vaultSlug)) {
-          seen.add(pick.vaultSlug);
-          candidates.push(pick.vault);
-        }
-      }
-    }
-    // Sort by the intent objective
-    if (intent?.objective === "highest") {
-      candidates.sort(
-        (a, b) => (b.analytics.apy.total ?? 0) - (a.analytics.apy.total ?? 0),
-      );
-    } else if (intent?.objective === "safest") {
-      candidates.sort(
-        (a, b) => Number(b.analytics.tvl.usd) - Number(a.analytics.tvl.usd),
-      );
-    } else {
-      // balanced
-      const maxApy = Math.max(1, ...candidates.map((v) => v.analytics.apy.total ?? 0));
-      const maxTvl = Math.max(1, ...candidates.map((v) => Number(v.analytics.tvl.usd)));
-      candidates.sort((a, b) => {
-        const aS = ((a.analytics.apy.total ?? 0) / maxApy) * 0.55 + (Number(a.analytics.tvl.usd) / maxTvl) * 0.45;
-        const bS = ((b.analytics.apy.total ?? 0) / maxApy) * 0.55 + (Number(b.analytics.tvl.usd) / maxTvl) * 0.45;
-        return bS - aS;
-      });
-    }
-    return candidates.slice(0, 4);
-  }, [isConsolidateMode, recommendations, intent?.objective]);
+    if (!isConsolidateMode) return [];
+    const maxCandidates = intent?.result_count ?? 4;
+    return effectiveRanked.slice(0, maxCandidates);
+  }, [isConsolidateMode, effectiveRanked, intent?.result_count]);
 
   const [selectedConsolidateSlug, setSelectedConsolidateSlug] = useState<string | null>(null);
 
@@ -895,21 +849,21 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
       {/* Recommendation card — reuses the same component idle-sweep uses */}
       {hasIntent && (
         <>
-          {isMyAssetsMode && !isConnected && !scanAddress ? (
+          {isMyAssetsMode && !isConsolidateMode && !isConnected && !scanAddress ? (
             <div className="rounded-lg border border-dashed border-border/40 p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Connect your wallet or enter an address to get per-asset recommendations.
               </p>
             </div>
-          ) : isMyAssetsMode && dedupedAssets.length === 0 ? (
+          ) : isMyAssetsMode && !isConsolidateMode && dedupedAssets.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border/40 p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 No idle assets found in your wallet.
               </p>
             </div>
-          ) : vaultsLoading && !isMyAssetsMode ? (
+          ) : vaultsLoading && (!isMyAssetsMode || isConsolidateMode) ? (
             <VaultLoadingNotice />
-          ) : !isMyAssetsMode && effectiveRanked.length === 0 ? (
+          ) : (!isMyAssetsMode || isConsolidateMode) && effectiveRanked.length === 0 ? (
             <EmptyResults
               totalBeforeFilter={totalBeforeFilter}
               rejection={rejection}
@@ -926,7 +880,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
               {/* Consolidate mode: show top vault candidates to pick from */}
               {isMyAssetsMode && isConsolidateMode ? (
                 <>
-                  {(recLoading || recFetching) && consolidateCandidates.length === 0 && (
+                  {vaultsLoading && consolidateCandidates.length === 0 && (
                     <VaultLoadingNotice />
                   )}
                   {consolidateCandidates.length > 0 && !pipelineActive && (
@@ -1013,6 +967,22 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                         Picked from {effectiveRanked.length} intent-filtered vault
                         {effectiveRanked.length === 1 ? "" : "s"} (of {totalBeforeFilter} total).
                       </span>
+                      {rejection.caution > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCaution((p) => !p)}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                            showCaution
+                              ? "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"
+                              : "border-border/40 bg-background/30 text-muted-foreground hover:border-yellow-500/30 hover:text-yellow-400"
+                          }`}
+                        >
+                          <Warning size={11} weight="regular" />
+                          {showCaution
+                            ? `Hiding ${rejection.caution} flagged`
+                            : `${rejection.caution} flagged hidden`}
+                        </button>
+                      )}
                       {rejection.highRisk > 0 && (
                         <button
                           type="button"

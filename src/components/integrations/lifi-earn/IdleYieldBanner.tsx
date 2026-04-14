@@ -124,14 +124,16 @@ export function IdleYieldBanner({ onSelectVault, targetAddress }: IdleYieldBanne
 
   return (
     <>
-      <button
-        type="button"
+      <span
+        role="button"
+        tabIndex={0}
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-        className="relative inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white transition-all hover:bg-emerald-400"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } }}
+        className="relative inline-flex h-[18px] min-w-[18px] cursor-pointer items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white transition-all hover:bg-emerald-400"
         title={`${formatUsd(totalIdle)} idle — ${suggestions.length} yield opportunities`}
       >
         {suggestions.length}
-      </button>
+      </span>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-[380px] p-0 gap-0 overflow-hidden">

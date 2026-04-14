@@ -62,6 +62,11 @@ interface IntentRecommendationArgs {
   rankedVaults: EarnVault[];
   /** User's idle wallet balances — for personalized route/cost reasoning. */
   walletAssets: IdleAsset[];
+  /** Source token symbol for per-asset mode (e.g. "BNB"). When set, the LLM
+   *  should factor in entry cost from this specific token. */
+  sourceTokenSymbol?: string;
+  /** Source chain ID for the asset being recommended for. */
+  sourceChainId?: number;
 }
 
 interface IntentRecommendationResult {
@@ -112,7 +117,7 @@ export function useIntentRecommendation(
   };
 }
 
-async function buildRecommendation(
+export async function buildRecommendation(
   args: IntentRecommendationArgs
 ): Promise<IntentRecommendationResult> {
   const { synthChainId, synthTokenAddress, intent, rankedVaults } = args;
@@ -138,7 +143,7 @@ async function buildRecommendation(
     };
   }
 
-  const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets);
+  const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets, args.sourceTokenSymbol, args.sourceChainId);
   let lastError: string | null = null;
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -303,7 +308,7 @@ function rulesFallback(
   };
 }
 
-function buildGeminiIntentRequest(intent: ParsedIntent, candidates: EarnVault[], walletAssets: IdleAsset[]) {
+function buildGeminiIntentRequest(intent: ParsedIntent, candidates: EarnVault[], walletAssets: IdleAsset[], sourceTokenSymbol?: string, sourceChainId?: number) {
   const system = `You are a DeFi yield strategist with deep knowledge of vault mechanics, protocol risk, and yield sustainability. You evaluate vaults the way a seasoned DeFi portfolio manager would — not just by raw numbers, but by understanding what drives those numbers and whether they'll last.
 
 You will be given:
@@ -393,7 +398,11 @@ ENTRY COST FRAMEWORK:
 
   const dedupGuidance = `\n\nWRAPPED TOKEN EQUIVALENCE: ETH/WETH, BTC/WBTC, MATIC/WMATIC are the same economic asset. Do not recommend two vaults as separate picks if they differ only in wrapped vs. unwrapped token naming.`;
 
-  const fullSystem = system + discoveryGuidance + dedupGuidance;
+  const sourceGuidance = sourceTokenSymbol
+    ? `\n\nSOURCE ASSET CONTEXT: The user holds ${sourceTokenSymbol} on chain ${sourceChainId ?? "unknown"}. This is what they will deposit FROM — it will be swapped/bridged into the vault's underlying token automatically. Strongly prefer vaults where the entry cost is low relative to the expected yield. A vault on the same chain as the source is cheaper. A vault whose underlying token is the same as the source token is cheapest.`
+    : "";
+
+  const fullSystem = system + discoveryGuidance + dedupGuidance + sourceGuidance;
 
   // Build a compact portfolio summary for the LLM
   const portfolio = walletAssets

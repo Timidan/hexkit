@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { IdleSweepPanel } from "./IdleSweepPanel";
 import { IntentPanel } from "./intent/IntentPanel";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "../../../../components/ui/tooltip";
 import type { EarnVault } from "../types";
 
 type ConciergeMode = "idle-sweep" | "intent";
@@ -48,32 +53,46 @@ export function ConciergePanel({ onSelectVault, targetAddress }: ConciergePanelP
           aria-label="Concierge mode"
           className="flex items-center gap-0.5 rounded-md border border-border/40 bg-background/60 p-1"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "idle-sweep"}
-            onClick={() => setMode("idle-sweep")}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-              mode === "idle-sweep"
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Idle sweep
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "intent"}
-            onClick={() => setMode("intent")}
-            className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-              mode === "intent"
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Intent
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "idle-sweep"}
+                onClick={() => setMode("idle-sweep")}
+                className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === "idle-sweep"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Idle sweep
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+              Scans your wallet for unused tokens and suggests the best vaults for each one.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "intent"}
+                onClick={() => setMode("intent")}
+                className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === "intent"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Intent
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+              Describe a yield goal in plain English and get AI-ranked vault picks.
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

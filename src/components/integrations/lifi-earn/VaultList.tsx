@@ -133,7 +133,7 @@ function getCautionReasons(vault: EarnVault): CautionReason[] {
   return reasons;
 }
 
-function isCautionVault(vault: EarnVault): boolean {
+export function isCautionVault(vault: EarnVault): boolean {
   return getCautionReasons(vault).length > 0;
 }
 
