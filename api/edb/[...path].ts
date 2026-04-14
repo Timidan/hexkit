@@ -18,7 +18,10 @@ const DEFAULT_ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:4173",
 ]);
 
-function resolveAllowedOrigin(origin: string | undefined, host?: string): string | null {
+function resolveAllowedOrigin(
+  origin: string | undefined,
+  host?: string,
+): string | null {
   if (!origin) return null;
   if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return origin;
   // Allow same-host requests (covers prod + every Vercel preview deployment)
@@ -37,7 +40,8 @@ function resolveAllowedOrigin(origin: string | undefined, host?: string): string
 function applyCors(req: VercelRequest, res: VercelResponse) {
   const origin =
     typeof req.headers.origin === "string" ? req.headers.origin : undefined;
-  const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+  const host =
+    typeof req.headers.host === "string" ? req.headers.host : undefined;
   const allowed = resolveAllowedOrigin(origin, host);
   if (allowed) {
     res.setHeader("Access-Control-Allow-Origin", allowed);
@@ -87,8 +91,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Origin check: allow same-origin requests (no Origin header) and allowlisted origins.
-  const reqOrigin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
-  const reqHost = typeof req.headers.host === "string" ? req.headers.host : undefined;
+  const reqOrigin =
+    typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+  const reqHost =
+    typeof req.headers.host === "string" ? req.headers.host : undefined;
   if (reqOrigin && !resolveAllowedOrigin(reqOrigin, reqHost)) {
     return res.status(403).json({ error: "origin_required" });
   }
@@ -184,9 +190,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Standard response — pipe status + body
     res.status(upstream.status);
 
-    for (const key of ["content-type", "vary"]) {
-      const v = upstream.headers.get(key);
-      if (v) res.setHeader(key, v);
+    const upstreamContentType = upstream.headers.get("content-type");
+    if (upstreamContentType) res.setHeader("content-type", upstreamContentType);
+    // Merge upstream Vary with any Vary header set in applyCors (e.g., "Origin")
+    // so CORS cache keys remain correct.
+    const upstreamVary = upstream.headers.get("vary");
+    if (upstreamVary) {
+      const existing = res.getHeader("Vary");
+      res.setHeader(
+        "Vary",
+        existing ? `${existing}, ${upstreamVary}` : upstreamVary,
+      );
     }
 
     const buf = Buffer.from(await upstream.arrayBuffer());
