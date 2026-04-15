@@ -19,6 +19,7 @@ import { SUPPORTED_CHAINS } from "../../../utils/chains";
 import ChainIcon from "../../icons/ChainIcon";
 import { TokenIcon } from "./TokenIcon";
 import type { EarnVault, VaultFilters } from "./types";
+import { shortenAddress as truncateAddr } from "../../shared/AddressDisplay";
 import { useEarnVaults } from "./hooks/useEarnVaults";
 import { useEarnChains } from "./hooks/useEarnChains";
 import { useEarnProtocols } from "./hooks/useEarnProtocols";
@@ -628,10 +629,6 @@ function timeAgo(iso: string): string {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function truncateAddr(addr: string): string {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function MiniSparkline({ points, color }: { points: (number | null)[]; color: string }) {

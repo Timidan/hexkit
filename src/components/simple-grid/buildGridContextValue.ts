@@ -1,6 +1,5 @@
 /**
  * buildGridContextValue – assembles the GridContext value object and style constants.
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
  */
 import type React from "react";
 import type { ReactNode } from "react";

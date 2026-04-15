@@ -1,9 +1,6 @@
 /**
  * Phase 2b: Jump detection, reachability filtering, source-line rescue,
- * deduplication, and return value decoding.
- *
- * Extracted from decodeTraceAnalysis.ts to keep files under 800 lines.
- */
+ * deduplication, and return value decoding. */
 
 import type { DecodedTraceRow, DecodeTraceContext, FunctionRange } from './types';
 import { formatDisplayVal } from './formatting';

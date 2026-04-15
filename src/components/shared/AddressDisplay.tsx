@@ -5,7 +5,7 @@
  * Only the pure helper functions remain.
  */
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+import { ZERO_ADDRESS } from '../../utils/addressConstants';
 
 /** Pure utility: truncate an address string consistently */
 export function shortenAddress(

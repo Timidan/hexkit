@@ -1,6 +1,5 @@
 /**
  * ContractColumn - Contract input, saved contracts, contract info card.
- * Extracted from GridLayout.tsx lines 309-1335.
  *
  * Sub-components extracted for maintainability:
  * - AbiUploadSection: ABI error display + manual ABI upload modal

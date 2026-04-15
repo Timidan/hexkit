@@ -1,6 +1,5 @@
 /**
  * FunctionTypeSection - Diamond facet controls, function mode selection, and function type tabs.
- * Extracted from GridLayout.tsx lines 1337-1641.
  */
 import React from "react";
 import {

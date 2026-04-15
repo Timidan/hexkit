@@ -72,7 +72,6 @@ export interface ContractAddressInputProps {
     | "blockscout"
     | "etherscan"
     | "blockscout-bytecode"
-    | "blockscout-ebd"
     | "whatsabi"
     | "manual"
     | "restored"

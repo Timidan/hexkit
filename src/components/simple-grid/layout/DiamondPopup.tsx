@@ -1,6 +1,5 @@
 /**
  * DiamondPopup - Diamond contract popup wrapper.
- * Extracted from GridLayout.tsx lines 4259-4273.
  */
 import React from "react";
 import DiamondContractPopup from "../../DiamondContractPopup";

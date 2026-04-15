@@ -1,7 +1,6 @@
 /**
  * ContractPreviewCard - Token/contract preview card shown before full
  * contractInfo is available, plus the loading skeleton card.
- * Extracted from ContractColumn.tsx to reduce file size.
  */
 import React from "react";
 import { GemIcon } from "../../icons/IconLibrary";

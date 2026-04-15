@@ -1,6 +1,5 @@
 /**
  * OverridesSidebar - Right column simulation overrides panel.
- * Extracted from GridLayout.tsx lines 4243-4255.
  */
 import React from "react";
 import SimulationOverridesPanel from "../../SimulationOverridesPanel";

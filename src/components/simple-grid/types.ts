@@ -1,6 +1,5 @@
 /**
  * Types and interfaces for SimpleGridUI sub-components.
- * Extracted from SimpleGridUI.tsx during structural refactor.
  */
 import type { ReactNode } from "react";
 import type { ethers } from "ethers";
