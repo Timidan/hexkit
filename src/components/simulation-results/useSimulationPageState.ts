@@ -446,6 +446,30 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       return;
     }
 
+    // Prep finished ready but auto-connect from useDebugPrep.handleReady may
+    // still be in flight (it's fire-and-forget). If we already have the
+    // sessionId from the ready event, connect with it directly before opening
+    // so the first click opens the debugger instead of re-triggering prep.
+    if (
+      debugPrepForSimulation?.status === "ready" &&
+      debugPrepForSimulation.sessionId &&
+      debugSession?.sessionId !== debugPrepForSimulation.sessionId
+    ) {
+      try {
+        await connectToSession({
+          sessionId: debugPrepForSimulation.sessionId,
+          rpcPort: 0,
+          snapshotCount: debugPrepForSimulation.snapshotCount ?? 0,
+          chainId,
+          simulationId,
+        });
+        openDebugWindow();
+        return;
+      } catch (err) {
+        console.warn("[handleOpenDebug] Failed to connect to prepped session:", err);
+      }
+    }
+
     const targetLiveSessionId = result?.debugSession?.sessionId || null;
     const isExistingTraceSession = debugSession?.sessionId?.startsWith('trace-');
     const hasReusableLiveSession =

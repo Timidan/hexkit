@@ -200,12 +200,20 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
-        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev
+        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev.
+        // Injects X-API-Key server-side so the browser never sees the secret —
+        // mirrors api/edb-proxy.ts behavior for local dev.
         "/api/edb": {
-          target: process.env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
+          target: env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
           changeOrigin: true,
           secure: true,
           rewrite: (path) => path.replace(/^\/api\/edb/, ""),
+          configure: (proxy) => {
+            const apiKey = env.EDB_API_KEY || "";
+            proxy.on("proxyReq", (proxyReq) => {
+              if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
+            });
+          },
         },
         // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
         // repo.sourcify.dev now 307-redirects to sourcify.dev/server/repository,
