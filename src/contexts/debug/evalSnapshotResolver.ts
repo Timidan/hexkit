@@ -522,7 +522,7 @@ export async function resolveEvalSnapshotId(
               })
             );
             const hookProbeIds = probeResults
-              .filter((r): r is PromiseFulfilledResult<{ id: number; success: boolean; isOpcode?: boolean }> =>
+              .filter((r): r is PromiseFulfilledResult<{ id: number; success: boolean; isOpcode: boolean | undefined }> =>
                 r.status === 'fulfilled' && r.value.success
               )
               .map(r => r.value.id);
