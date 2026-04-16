@@ -256,7 +256,7 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
 
   // Handle empty state
   if (movements.length === 0) {
-    return null; // Don't render anything if no token movements
+    return null;
   }
 
   return (
