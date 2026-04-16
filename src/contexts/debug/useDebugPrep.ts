@@ -131,6 +131,12 @@ export function useDebugPrep(
           },
         ).catch((err) => {
           console.error('[useDebugPrep] auto-connect failed:', err);
+          if (prepareIdRef.current === prepareId) {
+            setPrepState((prev) => ({
+              ...prev,
+              error: 'Live session was evicted before connection completed. Click Open Debugger to use trace-based debugging.',
+            }));
+          }
         });
       };
 

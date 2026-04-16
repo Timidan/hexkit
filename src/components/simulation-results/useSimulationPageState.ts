@@ -450,6 +450,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     // still be in flight (it's fire-and-forget). If we already have the
     // sessionId from the ready event, connect with it directly before opening
     // so the first click opens the debugger instead of re-triggering prep.
+    let preppedSessionDead = false;
     if (
       debugPrepForSimulation?.status === "ready" &&
       debugPrepForSimulation.sessionId &&
@@ -467,6 +468,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
         return;
       } catch (err) {
         console.warn("[handleOpenDebug] Failed to connect to prepped session:", err);
+        preppedSessionDead = true;
       }
     }
 
@@ -514,7 +516,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       }
     }
 
-    if (debugRequested) {
+    if (debugRequested && !preppedSessionDead) {
       if (startReplayDebugPreparation(simulationId)) {
         showSuccess(
           "Preparing Debug Session",

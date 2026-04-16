@@ -35,7 +35,7 @@ interface EvalResult {
 }
 
 const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 120000;
-const EVALUATION_TIMEOUT_MS = 15000;
+const EVALUATION_TIMEOUT_MS = 45000;
 
 async function withTimeout<T>(
   promise: Promise<T>,
