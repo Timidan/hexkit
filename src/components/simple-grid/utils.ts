@@ -43,12 +43,8 @@ export const stringifyResultData = (value: any): string => {
 
   try {
     return JSON.stringify(value, replacer, 2);
-  } catch (error) {
-    try {
-      return String(value);
-    } catch {
-      return "";
-    }
+  } catch {
+    try { return String(value); } catch { return ""; }
   }
 };
 

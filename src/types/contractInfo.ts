@@ -1,4 +1,4 @@
-import type { Chain } from './index';
+import type { Chain } from './chain';
 
 export type ContractSearchStatus = 'searching' | 'found' | 'not_found' | 'error';
 
@@ -8,7 +8,7 @@ export interface ContractInfoResult {
   chain: Chain;
   contractName?: string;
   abi?: string;
-  source?: 'sourcify' | 'blockscout' | 'etherscan' | 'blockscout-bytecode' | 'blockscout-ebd' | 'whatsabi';
+  source?: 'sourcify' | 'blockscout' | 'etherscan' | 'blockscout-bytecode' | 'whatsabi';
   explorerName?: string;
   verified?: boolean;
   // Optional tokenType for legacy UI; current detection happens elsewhere

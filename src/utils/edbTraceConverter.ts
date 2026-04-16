@@ -1,11 +1,8 @@
 /**
- * EDB trace-to-artifact conversion helpers.
- *
- * Extracted from simulationArtifacts.ts to keep each module under 800 lines.
- */
+ * EDB trace-to-artifact conversion helpers. */
 
 import { ethers } from "ethers";
-import { ensureArray } from "./simulationArtifacts";
+import { ensureArray } from "./simulationArtifactTypes";
 import type {
   SimulationCallNode,
   SimulationEventEntry,

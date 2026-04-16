@@ -1,10 +1,5 @@
 /**
- * Address-map building helpers for the execution trace viewer.
- *
- * Extracted from useTraceState.ts to keep each module under 800 lines.
- * All functions are pure or memoisation-friendly -- they receive data and
- * return derived structures without side-effects.
- */
+ * Address-map building helpers for the execution trace viewer. */
 
 import type { TraceRow } from "./traceTypes";
 

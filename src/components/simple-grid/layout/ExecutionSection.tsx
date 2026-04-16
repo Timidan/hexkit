@@ -1,6 +1,5 @@
 /**
  * ExecutionSection - Function execution button, gas estimation, result display, simulation insights.
- * Extracted from GridLayout.tsx lines 2569-3604.
  */
 import React from "react";
 import { AnimatedPlayIcon } from "../../icons/IconLibrary";

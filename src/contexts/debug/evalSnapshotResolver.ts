@@ -1,11 +1,6 @@
 /**
- * Eval Snapshot Resolver
- *
- * Extracted from useDebugEvaluation: logic for resolving evaluation-worthy
- * snapshot IDs, scanning for hook snapshots, and waiting for live sessions.
- *
- * These are pure utility functions that receive dependencies as arguments,
- * avoiding React hook coupling.
+ * Eval Snapshot Resolver: resolves evaluation-worthy snapshot IDs, scans
+ * for hook snapshots, and waits for live debug sessions.
  */
 
 import type {

@@ -1,4 +1,8 @@
-import type { ABIFetchResult } from './index';
+export interface ABIFetchResult {
+  success: boolean;
+  abi?: string;
+  error?: string;
+}
 
 export interface ExtendedABITokenInfo {
   name?: string;

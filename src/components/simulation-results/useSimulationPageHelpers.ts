@@ -1,9 +1,5 @@
 /**
- * Pure helper functions for the simulation results page state.
- *
- * Extracted from useSimulationPageState.ts to keep each module under 800 lines.
- * All functions here are either pure computations or self-contained callbacks.
- */
+ * Pure helper functions for the simulation results page state. */
 
 import type { SimulationCallNode } from "../../utils/simulationArtifacts";
 import type { TraceRow } from "./types";

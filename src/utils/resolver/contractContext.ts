@@ -41,6 +41,7 @@ import { contractResolver } from './ContractResolver';
 import { hasDiamondLoupeFunctions } from './diamondLoupe';
 import { detectTokenType, type TokenDetectionResult } from '../universalTokenDetector';
 import { networkConfigManager } from '../../config/networkConfig';
+import { ZERO_ADDRESS } from '../addressConstants';
 
 export interface ContractContext {
   address: string;
@@ -238,7 +239,6 @@ function getAbiItemKey(item: AbiItem): string | null {
 }
 
 const IMPLEMENTATION_SELECTOR = '0x5c60da1b'; // implementation()
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 function slotToAddress(slotValue: string): string | null {
   if (!slotValue || slotValue === '0x' || slotValue === '0x0') return null;
