@@ -264,6 +264,11 @@ Architecture docs live in `schematics/`:
 | `GRANULAR-COMPONENTS.md` | Component-level documentation |
 | `LEGEND.md` | Doc routing guide |
 
+## Giveth
+https://giveth.io/project/hexkit
+
+
+
 ## License
 
 Private. All rights reserved.
