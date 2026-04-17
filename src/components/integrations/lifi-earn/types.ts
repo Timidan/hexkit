@@ -16,7 +16,7 @@ export interface EarnProtocol {
   logoURI?: string;
 }
 
-// GET /v1/earn/chains response element — authoritative list of chains Earn indexes.
+// GET /v1/chains response element — authoritative list of chains Earn indexes.
 // networkCaip is EIP-155 CAIP-2 format ("eip155:1") — unused today but kept for
 // future WalletConnect v2 scope wiring.
 export interface EarnChainInfo {
@@ -25,7 +25,7 @@ export interface EarnChainInfo {
   networkCaip: string;
 }
 
-// GET /v1/earn/protocols response element. `name` is the slug we compare against
+// GET /v1/protocols response element. `name` is the slug we compare against
 // `EarnVault.protocol.name` (both are "aave-v3", "morpho-v1", etc.). `url` is
 // the protocol's canonical frontend.
 export interface EarnProtocolInfo {

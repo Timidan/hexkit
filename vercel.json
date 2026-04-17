@@ -58,7 +58,7 @@
     },
     {
       "source": "/api/lifi-earn/:path*",
-      "destination": "https://earn.li.fi/:path*"
+      "destination": "/api/lifi-earn?path=:path*"
     },
     {
       "source": "/api/lifi-composer/:path*",

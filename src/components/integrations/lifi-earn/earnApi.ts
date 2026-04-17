@@ -15,7 +15,8 @@ function proxyHeaders(): HeadersInit {
   return {};
 }
 
-// Rate limit: 100 req/min, no auth required.
+// API key is now mandatory — injected by the `/api/lifi-earn` proxy (vite dev /
+// Vercel serverless fn in prod).
 export async function fetchEarnVaults(params?: {
   cursor?: string;
   chainId?: number;
@@ -26,7 +27,7 @@ export async function fetchEarnVaults(params?: {
   minTvlUsd?: number;
   limit?: number;
 }): Promise<EarnVaultsResponse> {
-  const url = new URL(`${EARN_PROXY}/v1/earn/vaults`, window.location.origin);
+  const url = new URL(`${EARN_PROXY}/v1/vaults`, window.location.origin);
   if (params?.cursor) url.searchParams.set("cursor", params.cursor);
   if (params?.chainId) url.searchParams.set("chainId", String(params.chainId));
   if (params?.sortBy) url.searchParams.set("sortBy", params.sortBy);
@@ -52,7 +53,7 @@ export async function fetchEarnVaults(params?: {
 // cached aggressively via React Query.
 export async function fetchEarnChains(): Promise<EarnChainInfo[]> {
   const res = await fetch(
-    `${window.location.origin}${EARN_PROXY}/v1/earn/chains`,
+    `${window.location.origin}${EARN_PROXY}/v1/chains`,
     { signal: AbortSignal.timeout(15000) },
   );
   if (!res.ok) {
@@ -65,7 +66,7 @@ export async function fetchEarnChains(): Promise<EarnChainInfo[]> {
 // filter dropdown without waiting for background vault pages to arrive.
 export async function fetchEarnProtocols(): Promise<EarnProtocolInfo[]> {
   const res = await fetch(
-    `${window.location.origin}${EARN_PROXY}/v1/earn/protocols`,
+    `${window.location.origin}${EARN_PROXY}/v1/protocols`,
     { signal: AbortSignal.timeout(15000) },
   );
   if (!res.ok) {
@@ -78,7 +79,7 @@ export async function fetchEarnPositions(
   address: string
 ): Promise<EarnPortfolioResponse> {
   const res = await fetch(
-    `${window.location.origin}${EARN_PROXY}/v1/earn/portfolio/${address}/positions`,
+    `${window.location.origin}${EARN_PROXY}/v1/portfolio/${address}/positions`,
     { signal: AbortSignal.timeout(15000) }
   );
 

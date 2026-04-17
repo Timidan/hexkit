@@ -301,12 +301,15 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) =>
             path.replace(/^\/api\/gnosis-blockscout/, "/api"),
         },
-        // Proxy for LI.FI Earn Data API (no auth needed, but no CORS headers)
+        // Proxy for LI.FI Earn Data API (API key now mandatory — same key as Composer)
         "/api/lifi-earn": {
           target: "https://earn.li.fi",
           changeOrigin: true,
           secure: true,
           rewrite: (path) => path.replace(/^\/api\/lifi-earn/, ""),
+          headers: {
+            "x-lifi-api-key": LIFI_API_KEY,
+          },
         },
         // Proxy for LI.FI Composer API (needs API key — handled by serverless fn in prod)
         "/api/lifi-composer": {
