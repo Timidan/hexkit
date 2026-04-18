@@ -469,6 +469,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       } catch (err) {
         console.warn("[handleOpenDebug] Failed to connect to prepped session:", err);
         preppedSessionDead = true;
+        cancelDebugPrep();
       }
     }
 
@@ -516,7 +517,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       }
     }
 
-    if (debugRequested && !preppedSessionDead) {
+    if (debugRequested) {
       if (startReplayDebugPreparation(simulationId)) {
         showSuccess(
           "Preparing Debug Session",
