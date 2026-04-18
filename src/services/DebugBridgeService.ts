@@ -486,7 +486,7 @@ class DebugBridgeService {
     const snapshots: SnapshotListItem[] = allResults
       .filter(
         (r): r is PromiseFulfilledResult<{ id: number; value: unknown }> =>
-          r.status === 'fulfilled' && r.value !== null,
+          r.status === 'fulfilled' && r.value.value != null,
       )
       .map((r) => {
         const { id: snapshotId, value } = r.value;
@@ -547,7 +547,7 @@ class DebugBridgeService {
     const snapshots: SnapshotListItem[] = allResults
       .filter(
         (r): r is PromiseFulfilledResult<{ id: number; value: unknown }> =>
-          r.status === 'fulfilled' && r.value !== null,
+          r.status === 'fulfilled' && r.value.value != null,
       )
       .map((r) => {
         const { id: snapshotId, value } = r.value;
