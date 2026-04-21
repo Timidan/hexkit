@@ -36,7 +36,7 @@ interface V3Row {
 export interface ExtractorInput {
   simulationId: string;
   from: string;
-  to: string;
+  to: string | null;
   simulation: BridgeSimulationResponsePayload;
   txHash: string | null;
   contracts?: ContractMeta[];
@@ -221,7 +221,7 @@ export function extractEvidence(input: ExtractorInput): EvidencePacket {
     simulationId: input.simulationId,
     chainId: input.simulation.chainId ?? 1,
     from: (normalizeAddress(input.from) ?? input.from) as string,
-    to: (normalizeAddress(input.to) ?? input.to) as string,
+    to: input.to ? ((normalizeAddress(input.to) ?? input.to) as string) : null,
     success: Boolean(input.simulation.success),
     revertReason: input.simulation.revertReason ?? null,
     writes,

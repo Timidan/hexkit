@@ -18,7 +18,7 @@ import { useLlmConfig } from "../../contexts/LlmConfigContext";
 export interface UseTxAnalysisParams {
   simulationId: string;
   from: string;
-  to: string;
+  to: string | null;
   simulation: BridgeSimulationResponsePayload | null;
   txHash: string | null;
   deepDiveFetchers?: {

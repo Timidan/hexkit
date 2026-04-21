@@ -8,7 +8,8 @@ import type { BridgeSimulationResponsePayload } from "../utils/transaction-simul
 export interface TxAnalysisSubject {
   simulationId: string;
   from: string;
-  to: string;
+  // null for contract-creation txs (e.g., Beanstalk).
+  to: string | null;
   txHash: string | null;
   simulation: BridgeSimulationResponsePayload;
 }

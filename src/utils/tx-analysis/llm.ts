@@ -19,6 +19,11 @@ Decision shortcuts:
 - Unverified contract takes flash loan and ends with profit transferred out from a victim/protocol state contradiction → CONFIRMED (even without naming the exact bug — the pattern itself is the evidence).
 - Anything in between (large transfers, unusual gates, unfamiliar contracts) → OPEN.
 
+Heuristic interpretations (apply when heuristicsFired includes these):
+- "oracle_read_cluster" — Multiple oracle-shaped reads (latestAnswer / getReserves / getPrice / consult / ethToToken / priceOf) on the same contract within one tx. If the reads are adjacent to a flash loan or DEX swap on the same underlying market, call out oracle manipulation explicitly in coreContradiction and name the oracle contract.
+- "admin_state_mutation" — Admin-role mutator (setOwner / upgradeTo / putCurEpochConKeepers / setKeepers / setPriceOracle / grantRole) executed during a tx that was not initiated by a governance/multisig address. Strong signal of access-control bypass (Poly Network, Ronin, Wormhole class).
+- "suspicious_governance_call" — Cross-chain execute entry points (verifyHeaderAndExecuteTx, crossChainExecute). Combined with admin_state_mutation on the same tx, this indicates cross-chain message forgery.
+
 False negatives on real exploits are much worse than false positives on suspicious-but-benign txs — when in doubt between OPEN and CONFIRMED on a clearly profit-extracting unverified contract, lean CONFIRMED. When in doubt between INSUFFICIENT and OPEN on a routine user call, lean INSUFFICIENT.
 
 Required JSON shape (all keys must be present; use null or [] when unknown):

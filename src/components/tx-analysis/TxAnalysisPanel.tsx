@@ -117,7 +117,9 @@ function download(filename: string, content: string, mime = "text/plain") {
 }
 
 export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, from, to, txHash }) => {
-  const ready = Boolean(simulation && simulationId && from && to);
+  // `to` is null for contract-creation txs (e.g., Beanstalk exploit where the
+  // attacker deployed+invoked the exploit in the same tx). Don't gate on it.
+  const ready = Boolean(simulation && simulationId && from);
   const { setAnalysisSubject } = useSimulation();
 
   const [formTxHash, setFormTxHash] = useState("");
@@ -169,7 +171,7 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
     simulation: simulation ?? null,
     simulationId: simulationId ?? "",
     from: from ?? "",
-    to: to ?? "",
+    to: to || null,
     txHash,
     deepDiveFetchers,
   });
@@ -234,10 +236,12 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
         transactionHash: trimmed,
         simulationId: generatedSimulationId,
       };
+      // eslint-disable-next-line no-console
+      console.log("[tx-analysis] sim result", { from: sim.from, to: sim.to, hasResponse: !!sim, keys: Object.keys(sim || {}) });
       setAnalysisSubject({
         simulationId: generatedSimulationId,
         from: sim.from ?? "",
-        to: sim.to ?? "",
+        to: sim.to ?? null,
         txHash: trimmed,
         simulation: enriched as unknown as BridgeSimulationResponsePayload,
       });
@@ -251,11 +255,26 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
   }, [formTxHash, formNetwork, setAnalysisSubject, previewStatus, previewError]);
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log("[tx-analysis] auto-run effect", {
+      autoRunPending,
+      ready,
+      hasSimulation: !!simulation,
+      hasSimId: !!simulationId,
+      from,
+      to,
+      status: analysis.status,
+    });
     if (!autoRunPending || !ready) return;
     if (analysis.status !== "idle" && analysis.status !== "ready") return;
     setAutoRunPending(false);
-    analysis.runSimple().catch(() => {});
-  }, [autoRunPending, ready, analysis]);
+    // eslint-disable-next-line no-console
+    console.log("[tx-analysis] calling runSimple");
+    analysis.runSimple().catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error("[tx-analysis] runSimple failed:", e?.message, e?.stack);
+    });
+  }, [autoRunPending, ready, analysis, simulation, simulationId, from, to]);
 
   const hashValid = formTxHash.trim() !== "" && TX_HASH_RE.test(formTxHash.trim());
   const runDisabled = !formTxHash.trim() || isFetching || previewStatus !== "found";
