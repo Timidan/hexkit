@@ -148,7 +148,7 @@ export function useHackTriage({
       // 4. Reuse an existing signed self-permit if one is still valid; otherwise sign a new one.
       //    Skipping this saves a wallet prompt on every run after the first.
       const existingPermit = cofheClient.permits.getActivePermit(chainId, account);
-      const permitStillValid = !!existingPermit && PermitUtils.isValid(existingPermit).success;
+      const permitStillValid = !!existingPermit && PermitUtils.isValid(existingPermit).valid;
       if (!permitStillValid) {
         await cofheClient.permits.createSelf({ issuer: account });
       }
