@@ -195,6 +195,16 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
   >(new Map());
   const traceToLiveSnapshotCacheRef = useRef<Map<string, number>>(new Map());
 
+  // Cache breakpoint hits per (bytecodeAddress, file, lineRange) so subsequent
+  // evals at the same execution-tree position skip the ~6s RPC entirely.
+  const breakpointHitsCacheRef = useRef<Map<string, number[]>>(new Map());
+
+  // Dedup lock: prevent concurrent evaluations of the same expression at the
+  // same snapshot.  Without this, React StrictMode double-renders and other
+  // React lifecycle quirks cause 2-3 simultaneous eval calls that overwhelm
+  // the bridge with 3× the RPC load.
+  const evalInflightRef = useRef<Map<string, Promise<EvalResult>>>(new Map());
+
   // ── Wrapped resolver callbacks (delegate to extracted pure functions) ──
 
   const waitForLiveSessionReadyCb = useCallback(
@@ -225,7 +235,8 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
   );
 
   const resolveEvalSnapshotIdCb = useCallback(async (
-    baseSnapshotId = currentSnapshotId
+    baseSnapshotId = currentSnapshotId,
+    traceEntrySnapshotRange?: { first: number; nextFirst: number | null } | null,
   ): Promise<number | null> => {
     return resolveEvalSnapshotId({
       sessionRef,
@@ -237,7 +248,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       snapshotList,
       setSnapshotList,
       sourceFilesRef,
-    }, baseSnapshotId);
+    }, baseSnapshotId, traceEntrySnapshotRange);
   }, [
     currentSnapshotId,
     currentSnapshot,
@@ -359,7 +370,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
 
   // ── Core expression evaluation ───────────────────────────────────────
 
-  const evaluateExpressionInternal = useCallback(
+  const evaluateExpressionInternalImpl = useCallback(
     async (expression: string): Promise<EvalResult> => {
       const activeSession = sessionRef.current;
       if (!activeSession) {
@@ -598,6 +609,289 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
             evalSnapshotHintCacheRef.current.delete(evalContextKey);
           }
         }
+        // Look up the trace entry's snapshot range for targeted scanning.
+        // When available, this lets us jump directly to the correct region
+        // of the session instead of scanning outward from the current step.
+        //
+        // We check multiple sources for the trace entry:
+        //   1. currentTraceId — from the live snapshot's frameId
+        //   2. traceRowAtBase?.traceId — from the decoded trace row
+        //   3. Source-file matching — find an entry row whose source matches
+        //      preferSourceFile (handles the common case where the user is
+        //      viewing _verifySignatures in Verifier.sol but the live snapshot
+        //      is in the calling contract's frame)
+        let traceEntrySnapshotRange: { first: number; nextFirst: number | null } | null = null;
+        let traceEntryBytecodeAddress: string | null = null;
+        if (decodedTraceRowsRef.current) {
+          // Only use call frame entries from the bridge trace data (negative IDs,
+          // created by analysisHelpers.ts) — their firstSnapshotId is a live
+          // session snapshot ID.  WASM-decoded entries (positive IDs) use a
+          // different numbering that doesn't map to live session snapshots.
+          const allEntryRows = decodedTraceRowsRef.current.filter(
+            (row) => row.entryMeta && typeof row.firstSnapshotId === 'number'
+              && row.id < 0
+          );
+
+          const buildRange = (entryRow: typeof allEntryRows[0]): { first: number; nextFirst: number | null } => {
+            let nextFirst: number | null = null;
+            const later = allEntryRows.filter(
+              r => r.firstSnapshotId! > entryRow.firstSnapshotId!
+            );
+            if (later.length > 0) {
+              nextFirst = Math.min(...later.map(r => r.firstSnapshotId!));
+            }
+            return { first: entryRow.firstSnapshotId!, nextFirst };
+          };
+
+          // Find the target traceId — prefer the source-file match
+          let targetTraceId: number | null = null;
+
+          if (preferSourceFile) {
+            const sourceFileName = preferSourceFile.split('/').pop()?.toLowerCase() || '';
+            const sourceMatch = allEntryRows.find(r => {
+              const contractName = r.entryMeta?.targetContractName || r.entryMeta?.codeContractName || '';
+              if (contractName && sourceFileName.includes(contractName.toLowerCase())) return true;
+              const entrySource = r.sourceFile || r.destSourceFile || '';
+              if (entrySource && filePathMatches(entrySource, preferSourceFile)) return true;
+              return false;
+            });
+            if (sourceMatch?.traceId !== undefined) {
+              targetTraceId = sourceMatch.traceId;
+              traceEntryBytecodeAddress = (
+                sourceMatch.entryMeta?.codeAddress ||
+                sourceMatch.entryMeta?.target ||
+                null
+              )?.toLowerCase() ?? null;
+            }
+          }
+
+          // Fallback: use currentTraceId or traceRowAtBase's traceId
+          if (targetTraceId === null) {
+            targetTraceId = traceRowAtBase?.traceId ?? currentTraceId;
+            // Also try to get bytecodeAddress from the fallback entry
+            if (traceEntryBytecodeAddress === null && targetTraceId !== null) {
+              const fallbackEntry = allEntryRows.find(r => r.traceId === targetTraceId);
+              if (fallbackEntry?.entryMeta) {
+                traceEntryBytecodeAddress = (
+                  fallbackEntry.entryMeta.codeAddress ||
+                  fallbackEntry.entryMeta.target ||
+                  null
+                )?.toLowerCase() ?? null;
+              }
+            }
+          }
+
+          // Fetch the raw trace data from the bridge to get accurate
+          // first_snapshot_id values (decoded trace rows remap these IDs).
+          if (targetTraceId !== null) {
+            try {
+              const rawTrace = await debugBridgeService.getTrace(activeSession.sessionId);
+              const rawEntries = (rawTrace as any)?.inner ?? rawTrace?.entries ?? [];
+              const rawEntry = rawEntries.find((e: any) => e.id === targetTraceId);
+              const rawFsi = rawEntry?.first_snapshot_id ?? rawEntry?.firstSnapshotId;
+              if (typeof rawFsi === 'number' && rawFsi >= 0) {
+                // Find next entry's first_snapshot_id for range boundary
+                let nextFsi: number | null = null;
+                for (const e of rawEntries) {
+                  const fsi = e.first_snapshot_id ?? e.firstSnapshotId;
+                  if (typeof fsi === 'number' && fsi > rawFsi) {
+                    if (nextFsi === null || fsi < nextFsi) nextFsi = fsi;
+                  }
+                }
+                traceEntrySnapshotRange = { first: rawFsi, nextFirst: nextFsi };
+              }
+            } catch {
+              // If trace fetch fails, fall back to decoded row data
+              const match = allEntryRows.find(r => r.traceId === targetTraceId);
+              if (match) {
+                traceEntrySnapshotRange = buildRange(match);
+              }
+            }
+          }
+        }
+
+        if (import.meta.env.DEV) {
+          console.log('[eval] traceEntrySnapshotRange:', traceEntrySnapshotRange, 'preferSourceFile:', preferSourceFile, 'currentTraceId:', currentTraceId, 'traceRowAtBase?.traceId:', traceRowAtBase?.traceId);
+          if (decodedTraceRowsRef.current) {
+            const entryRows = decodedTraceRowsRef.current.filter(r => r.entryMeta && typeof r.firstSnapshotId === 'number');
+            console.log('[eval] Entry rows with firstSnapshotId:', JSON.stringify(entryRows.map(r => ({ id: r.id, traceId: r.traceId, fsi: r.firstSnapshotId, cn: r.entryMeta?.targetContractName || r.contract, sf: r.sourceFile?.split('/').pop() }))));
+          }
+        }
+
+        // ── Shared helper: fetch breakpoint hits, eval at candidates ──
+        // Used by the fast path (before Phase 0) and Strategy 1 (inside
+        // needsRangeProbe) to avoid ~160 lines of duplicated logic.
+        const ENTRY_POINT_SKIP = 5; // Skip first N snapshots in range (opcode-only entry prologue)
+        const BP_CACHE_MAX = 50;
+        const evalAtBreakpointHits = async (opts: {
+          sessionId: string;
+          bytecodeAddress: string;
+          filePath: string;
+          lineNumber: number;
+          lineRadius: number;
+          rangeStart: number;
+          rangeEnd: number;
+          baseSnapshotId: number;
+          expression: string;
+          bpCacheKey: string;
+          bpCache: Map<string, number[]>;
+          notePrefix: string;
+          logPrefix: string;
+        }): Promise<{ snapshotId: number; result: EvalResult } | null> => {
+          const {
+            sessionId, bytecodeAddress, filePath, lineNumber, lineRadius,
+            rangeStart, rangeEnd, baseSnapshotId, expression,
+            bpCacheKey, bpCache, notePrefix, logPrefix,
+          } = opts;
+          let bpHits: number[];
+
+          const cachedHits = bpCache.get(bpCacheKey);
+          if (cachedHits) {
+            bpHits = cachedHits;
+            if (import.meta.env.DEV) console.log(`[eval] ${logPrefix}: using cached breakpoint hits`);
+          } else {
+            try {
+              const breakpoints: Array<{ location: { type: 'source'; bytecodeAddress: string; filePath: string; lineNumber: number } }> = [];
+              for (let line = Math.max(1, lineNumber - lineRadius); line <= lineNumber + lineRadius; line++) {
+                breakpoints.push({
+                  location: { type: 'source', bytecodeAddress, filePath, lineNumber: line },
+                });
+              }
+              if (import.meta.env.DEV) console.log(`[eval] ${logPrefix}: source breakpoint probe ${breakpoints.length} lines around L${lineNumber} in ${filePath}`);
+              const bpResponse = await debugBridgeService.getBreakpointHits({ sessionId, breakpoints });
+              // Evict oldest entry if cache is full
+              if (bpCache.size >= BP_CACHE_MAX) {
+                const firstKey = bpCache.keys().next().value;
+                if (firstKey !== undefined) bpCache.delete(firstKey);
+              }
+              bpCache.set(bpCacheKey, bpResponse.hits);
+              bpHits = bpResponse.hits;
+            } catch {
+              if (import.meta.env.DEV) console.log(`[eval] ${logPrefix}: source breakpoint probe failed`);
+              return null;
+            }
+          }
+
+          const hitsInRange = bpHits.filter(id => id > rangeStart + ENTRY_POINT_SKIP && id <= rangeEnd);
+          if (import.meta.env.DEV) console.log(`[eval] ${logPrefix}: hits in range [${rangeStart}, ${rangeEnd}]: [${hitsInRange.slice(0, 20).join(',')}] (${hitsInRange.length} total)`);
+          if (hitsInRange.length === 0) return null;
+
+          // Sort by distance to baseSnapshotId, try closest first.
+          // Evaluate in small concurrent batches (5) for a balance between
+          // latency (parallel) and wasted RPCs (sequential).
+          const sorted = [...hitsInRange].sort((a, b) => Math.abs(a - baseSnapshotId) - Math.abs(b - baseSnapshotId));
+          const candidates = sorted.slice(0, 10);
+          const BATCH_SIZE = 5;
+          for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+            if (budgetExhausted()) break;
+            const batch = candidates.slice(i, i + BATCH_SIZE);
+            const results = await Promise.allSettled(
+              batch.map(async (id) => {
+                const r = await debugBridgeService.evaluateExpression({ sessionId, snapshotId: id, expression });
+                return { id, result: r.result };
+              })
+            );
+            for (const er of results) {
+              if (er.status !== 'fulfilled') continue;
+              const { id, result: evalRes } = er.value;
+              // Check for session expiration
+              if (!evalRes.success && isSessionNotFoundError(new Error(evalRes.error || ''))) {
+                setSessionInvalid(true);
+                return { snapshotId: id, result: { success: false, error: SESSION_EXPIRED_ERROR } };
+              }
+              if (evalRes.success && !isNullishEvalValue(evalRes.value)) {
+                if (import.meta.env.DEV) console.log(`[eval] ${logPrefix}: SUCCESS at snapshot ${id}`);
+                if (hasUnreadFieldsInValue(evalRes.value)) {
+                  const filled = await fillUnreadFieldsFromStorage(
+                    evalRes.value as SolValue, sessionId, id, rpcFallbackConfig ?? undefined
+                  );
+                  return {
+                    snapshotId: id,
+                    result: withLiveSnapshotRemapNote({
+                      success: true, value: filled,
+                      note: `Value resolved from step ${id} (${notePrefix} near step ${baseSnapshotId})`,
+                    }),
+                  };
+                }
+                return {
+                  snapshotId: id,
+                  result: withLiveSnapshotRemapNote({
+                    ...evalRes,
+                    note: `Value resolved from step ${id} (${notePrefix} near step ${baseSnapshotId})`,
+                  }),
+                };
+              }
+            }
+          }
+          return null;
+        };
+
+        // ── Fast path: source breakpoints BEFORE Phase 0 ──
+        // When we have bytecodeAddress + source location + snapshot range, fire
+        // source breakpoints first (~6s) and eval at the closest hits (~2s).
+        // This skips Phase 0 entirely (~13-15s), cutting total eval time from
+        // ~28s to ~10s in the common case.
+        let fastPathResult: EvalResult | null = null;
+        if (
+          evalSnapshotId === null &&
+          traceEntryBytecodeAddress &&
+          preferSourceFile &&
+          preferSourceLine !== null &&
+          traceEntrySnapshotRange &&
+          !budgetExhausted()
+        ) {
+          const rangeStart = traceEntrySnapshotRange.first;
+          const rangeEnd = traceEntrySnapshotRange.nextFirst !== null
+            ? Math.min(traceEntrySnapshotRange.nextFirst - 1, totalSnapshots - 1)
+            : totalSnapshots - 1;
+
+          const LINE_RADIUS = 20;
+          // Include sessionId in cache key so hits don't leak across sessions
+          const bpCacheKey = `${activeSession.sessionId}|${traceEntryBytecodeAddress}|${preferSourceFile}|${preferSourceLine}|${LINE_RADIUS}`;
+
+          const bpResult = await evalAtBreakpointHits({
+            sessionId: activeSession.sessionId,
+            bytecodeAddress: traceEntryBytecodeAddress,
+            filePath: preferSourceFile,
+            lineNumber: preferSourceLine,
+            lineRadius: LINE_RADIUS,
+            rangeStart,
+            rangeEnd,
+            baseSnapshotId: resolvedBaseSnapshotId,
+            expression: expressionText,
+            bpCacheKey,
+            bpCache: breakpointHitsCacheRef.current,
+            notePrefix: 'fast-path source breakpoint',
+            logPrefix: 'Fast path',
+          });
+          if (bpResult) {
+            evalSnapshotId = bpResult.snapshotId;
+            fastPathResult = bpResult.result;
+            setLimitedCacheEntry(
+              evalSnapshotHintCacheRef.current,
+              evalContextKey,
+              evalSnapshotId,
+              EVAL_SNAPSHOT_HINT_CACHE_MAX
+            );
+          } else if (import.meta.env.DEV) {
+            console.log(`[eval] Fast path: no successful eval in range [${rangeStart}, ${rangeEnd}], falling through`);
+          }
+        }
+
+        // If fast path already produced a result, return it immediately
+        if (fastPathResult) {
+          return fastPathResult;
+        }
+
+        // Pre-populate the snapshot list via batch fetching FIRST — this is
+        // much cheaper than scanning individual snapshots (one round trip per
+        // batch of 25 vs one per snapshot).  Once the snapshot list is loaded,
+        // the in-memory findNearest* helpers can locate Hook snapshots without
+        // any additional network calls.
+        if (evalSnapshotId === null && !budgetExhausted()) {
+          evalSnapshotId = await resolveEvalSnapshotIdCb(resolvedBaseSnapshotId, traceEntrySnapshotRange);
+        }
+
         if (evalSnapshotId === null && preferSourceFile) {
             evalSnapshotId = findNearestHookSnapshotIdBySource(
               snapshotList, snapshotCache, resolvedBaseSnapshotId, currentTraceId,
@@ -648,9 +942,6 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           }
         }
 
-        if (evalSnapshotId === null && !budgetExhausted()) {
-          evalSnapshotId = await resolveEvalSnapshotIdCb(resolvedBaseSnapshotId);
-        }
         if (evalSnapshotId === null && !budgetExhausted()) {
           const fallback = await scanForHookSnapshotCb(
             activeSession.sessionId, resolvedBaseSnapshotId, currentTraceId, targetedScanOffset,
@@ -845,6 +1136,121 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
           snapshotId: evalSnapshotId,
           expression: expressionText,
         });
+
+        if (import.meta.env.DEV) console.log(`[eval] Initial eval at snapshot ${evalSnapshotId} for '${expressionText}':`, response.result.success ? `success=${JSON.stringify(response.result.value)?.substring(0, 100)}` : `error=${response.result.error?.substring(0, 100)}`);
+
+        // If eval succeeded but returned nullish for a simple variable, or failed
+        // with "variable not visible" or "opcode snapshot", and we have a trace
+        // entry range, try to find the right Hook snapshot and evaluate there.
+        //
+        // Strategy 1 (source breakpoints): Use edb_getBreakpointHits with source
+        // breakpoints at nearby lines — this is ONE RPC round that directly returns
+        // snapshot IDs where each source line is hit, bypassing the need for sparse
+        // sampling entirely.
+        //
+        // Strategy 2 (blind probe fallback): If source breakpoints fail (e.g. wrong
+        // file path format), probe the expression at evenly-spaced points.
+        const needsRangeProbe =
+          traceEntrySnapshotRange &&
+          !budgetExhausted() &&
+          simpleName &&
+          (
+            (response.result.success && isNullishEvalValue(response.result.value)) ||
+            (!response.result.success && extractMissingVariableName(response.result.error)) ||
+            (!response.result.success && response.result.error?.includes('opcode snapshot'))
+          );
+        if (needsRangeProbe && traceEntrySnapshotRange) {
+          const rangeStart = traceEntrySnapshotRange.first;
+          const rangeEnd = traceEntrySnapshotRange.nextFirst !== null
+            ? Math.min(traceEntrySnapshotRange.nextFirst - 1, totalSnapshots - 1)
+            : totalSnapshots - 1;
+          const rangeSize = rangeEnd - rangeStart + 1;
+
+          // --- Strategy 1: Source breakpoint hits (uses cache from fast path) ---
+          if (traceEntryBytecodeAddress && preferSourceFile && preferSourceLine !== null && !budgetExhausted()) {
+            const LINE_RADIUS = 20;
+            const bpCacheKey = `${activeSession.sessionId}|${traceEntryBytecodeAddress}|${preferSourceFile}|${preferSourceLine}|${LINE_RADIUS}`;
+            const s1Result = await evalAtBreakpointHits({
+              sessionId: activeSession.sessionId,
+              bytecodeAddress: traceEntryBytecodeAddress,
+              filePath: preferSourceFile,
+              lineNumber: preferSourceLine,
+              lineRadius: LINE_RADIUS,
+              rangeStart,
+              rangeEnd,
+              baseSnapshotId: resolvedBaseSnapshotId,
+              expression: expressionText,
+              bpCacheKey,
+              bpCache: breakpointHitsCacheRef.current,
+              notePrefix: 'source breakpoint match',
+              logPrefix: 'Strategy 1',
+            });
+            if (s1Result) {
+              setLimitedCacheEntry(
+                evalSnapshotHintCacheRef.current,
+                evalContextKey,
+                s1Result.snapshotId,
+                EVAL_SNAPSHOT_HINT_CACHE_MAX
+              );
+              return s1Result.result;
+            }
+          }
+
+          // --- Strategy 2: Blind eval probe fallback ---
+          // Evaluate the actual expression at evenly-spaced points within the range.
+          // Use 200 probes (step ≈ 20) which is dense enough to hit clusters down
+          // to ~20 IDs wide. For 7-wide clusters this may still miss, but combined
+          // with Strategy 1 it provides good coverage.
+          if (!budgetExhausted()) {
+            const PROBE_COUNT = 200;
+            const probeStep = Math.max(1, Math.floor(rangeSize / PROBE_COUNT));
+            const probeIds: number[] = [];
+            // Start from rangeStart + probeStep to skip entry point
+            for (let id = rangeStart + probeStep; id <= rangeEnd; id += probeStep) {
+              probeIds.push(id);
+            }
+            if (import.meta.env.DEV) console.log(`[eval] Blind range probe: ${probeIds.length} points in [${rangeStart}, ${rangeEnd}] step=${probeStep} for '${expressionText}'`);
+
+            // Batch concurrent eval calls to avoid overwhelming the bridge
+            const EVAL_CONCURRENCY = 25;
+            for (let i = 0; i < probeIds.length; i += EVAL_CONCURRENCY) {
+              if (budgetExhausted()) break;
+              const batch = probeIds.slice(i, i + EVAL_CONCURRENCY);
+              const probeResults = await Promise.allSettled(
+                batch.map(async (id) => {
+                  const r = await debugBridgeService.evaluateExpression({
+                    sessionId: activeSession.sessionId,
+                    snapshotId: id,
+                    expression: expressionText,
+                  });
+                  return { id, result: r.result };
+                })
+              );
+              for (const pr of probeResults) {
+                if (pr.status !== 'fulfilled') continue;
+                const { id, result: probeResult } = pr.value;
+                if (probeResult.success && !isNullishEvalValue(probeResult.value)) {
+                  if (import.meta.env.DEV) console.log(`[eval] Blind probe hit at snapshot ${id}`);
+                  if (hasUnreadFieldsInValue(probeResult.value)) {
+                    const filled = await fillUnreadFieldsFromStorage(
+                      probeResult.value as SolValue, activeSession.sessionId, id, rpcFallbackConfig ?? undefined
+                    );
+                    return withLiveSnapshotRemapNote({
+                      success: true,
+                      value: filled,
+                      note: `Value resolved from step ${id} (nearest source-level snapshot to current step ${resolvedBaseSnapshotId})`,
+                    });
+                  }
+                  return withLiveSnapshotRemapNote({
+                    ...probeResult,
+                    note: `Value resolved from step ${id} (nearest source-level snapshot to current step ${resolvedBaseSnapshotId})`,
+                  });
+                }
+              }
+            }
+          }
+        }
+
         if (response.result.success && isNullishEvalValue(response.result.value) && simpleName) {
           const variableMatch = await getSimpleNameHint();
           if (variableMatch?.value && !isNullishEvalValue(variableMatch.value)) {
@@ -1004,6 +1410,25 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       rpcFallbackConfig,
       setSessionInvalid,
     ]
+  );
+
+  // Dedup wrapper: if the same expression is already being evaluated at the
+  // same snapshot, return the in-flight promise instead of starting a new eval.
+  const evaluateExpressionInternal = useCallback(
+    (expression: string): Promise<EvalResult> => {
+      const dedupKey = `${expression}|${currentSnapshotId}`;
+      const inflight = evalInflightRef.current.get(dedupKey);
+      if (inflight) {
+        if (import.meta.env.DEV) console.log(`[eval] Dedup: reusing in-flight eval for '${expression}' at snapshot ${currentSnapshotId}`);
+        return inflight;
+      }
+      const promise = evaluateExpressionInternalImpl(expression).finally(() => {
+        evalInflightRef.current.delete(dedupKey);
+      });
+      evalInflightRef.current.set(dedupKey, promise);
+      return promise;
+    },
+    [evaluateExpressionInternalImpl, currentSnapshotId]
   );
 
   // ── Watch expression management ──────────────────────────────────────

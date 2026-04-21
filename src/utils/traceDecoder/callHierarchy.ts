@@ -1,9 +1,6 @@
 /**
  * Phase 2c: Final row assembly, LOG decoding, internal call hierarchy
- * building (FnCallInfo tracking, call stack walking), and frame anchoring.
- *
- * Extracted from decodeTraceAnalysis.ts to keep files under 800 lines.
- */
+ * building (FnCallInfo tracking, call stack walking), and frame anchoring. */
 
 import type { DecodedTraceRow, DecodeTraceContext, FnCallInfo } from './types';
 import { parseLogStack, decodeLogWithFallback } from './eventDecoding';

@@ -1,6 +1,5 @@
 /**
  * FunctionSelectSection - Function dropdown selector.
- * Extracted from GridLayout.tsx lines 1905-1952.
  */
 import React from "react";
 import { SearchIcon } from "../../icons/IconLibrary";

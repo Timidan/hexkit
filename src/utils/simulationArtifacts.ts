@@ -41,15 +41,8 @@ import { convertEdbTraceToArtifacts, normalizeAssetChangeEntry, buildOpcodeTrace
 
 // ---- shared utilities -------------------------------------------------
 
-export const ensureArray = <T,>(value: unknown, mapFn?: (item: any) => T): T[] => {
-  if (Array.isArray(value)) {
-    return mapFn ? value.map(mapFn) : (value as T[]);
-  }
-  if (value && typeof value === "object") {
-    return mapFn ? [mapFn(value)] : [value as T];
-  }
-  return [];
-};
+export { ensureArray } from "./simulationArtifactTypes";
+import { ensureArray } from "./simulationArtifactTypes";
 
 export const normalizeHex = (value: unknown): string | null => {
   if (typeof value !== "string") return null;

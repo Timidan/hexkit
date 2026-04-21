@@ -7,7 +7,7 @@
 
 import type { Chain } from '../../types';
 
-export type Source = 'sourcify' | 'etherscan' | 'blockscout' | 'blockscout-ebd' | 'whatsabi';
+export type Source = 'sourcify' | 'etherscan' | 'blockscout';
 
 export type Confidence = 'verified' | 'inferred' | 'bytecode-only';
 
@@ -226,8 +226,6 @@ export const SOURCE_CONFIGS: Record<Source, SourceConfig> = {
   sourcify: { name: 'sourcify', timeout: 4000, priority: 1 },
   etherscan: { name: 'etherscan', timeout: 5000, priority: 2, rateLimit: 5 },
   blockscout: { name: 'blockscout', timeout: 5000, priority: 3 },
-  'blockscout-ebd': { name: 'blockscout-ebd', timeout: 8000, priority: 4 },
-  whatsabi: { name: 'whatsabi', timeout: 6000, priority: 5 },
 };
 
 export const isVerifiedConfidence = (confidence: Confidence): boolean =>

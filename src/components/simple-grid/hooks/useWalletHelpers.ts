@@ -1,8 +1,5 @@
 /**
- * useWalletHelpers – wallet chain-id helpers and ethers provider factory.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * useWalletHelpers – wallet chain-id helpers and ethers provider factory. */
 import { useCallback } from "react";
 import { ethers } from "ethers";
 import { SUPPORTED_CHAINS } from "../../../utils/chains";

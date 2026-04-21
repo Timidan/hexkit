@@ -8,7 +8,6 @@
  * - fetchStorageLayout.ts (storage layout + sources)
  * - resolver/sources/sourcify.ts (ABI + metadata + sources)
  * - transaction-simulation/artifactFetching.ts (metadata + sources)
- * - fetchers/sourcify.ts (legacy fetcher)
  *
  * Design:
  * - Cache is keyed by `${chainId}:${address}:${fieldsKey}` where fieldsKey

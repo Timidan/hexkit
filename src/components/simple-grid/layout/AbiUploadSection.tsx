@@ -1,6 +1,5 @@
 /**
  * AbiUploadSection - ABI error display and manual ABI upload modal.
- * Extracted from ContractColumn.tsx to reduce file size.
  */
 import React from "react";
 import { XCircleIcon } from "../../icons/IconLibrary";

@@ -14,7 +14,6 @@ import { detectTokenType } from "./tokenDetection/functionDetection";
 
 /**
  * Detect and fetch token information for a contract.
- * Extracted from SimpleGridMain to reduce file size.
  */
 export async function detectAndFetchTokenInfo(
   deps: TokenDetectionDeps,

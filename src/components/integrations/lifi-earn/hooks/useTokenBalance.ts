@@ -2,20 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { ethers } from "ethers";
 import { networkConfigManager } from "../../../../config/networkConfig";
 import { SUPPORTED_CHAINS } from "../../../../utils/chains";
+import { isNativeToken } from "../../../../utils/addressConstants";
 
 const ERC20_BALANCE_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
 ];
-
-// Matches the NATIVE_ADDRESSES set in DepositFlow — keep in sync.
-const NATIVE_SENTINELS = new Set([
-  "0x0000000000000000000000000000000000000000",
-  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-]);
-
-function isNative(address: string): boolean {
-  return NATIVE_SENTINELS.has(address.toLowerCase());
-}
 
 async function fetchBalance(
   tokenAddress: string,
@@ -33,7 +24,7 @@ async function fetchBalance(
   }
   const provider = new ethers.providers.JsonRpcProvider(resolution.url);
 
-  if (isNative(tokenAddress)) {
+  if (isNativeToken(tokenAddress)) {
     const raw: ethers.BigNumber = await provider.getBalance(ownerAddress);
     return raw.toString();
   }

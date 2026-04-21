@@ -56,7 +56,6 @@ export type AbiSourceType =
   | "blockscout"
   | "etherscan"
   | "blockscout-bytecode"
-  | "blockscout-ebd"
   | "whatsabi"
   | "manual"
   | "restored"

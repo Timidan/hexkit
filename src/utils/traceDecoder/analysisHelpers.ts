@@ -1,9 +1,6 @@
 /**
  * Phase 2 helpers: multi-contract map building, call frame processing,
- * and PC-resolution closure factories.
- *
- * Extracted from decodeTraceAnalysis.ts to keep files under 800 lines.
- */
+ * and PC-resolution closure factories. */
 
 import { ethers } from "ethers";
 import type { DecodedTraceRow, PcInfo, DecodeTraceContext, FunctionRange } from './types';

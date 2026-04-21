@@ -314,7 +314,7 @@ export default defineConfig(({ mode }) => {
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
         // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev.
         // Injects X-API-Key server-side so the browser never sees the secret —
-        // mirrors api/edb/[...path].ts behavior for local dev.
+        // mirrors api/edb-proxy.ts behavior for local dev.
         "/api/edb": {
           target: env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
           changeOrigin: true,

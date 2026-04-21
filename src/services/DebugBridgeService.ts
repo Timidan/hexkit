@@ -525,6 +525,62 @@ class DebugBridgeService {
   }
 
   /**
+   * Fetch snapshot metadata for a sparse set of snapshot IDs.
+   * More efficient than getSnapshotBatch for sampling across large sessions.
+   */
+  async getSnapshotsBySparseIds(
+    sessionId: string,
+    snapshotIds: number[],
+  ): Promise<GetSnapshotBatchResponse> {
+    const CONCURRENCY = 25;
+    const allResults: PromiseSettledResult<{ id: number; value: unknown }>[] = [];
+    for (let i = 0; i < snapshotIds.length; i += CONCURRENCY) {
+      const slice = snapshotIds.slice(i, i + CONCURRENCY);
+      const sliceResults = await Promise.allSettled(
+        slice.map((id) =>
+          this.rpcCall(sessionId, 'edb_getSnapshotInfo', [id]).then((value) => ({ id, value })),
+        ),
+      );
+      allResults.push(...sliceResults);
+    }
+
+    const snapshots: SnapshotListItem[] = allResults
+      .filter(
+        (r): r is PromiseFulfilledResult<{ id: number; value: unknown }> =>
+          r.status === 'fulfilled' && r.value !== null,
+      )
+      .map((r) => {
+        const { id: snapshotId, value } = r.value;
+        const snap = transformEdbSnapshot(value);
+        const detail = snap.detail;
+
+        if (snap.type === 'opcode') {
+          const opcodeDetail = detail as OpcodeSnapshotDetail;
+          return {
+            id: snapshotId,
+            frameId: snap.frameId,
+            type: 'opcode' as const,
+            pc: opcodeDetail.pc,
+            opcodeName: opcodeDetail.opcodeName,
+            gasRemaining: opcodeDetail.gasRemaining,
+          };
+        } else {
+          const hookDetail = detail as HookSnapshotDetail;
+          return {
+            id: snapshotId,
+            frameId: snap.frameId,
+            type: 'hook' as const,
+            filePath: hookDetail.filePath,
+            line: hookDetail.line,
+            functionName: hookDetail.functionName,
+          };
+        }
+      });
+
+    return { snapshots, hasMore: false };
+  }
+
+  /**
    * Evaluate an expression at a snapshot
    */
   async evaluateExpression(request: EvalExpressionRequest): Promise<EvalExpressionResponse> {

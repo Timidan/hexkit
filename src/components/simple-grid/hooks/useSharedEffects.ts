@@ -2,7 +2,6 @@
  * useSharedEffects – shared side-effect logic extracted from SimpleGridMain.tsx.
  * Handles CSS injection, simulation result expansion, auto-decode, auto-calldata,
  * auto-save, and auto-function-type selection.
- * Pure structural split – no behaviour changes.
  */
 import { useEffect } from "react";
 import { ethers } from "ethers";

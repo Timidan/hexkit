@@ -1,6 +1,5 @@
 /**
  * CalldataSection - Dynamic calldata display.
- * Extracted from GridLayout.tsx lines 2508-2567.
  */
 import React from "react";
 import { CopyButton } from "../../ui/copy-button";
