@@ -219,8 +219,8 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
         );
         return;
       }
-      if ((sim as any).success === false && (sim as any).error) {
-        const classified = classifySimulationError((sim as any).error);
+      if (sim.success === false && sim.error) {
+        const classified = classifySimulationError(sim.error);
         setFormError(
           classified.suggestion ? `${classified.message} ${classified.suggestion}` : classified.message,
         );
@@ -228,7 +228,7 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
       }
       const generatedSimulationId = crypto.randomUUID();
       const enriched = {
-        ...(sim as any),
+        ...sim,
         networkName: formNetwork.name,
         chainId: formNetwork.id,
         transactionHash: trimmed,
@@ -236,8 +236,8 @@ export const TxAnalysisPanel: React.FC<Props> = ({ simulation, simulationId, fro
       };
       setAnalysisSubject({
         simulationId: generatedSimulationId,
-        from: (sim as any).from || "",
-        to: (sim as any).to || "",
+        from: sim.from ?? "",
+        to: sim.to ?? "",
         txHash: trimmed,
         simulation: enriched as unknown as BridgeSimulationResponsePayload,
       });

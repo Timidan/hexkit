@@ -185,7 +185,7 @@ export function useLlmInvocation() {
           lastErr = err;
           continue;
         }
-        if ((err as any)?.name === "AbortError") throw err;
+        if (err instanceof Error && err.name === "AbortError") throw err;
         lastErr = new LlmError("network", (err as Error).message, req.provider, true);
         if (attempt === maxRetries) throw lastErr;
       }
