@@ -43,7 +43,7 @@ export function extractTriageBits(packet: EvidencePacket): number {
   const set = (p: keyof typeof FEATURE_BITS) => { bits |= 1 << FEATURE_BITS[p]; };
 
   const from = packet.from.toLowerCase();
-  const to   = packet.to.toLowerCase();
+  const to   = packet.to?.toLowerCase() ?? "";
   const tr   = packet.triggers;
 
   if (tr.some((t) => t.selector && FLASH_SELECTORS.has(t.selector.toLowerCase()))) set("hasFlashSel");

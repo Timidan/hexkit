@@ -122,7 +122,9 @@ const approvalDrainRule: Rule = (packet) => {
 // a disambiguated multisig identifier.
 const SAFE_NAMES = new Set(["gnosissafe", "gnosissafeproxy", "safeproxy"]);
 const signerCompromiseRule: Rule = (packet) => {
-  const meta = packet.contracts.find((c) => c.address.toLowerCase() === packet.to.toLowerCase());
+  if (!packet.to) return null;
+  const to = packet.to;
+  const meta = packet.contracts.find((c) => c.address.toLowerCase() === to.toLowerCase());
   if (!meta?.name || !SAFE_NAMES.has(meta.name.replace(/\s+/g, "").toLowerCase())) return null;
 
   const delegate = packet.triggers.find((t) => t.kind === "DELEGATECALL");
@@ -166,7 +168,9 @@ const oracleManipulationRule: Rule = (packet) => {
 const BRIDGE_NAME_RE = /bridge|gateway|crosschain/i;
 const BRIDGE_FN_RE = /message|vaa|execute|verify|process/i;
 const bridgeForgeryRule: Rule = (packet) => {
-  const meta = packet.contracts.find((c) => c.address.toLowerCase() === packet.to.toLowerCase());
+  if (!packet.to) return null;
+  const to = packet.to;
+  const meta = packet.contracts.find((c) => c.address.toLowerCase() === to.toLowerCase());
   if (!meta?.name || !BRIDGE_NAME_RE.test(meta.name)) return null;
   const bridgeTrigger = packet.triggers.find((t) => t.function && BRIDGE_FN_RE.test(t.function));
   if (!bridgeTrigger) return null;

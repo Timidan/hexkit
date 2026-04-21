@@ -5,7 +5,7 @@ export const signerCompromiseFixture: EvidencePacket = {
   ...delegatecallFixture,
   contracts: [
     {
-      address: delegatecallFixture.to,
+      address: delegatecallFixture.to!,
       name: "GnosisSafe",
       proxyImplementation: "0x" + "1".repeat(40),
       verified: true,
