@@ -1,0 +1,9 @@
+node_modules/
+.env
+artifacts/
+cache/
+typechain-types/
+dist/
+coverage/
+coverage.json
+deployments/localcofhe/

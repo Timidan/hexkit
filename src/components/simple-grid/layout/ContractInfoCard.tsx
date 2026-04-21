@@ -1,6 +1,5 @@
 /**
  * ContractInfoCard - Displays contract metadata card when contractInfo is available.
- * Extracted from ContractColumn.tsx to reduce file size.
  *
  * Shows: chain icon, contract name, ABI source badge, proxy badge,
  * token type detection, symbol/decimals, and read/write function counts.

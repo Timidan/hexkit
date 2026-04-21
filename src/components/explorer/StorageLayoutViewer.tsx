@@ -12,12 +12,18 @@ import { StorageToolbar } from './StorageToolbar';
 import { StorageTableView } from './StorageTableView';
 import { TreePanel } from './TreePanel';
 import { useStorageViewerState } from './useStorageViewerState';
+import { HeuristicLayoutBanner } from './storage-viewer/HeuristicLayoutBanner';
 
 const StorageLayoutViewer: React.FC = () => {
   const state = useStorageViewerState();
   // Only chains with a configured explorer API — the storage loader needs
   // source/ABI data and would otherwise fall over with "No … API available".
   const explorerChains = React.useMemo(() => getExplorerChains(), []);
+
+  const [heuristicBannerDismissed, setHeuristicBannerDismissed] = React.useState(false);
+  React.useEffect(() => {
+    setHeuristicBannerDismissed(false);
+  }, [state.contractAddress, state.selectedChain?.id]);
 
   return (
     <>
@@ -49,6 +55,10 @@ const StorageLayoutViewer: React.FC = () => {
               )}
             </div>
           </div>
+
+          {state.layoutConfidence === 'heuristic' && !heuristicBannerDismissed ? (
+            <HeuristicLayoutBanner onDismiss={() => setHeuristicBannerDismissed(true)} />
+          ) : null}
 
           {state.hasData && (
             <StorageToolbar

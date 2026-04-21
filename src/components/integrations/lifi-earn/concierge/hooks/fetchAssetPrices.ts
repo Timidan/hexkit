@@ -2,11 +2,7 @@
 // the asset could not be priced — keep amountUsd null, don't fabricate zero.
 import { formatUnits } from "viem";
 import type { IdleAsset } from "../types";
-
-const NATIVE_SENTINELS = new Set([
-  "0x0000000000000000000000000000000000000000",
-  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-]);
+import { isNativeToken } from "../../../../../utils/addressConstants";
 
 const LLAMA_CHAIN_SLUG: Record<number, string> = {
   1: "ethereum",
@@ -84,12 +80,8 @@ function keyFor(chainId: number, address: string): string {
   return `${chainId}:${address.toLowerCase()}`;
 }
 
-function isNative(address: string): boolean {
-  return NATIVE_SENTINELS.has(address.toLowerCase());
-}
-
 function coinIdForAsset(asset: IdleAsset): string | null {
-  if (isNative(asset.token.address)) {
+  if (isNativeToken(asset.token.address)) {
     return NATIVE_COINGECKO_ID[asset.chainId] ?? null;
   }
   const slug = LLAMA_CHAIN_SLUG[asset.chainId];

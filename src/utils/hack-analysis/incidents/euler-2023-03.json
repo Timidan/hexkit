@@ -1,0 +1,144 @@
+{
+  "id": "euler-2023-03",
+  "name": "Euler Finance Flash Loan Exploit",
+  "chain": "ethereum",
+  "date": "2023-03-13",
+  "protocol": "Euler Finance",
+  "amountUsd": 197000000,
+  "canonicalTxs": ["0xc310a0affe2169d1f6feec1c63dbc7f7c62a887fa48795d327d4d2da2d6b111d"],
+  "exploitClasses": ["math-invariant-manipulation", "flashloan-price-manipulation"],
+  "tldr": "Euler Finance lost ~$197M when an attacker exploited a missing health-factor check in the donateToReserves function: flash-loaning DAI, building a leveraged eDAI position, donating collateral to reserves to push their own account insolvent, then self-liquidating for a discounted payout. Funds were ultimately returned after negotiations.",
+  "coreContradiction": "donateToReserves() let users permanently reduce their own collateral without any liquidity check, so an attacker could voluntarily push their account below a health score of 1 and then profit from Euler's own soft-liquidation discount mechanism.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Flash-loan 30M DAI",
+      "detail": "Attacker contract (Exploiter 3) borrowed 30 million DAI from Aave V2 via a flash loan to seed the attack capital.",
+      "sourceIds": ["cyfrin-euler", "slowmist-euler"]
+    },
+    {
+      "order": 2,
+      "label": "Deposit and lever up via mint",
+      "detail": "Deposited 20M DAI into Euler, receiving ~19.57M eDAI, then called mint() twice to self-borrow: accumulating ~410.9M eDAI (collateral) against ~390M dDAI (debt) at a health score of ~1.02, with an intermediate 10M DAI partial repayment to reset leverage headroom.",
+      "sourceIds": ["cyfrin-euler", "rekt-euler"]
+    },
+    {
+      "order": 3,
+      "label": "Donate 100M eDAI to reserves",
+      "detail": "Called donateToReserves() on the eDAI EToken to donate 100M eDAI to the Euler protocol reserve. Because donateToReserves lacked a post-donation liquidity check, the attacker's health score fell to ~0.75 — deep into insolvency — without any revert.",
+      "sourceIds": ["cyfrin-euler", "slowmist-euler", "rekt-euler"]
+    },
+    {
+      "order": 4,
+      "label": "Self-liquidate via liquidator contract",
+      "detail": "A separate liquidator contract called Euler's liquidation module against the now-insolvent violator contract. At health score 0.75 Euler's soft-liquidation formula awarded a 20% collateral discount; the liquidator assumed ~259.3M dDAI debt but obtained ~310.9M eDAI collateral — capturing the discount as profit.",
+      "sourceIds": ["cyfrin-euler", "slowmist-euler"]
+    },
+    {
+      "order": 5,
+      "label": "Withdraw DAI and repay flash loan",
+      "detail": "Liquidator redeemed eDAI for ~38.9M underlying DAI, repaid the 30M DAI Aave flash loan plus interest, and retained ~8.87M DAI net profit from the DAI pool alone. The same pattern was repeated across USDC, WBTC, wstETH, and stETH pools.",
+      "sourceIds": ["cyfrin-euler", "rekt-euler"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0x5F259D0b76665c337c6104145894F4D1D2758B8c",
+      "label": "Euler Finance Exploiter 3 (canonical DAI tx sender)"
+    },
+    {
+      "id": "exploit-contract",
+      "role": "attacker-contract",
+      "address": "0xeBC29199C817Dc47BA12E3F86102564D640CBf99",
+      "label": "Top-level exploit orchestrator contract"
+    },
+    {
+      "id": "violator-contract",
+      "role": "attacker-contract",
+      "address": "0x583c21631c48D442B5C0E605d624f54A0B366c72",
+      "label": "Violator contract (holds insolvent position)"
+    },
+    {
+      "id": "liquidator-contract",
+      "role": "attacker-contract",
+      "address": "0xA0b3ee897f233F385E5D61086c32685257d4f12b",
+      "label": "Liquidator contract (claims discounted collateral)"
+    },
+    {
+      "id": "euler-core",
+      "role": "victim-contract",
+      "address": "0x27182842E098f60e3D576794A5bFFb0777E025d3",
+      "label": "Euler Finance main lending contract"
+    },
+    {
+      "id": "etoken-dai",
+      "role": "token",
+      "address": "0xe025E3ca2bE02316033184551D4d3Aa22024D9DC",
+      "label": "eDAI (Euler interest-bearing DAI)"
+    },
+    {
+      "id": "dtoken-dai",
+      "role": "token",
+      "address": "0x6085Bc95F506c326DCBCD7A6dd6c79FBc18d4686",
+      "label": "dDAI (Euler debt token)"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "euler-core",
+      "toEntityId": "violator-contract",
+      "tokenSymbol": "DAI",
+      "amountHuman": "~200M DAI (eDAI minted via leverage)",
+      "note": "Euler mint() creates self-collateralized eDAI/dDAI positions"
+    },
+    {
+      "fromEntityId": "violator-contract",
+      "toEntityId": "euler-core",
+      "tokenSymbol": "DAI",
+      "amountHuman": "100M eDAI",
+      "note": "donateToReserves() call drops health factor below 1 without check"
+    },
+    {
+      "fromEntityId": "euler-core",
+      "toEntityId": "liquidator-contract",
+      "tokenSymbol": "DAI",
+      "amountHuman": "~38.9M DAI (DAI pool; ~$197M total across all pools)",
+      "note": "Self-liquidation at 20% discount extracts underlying; repeated for USDC, WBTC, wstETH, stETH"
+    },
+    {
+      "fromEntityId": "liquidator-contract",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "DAI",
+      "amountHuman": "~8.87M DAI net per pool after flash loan repayment",
+      "note": "Profit retained after repaying 30M DAI Aave flash loan"
+    }
+  ],
+  "sources": [
+    {
+      "id": "cyfrin-euler",
+      "kind": "post-mortem",
+      "url": "https://www.cyfrin.io/blog/how-did-the-euler-finance-hack-happen-hack-analysis",
+      "publisher": "Cyfrin"
+    },
+    {
+      "id": "rekt-euler",
+      "kind": "post-mortem",
+      "url": "https://rekt.news/euler-rekt/",
+      "publisher": "Rekt News"
+    },
+    {
+      "id": "slowmist-euler",
+      "kind": "forensic-thread",
+      "url": "https://slowmist.medium.com/slowmist-an-analysis-of-the-attack-on-euler-finance-5143abc0d5ad",
+      "publisher": "SlowMist"
+    },
+    {
+      "id": "euler-official",
+      "kind": "official",
+      "url": "https://www.euler.finance/blog/war-peace-behind-the-scenes-of-eulers-240m-exploit-recovery",
+      "publisher": "Euler Finance"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "harmony-2022-06",
+  "name": "Harmony Horizon Bridge Validator Compromise",
+  "chain": "ethereum",
+  "date": "2022-06-23",
+  "protocol": "Harmony Horizon Bridge",
+  "amountUsd": 100000000,
+  "canonicalTxs": ["0x27981c7289c372e601c9475e5b5466310be18ed10b59d1ac840145f6e7804c97"],
+  "exploitClasses": ["signer-compromise", "bridge-message-forgery"],
+  "tldr": "Attackers phished and decrypted private keys for at least two of the five signers on the Horizon bridge multisig, then signed unauthorized unlock transactions that drained ~$100M in ETH, USDC, USDT, WBTC and other tokens from the Ethereum-side Horizon bridge contracts to an attacker EOA; the bridge spans Harmony and Ethereum and all canonical drain txs listed here are on Ethereum.",
+  "coreContradiction": "A cross-chain bridge holding $100M+ was guarded by a 2-of-5 multisig whose signer keys were stored as encrypted secrets on reachable internal servers, so a single phishing foothold collapsed the threshold.",
+  "attackSteps": [
+    { "order": 1, "label": "Phish developer", "detail": "Attackers (later attributed to Lazarus/APT38) phished a Harmony developer with a fake job-offer lure, installed malware and pivoted onto internal Harmony infrastructure where bridge signer key material was stored.", "sourceIds": ["harmony-postmortem", "elliptic-harmony"] },
+    { "order": 2, "label": "Decrypt signer keys", "detail": "From inside Harmony's operational infrastructure the attackers accessed and decrypted private keys for at least two of the five Horizon bridge multisig signers, enough to meet the 2-of-5 threshold on the Ethereum side.", "sourceIds": ["harmony-postmortem", "merkle-harmony"] },
+    { "order": 3, "label": "Sign malicious unlockTokens", "detail": "Using signer EOAs 0xf845A7ee8477AD1FB4446651E548901a2635A915 and 0x812d8622C6F3c45959439e7ede3C580dA06f8f25 the attackers submitted and confirmed multisig transactions that invoked the Horizon bridge's unlock/owner paths, authorizing transfers to the attacker EOA.", "sourceIds": ["lazarus-research", "elliptic-harmony"] },
+    { "order": 4, "label": "Drain ETH bridge", "detail": "At 11:06 UTC on 2022-06-23, tx 0x27981c...804c97 drained 13,100 ETH (~$29.7M) from the Harmony ETH Bridge (0xF9Fb1c508Ff49F78b60d3A96dea99Fa5d7F3A8A6) directly to the attacker EOA in a single Unlocked event.", "sourceIds": ["merkle-harmony", "lazarus-research"] },
+    { "order": 5, "label": "Drain ERC20 bridge", "detail": "Additional unauthorized transactions against the Horizon ERC20 Bridge (0x2dCCDB493827E15a5dC8f8b72147E6c4A5620857) sent roughly 41.2M USDC, 9.98M USDT, 592 WBTC plus DAI, WETH, SUSHI, AAVE, FXS and FRAX to the same attacker EOA, bringing total losses to about $100M.", "sourceIds": ["merkle-harmony", "elliptic-harmony"] },
+    { "order": 6, "label": "Launder via Tornado Cash", "detail": "The attacker swapped stolen tokens to ETH and, between June 27 and July 2, 2022, deposited roughly 85,700 ETH into Tornado Cash across about 857 transactions; Elliptic and later the FBI attributed the laundering pattern to the Lazarus Group.", "sourceIds": ["elliptic-harmony", "merkle-harmony"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x0d043128146654C7683Fbf30ac98D7B2285DeD00", "label": "Horizon Bridge Exploiter EOA" },
+    { "id": "eth-bridge", "role": "bridge", "address": "0xF9Fb1c508Ff49F78b60d3A96dea99Fa5d7F3A8A6", "label": "Harmony Horizon ETH Bridge" },
+    { "id": "erc20-bridge", "role": "bridge", "address": "0x2dCCDB493827E15a5dC8f8b72147E6c4A5620857", "label": "Harmony Horizon ERC20 Bridge" },
+    { "id": "busd-bridge", "role": "bridge", "address": "0xfD53b1B4AF84D59B20bF2C20CA89a6BeeAa2c628", "label": "Harmony Horizon BUSD Bridge" },
+    { "id": "signer-1", "role": "signer", "address": "0xf845A7ee8477AD1FB4446651E548901a2635A915", "label": "Compromised Horizon multisig signer #1" },
+    { "id": "signer-2", "role": "signer", "address": "0x812d8622C6F3c45959439e7ede3C580dA06f8f25", "label": "Compromised Horizon multisig signer #2" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "eth-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": "ETH", "amountHuman": "13,100 ETH", "note": "Single Unlocked tx 0x27981c...804c97, ~$29.7M at time of hack" },
+    { "fromEntityId": "erc20-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": "USDC", "amountHuman": "41,200,000 USDC", "note": "Block 15012652, largest ERC20 drain" },
+    { "fromEntityId": "erc20-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": "USDT", "amountHuman": "9,981,000 USDT", "note": "Block 15012671" },
+    { "fromEntityId": "erc20-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": "WBTC", "amountHuman": "592 WBTC", "note": "Block 15012654" },
+    { "fromEntityId": "erc20-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": null, "amountHuman": null, "note": "Additional drains: DAI, WETH, SUSHI, AAVE, FXS, FRAX" },
+    { "fromEntityId": "busd-bridge", "toEntityId": "attacker-eoa", "tokenSymbol": "BUSD", "amountHuman": "5,500,000 BUSD", "note": "BUSD bridge drain (reported by Merkle Science)" }
+  ],
+  "sources": [
+    { "id": "harmony-postmortem", "kind": "post-mortem", "url": "https://talk.harmony.one/t/summary-of-the-horizon-bridge-incident/20990", "publisher": "Harmony" },
+    { "id": "elliptic-harmony", "kind": "forensic-thread", "url": "https://www.elliptic.co/blog/analysis/over-1-billion-stolen-from-bridges-so-far-in-2022-as-harmony-s-horizon-bridge-becomes-latest-victim-in-100-million-hack/hss_channeltw-1344645140", "publisher": "Elliptic" },
+    { "id": "merkle-harmony", "kind": "forensic-thread", "url": "https://www.merklescience.com/blog/hack-track-analysis-of-harmonys-horizon-bridge-exploit", "publisher": "Merkle Science" },
+    { "id": "lazarus-research", "kind": "database-row", "url": "https://github.com/tayvano/lazarus-bluenoroff-research/blob/main/hacks-and-thefts/harmony_horizon_bridge.md", "publisher": "tayvano lazarus-bluenoroff-research" }
+  ]
+}

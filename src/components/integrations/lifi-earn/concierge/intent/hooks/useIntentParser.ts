@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { postLlmRecommend } from "../../../earnApi";
+import { useLlmInvocation } from "../../../../../../hooks/useLlmInvocation";
+import { useLlmConfig } from "../../../../../../contexts/LlmConfigContext";
 import { parsedIntentSchema, type ParsedIntent, DEFAULT_INTENT } from "../schema";
 import type { EarnChainInfo, EarnProtocolInfo } from "../../../types";
 
@@ -19,62 +20,8 @@ export interface ParseIntentResult {
   rawText: string;
 }
 
-export function useIntentParser() {
-  return useMutation<ParseIntentResult, Error, ParseIntentArgs>({
-    mutationFn: async ({ text, chains, protocols }) => {
-      const trimmed = text.trim();
-      if (!trimmed) {
-        throw new Error("Please describe your yield goal.");
-      }
-      if (LLM_MODE === "off") {
-        return { intent: DEFAULT_INTENT, rawText: trimmed };
-      }
-
-      const request = buildParseRequest(trimmed, chains, protocols);
-
-      let lastError: string | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const raw = await postLlmRecommend(request);
-          const responseText = extractGeminiText(raw);
-          if (!responseText) throw new Error("empty LLM response");
-          const json = safeParseJson(responseText);
-          if (!json) throw new Error("LLM did not return JSON");
-          const result = parsedIntentSchema.safeParse(json);
-          if (!result.success) {
-            throw new Error(
-              `schema: ${result.error.issues[0]?.path.join(".") ?? "?"}: ${
-                result.error.issues[0]?.message ?? "unknown"
-              }`
-            );
-          }
-          return { intent: result.data, rawText: trimmed };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          lastError = msg;
-          // eslint-disable-next-line no-console
-          console.warn(`[intent-parser] attempt ${attempt + 1} failed:`, msg);
-        }
-      }
-      throw new Error(lastError ?? "Failed to parse intent");
-    },
-  });
-}
-
-function buildParseRequest(
-  userText: string,
-  chains: EarnChainInfo[],
-  protocols: EarnProtocolInfo[]
-) {
-  // Ship a compact chain/protocol registry so Gemini can resolve "Arbitrum"
-  // to chainId 42161 and "Aave" to slug "aave-v3" without hallucinating.
-  const chainRegistry = chains.map((c) => ({
-    chain_id: c.chainId,
-    name: c.name,
-  }));
-  const protocolRegistry = protocols.map((p) => p.name);
-
-  const system = `You are a yield intent parser. The user will describe a DeFi yield goal in plain English. Convert their goal into a strict JSON object matching the required shape.
+// The full system prompt is preserved verbatim — this is tuned prompt engineering.
+const SYSTEM_PROMPT = `You are a yield intent parser. The user will describe a DeFi yield goal in plain English. Convert their goal into a strict JSON object matching the required shape.
 
 Rules:
 - Return ONLY JSON matching the shape below. No prose, no code fences, no commentary.
@@ -127,93 +74,76 @@ DISAMBIGUATION EXAMPLES (for tricky fields only — use your judgment for object
 
 If the user gives a clearly non-yield or off-topic message, return all-null/default values.`;
 
-  const shape = {
-    target_symbol: "string | null",
-    my_assets: "boolean",
-    routing_mode: "'per-asset' | 'consolidate'",
-    target_chain_id: "number | null",
-    min_apy_pct: "number | null",
-    max_apy_pct: "number | null",
-    objective: "'safest' | 'highest' | 'balanced'",
-    min_tvl_usd: "number | null",
-    include_protocols: "string[]",
-    exclude_protocols: "string[]",
-    result_count: "number (1-4) | null",
-  };
+export function useIntentParser() {
+  const { invoke } = useLlmInvocation();
+  const { config } = useLlmConfig();
+  const geminiModel = config.providers.gemini.model || "gemini-2.5-pro";
 
-  const payload = {
-    user_text: userText,
-    chain_registry: chainRegistry,
-    protocol_registry: protocolRegistry,
-    required_output_shape: shape,
-  };
-
-  return {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: system },
-          {
-            text:
-              "INPUT:\n```json\n" +
-              JSON.stringify(payload, null, 2) +
-              "\n```\n\nReturn ONLY the JSON object.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
-  };
-}
-
-function extractGeminiText(raw: unknown): string | null {
-  // Gemini 3 Pro can return multi-part content with `thought: true` parts
-  // before the answer — concatenate every non-thought text part.
-  try {
-    const r = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string; thought?: boolean }>;
-        };
-      }>;
-    };
-    const parts = r.candidates?.[0]?.content?.parts ?? [];
-    const joined = parts
-      .filter((p) => !p.thought && typeof p.text === "string")
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-    return joined.length > 0 ? joined : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
+  return useMutation<ParseIntentResult, Error, ParseIntentArgs>({
+    mutationFn: async ({ text, chains, protocols }) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        throw new Error("Please describe your yield goal.");
       }
-      return null;
-    }
-  }
+      if (LLM_MODE === "off") {
+        return { intent: DEFAULT_INTENT, rawText: trimmed };
+      }
+
+      // Ship a compact chain/protocol registry so Gemini can resolve "Arbitrum"
+      // to chainId 42161 and "Aave" to slug "aave-v3" without hallucinating.
+      const chainRegistry = chains.map((c) => ({
+        chain_id: c.chainId,
+        name: c.name,
+      }));
+      const protocolRegistry = protocols.map((p) => p.name);
+
+      const shape = {
+        target_symbol: "string | null",
+        my_assets: "boolean",
+        routing_mode: "'per-asset' | 'consolidate'",
+        target_chain_id: "number | null",
+        min_apy_pct: "number | null",
+        max_apy_pct: "number | null",
+        objective: "'safest' | 'highest' | 'balanced'",
+        min_tvl_usd: "number | null",
+        include_protocols: "string[]",
+        exclude_protocols: "string[]",
+        result_count: "number (1-4) | null",
+      };
+
+      const payload = {
+        user_text: trimmed,
+        chain_registry: chainRegistry,
+        protocol_registry: protocolRegistry,
+        required_output_shape: shape,
+      };
+
+      const userContent =
+        "INPUT:\n```json\n" +
+        JSON.stringify(payload, null, 2) +
+        "\n```\n\nReturn ONLY the JSON object.";
+
+      // Note: the old code set responseMimeType:"application/json" and temperature:0.1 in
+      // generationConfig; the shared transport omits those. stripJsonEnvelope (in the shared
+      // hook) handles any markdown fencing Gemini may add. Temperature defaults higher, so
+      // outputs are slightly less deterministic — accepted trade-off for the shared layer.
+      // Note: the old extractGeminiText filtered thought:true parts; extractText in the shared
+      // hook concatenates all parts. In practice Gemini 2.5 Pro emits no thought parts unless
+      // thinkingConfig is set (it isn't here), so this is a no-op.
+      const res = await invoke<ParsedIntent>({
+        task: "yield-intent-parse",
+        provider: "gemini",
+        model: geminiModel,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userContent },
+        ],
+        responseFormat: "json",
+        schema: parsedIntentSchema,
+        maxRetries: 2,
+      });
+      if (!res.parsed) throw new Error("LLM did not return a valid intent");
+      return { intent: res.parsed, rawText: trimmed };
+    },
+  });
 }

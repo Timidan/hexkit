@@ -24,6 +24,8 @@ import { useIdleBalances } from "../hooks/useIdleBalances";
 import { useIntentParser } from "./hooks/useIntentParser";
 import { useVaultsByIntent } from "./hooks/useVaultsByIntent";
 import { useIntentRecommendation, buildRecommendation } from "./hooks/useIntentRecommendation";
+import { useLlmInvocation } from "../../../../../hooks/useLlmInvocation";
+import { useLlmConfig } from "../../../../../contexts/LlmConfigContext";
 import type { ParsedIntent } from "./schema";
 import type { EarnVault } from "../../types";
 import type { IdleAsset, SelectedSource, VaultRecommendation } from "../types";
@@ -231,6 +233,10 @@ interface MultiRecResult {
 function useMultiAssetRecommendations(
   argsList: (Parameters<typeof useIntentRecommendation>[0] | null)[],
 ): MultiRecResult[] {
+  const { invoke } = useLlmInvocation();
+  const { config } = useLlmConfig();
+  const geminiModel = config.providers.gemini.model || "gemini-2.5-pro";
+
   const stableKey = useMemo(
     () =>
       argsList.map((a) =>
@@ -244,7 +250,7 @@ function useMultiAssetRecommendations(
   const hasAnyArgs = argsList.some((a) => a != null);
 
   const query = useQuery<{ rec: VaultRecommendation | null; error: string | null }[]>({
-    queryKey: ["multi-intent-rec", stableKey],
+    queryKey: ["multi-intent-rec", geminiModel, stableKey],
     enabled: hasAnyArgs,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -255,7 +261,7 @@ function useMultiAssetRecommendations(
       return Promise.all(
         argsList.map(async (args) => {
           if (!args || args.rankedVaults.length === 0) return { rec: null, error: null };
-          const result = await buildRecommendation(args);
+          const result = await buildRecommendation(invoke, args, geminiModel);
           return { rec: result.recommendation, error: result.llmError };
         }),
       );

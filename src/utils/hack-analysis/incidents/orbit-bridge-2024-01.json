@@ -1,0 +1,46 @@
+{
+  "id": "orbit-bridge-2024-01",
+  "name": "Orbit Bridge Multisig Drain",
+  "chain": "ethereum",
+  "date": "2024-01-01",
+  "protocol": "Orbit Bridge",
+  "amountUsd": 81500000,
+  "canonicalTxs": [
+    "0xafdc36278fcef8d54824b09ec019147cfe2afd995abf6754e52d273a2c1b07ca",
+    "0xe0bada18fdc56dec125c31b1636490f85ba66016318060a066ed7050ff7271f9",
+    "0x639d27e564214411ad8eb06cf00d85cd90f83503a53ab5bf35dd5c6e1148ae0a",
+    "0x64a6f486c20671e1389b3c7948d46733325c407245a86bf510cb69ef401a3f0e",
+    "0xd8ca42941a0a2c25669267ad8d61f7f9f4118252cb502316602fe16624b80ac8"
+  ],
+  "exploitClasses": ["signer-compromise", "bridge-message-forgery"],
+  "tldr": "On New Year's Day 2024 an attacker controlling 7 of 10 Orbit Bridge multisig signer keys forged valid withdrawal authorizations and drained $81.5M in ETH, DAI, USDC, USDT, and wBTC from the Ethereum-side vault. The attack is attributed to North Korea's Lazarus Group.",
+  "coreContradiction": "The bridge's 5-of-7 signing threshold was meant to distribute trust, but attacker control of 7 signers turned the quorum into a single point of failure.",
+  "attackSteps": [
+    { "order": 1, "label": "Signer keys stolen", "detail": "Attacker (suspected Lazarus Group) obtained private keys for 7 of the 10 Orbit Bridge multisig signers, likely via social engineering or the deliberately weakened firewall policies set by Ozys' former CISO in November 2023.", "sourceIds": ["orbit-official", "halborn-orbit"] },
+    { "order": 2, "label": "Tornado Cash funding", "detail": "Attacker funded the exploit wallet via Tornado Cash through intermediary address 0x70462bFB204BF3CcB0560f259072F8E3A85b3512 to obscure the trail.", "sourceIds": ["rekt-orbit"] },
+    { "order": 3, "label": "Forge withdrawal messages", "detail": "Using 7 compromised signer keys, the attacker produced valid multisig-signed withdrawal messages to the Orbit Bridge Ethereum vault, satisfying the signing threshold.", "sourceIds": ["rekt-orbit", "halborn-orbit"] },
+    { "order": 4, "label": "Drain DAI (10M)", "detail": "First withdrawal: 10,000,000 DAI transferred from the ETH vault to the attacker at 21:08 UTC on December 31 / January 1.", "sourceIds": ["rekt-orbit"] },
+    { "order": 5, "label": "Drain WBTC (231)", "detail": "231 WBTC (~$9.8M) drained from the ETH vault in the second withdrawal transaction.", "sourceIds": ["rekt-orbit"] },
+    { "order": 6, "label": "Drain ETH (9,500)", "detail": "9,500 ETH (~$21.5M) drained from the ETH vault.", "sourceIds": ["rekt-orbit"] },
+    { "order": 7, "label": "Drain USDC (10M)", "detail": "10,000,000 USDC drained from the ETH vault.", "sourceIds": ["rekt-orbit"] },
+    { "order": 8, "label": "Drain USDT (30M)", "detail": "30,000,000 USDT drained from the ETH vault at 21:25 UTC, completing the five-asset drain totaling $81.5M.", "sourceIds": ["rekt-orbit"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x9263e7873613DDc598a701709875634819176AfF", "label": "Attacker primary EOA" },
+    { "id": "attacker-intermediary", "role": "attacker-eoa", "address": "0x70462bFB204BF3CcB0560f259072F8E3A85b3512", "label": "Tornado Cash intermediary" },
+    { "id": "victim-vault", "role": "victim-contract", "address": "0x1Bf68A9d1EaEe7826b3593C20a0ca93293cb489a", "label": "Orbit Bridge ETH Vault" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "victim-vault", "toEntityId": "attacker-eoa", "tokenSymbol": "DAI", "amountHuman": "10,000,000 DAI", "note": "First withdrawal" },
+    { "fromEntityId": "victim-vault", "toEntityId": "attacker-eoa", "tokenSymbol": "WBTC", "amountHuman": "231 WBTC", "note": "Second withdrawal ~$9.8M" },
+    { "fromEntityId": "victim-vault", "toEntityId": "attacker-eoa", "tokenSymbol": "ETH", "amountHuman": "9,500 ETH", "note": "Third withdrawal ~$21.5M" },
+    { "fromEntityId": "victim-vault", "toEntityId": "attacker-eoa", "tokenSymbol": "USDC", "amountHuman": "10,000,000 USDC", "note": "Fourth withdrawal" },
+    { "fromEntityId": "victim-vault", "toEntityId": "attacker-eoa", "tokenSymbol": "USDT", "amountHuman": "30,000,000 USDT", "note": "Fifth withdrawal, completing drain" }
+  ],
+  "sources": [
+    { "id": "rekt-orbit", "kind": "post-mortem", "url": "https://rekt.news/orbit-bridge-rekt", "publisher": "Rekt News" },
+    { "id": "orbit-official", "kind": "official", "url": "https://medium.com/orbit-chain/official-statement-regarding-orbit-bridge-exploit-551928f3dc52", "publisher": "Orbit Chain" },
+    { "id": "halborn-orbit", "kind": "post-mortem", "url": "https://www.halborn.com/blog/post/explained-the-orbit-bridge-hack-december-2023", "publisher": "Halborn" },
+    { "id": "dn-orbit", "kind": "database-row", "url": "https://dn.institute/research/cyberattacks/incidents/2023-12-31-orbit-bridge/", "publisher": "Distributed Networks Institute" }
+  ]
+}

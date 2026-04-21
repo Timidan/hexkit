@@ -77,15 +77,26 @@ export const StorageToolbar: React.FC<StorageToolbarProps> = ({
           className={`text-[10px] h-5 gap-1 ${
             layoutConfidence === 'compiler'
               ? 'text-green-400 border-green-400/30'
-              : 'text-amber-400 border-amber-400/30'
+              : layoutConfidence === 'reconstructed'
+                ? 'text-amber-400 border-amber-400/30'
+                : 'text-orange-500 border-orange-500/40'
           }`}
+          title={
+            layoutConfidence === 'heuristic'
+              ? 'Layout synthesized from Heimdall decompilation — fields may be mislabeled or missing. See the banner for caveats.'
+              : undefined
+          }
         >
           {layoutConfidence === 'compiler' ? (
             <CheckCircle className="w-2.5 h-2.5" />
           ) : (
             <WarningCircle className="w-2.5 h-2.5" />
           )}
-          {layoutConfidence === 'compiler' ? 'Compiler Layout' : 'Reconstructed'}
+          {layoutConfidence === 'compiler'
+            ? 'Compiler Layout'
+            : layoutConfidence === 'reconstructed'
+              ? 'Reconstructed'
+              : 'Heuristic'}
         </Badge>
       )}
       {contractMeta?.proxyInfo?.proxyType === 'diamond' ? (

@@ -11,6 +11,7 @@ import { DebugProvider } from "./contexts/DebugContext";
 import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
+import { LlmConsentGateProvider } from "./contexts/LlmConsentGateContext";
 import { RouteMetaTags } from "./components/shared/RouteMetaTags";
 import { useNetworkConfig } from "./contexts/NetworkConfigContext";
 import { Button } from "./components/ui/button";
@@ -22,11 +23,14 @@ import MobileDrawer from "./components/MobileDrawer";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
-const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
+const SettingsModal = React.lazy(() => import("./components/SettingsModal"));
 const StorageManagerModal = React.lazy(() => import("./components/StorageManagerModal"));
+const TxSummarySamplesPage = React.lazy(
+  () => import("./components/tx-analysis/TxSummarySamplesPage"),
+);
 
 function App() {
-  const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
@@ -35,6 +39,7 @@ function App() {
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
+  const isTxSummarySamples = location.pathname === "/tx-summary-samples";
 
   useApplyRainbowKitTheme();
 
@@ -49,13 +54,14 @@ function App() {
     <ToolkitProvider>
       <SimulationProvider>
         <DebugProvider>
+          <LlmConsentGateProvider>
           <NotificationProvider>
             <ErrorBoundary>
               <RouteMetaTags />
               <ConstellationBackground />
               {/* Global top bar — visible on every route */}
               <TopBar
-                onOpenRpcSettings={() => setIsRpcModalOpen(true)}
+                onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onOpenStorageManager={() => setIsStorageModalOpen(true)}
                 onToggleMobileMenu={() => setIsMobileMenuOpen((v) => !v)}
                 isMobileMenuOpen={isMobileMenuOpen}
@@ -78,6 +84,12 @@ function App() {
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                 </Routes>
+              ) : isTxSummarySamples ? (
+                <Suspense fallback={<LoadingSpinner text="Loading samples" fullPage />}>
+                  <Routes>
+                    <Route path="/tx-summary-samples" element={<TxSummarySamplesPage />} />
+                  </Routes>
+                </Suspense>
               ) : (
                 <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder") || location.pathname.startsWith("/integrations")) && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
@@ -141,7 +153,7 @@ function App() {
                             type="button"
                             variant="ghost"
                             className="btn btn-primary"
-                            onClick={() => setIsRpcModalOpen(true)}
+                            onClick={() => setIsSettingsModalOpen(true)}
                             style={{
                               padding: "10px 16px",
                               borderRadius: "10px",
@@ -183,11 +195,11 @@ function App() {
                 <EdbBridgeStatus />
               </footer>
 
-              {isRpcModalOpen && (
+              {isSettingsModalOpen && (
                 <Suspense fallback={null}>
-                  <RpcSettingsModal
-                    isOpen={isRpcModalOpen}
-                    onClose={() => setIsRpcModalOpen(false)}
+                  <SettingsModal
+                    isOpen={isSettingsModalOpen}
+                    onClose={() => setIsSettingsModalOpen(false)}
                   />
                 </Suspense>
               )}
@@ -202,6 +214,7 @@ function App() {
               )}
             </ErrorBoundary>
           </NotificationProvider>
+          </LlmConsentGateProvider>
         </DebugProvider>
       </SimulationProvider>
     </ToolkitProvider>

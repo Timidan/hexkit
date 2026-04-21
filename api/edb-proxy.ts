@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { maybeInjectDefaultEtherscanKey } from "../edbShared.js";
+import { maybeInjectDefaultEtherscanKey } from "./edbShared.js";
 
 export const config = {
   api: { bodyParser: false },
@@ -104,9 +104,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "method_not_allowed" });
   }
 
-  // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes
-  const urlPath = (req.url || "").split("?")[0];
-  const subPath = urlPath.replace(/^\/api\/edb\/?/, "");
+  // Extract sub-path from the `path` query param populated by the Vercel
+  // rewrite rule in vercel.json. Vercel's file-based catch-all routing
+  // (`api/edb/[...path].ts`) does not reliably match multi-segment requests
+  // under `/api/edb/*` on this project, so we route via an explicit rewrite
+  // that mirrors the lifi-composer pattern.
+  const pathParam = req.query?.path;
+  const subPath = Array.isArray(pathParam)
+    ? pathParam.join("/")
+    : typeof pathParam === "string"
+      ? pathParam
+      : "";
 
   // Validate each path segment
   const parts = subPath ? subPath.split("/") : [];

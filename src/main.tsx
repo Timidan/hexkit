@@ -16,20 +16,23 @@ import {
   RpcAwareWagmiProvider
 } from './config/rainbowkit';
 import { NetworkConfigProvider } from "./contexts/NetworkConfigContext";
+import { LlmConfigProvider } from "./contexts/LlmConfigContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <HelmetProvider>
       <NetworkConfigProvider>
-        <RpcAwareWagmiProvider>
-          <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider theme={web3ToolkitTheme}>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </RainbowKitProvider>
-          </QueryClientProvider>
-        </RpcAwareWagmiProvider>
+        <LlmConfigProvider>
+          <RpcAwareWagmiProvider>
+            <QueryClientProvider client={queryClient}>
+              <RainbowKitProvider theme={web3ToolkitTheme}>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </RainbowKitProvider>
+            </QueryClientProvider>
+          </RpcAwareWagmiProvider>
+        </LlmConfigProvider>
       </NetworkConfigProvider>
     </HelmetProvider>
   </StrictMode>

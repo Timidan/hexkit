@@ -1,8 +1,16 @@
 /**
- * Type definitions for simulation artifacts.
- *
- * Extracted from simulationArtifacts.ts to keep each module under 800 lines.
+ * Type definitions and shared leaf helpers for simulation artifacts.
  */
+
+export const ensureArray = <T,>(value: unknown, mapFn?: (item: any) => T): T[] => {
+  if (Array.isArray(value)) {
+    return mapFn ? value.map(mapFn) : (value as T[]);
+  }
+  if (value && typeof value === "object") {
+    return mapFn ? [mapFn(value)] : [value as T];
+  }
+  return [];
+};
 
 export type SimulationCallNode = {
   frameKey: string;

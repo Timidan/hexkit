@@ -31,6 +31,8 @@ import type {
 import { shortHex } from './storageViewerHelpers';
 import { useGridCharLimits } from './storageViewerHooks';
 import { useStorageViewerData } from './useStorageViewerData';
+import { useHeimdallAvailability } from '../../utils/heimdall/useHeimdallAvailability';
+import { fetchHeimdallStorageDump, fetchHeimdallDecompilation } from '../../utils/heimdall/heimdallApi';
 
 export function useStorageViewerState() {
   const location = useLocation();
@@ -90,6 +92,8 @@ export function useStorageViewerState() {
     readSlotFromEdb,
     readSlotFromRpc,
   } = useStorageEvidence();
+
+  const heimdallAvailability = useHeimdallAvailability();
 
   const contextAbortRef = useRef<AbortController | null>(null);
 
@@ -318,6 +322,14 @@ export function useStorageViewerState() {
       proxyType,
       sourceBundle,
       fallbackAddresses,
+      heimdall: heimdallAvailability.isAvailable
+        ? {
+            chainId,
+            blockNumber: undefined,
+            fetchStorageDump: fetchHeimdallStorageDump,
+            fetchDecompilation: fetchHeimdallDecompilation,
+          }
+        : undefined,
     });
 
     setPostLoadResolving(true);
@@ -383,7 +395,7 @@ export function useStorageViewerState() {
 
     performance.mark('storage-fetch-end');
     performance.measure('storage-slot-table-paint', 'storage-fetch-start', 'storage-fetch-end');
-  }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc, discovery]);
+  }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc, discovery, heimdallAvailability.isAvailable]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

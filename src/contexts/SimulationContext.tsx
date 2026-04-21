@@ -3,6 +3,16 @@ import type { SimulationResult } from "../types/transaction";
 import type { TraceContract } from "../utils/traceAddressCollector";
 import type { DecodedTraceRow } from "../utils/traceDecoder";
 import { buildOpcodeTraceFromSnapshots } from "../utils/simulationArtifacts";
+import type { BridgeSimulationResponsePayload } from "../utils/transaction-simulation/types";
+
+export interface TxAnalysisSubject {
+  simulationId: string;
+  from: string;
+  // null for contract-creation txs (e.g., Beanstalk).
+  to: string | null;
+  txHash: string | null;
+  simulation: BridgeSimulationResponsePayload;
+}
 
 /**
  * Metadata from decoded trace that needs to persist across page refreshes.
@@ -110,6 +120,9 @@ interface SimulationContextValue {
   setDecodedTraceMeta: (meta: DecodedTraceMeta | null) => void;
   /** Strip heavy trace data from currentSimulation after decoding is complete */
   stripHeavyDataFromCurrentSimulation: () => void;
+  /** Subject of the Tx Analysis sub-tool (set when user clicks Summarize). */
+  analysisSubject: TxAnalysisSubject | null;
+  setAnalysisSubject: (subject: TxAnalysisSubject | null) => void;
 }
 
 const SimulationContext = createContext<SimulationContextValue | undefined>(
@@ -129,6 +142,8 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [decodedTraceRows, setDecodedTraceRowsState] = useState<DecodedTraceRow[] | null>(null);
   // Decoded trace metadata - persisted separately to survive page refresh
   const [decodedTraceMeta, setDecodedTraceMetaState] = useState<DecodedTraceMeta | null>(null);
+  // Tx-Captain analysis subject (set when user clicks Summarize).
+  const [analysisSubject, setAnalysisSubjectState] = useState<TxAnalysisSubject | null>(null);
 
   // Clear old localStorage data on mount to free space
   useEffect(() => {
@@ -226,6 +241,10 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
+  const setAnalysisSubject = useCallback((subject: TxAnalysisSubject | null) => {
+    setAnalysisSubjectState(subject);
+  }, []);
+
   const providerValue = useMemo<SimulationContextValue>(() => ({
     currentSimulation,
     contractContext,
@@ -240,6 +259,8 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
     decodedTraceMeta,
     setDecodedTraceMeta,
     stripHeavyDataFromCurrentSimulation,
+    analysisSubject,
+    setAnalysisSubject,
   }), [
     currentSimulation,
     contractContext,
@@ -254,6 +275,8 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
     decodedTraceMeta,
     setDecodedTraceMeta,
     stripHeavyDataFromCurrentSimulation,
+    analysisSubject,
+    setAnalysisSubject,
   ]);
 
   return (

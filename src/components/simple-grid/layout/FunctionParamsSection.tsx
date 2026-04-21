@@ -1,6 +1,5 @@
 /**
  * FunctionParamsSection - Enhanced function parameters input.
- * Extracted from GridLayout.tsx lines 1954-2506.
  */
 import React from "react";
 import {

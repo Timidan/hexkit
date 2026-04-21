@@ -1,0 +1,9 @@
+{
+  "RiskThrottle": "0x1FbB01D8e3FE4E99D6742eeBf1A4e276050ecD05",
+  "HackTriage": "0xBe02be322c7733759ee068067BD620791e9e73D4",
+  "block": 10694623,
+  "deployer": "0x2fdB4B2288137025476c9B5E135b0F1738472dB6",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "timestamp": "2026-04-20T03:10:01.397Z"
+}

@@ -1,7 +1,4 @@
-export function shortAddress(addr: string): string {
-  if (!addr || addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+export { shortenAddress as shortAddress } from "../../shared/AddressDisplay";
 
 /**
  * Turn a thrown error into a one-liner a user can act on.
@@ -67,11 +64,4 @@ export function formatTxError(err: unknown): string {
   return "Transaction failed";
 }
 
-export const NATIVE_ADDRESSES = new Set([
-  "0x0000000000000000000000000000000000000000",
-  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-]);
-
-export function isNativeToken(addr: string): boolean {
-  return NATIVE_ADDRESSES.has(addr.toLowerCase());
-}
+export { isNativeToken } from "../../../utils/addressConstants";

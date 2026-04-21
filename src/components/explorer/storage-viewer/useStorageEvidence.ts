@@ -583,6 +583,8 @@ export function useStorageEvidence() {
       sourceBundle?: { files: Record<string, string>; contractName?: string; compilerVersion?: string };
       /** Diamond facet addresses to try fetching layout from */
       fallbackAddresses?: string[];
+      /** Heuristic tier opt-in. See fetchStorageLayout.FetchLayoutOptions.heimdall. */
+      heimdall?: import('./fetchStorageLayout').FetchLayoutOptions['heimdall'];
     }) => {
       abortRef.current?.abort();
       abortRef.current = new AbortController();
@@ -629,6 +631,7 @@ export function useStorageEvidence() {
               sourceBundle: params.sourceBundle,
               observedSlots,
               fallbackAddresses: params.fallbackAddresses,
+              heimdall: params.heimdall,
             },
           );
           if (publicResult) {

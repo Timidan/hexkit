@@ -1,9 +1,6 @@
 /**
  * Frame hierarchy, collapsed ranges, visibility, and visual-rail helpers
- * for the execution trace viewer.
- *
- * Extracted from useTraceState.ts to keep each module under 800 lines.
- */
+ * for the execution trace viewer. */
 
 import type { TraceRow, TraceFilters, FrameHierarchyEntry } from "./traceTypes";
 

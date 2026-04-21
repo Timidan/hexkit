@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from "./ui/accordion";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
+import { extractTokenMovements } from "../utils/tokenMovements";
 
 // Re-export types for backward compatibility
 export type { TraceRow, TraceFilters, DecodedLogData } from "./execution-trace";
@@ -134,8 +135,31 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
   }, [assetChanges]);
 
   const hasAssetChanges = orderedAssetChanges.rows.length > 0;
-  const hasTokenEvents = traceEvents && traceEvents.length > 0;
-  const defaultAccordionItems: string[] = [];
+
+  // Pre-compute actual token transfer count so we only show the accordion
+  // when there are real Transfer events (not just any LOG opcode).
+  const tokenMovements = React.useMemo(
+    () => (traceEvents && traceEvents.length > 0 ? extractTokenMovements(traceEvents) : []),
+    [traceEvents]
+  );
+  const hasTokenMovements = tokenMovements.length > 0;
+
+  // Auto-expand accordion items when data becomes available.
+  // We use controlled state because `defaultValue` only applies at mount —
+  // if the component mounts while trace is still decoding, the accordion
+  // would stay collapsed even after data arrives.
+  const [openAccordionItems, setOpenAccordionItems] = React.useState<string[]>([]);
+  const hasAutoExpandedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hasAutoExpandedRef.current) return;
+    const items: string[] = [];
+    if (hasAssetChanges) items.push("native-token-change");
+    if (hasTokenMovements) items.push("token-movements");
+    if (items.length > 0) {
+      setOpenAccordionItems(items);
+      hasAutoExpandedRef.current = true;
+    }
+  }, [hasAssetChanges, hasTokenMovements]);
 
   return (
     <div className="exec-stack-trace">
@@ -184,8 +208,8 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
       </section>
 
       {/* Asset Movements Accordion (Native Token Change + Token Movements) */}
-      {(hasAssetChanges || hasTokenEvents) && (
-        <Accordion type="multiple" defaultValue={defaultAccordionItems} className="exec-asset-movements-accordion">
+      {(hasAssetChanges || hasTokenMovements) && (
+        <Accordion type="multiple" value={openAccordionItems} onValueChange={setOpenAccordionItems} className="exec-asset-movements-accordion">
           {/* Native Token Change */}
           {hasAssetChanges && (
             <AccordionItem value="native-token-change">
@@ -244,16 +268,16 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
           )}
 
           {/* Token Movements */}
-          {hasTokenEvents && (
+          {hasTokenMovements && (
             <AccordionItem value="token-movements">
               <AccordionTrigger>
                 Token Movements
-                <span className="exec-accordion-count">{traceEvents!.length}</span>
+                <span className="exec-accordion-count">{tokenMovements.length}</span>
               </AccordionTrigger>
               <AccordionContent>
                 <TokenMovementsPanel
                   key={`token-movements-${state.fetchedSymbol || 'loading'}`}
-                  events={traceEvents}
+                  movements={tokenMovements}
                   senderAddress={senderAddress}
                   addressToName={state.addressToName}
                   addressToSymbol={state.addressToSymbol}

@@ -59,6 +59,10 @@ debug-formatter.html
 # Submodule / nested repos
 edb
 
+# Repo uses npm; prevent accidental pnpm installs at the root from being committed
+# (confuses Vercel's package-manager auto-detection)
+/pnpm-lock.yaml
+
 # Misc
 *.pdf
 *test*

@@ -1,0 +1,4 @@
+[submodule "edb"]
+	path = edb
+	url = git@github.com:Timidan/edb-extended.git
+	branch = toolkit

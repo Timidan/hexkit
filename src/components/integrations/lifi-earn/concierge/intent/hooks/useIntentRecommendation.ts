@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { postLlmRecommend } from "../../../earnApi";
-import { llmRecommendationSchema } from "../../schema";
+import { useLlmInvocation } from "../../../../../../hooks/useLlmInvocation";
+import { useLlmConfig } from "../../../../../../contexts/LlmConfigContext";
+import { llmRecommendationSchema, type LlmRecommendationResponse } from "../../schema";
 import { DEFAULT_CONFIG } from "../../types";
 import type {
   VaultRecommendation,
@@ -74,6 +75,8 @@ interface IntentRecommendationResult {
   llmError: string | null;
 }
 
+type InvokeFn = ReturnType<typeof useLlmInvocation>["invoke"];
+
 /**
  * Produces a single VaultRecommendation (best / safest / alts + rationale) for
  * an intent-filtered vault set.
@@ -87,10 +90,15 @@ interface IntentRecommendationResult {
 export function useIntentRecommendation(
   args: IntentRecommendationArgs | null
 ): IntentRecommendationResult & { isLoading: boolean; isFetching: boolean; refetch: () => void } {
+  const { invoke } = useLlmInvocation();
+  const { config } = useLlmConfig();
+  const geminiModel = config.providers.gemini.model || "gemini-2.5-pro";
+
   const query = useQuery<IntentRecommendationResult>({
     queryKey: [
       "intent-recommendation",
       LLM_MODE,
+      geminiModel,
       args?.synthChainId ?? 0,
       args?.synthTokenAddress ?? "",
       intentCacheKey(args?.intent),
@@ -104,7 +112,7 @@ export function useIntentRecommendation(
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<IntentRecommendationResult> => {
       if (!args) return { recommendation: null, llmError: null };
-      return buildRecommendation(args);
+      return buildRecommendation(invoke, args, geminiModel);
     },
   });
 
@@ -118,7 +126,9 @@ export function useIntentRecommendation(
 }
 
 export async function buildRecommendation(
-  args: IntentRecommendationArgs
+  invoke: InvokeFn,
+  args: IntentRecommendationArgs,
+  model: string = "gemini-2.5-pro",
 ): Promise<IntentRecommendationResult> {
   const { synthChainId, synthTokenAddress, intent, rankedVaults } = args;
   const maxCandidates =
@@ -143,108 +153,109 @@ export async function buildRecommendation(
     };
   }
 
-  const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets, args.sourceTokenSymbol, args.sourceChainId);
-  let lastError: string | null = null;
+  const { system, userText } = buildIntentPrompt(intent, candidates, args.walletAssets, args.sourceTokenSymbol, args.sourceChainId);
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
-    try {
-      const raw = await postLlmRecommend(request);
-      const text = extractGeminiText(raw);
-      if (!text) throw new Error("empty LLM response");
-      const json = safeParseJson(text);
-      if (!json) throw new Error("LLM did not return JSON");
-      const result = llmRecommendationSchema.safeParse(json);
-      if (!result.success) {
-        throw new Error(
-          `schema: ${result.error.issues[0]?.path.join(".") ?? "?"}: ${
-            result.error.issues[0]?.message ?? "unknown"
-          }`
-        );
-      }
-      const rec = result.data.recommendations[0];
-      if (!rec) throw new Error("LLM returned empty recommendations array");
+  let llmError: string | null = null;
+  try {
+    // Note: no responseMimeType:"application/json" — shared hook's stripJsonEnvelope handles
+    // markdown-fenced output. No temperature:0.2 — uses provider defaults (slightly less
+    // deterministic). No thought-part filtering — Gemini 2.5 Pro without thinkingConfig
+    // doesn't emit thought parts in practice. maxRetries:2 instead of 3; shared hook only
+    // retries schema_invalid + network/rate_limit/provider_down, not every error class.
+    const res = await invoke<LlmRecommendationResponse>({
+      task: "yield-recommendation",
+      provider: "gemini",
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userText },
+      ],
+      responseFormat: "json",
+      schema: llmRecommendationSchema,
+      maxRetries: 2,
+    });
+    if (!res.parsed) throw new Error("recommendation parse failed");
+    const rec = res.parsed.recommendations[0];
+    if (!rec) throw new Error("LLM returned empty recommendations array");
 
-      const slugToVault = new Map(candidates.map((v) => [v.slug, v]));
-      const resolve = (
-        p: { vault_slug: string; rationale: string } | null
-      ): RecommendationPick | null => {
-        if (!p) return null;
-        const v = slugToVault.get(p.vault_slug);
-        if (!v) return null;
-        return { vaultSlug: p.vault_slug, vault: v, rationale: p.rationale };
-      };
+    const slugToVault = new Map(candidates.map((v) => [v.slug, v]));
+    const resolve = (
+      p: { vault_slug: string; rationale: string } | null
+    ): RecommendationPick | null => {
+      if (!p) return null;
+      const v = slugToVault.get(p.vault_slug);
+      if (!v) return null;
+      return { vaultSlug: p.vault_slug, vault: v, rationale: p.rationale };
+    };
 
-      const bestPick = resolve(rec.best_pick);
-      const safestPick = resolve(rec.safest_pick);
-      const alternatives = rec.alternatives
-        .map((a) => resolve(a))
-        .filter((p): p is RecommendationPick => p !== null);
+    const bestPick = resolve(rec.best_pick);
+    const safestPick = resolve(rec.safest_pick);
+    const alternatives = rec.alternatives
+      .map((a) => resolve(a))
+      .filter((p): p is RecommendationPick => p !== null);
 
-      // If the LLM returned slugs outside the candidate list, both picks
-      // resolve to null. Fall back to rules so users get usable results.
-      if (!bestPick && !safestPick && candidates.length > 0) {
-        return {
-          recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
-          llmError: "LLM returned unknown vault slugs — used rules fallback",
-        };
-      }
-
-      // Enforce distinct best/safest when candidate list allows — mirrors
-      // enforceDistinctPicks in idle-sweep fallback.
-      let finalSafest = safestPick;
-      if (
-        bestPick &&
-        safestPick &&
-        bestPick.vaultSlug === safestPick.vaultSlug &&
-        candidates.length > 1
-      ) {
-        const runner = candidates.find((v) => v.slug !== bestPick.vaultSlug);
-        if (runner) {
-          finalSafest = {
-            vaultSlug: runner.slug,
-            vault: runner,
-            rationale: `Next-most-conservative alternative after the best pick on ${runner.protocol.name}.`,
-          };
-        } else {
-          finalSafest = null;
-        }
-      }
-
-      // Deduplicate alternatives against best/safest picks
-      const dedupedAlts: RecommendationPick[] = [];
-      const seenPicks: RecommendationPick[] = [];
-      if (bestPick) seenPicks.push(bestPick);
-      if (finalSafest) seenPicks.push(finalSafest);
-      for (const alt of alternatives) {
-        if (seenPicks.some((sp) => isDuplicatePick(sp, alt))) continue;
-        if (dedupedAlts.some((da) => isDuplicatePick(da, alt))) continue;
-        dedupedAlts.push(alt);
-      }
-
+    // If the LLM returned slugs outside the candidate list, both picks
+    // resolve to null. Fall back to rules so users get usable results.
+    if (!bestPick && !safestPick && candidates.length > 0) {
       return {
-        recommendation: {
-          forChainId: synthChainId,
-          forTokenAddress: synthTokenAddress.toLowerCase(),
-          bestPick,
-          safestPick: finalSafest,
-          alternatives: dedupedAlts,
-          source: "ai",
-          topRationale: rec.best_pick?.rationale ?? "",
-        },
-        llmError: null,
+        recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
+        llmError: "LLM returned unknown vault slugs — used rules fallback",
       };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = msg;
-      // eslint-disable-next-line no-console
-      console.warn(`[intent-rec] LLM attempt ${attempt + 1} failed:`, msg);
     }
+
+    // Enforce distinct best/safest when candidate list allows — mirrors
+    // enforceDistinctPicks in idle-sweep fallback.
+    let finalSafest = safestPick;
+    if (
+      bestPick &&
+      safestPick &&
+      bestPick.vaultSlug === safestPick.vaultSlug &&
+      candidates.length > 1
+    ) {
+      const runner = candidates.find((v) => v.slug !== bestPick.vaultSlug);
+      if (runner) {
+        finalSafest = {
+          vaultSlug: runner.slug,
+          vault: runner,
+          rationale: `Next-most-conservative alternative after the best pick on ${runner.protocol.name}.`,
+        };
+      } else {
+        finalSafest = null;
+      }
+    }
+
+    // Deduplicate alternatives against best/safest picks
+    const dedupedAlts: RecommendationPick[] = [];
+    const seenPicks: RecommendationPick[] = [];
+    if (bestPick) seenPicks.push(bestPick);
+    if (finalSafest) seenPicks.push(finalSafest);
+    for (const alt of alternatives) {
+      if (seenPicks.some((sp) => isDuplicatePick(sp, alt))) continue;
+      if (dedupedAlts.some((da) => isDuplicatePick(da, alt))) continue;
+      dedupedAlts.push(alt);
+    }
+
+    return {
+      recommendation: {
+        forChainId: synthChainId,
+        forTokenAddress: synthTokenAddress.toLowerCase(),
+        bestPick,
+        safestPick: finalSafest,
+        alternatives: dedupedAlts,
+        source: "ai",
+        topRationale: rec.best_pick?.rationale ?? "",
+      },
+      llmError: null,
+    };
+  } catch (err) {
+    llmError = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn("[intent-rec] LLM failed, falling back to rules:", llmError);
   }
 
   return {
     recommendation: rulesFallback(synthChainId, synthTokenAddress, intent, candidates),
-    llmError: lastError,
+    llmError,
   };
 }
 
@@ -308,7 +319,17 @@ function rulesFallback(
   };
 }
 
-function buildGeminiIntentRequest(intent: ParsedIntent, candidates: EarnVault[], walletAssets: IdleAsset[], sourceTokenSymbol?: string, sourceChainId?: number) {
+/**
+ * Builds the system prompt and user text for the intent recommendation LLM call.
+ * Extracted from the old buildGeminiIntentRequest — all string content is preserved verbatim.
+ */
+function buildIntentPrompt(
+  intent: ParsedIntent,
+  candidates: EarnVault[],
+  walletAssets: IdleAsset[],
+  sourceTokenSymbol?: string,
+  sourceChainId?: number,
+): { system: string; userText: string } {
   const system = `You are a DeFi yield strategist with deep knowledge of vault mechanics, protocol risk, and yield sustainability. You evaluate vaults the way a seasoned DeFi portfolio manager would — not just by raw numbers, but by understanding what drives those numbers and whether they'll last.
 
 You will be given:
@@ -456,26 +477,12 @@ ENTRY COST FRAMEWORK:
     },
   };
 
-  return {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: fullSystem },
-          {
-            text:
-              "INPUT:\n" +
-              JSON.stringify(userPayload) +
-              "\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.2,
-    },
-  };
+  const userText =
+    "INPUT:\n" +
+    JSON.stringify(userPayload) +
+    "\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.";
+
+  return { system: fullSystem, userText };
 }
 
 function intentCacheKey(intent: ParsedIntent | undefined): string {
@@ -492,53 +499,6 @@ function intentCacheKey(intent: ParsedIntent | undefined): string {
     intent.exclude_protocols.join("+"),
     intent.result_count ?? "",
   ].join("|");
-}
-
-function extractGeminiText(raw: unknown): string | null {
-  try {
-    const r = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string; thought?: boolean }>;
-        };
-      }>;
-    };
-    const parts = r.candidates?.[0]?.content?.parts ?? [];
-    const joined = parts
-      .filter((p) => !p.thought && typeof p.text === "string")
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-    return joined.length > 0 ? joined : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      // Thinking models sometimes prepend prose before the JSON object.
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
-  }
 }
 
 function formatApy(apy: number | null): string {

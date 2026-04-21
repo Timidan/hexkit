@@ -1,0 +1,38 @@
+{
+  "id": "multichain-2023-07",
+  "name": "Multichain (AnySwap) MPC Signer Drain",
+  "chain": "ethereum",
+  "date": "2023-07-06",
+  "protocol": "Multichain",
+  "amountUsd": 125000000,
+  "canonicalTxs": [
+    "0x53ede4462d90978b992b0a88727de19afe4e96f0374aa1a221b8ff65fda5a6fe",
+    "0x48dc95a39e4c2c41ad3bdfadeddd5b7f57f87d83f07b3a9c3e49727f957da2ec"
+  ],
+  "exploitClasses": ["signer-compromise"],
+  "tldr": "Multichain's MPC bridge signer keys, concentrated in CEO Zhaojun's hot custody, were used by unknown parties after his arrest by Chinese police to sweep ~$125M of WETH, WBTC, USDC, DAI and other tokens from Fantom, Moonriver, Dogechain and Ethereum bridge vaults between July 6-7, 2023.",
+  "coreContradiction": "The bridge marketed itself as a decentralized MPC network, but the signer shares were in effect controlled by a single person's hot wallet, so once that person was detained the 'multi-party' infrastructure behaved as one fully compromised key.",
+  "attackSteps": [
+    { "order": 1, "label": "CEO arrested", "detail": "Multichain CEO Zhaojun was detained by Chinese authorities in late May 2023; his laptops, phones and hardware controlling the MPC signer shards were seized along with him.", "sourceIds": ["chainalysis-multichain", "coindesk-multichain"] },
+    { "order": 2, "label": "MPC signers go dark then reactivate", "detail": "After weeks of silent operation, the supposedly decentralized MPC nodes began signing unauthorized withdrawals on July 6, 2023, indicating that whoever controlled Zhaojun's keys had regained the ability to produce valid signatures.", "sourceIds": ["cointelegraph-executor", "chainalysis-multichain"] },
+    { "order": 3, "label": "Bridge vaults swept", "detail": "Via the Multichain Executor EOA, legitimate anySwapFeeTo and ERC20 transfer calls were issued against the Router V4 and underlying token contracts, moving ~7,214 WETH, ~1,024 WBTC, $58M USDC and other assets out of the Ethereum-side Fantom bridge vault plus Moonriver and Dogechain vaults.", "sourceIds": ["cointelegraph-executor", "coindesk-multichain"] },
+    { "order": 4, "label": "Funds routed to fresh EOAs", "detail": "Proceeds landed in previously-unseen addresses such as 0x1eED63... and 0x9D57b3...; Multichain later claimed Zhaojun's sister had moved residual funds for 'asset preservation' before she too was taken into custody, and the team announced indefinite suspension on July 7, 2023.", "sourceIds": ["chainalysis-multichain", "cointelegraph-executor"] }
+  ],
+  "entities": [
+    { "id": "multichain-router-v4", "role": "bridge", "address": "0x6b7a87899490EcE95443e979cA9485CBE7E71522", "label": "Multichain Router V4 (Ethereum)" },
+    { "id": "multichain-executor", "role": "signer", "address": "0x2A038e100F8B85DF21e4d44121bdBfE0c288A869", "label": "Multichain Executor (MPC-signed EOA)" },
+    { "id": "attacker-eoa-primary", "role": "attacker-eoa", "address": "0x1eED63EfBA5f81D95bfe37d82C8E736b974F477b", "label": "Primary drain recipient EOA" },
+    { "id": "attacker-eoa-secondary", "role": "attacker-eoa", "address": "0x9D57b3703F9438D8c1dd6b3af2A11ff39E7Ae37A", "label": "Secondary drain recipient EOA" },
+    { "id": "dai-token", "role": "token", "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "label": "DAI stablecoin" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "multichain-router-v4", "toEntityId": "multichain-executor", "tokenSymbol": "anyDAI", "amountHuman": "15,275.90 anyDAI", "note": "anySwapFeeTo conversion extracting anyDAI reserves" },
+    { "fromEntityId": "multichain-executor", "toEntityId": "attacker-eoa-primary", "tokenSymbol": "DAI", "amountHuman": "15,275.90 DAI", "note": "followup ERC20 transfer of redeemed DAI" },
+    { "fromEntityId": "multichain-router-v4", "toEntityId": "attacker-eoa-secondary", "tokenSymbol": "mixed (DAI/LINK/USDT/WOO/CRV/YFI/TUSD)", "amountHuman": "~$16M equivalent", "note": "altcoin bucket swept out of Fantom bridge vault" }
+  ],
+  "sources": [
+    { "id": "chainalysis-multichain", "kind": "forensic-thread", "url": "https://www.chainalysis.com/blog/multichain-exploit-july-2023/", "publisher": "Chainalysis" },
+    { "id": "cointelegraph-executor", "kind": "forensic-thread", "url": "https://cointelegraph.com/news/multichain-executor-has-been-draining-anyswap-tokens-report", "publisher": "Cointelegraph" },
+    { "id": "coindesk-multichain", "kind": "post-mortem", "url": "https://www.coindesk.com/business/2023/07/06/multichain-bridges-experience-unannounced-outflows-of-over-130m-in-crypto", "publisher": "CoinDesk" }
+  ]
+}

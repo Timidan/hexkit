@@ -303,14 +303,6 @@ class ContractResolver {
       case 'blockscout':
         return fetchBlockscout(address, chain, options.blockscoutApiKey, signal);
 
-      case 'blockscout-ebd':
-        // TODO: Implement Blockscout EBD (bytecode database) source
-        return { success: false, error: 'Blockscout EBD not yet implemented' };
-
-      case 'whatsabi':
-        // TODO: Implement WhatsABI source for unverified contracts
-        return { success: false, error: 'WhatsABI not yet implemented' };
-
       default:
         return { success: false, error: `Unknown source: ${source}` };
     }

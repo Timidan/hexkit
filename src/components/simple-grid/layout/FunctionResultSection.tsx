@@ -1,6 +1,5 @@
 /**
  * FunctionResultSection - Raw calldata mode: input, decoded display, execution, results.
- * Extracted from GridLayout.tsx lines 3608-3879.
  */
 import React from "react";
 import { AnimatedPlayIcon, Loader2Icon } from "../../icons/IconLibrary";

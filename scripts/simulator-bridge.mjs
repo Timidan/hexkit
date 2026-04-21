@@ -68,6 +68,8 @@ import {
   runAsyncDebugPrep,
 } from "./debug-sessions.mjs";
 
+import { handleHeimdall } from "./heimdall-manager.mjs";
+
 // =============================================================================
 // Startup Validation
 // =============================================================================
@@ -684,6 +686,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       default:
+        if (url?.startsWith('/heimdall/')) {
+          const handled = await handleHeimdall(url, body, res);
+          if (handled) break;
+        }
         res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "not_found" }));
     }
@@ -723,6 +729,9 @@ server.listen(PORT, () => {
   console.log(`  POST /debug/end    - End debug session`);
   console.log(`  POST /debug/sessions - List active sessions`);
   console.log(`  GET  /health       - Health check`);
+  console.log(`  POST /heimdall/version    - Check Heimdall CLI availability`);
+  console.log(`  POST /heimdall/decompile  - Decompile bytecode via Heimdall`);
+  console.log(`  POST /heimdall/dump       - Dump contract storage via Heimdall`);
   console.log(
     `[simulator-bridge] concurrency: max=${MAX_CONCURRENT_SIMULATIONS} processes, queue=${SIMULATION_QUEUE_MAX}, queue_timeout=${SIMULATION_QUEUE_TIMEOUT_MS}ms`,
   );

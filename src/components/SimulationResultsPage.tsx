@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useCallback } from "react";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { AnimatedTabContent } from "./ui/animated-tabs";
@@ -8,6 +8,8 @@ import "../styles/SimulationResultsPage.css";
 // Sub-module imports
 import type { SimulationResultsPageProps, SimulatorTab } from "./simulation-results/types";
 import { useSimulationPageState } from "./simulation-results/useSimulationPageState";
+import { useSimulation } from "../contexts/SimulationContext";
+import type { BridgeSimulationResponsePayload } from "../utils/transaction-simulation/types";
 import { resolveFunctionName, computeGasValues, resolveReturnData } from "./simulation-results/gasHelpers";
 import type { ContractContextExtras } from "./simulation-results/useSimulationPageState";
 import { ResultsHeader } from "./simulation-results/ResultsHeader";
@@ -24,6 +26,7 @@ const DebugWindowWithContext = React.lazy(async () => {
 
 const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const state = useSimulationPageState(props);
+  const { setAnalysisSubject } = useSimulation();
 
   const {
     id, navigate,
@@ -115,6 +118,20 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
 
   const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
 
+  const handleSummarize = useCallback(() => {
+    const simulationId = id || contextSimulationId;
+    if (!simulationId || !result) return;
+    const txHash = contextWithExtras?.replayTxHash ?? null;
+    setAnalysisSubject({
+      simulationId,
+      from,
+      to,
+      txHash,
+      simulation: result as unknown as BridgeSimulationResponsePayload,
+    });
+    navigate("/builder?mode=analysis");
+  }, [id, contextSimulationId, result, contextWithExtras?.replayTxHash, from, to, setAnalysisSubject, navigate]);
+
   return (
     <div className="sim-results-page">
       {!isDebugging && (
@@ -135,6 +152,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
             hasLiveDebugSession={hasLiveDebugSession}
             debugPrepState={debugPrepState}
             cancelDebugPrep={cancelDebugPrep}
+            handleSummarize={handleSummarize}
           />
 
           <TransactionSummary

@@ -81,13 +81,13 @@ function getInputBadge(type: InputType): TypeBadgeConfig | null {
 
 interface UniversalSearchBarProps {
   className?: string;
-  onOpenRpcSettings?: () => void;
+  onOpenSettings?: () => void;
   onOpenStorageManager?: () => void;
 }
 
 const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
   className,
-  onOpenRpcSettings,
+  onOpenSettings,
   onOpenStorageManager,
 }) => {
   const [open, setOpen] = useState(false);
@@ -292,24 +292,28 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
               <Wallet className="mr-2 size-4 opacity-70" />
               <span>Connect Wallet</span>
             </CommandItem>
-            {onOpenRpcSettings && (
+            {onOpenSettings && (
               <CommandItem
-                value="action:rpc:RPC Settings"
+                value="action:settings:Settings"
                 keywords={[
-                  "rpc",
                   "settings",
+                  "rpc",
                   "network",
                   "provider",
                   "alchemy",
                   "infura",
+                  "llm",
+                  "gemini",
+                  "anthropic",
+                  "openai",
                 ]}
                 onSelect={() => {
                   handleOpenChange(false);
-                  onOpenRpcSettings();
+                  onOpenSettings();
                 }}
               >
                 <GearSix className="mr-2 size-4 opacity-70" />
-                <span>RPC Settings</span>
+                <span>Settings</span>
               </CommandItem>
             )}
             {onOpenStorageManager && (

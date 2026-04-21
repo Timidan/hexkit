@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, type ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -12,10 +12,9 @@ import {
   PlayIcon,
   XCloseIcon,
 } from "../icons/IconLibrary";
-import { ethers } from "ethers";
 import NetworkSelector, { EXTENDED_NETWORKS, type ExtendedChain } from "../shared/NetworkSelector";
+import { formatEther } from "viem";
 import { cn } from "@/lib/utils";
-import type { Chain } from "../../types";
 import {
   replayTransactionWithSimulator,
 } from "../../utils/transactionSimulation";
@@ -23,8 +22,6 @@ import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { classifySimulationError } from "../../utils/errorParser";
 import {
-  type TxPreviewData,
-  type TxFetchStatus,
   type ReplayIntentAudit,
   type TxHashReplayData,
   TXHASH_REPLAY_KEY,
@@ -39,28 +36,14 @@ import {
   defaultReplayNetwork,
   mapExtendedToChain,
 } from "./types";
+import {
+  useTxPreview,
+  getMissingProviderNotice,
+  getPersistedRpcAutoSwitchNotice,
+  clearPersistedRpcAutoSwitchNotice,
+  shouldClearAutoSwitchNotice,
+} from "../../hooks/useTxPreview";
 import { shortenAddress } from "../shared/AddressDisplay";
-
-function formatReplayRpcError(rawError: string, networkName: string, mode: string): string {
-  const trimmed = rawError.trim();
-  const lower = trimmed.toLowerCase();
-
-  if (lower.includes('could not detect network') || lower.includes('nonetwork')) {
-    if (mode === 'DEFAULT') {
-      return `Could not connect to the App Default RPC for ${networkName}. Configure a custom RPC in Settings if this network remains unavailable.`;
-    }
-    return `Could not connect to the configured ${mode} RPC for ${networkName}. Check your API key or switch providers in Settings.`;
-  }
-
-  if (lower.includes('403') || lower.includes('forbidden')) {
-    if (mode === 'DEFAULT') {
-      return `The App Default RPC for ${networkName} rejected the request. Configure a custom RPC in Settings to continue.`;
-    }
-    return `The configured ${mode} RPC rejected the request. Check your API key or switch providers in Settings.`;
-  }
-
-  return trimmed || "Failed to fetch transaction";
-}
 
 function formatSimulationBridgeError(rawError: string): string {
   const classified = classifySimulationError(rawError);
@@ -69,72 +52,13 @@ function formatSimulationBridgeError(rawError: string): string {
     : classified.message;
 }
 
-const ALCHEMY_MISSING_KEY_NOTICE =
-  "Alchemy was selected without an API key. Switched back to App Default RPC.";
-const INFURA_MISSING_KEY_NOTICE =
-  "Infura was selected without a Project ID. Switched back to App Default RPC.";
-const RPC_AUTO_SWITCH_NOTICE_KEY = "web3-toolkit:rpc-auto-switch-notice";
-
-type RpcNoticeConfig = {
-  rpcMode: "DEFAULT" | "ALCHEMY" | "INFURA" | "CUSTOM";
-  alchemyApiKey?: string;
-  infuraProjectId?: string;
-};
-
-function getMissingProviderNotice(config: RpcNoticeConfig): string | null {
-  if (config.rpcMode === "ALCHEMY" && !config.alchemyApiKey?.trim()) {
-    return ALCHEMY_MISSING_KEY_NOTICE;
-  }
-
-  if (config.rpcMode === "INFURA" && !config.infuraProjectId?.trim()) {
-    return INFURA_MISSING_KEY_NOTICE;
-  }
-
-  return null;
-}
-
-function clearPersistedRpcAutoSwitchNotice() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-  window.sessionStorage.removeItem(RPC_AUTO_SWITCH_NOTICE_KEY);
-}
-
-function getPersistedRpcAutoSwitchNotice(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return (
-    window.localStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY) ||
-    window.sessionStorage.getItem(RPC_AUTO_SWITCH_NOTICE_KEY)
-  );
-}
-
-function shouldClearAutoSwitchNotice(
-  notice: string | null | undefined,
-  config: Pick<RpcNoticeConfig, "alchemyApiKey" | "infuraProjectId">
-): boolean {
-  if (notice === ALCHEMY_MISSING_KEY_NOTICE) {
-    return Boolean(config.alchemyApiKey?.trim());
-  }
-
-  if (notice === INFURA_MISSING_KEY_NOTICE) {
-    return Boolean(config.infuraProjectId?.trim());
-  }
-
-  return false;
-}
-
 export const TransactionReplayView: React.FC<{
   modeToggle: ReactNode;
 }> = ({ modeToggle }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { setSimulation } = useSimulation();
-  const { config, resolveRpcUrl, saveConfig } = useNetworkConfig();
+  const { config, saveConfig } = useNetworkConfig();
   const [selectedNetwork, setSelectedNetwork] = useState<ExtendedChain>(defaultReplayNetwork);
   const [txHash, setTxHash] = useState("");
   const [blockTag, setBlockTag] = useState("");
@@ -148,11 +72,17 @@ export const TransactionReplayView: React.FC<{
   const [pendingAutoReplayToken, setPendingAutoReplayToken] = useState<number | null>(null);
   const [lastReplayIntent, setLastReplayIntent] = useState<ReplayIntentAudit | null>(null);
 
-  // Transaction preview state - validates tx exists before enabling replay
-  const [txPreview, setTxPreview] = useState<TxPreviewData | null>(null);
-  const [txFetchStatus, setTxFetchStatus] = useState<TxFetchStatus>("idle");
-  const [txFetchError, setTxFetchError] = useState<string | null>(null);
-  const fetchAbortRef = useRef<AbortController | null>(null);
+  const {
+    txPreview,
+    txFetchStatus,
+    txFetchError,
+    rpcNotice: previewRpcNotice,
+    reset: resetTxPreview,
+  } = useTxPreview({ txHash, selectedNetwork });
+
+  useEffect(() => {
+    if (previewRpcNotice) setRpcNotice(previewRpcNotice);
+  }, [previewRpcNotice]);
 
   const consumeTxHashReplayIntent = useCallback(() => {
     try {
@@ -275,108 +205,6 @@ export const TransactionReplayView: React.FC<{
     setSelectedNetwork(network);
   }, []);
 
-  // Debounced effect to fetch transaction preview when hash/network changes
-  useEffect(() => {
-    const trimmedHash = txHash.trim();
-
-    // Reset state if hash is empty or invalid format
-    if (!trimmedHash || !/^0x[a-fA-F0-9]{64}$/.test(trimmedHash)) {
-      setTxPreview(null);
-      setTxFetchStatus("idle");
-      setTxFetchError(null);
-      return;
-    }
-
-    // Abort any in-flight request
-    if (fetchAbortRef.current) {
-      fetchAbortRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    fetchAbortRef.current = abortController;
-
-    // Debounce the fetch
-    const timer = setTimeout(async () => {
-      if (abortController.signal.aborted) return;
-
-      setTxFetchStatus("fetching");
-      setTxFetchError(null);
-      setTxPreview(null);
-
-      try {
-        const missingProviderNotice = getMissingProviderNotice(config);
-        if (missingProviderNotice) {
-          setRpcNotice(missingProviderNotice);
-          saveConfig({ rpcMode: "DEFAULT" });
-        }
-
-        const chainForRpc: Chain = {
-          id: selectedNetwork.id,
-          name: selectedNetwork.name,
-          rpcUrl: selectedNetwork.rpcUrl ?? "",
-          blockExplorer: selectedNetwork.blockExplorer ?? "",
-        } as Chain;
-
-        const rpcResolution = resolveRpcUrl(chainForRpc.id, selectedNetwork.rpcUrl);
-        const rpcUrl = rpcResolution.url;
-        const persistedNotice = getPersistedRpcAutoSwitchNotice();
-        if (shouldClearAutoSwitchNotice(persistedNotice, config)) {
-          clearPersistedRpcAutoSwitchNotice();
-        } else if (persistedNotice) {
-          setRpcNotice(persistedNotice);
-        } else if (rpcResolution.note) {
-          setRpcNotice(rpcResolution.note);
-        }
-
-        if (!rpcUrl) {
-          setTxFetchStatus("error");
-          setTxFetchError(
-            rpcResolution.note ||
-            `No RPC available for ${selectedNetwork.name}. Switch to App Default RPC or configure a custom RPC in Settings.`
-          );
-          return;
-        }
-
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-        const tx = await provider.getTransaction(trimmedHash);
-
-        if (abortController.signal.aborted) return;
-
-        if (!tx) {
-          setTxFetchStatus("not_found");
-          setTxFetchError(`Transaction not found on ${selectedNetwork?.name || "this network"}`);
-          return;
-        }
-
-        setTxPreview({
-          from: tx.from,
-          to: tx.to ?? null,
-          value: tx.value?.toString() || "0",
-          data: tx.data || "0x",
-          blockNumber: tx.blockNumber ?? null,
-          nonce: tx.nonce,
-        });
-        setTxFetchStatus("found");
-        setTxFetchError(null);
-      } catch (err: any) {
-        if (abortController.signal.aborted) return;
-        setTxFetchStatus("error");
-        setTxFetchError(
-          formatReplayRpcError(
-            err?.message || "Failed to fetch transaction",
-            selectedNetwork?.name || "this network",
-            resolveRpcUrl(selectedNetwork.id, selectedNetwork.rpcUrl).mode || 'DEFAULT'
-          )
-        );
-      }
-    }, 500); // 500ms debounce
-
-    return () => {
-      clearTimeout(timer);
-      abortController.abort();
-    };
-  }, [txHash, selectedNetwork, resolveRpcUrl]);
-
   const handleReplay = useCallback(async () => {
     const trimmedHash = txHash.trim();
     if (!/^0x[a-fA-F0-9]{64}$/.test(trimmedHash)) {
@@ -470,10 +298,8 @@ export const TransactionReplayView: React.FC<{
     setBridgeWarning(null);
     setRpcNotice(null);
     clearPersistedRpcAutoSwitchNotice();
-    setTxPreview(null);
-    setTxFetchStatus("idle");
-    setTxFetchError(null);
-  }, []);
+    resetTxPreview();
+  }, [resetTxPreview]);
 
   // Only enable replay when transaction has been verified to exist on the network
   const runDisabled = !txHash.trim() || isSimulating || txFetchStatus !== "found";
@@ -630,7 +456,7 @@ export const TransactionReplayView: React.FC<{
                         <div>
                           <span className="text-muted-foreground block mb-1">Value</span>
                           <code className="text-foreground font-mono">
-                            {txPreview.value === "0" ? "0" : `${ethers.utils.formatEther(txPreview.value)} ETH`}
+                            {txPreview.value === "0" ? "0" : `${formatEther(BigInt(txPreview.value))} ETH`}
                           </code>
                         </div>
                         <div>
