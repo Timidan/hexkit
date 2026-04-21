@@ -135,6 +135,95 @@ function llmProxyPlugin(envObj: Record<string, string>): Plugin {
   };
 }
 
+function llmInvokeProxyPlugin(env: Record<string, string>): Plugin {
+  const PROCESS_ENV_KEYS = [
+    "GEMINI_API_KEY",
+    "GEMINI_BASE_URL",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "PROXY_SECRET",
+    "ALLOWED_ORIGINS",
+    "LLM_GUARD_CONFIG",
+  ];
+  for (const k of PROCESS_ENV_KEYS) {
+    if (env[k] !== undefined && process.env[k] === undefined) {
+      process.env[k] = env[k];
+    }
+  }
+  return {
+    name: "llm-invoke-proxy",
+    configureServer(server) {
+      server.middlewares.use("/api/llm-invoke", async (req, res) => {
+        if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
+        if (req.method !== "POST") { res.statusCode = 405; res.end('{"error":"method_not_allowed"}'); return; }
+
+        let raw = "";
+        for await (const chunk of req) raw += chunk;
+        let body: any = {};
+        try { body = JSON.parse(raw || "{}"); }
+        catch { res.statusCode = 400; res.end('{"error":"bad_json"}'); return; }
+
+        const headers: Record<string, string> = {};
+        for (const [k, v] of Object.entries(req.headers)) {
+          if (typeof v === "string") headers[k] = v;
+          else if (Array.isArray(v)) headers[k] = v[0] ?? "";
+        }
+
+        if (!headers["x-user-api-key"]) {
+          const provider = typeof body?.provider === "string" ? body.provider : "";
+          const fallback =
+            provider === "gemini" ? env.GEMINI_API_KEY :
+            provider === "anthropic" ? env.ANTHROPIC_API_KEY :
+            provider === "openai" ? env.OPENAI_API_KEY :
+            undefined;
+          if (fallback) headers["x-user-api-key"] = fallback;
+        }
+
+        const fakeReq = { method: req.method, headers, body };
+        const fakeRes = {
+          statusCode: 200,
+          headersSent: false,
+          _headers: {} as Record<string, string>,
+          _body: "" as string,
+          status(code: number) { this.statusCode = code; this.headersSent = true; return this; },
+          setHeader(k: string, v: string) { this._headers[k] = v; return this; },
+          json(body: unknown) { this._body = JSON.stringify(body); this._headers["content-type"] = "application/json"; this.headersSent = true; return this; },
+          send(body: unknown) { this._body = typeof body === "string" ? body : JSON.stringify(body); this.headersSent = true; return this; },
+          write(chunk: Buffer | string) {
+            this._body += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+            this.headersSent = true;
+            return true;
+          },
+          end(body?: unknown) {
+            if (body !== undefined) {
+              this._body += typeof body === "string" ? body : Buffer.isBuffer(body) ? body.toString("utf8") : JSON.stringify(body);
+            }
+            return this;
+          },
+        };
+
+        try {
+          const mod = await server.ssrLoadModule("/api/llm-invoke.ts");
+          await mod.default(fakeReq, fakeRes);
+        } catch (err) {
+          if (!res.writableEnded) {
+            res.statusCode = 500;
+            res.setHeader("content-type", "application/json");
+            res.end(JSON.stringify({ error: "dev_shim_failed", detail: (err as Error).message }));
+          }
+          return;
+        }
+
+        res.statusCode = fakeRes.statusCode;
+        for (const [k, v] of Object.entries(fakeRes._headers)) res.setHeader(k, v);
+        res.end(fakeRes._body);
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Vite does NOT auto-populate process.env with .env files at config time.
@@ -152,6 +241,7 @@ export default defineConfig(({ mode }) => {
       injectBridgeCsp(),
       devExplorerProxy(),
       llmProxyPlugin(env),
+      llmInvokeProxyPlugin(env),
     ],
     esbuild: {
       logOverride: { "this-is-undefined-in-esm": "silent" },
@@ -162,7 +252,29 @@ export default defineConfig(({ mode }) => {
       "process.env": "{}",
     },
     optimizeDeps: {
-      include: ["ethers", "buffer"],
+      include: [
+        "ethers",
+        "buffer",
+        "iframe-shared-storage",
+        "@cofhe/sdk",
+        "@cofhe/sdk/web",
+        "@cofhe/sdk/chains",
+      ],
+      exclude: ["tfhe"],
+    },
+    worker: {
+      format: "es",
+    },
+    test: {
+      globals: true,
+      environmentMatchGlobs: [
+        ["tests/llm/llmConfig*.test.ts*", "jsdom"],
+        ["tests/llm/useLlmInvocation*.test.ts*", "jsdom"],
+        ["tests/llm/consent*.test.ts*", "jsdom"],
+        ["tests/llm/settings*.test.ts*", "jsdom"],
+        ["tests/llm/llmSettings*.test.ts*", "jsdom"],
+        ["tests/llm/destination*.test.ts*", "jsdom"],
+      ],
     },
     build: {
       chunkSizeWarningLimit: 1200,
@@ -200,12 +312,20 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
-        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev
+        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev.
+        // Injects X-API-Key server-side so the browser never sees the secret —
+        // mirrors api/edb/[...path].ts behavior for local dev.
         "/api/edb": {
-          target: process.env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
+          target: env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
           changeOrigin: true,
           secure: true,
           rewrite: (path) => path.replace(/^\/api\/edb/, ""),
+          configure: (proxy) => {
+            const apiKey = env.EDB_API_KEY || "";
+            proxy.on("proxyReq", (proxyReq) => {
+              if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
+            });
+          },
         },
         // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
         // repo.sourcify.dev now 307-redirects to sourcify.dev/server/repository,

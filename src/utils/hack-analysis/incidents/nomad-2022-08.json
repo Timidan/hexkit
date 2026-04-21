@@ -1,0 +1,112 @@
+{
+  "id": "nomad-2022-08",
+  "name": "Nomad Bridge Free-For-All Drain",
+  "chain": "ethereum",
+  "date": "2022-08-01",
+  "protocol": "Nomad",
+  "amountUsd": 190000000,
+  "canonicalTxs": ["0x61497a1a8a8659a06358e130ea590e1eed8956edbd99dbb2048cfb46850a8f17"],
+  "exploitClasses": ["bridge-message-forgery", "access-control-bypass"],
+  "tldr": "A routine upgrade to Nomad's Replica contract initialized the trusted Merkle root to 0x00, causing the message-proof check to auto-pass for any arbitrary message. Within ~2.5 hours, hundreds of copy-cat attackers drained ~$190M in a permissionless free-for-all.",
+  "coreContradiction": "The contract accepted any message as 'proven' because the trusted root was the same zero value returned for any unmapped key, making forgery indistinguishable from legitimacy.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Bad initialize() sets root to 0x00",
+      "detail": "A June 21 2022 upgrade to the Replica implementation called initialize() with committedRoot = bytes32(0), which wrote confirmAt[0x00] = 1 — marking the zero hash as a permanently trusted root.",
+      "sourceIds": ["coinbase-nomad", "immunefi-nomad"]
+    },
+    {
+      "order": 2,
+      "label": "acceptableRoot() returns true for any message",
+      "detail": "process() calls acceptableRoot(messages[msgHash]). For any message never previously stored, messages[] returns the default bytes32(0), which confirmAt maps to 1 (block 1, already passed), so the check passes unconditionally.",
+      "sourceIds": ["coinbase-nomad", "halborn-nomad"]
+    },
+    {
+      "order": 3,
+      "label": "First attacker crafts 100 WBTC withdrawal",
+      "detail": "Exploiter 1 (0x56D8B635…) used a helper contract and Flashbots to privately submit a forged process() message instructing the ERC20 bridge to release 100 WBTC (~$2.3M) to their address in block 15259101.",
+      "sourceIds": ["coinbase-nomad", "rekt-nomad"]
+    },
+    {
+      "order": 4,
+      "label": "Copy-cat replay drains remaining ~$188M",
+      "detail": "Once the exploit tx appeared on-chain, anyone could copy the calldata, replace the recipient address, and replay it. Nearly 300 addresses drained the bridge across all ERC-20 tokens over ~150 minutes.",
+      "sourceIds": ["rekt-nomad", "immunefi-nomad"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "victim-replica",
+      "role": "victim-contract",
+      "address": "0xB92336759618F55bd0F8313bd843604592E27bd8",
+      "label": "Nomad Replica (Ethereum)"
+    },
+    {
+      "id": "victim-erc20bridge",
+      "role": "victim-contract",
+      "address": "0x88A69B4E698A4B090DF6CF5Bd7B2D47325Ad30A3",
+      "label": "Nomad ERC20 Bridge"
+    },
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0x56D8B635A7C88Fd1104D23d632AF40c1C3Aac4e3",
+      "label": "Nomad Bridge Exploiter 1"
+    },
+    {
+      "id": "attacker-helper",
+      "role": "attacker-contract",
+      "address": "0xf57113D8f6Ff35747737f026fE0B37D4D7f42777",
+      "label": "Exploiter 1 helper contract"
+    },
+    {
+      "id": "nomad-recovery",
+      "role": "router",
+      "address": "0x94A84433101A10aEda762968f6995c574D1bF154",
+      "label": "Nomad recovery wallet"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "victim-erc20bridge",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "WBTC",
+      "amountHuman": "100 WBTC",
+      "note": "First exploit tx — canonical drain of 100 WBTC (~$2.3M) in block 15259101"
+    },
+    {
+      "fromEntityId": "victim-erc20bridge",
+      "toEntityId": "nomad-recovery",
+      "tokenSymbol": null,
+      "amountHuman": "~$37M",
+      "note": "Partial return by white-hat copy-cat exploiters after Nomad's recovery bounty"
+    }
+  ],
+  "sources": [
+    {
+      "id": "coinbase-nomad",
+      "kind": "post-mortem",
+      "url": "https://medium.com/the-coinbase-blog/nomad-bridge-incident-analysis-899b425b0f34",
+      "publisher": "Coinbase"
+    },
+    {
+      "id": "immunefi-nomad",
+      "kind": "forensic-thread",
+      "url": "https://medium.com/immunefi/hack-analysis-nomad-bridge-august-2022-5aa63d53814a",
+      "publisher": "Immunefi"
+    },
+    {
+      "id": "rekt-nomad",
+      "kind": "post-mortem",
+      "url": "https://rekt.news/nomad-rekt/",
+      "publisher": "rekt.news"
+    },
+    {
+      "id": "halborn-nomad",
+      "kind": "post-mortem",
+      "url": "https://www.halborn.com/blog/post/explained-the-nomad-hack-august-2022",
+      "publisher": "Halborn"
+    }
+  ]
+}

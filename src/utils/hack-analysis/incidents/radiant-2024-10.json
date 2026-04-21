@@ -1,0 +1,42 @@
+{
+  "id": "radiant-2024-10",
+  "name": "Radiant Capital Multisig Compromise",
+  "chain": "arbitrum",
+  "date": "2024-10-16",
+  "protocol": "Radiant Capital",
+  "amountUsd": 58000000,
+  "canonicalTxs": [
+    "0x7856552db409fe51e17339ab1e0e1ce9c85d68bf0f4de4c110fc4e372ea02fb1",
+    "0xd97b93f633aee356d992b49193e60a571b8c466bf46aaf072368f975dc11841c"
+  ],
+  "exploitClasses": ["signer-compromise", "delegatecall-to-user-controlled"],
+  "tldr": "Radiant Capital lost ~$58M when DPRK-linked UNC4736 compromised three developer machines with INLETDRIFT malware, spoofed hardware-wallet signing UIs, and collected legitimate 3-of-11 multisig signatures for an upgradeToAndCall that delegatecalled a pre-deployed malicious LendingPool implementation. The attack was cross-chain, draining reserves on both Arbitrum and BSC in parallel; Arbitrum is recorded as the canonical chain here and the BSC drain tx is included alongside the Arbitrum tx in canonicalTxs.",
+  "coreContradiction": "Signers saw a benign Gnosis Safe transaction in their hardware-wallet and Tenderly previews while the on-wire calldata actually transferred LendingPoolAddressesProvider ownership to an attacker contract and delegatecalled a poisoned implementation.",
+  "attackSteps": [
+    { "order": 1, "label": "INLETDRIFT implant", "detail": "A Radiant contributor received a Telegram DM impersonating a former contractor with a zipped macOS app; opening it installed the INLETDRIFT backdoor, which then spread to two other developer machines weeks before the heist.", "sourceIds": ["radiant-postmortem", "radiant-update"] },
+    { "order": 2, "label": "Malicious impl pre-staged", "detail": "The attacker pre-deployed an identical malicious contract at 0x57ba89...fbf5 on Arbitrum, BSC, Ethereum and Base roughly 14 days before the attack to serve as the upgrade target.", "sourceIds": ["halborn-radiant", "quill-radiant"] },
+    { "order": 3, "label": "Signer UI spoofing", "detail": "The malware intercepted Safe transaction flows on the compromised boxes: hardware wallets and Tenderly showed a routine transfer while the real calldata executed transferOwnership of LendingPoolAddressesProvider and upgraded the LendingPool implementation.", "sourceIds": ["radiant-postmortem", "halborn-radiant"] },
+    { "order": 4, "label": "Legitimate 3-of-11 signatures collected", "detail": "Three compromised signers produced valid signatures for what looked like an expected Safe operation, satisfying the 3-of-11 threshold on the Arbitrum admin multisig at 0x111C...2177.", "sourceIds": ["radiant-postmortem", "radiant-update"] },
+    { "order": 5, "label": "Upgrade + drain on Arbitrum and BSC", "detail": "Execution at 17:09:18 UTC on Arbitrum (tx 0x7856...2fb1) and ~80 seconds later on BSC (tx 0xd97b...841c) upgraded the pools via delegatecall and drained USDC, USDT, ARB, WBTC and WETH reserves to the attacker EOA at 0x0629...8962, roughly $58M total.", "sourceIds": ["halborn-radiant", "quill-radiant", "radiant-update"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x0629b1048298AE9deff0F4100A31967Fb3f98962", "label": "Radiant exploiter EOA" },
+    { "id": "attacker-impl", "role": "attacker-contract", "address": "0x57ba8957ed2ff2e7AE38F4935451E81Ce1eEFbf5", "label": "Malicious LendingPool implementation / multicall" },
+    { "id": "lending-pool", "role": "victim-contract", "address": "0xE23B4AE3624fB6f7cDEF29bC8EAD912f1Ede6886", "label": "Radiant LendingPool proxy (Arbitrum)" },
+    { "id": "addresses-provider", "role": "proxy", "address": "0x454a8dAf74B24037eE2fa073Ce1be9277Ed6160a", "label": "LendingPoolAddressesProvider (Arbitrum)" },
+    { "id": "radiant-multisig", "role": "signer", "address": "0x111CEEee040739fD91D29C34C33E6B3E112F2177", "label": "Radiant 3-of-11 admin Safe (Arbitrum)" },
+    { "id": "compromised-dev-1", "role": "signer", "address": "0x20340c2a71055FD2887D9A71054100FF7F425BE5", "label": "Compromised dev signer (Ledger via Rabby)" },
+    { "id": "compromised-dev-2", "role": "signer", "address": "0x83434627e72d977af18F8D2F26203895050eF9Ce", "label": "Compromised dev signer (Ledger via Rabby)" },
+    { "id": "compromised-dev-3", "role": "signer", "address": "0xbB67c265e7197A7c3Cd458F8F7C1d79a2fb04d57", "label": "Compromised dev signer (Trezor via Frame)" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "lending-pool", "toEntityId": "attacker-impl", "tokenSymbol": null, "amountHuman": null, "note": "upgradeToAndCall delegatecalled the malicious implementation inside the LendingPool proxy's storage context" },
+    { "fromEntityId": "lending-pool", "toEntityId": "attacker-eoa", "tokenSymbol": null, "amountHuman": "~$58M mixed (USDC, USDT, ARB, WBTC, WETH)", "note": "drained reserves across Arbitrum and BSC to attacker EOA" }
+  ],
+  "sources": [
+    { "id": "radiant-postmortem", "kind": "post-mortem", "url": "https://medium.com/@RadiantCapital/radiant-post-mortem-fecd6cd38081", "publisher": "Radiant Capital" },
+    { "id": "radiant-update", "kind": "official", "url": "https://medium.com/@RadiantCapital/radiant-capital-incident-update-e56d8c23829e", "publisher": "Radiant Capital" },
+    { "id": "halborn-radiant", "kind": "forensic-thread", "url": "https://www.halborn.com/blog/post/explained-the-radiant-capital-hack-october-2024", "publisher": "Halborn" },
+    { "id": "quill-radiant", "kind": "forensic-thread", "url": "https://www.quillaudits.com/blog/hack-analysis/radiant-capital-58million-hack", "publisher": "QuillAudits" }
+  ]
+}

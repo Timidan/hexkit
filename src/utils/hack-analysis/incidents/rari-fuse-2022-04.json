@@ -1,0 +1,50 @@
+{
+  "id": "rari-fuse-2022-04",
+  "name": "Rari Capital Fuse Pools Reentrancy Drain",
+  "chain": "ethereum",
+  "date": "2022-04-30",
+  "protocol": "Rari Capital Fuse",
+  "amountUsd": 80000000,
+  "canonicalTxs": [
+    "0xab486012f21be741c9e674ffda227e30518e8a1e37a5f1d58d0b0d41f6e76530",
+    "0xadbe5cf9269a001d50990d0c29075b402bcc3a0b0f3258821881621b787b35c6"
+  ],
+  "exploitClasses": ["reentrancy"],
+  "tldr": "Seven Rari Fuse lending pools (8, 18, 27, 127, 144, 146, 156) were drained of ~$80M when the attacker re-entered the unprotected Comptroller.exitMarket() during a native-ETH borrow callback, exiting collateral while a debt remained open.",
+  "coreContradiction": "Fuse's CEther.borrow() sent ETH via .call.value() before finalizing account state, and Comptroller.exitMarket() was missing from the reentrancy-lock whitelist — so a borrower's fallback could legally withdraw the same collateral that was backing the fresh debt.",
+  "attackSteps": [
+    { "order": 1, "label": "Flash-loan liquidity", "detail": "Attacker contract 0x3207...6C45 took a Balancer vault flash loan (~50,000 WETH and ~80,000 wstETH) to seed collateral for each targeted Fuse pool.", "sourceIds": ["blockapex-rari", "hackmd-raddy"] },
+    { "order": 2, "label": "Supply and enter market", "detail": "The flash-loaned assets were deposited into the victim fToken (e.g. fwstETH in pool 146, fFEI in pool 8) and enterMarkets() was called so the deposit counted as collateral.", "sourceIds": ["blockapex-rari", "solidityscan-rari"] },
+    { "order": 3, "label": "Borrow native ETH to trigger callback", "detail": "Attacker called borrow() on the pool's CEther fToken. Fuse transferred ETH to the attacker contract via low-level .call.value() BEFORE updating the borrower's collateral accounting.", "sourceIds": ["solidityscan-rari", "rekt-rari"] },
+    { "order": 4, "label": "Reenter exitMarket in fallback", "detail": "Inside the receive() fallback, the attacker re-entered Comptroller.exitMarket() — a function omitted from Fuse's reentrancy-lock set — which released the still-posted collateral despite the freshly minted debt.", "sourceIds": ["solidityscan-rari", "blockapex-rari", "rekt-rari"] },
+    { "order": 5, "label": "Redeem collateral and repeat", "detail": "Attacker redeemed the now-unlocked fTokens for underlying, repaid the Balancer flash loan, and repeated the sequence across pools 8, 18, 27, 127, 144, 146, and 156 for a cumulative ~$80M.", "sourceIds": ["coindesk-rari", "rekt-rari", "hackmd-raddy"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x6162759eDAd730152F0dF8115c698a42E666157F", "label": "FeiProtocol-Fuse Exploiter EOA" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0x32075bAd9050d4767018084F0Cb87b3182D36C45", "label": "Exploit contract (flash-loan + reentrancy)" },
+    { "id": "attacker-receiver", "role": "attacker-contract", "address": "0xE39f3C40966DF56c69AA508D8AD459E77B8a2bc1", "label": "Attacker profit receiver contract" },
+    { "id": "fuse-pool8-comptroller", "role": "victim-contract", "address": "0xc54172e34046c1653d1920d40333Dd358c7a1aF4", "label": "Fuse Pool 8 Comptroller" },
+    { "id": "fuse-pool8-fei", "role": "victim-contract", "address": "0xd8553552f8868C1Ef160eEdf031cF0BCf9686945", "label": "Fuse Pool 8 fFEI" },
+    { "id": "fuse-pool146-comptroller", "role": "victim-contract", "address": "0x88F7c23EA6C4C404dA463Bc9aE03b012B32DEf9e", "label": "Fuse Pool 146 Comptroller" },
+    { "id": "fuse-pool146-feth", "role": "victim-contract", "address": "0xfbD8Aaf46Ab3C2732FA930e5B343cd67cEA5054C", "label": "Fuse Pool 146 fETH (CEther)" },
+    { "id": "fuse-pool146-fwsteth", "role": "victim-contract", "address": "0x49dA42a1EcA4AC6cA0C6943d9E5dc64e4641e0E3", "label": "Fuse Pool 146 fwstETH" },
+    { "id": "fuse-pool127-fusdc", "role": "victim-contract", "address": "0xEbE0d1cb6A0b8569929e062d67bfbC07608f0A47", "label": "Fuse Pool 127 fUSDC" },
+    { "id": "fuse-pool127-feth", "role": "victim-contract", "address": "0x26267e41CeCa7C8E0f143554Af707336f27Fa051", "label": "Fuse Pool 127 fETH (CEther)" },
+    { "id": "fuse-pool127-comptroller", "role": "victim-contract", "address": "0x3f2D1BC6D02522dbcdb216b2e75eDDdAFE04B16F", "label": "Fuse Pool 127 Comptroller" },
+    { "id": "balancer-vault", "role": "pool", "address": "0xBA12222222228d8Ba445958a75a0704d566BF2C8", "label": "Balancer V2 Vault (flash-loan source)" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "balancer-vault", "toEntityId": "attacker-contract", "tokenSymbol": "WETH", "amountHuman": "~50,000 WETH + ~80,000 wstETH", "note": "flash loan later repaid" },
+    { "fromEntityId": "fuse-pool146-feth", "toEntityId": "attacker-contract", "tokenSymbol": "ETH", "amountHuman": null, "note": "borrow() transferred ETH via .call.value() triggering fallback" },
+    { "fromEntityId": "fuse-pool8-fei", "toEntityId": "attacker-contract", "tokenSymbol": "FEI", "amountHuman": null, "note": "collateral redeemed after exitMarket reentrancy" },
+    { "fromEntityId": "fuse-pool127-fusdc", "toEntityId": "attacker-contract", "tokenSymbol": "USDC", "amountHuman": null, "note": "collateral redeemed after exitMarket reentrancy" },
+    { "fromEntityId": "attacker-contract", "toEntityId": "attacker-eoa", "tokenSymbol": null, "amountHuman": "~$80,000,000 across 7 pools", "note": "net proceeds across pools 8/18/27/127/144/146/156" }
+  ],
+  "sources": [
+    { "id": "rekt-rari", "kind": "post-mortem", "url": "https://rekt.news/rari-rekt/", "publisher": "rekt.news" },
+    { "id": "coindesk-rari", "kind": "database-row", "url": "https://www.coindesk.com/business/2022/04/30/defi-lender-rari-capitalfei-loses-80m-in-hack", "publisher": "CoinDesk" },
+    { "id": "blockapex-rari", "kind": "forensic-thread", "url": "https://medium.com/blockapex/rari-capital-hack-analysis-poc-3f0328e555d9", "publisher": "BlockApex" },
+    { "id": "solidityscan-rari", "kind": "forensic-thread", "url": "https://blog.solidityscan.com/rari-capital-re-entrancy-vulnerability-analysis-25df2bbfc803", "publisher": "SolidityScan" },
+    { "id": "hackmd-raddy", "kind": "forensic-thread", "url": "https://hackmd.io/@raddy/H1H8uWASc", "publisher": "raddy (HackMD)" }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "id": "woofi-2024-03",
+  "name": "WOOFi sPMM Oracle Manipulation",
+  "chain": "arbitrum",
+  "date": "2024-03-05",
+  "protocol": "WOOFi",
+  "amountUsd": 8750000,
+  "canonicalTxs": ["0x57e555328b7def90e1fc2a0f7aa6df8d601a8f15803800a5aaf0a20382f21fbd"],
+  "exploitClasses": ["oracle-manipulation", "flashloan-price-manipulation"],
+  "tldr": "Attacker flash-loaned WOO tokens on Arbitrum to skew WOOFi's sPMM internal price to near-zero, then swapped back at the manipulated price; the Chainlink fallback oracle was never configured for WOO, leaving no safety net. Repeated three times in 13 minutes for ~$8.75M.",
+  "coreContradiction": "WOOFi's sPMM used an unchecked internal price state for WOO with no Chainlink fallback, so draining the pool of WOO via a flash loan collapsed the reported price to $0.00000009 — making a trivial swap yield millions.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Flash-loan USDC + WOO",
+      "detail": "Attacker borrowed ~10.6M USDC via a Uniswap V3 flash loan and borrowed the entire WOO reserves (~7.7M WOO) from Trader Joe and Silo Finance on Arbitrum.",
+      "sourceIds": ["rekt-woofi", "cyfrin-woofi"]
+    },
+    {
+      "order": 2,
+      "label": "Sell WOO into WooPPV2",
+      "detail": "Selling the borrowed WOO into the WooPPV2 sPMM pool caused the internal price oracle for WOO to collapse to ~$0.00000009 due to unchecked state update math.",
+      "sourceIds": ["cyfrin-woofi", "woo-postmortem"]
+    },
+    {
+      "order": 3,
+      "label": "Buy WOO at near-zero price",
+      "detail": "With the sPMM price at essentially zero, attacker swapped ~10M WOO back out of the pool for negligible cost, draining USDC and WETH reserves.",
+      "sourceIds": ["rekt-woofi", "cyfrin-woofi"]
+    },
+    {
+      "order": 4,
+      "label": "Repay flash loans, repeat",
+      "detail": "Flash loans were repaid atomically; the attack was repeated two more times (three total) within 13 minutes before WOOFi paused contracts, netting ~$8.75M.",
+      "sourceIds": ["rekt-woofi", "woo-postmortem"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0x9961190B258897BCa7a12B8f37F415E689D281C4",
+      "label": "WOOFi Exploiter EOA"
+    },
+    {
+      "id": "attacker-contract",
+      "role": "attacker-contract",
+      "address": "0xD4c633C9A765bC690E1FbA566981c1F4eab52dF0",
+      "label": "WOOFi Exploit Contract"
+    },
+    {
+      "id": "victim-pool",
+      "role": "victim-contract",
+      "address": "0xeFF23B4bE1091b53205E35f3AfCD9C7182bf3062",
+      "label": "WooPPV2 sPMM Pool (Arbitrum)"
+    },
+    {
+      "id": "woo-oracle",
+      "role": "oracle",
+      "address": "0x73504eaCB100c7576146618DC306c97454CB3620",
+      "label": "WOO Oracle V2 (sPMM internal)"
+    },
+    {
+      "id": "woo-token",
+      "role": "token",
+      "address": "0xcAFcD85D8ca7Ad1e1C6F82F651fA15E33AEfD07b",
+      "label": "WOO token (Arbitrum)"
+    },
+    {
+      "id": "attacker-recipient",
+      "role": "attacker-eoa",
+      "address": "0xb59d04d9957C9e266dfF5c4173D4d2324Eb029Ad",
+      "label": "Attacker fund recipient address"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "victim-pool",
+      "toEntityId": "attacker-contract",
+      "tokenSymbol": "USDC",
+      "amountHuman": "~$8,750,000 USDC/WETH equiv.",
+      "note": "Drained across three flash-loan attack iterations"
+    },
+    {
+      "fromEntityId": "attacker-contract",
+      "toEntityId": "attacker-recipient",
+      "tokenSymbol": "ETH",
+      "amountHuman": "~559 WETH + USDC",
+      "note": "Profits swept to recipient after repaying flash loans"
+    }
+  ],
+  "sources": [
+    {
+      "id": "rekt-woofi",
+      "kind": "forensic-thread",
+      "url": "https://rekt.news/woo-rekt/",
+      "publisher": "rekt.news"
+    },
+    {
+      "id": "cyfrin-woofi",
+      "kind": "forensic-thread",
+      "url": "https://www.cyfrin.io/blog/hack-analysis-into-woofi-exploit",
+      "publisher": "Cyfrin"
+    },
+    {
+      "id": "woo-postmortem",
+      "kind": "post-mortem",
+      "url": "https://woox.io/blog/en/woofi-spmm-exploit-post-mortem",
+      "publisher": "WOO / WOOFi Team"
+    },
+    {
+      "id": "halborn-woofi",
+      "kind": "forensic-thread",
+      "url": "https://www.halborn.com/blog/post/explained-the-woofi-hack-march-2024",
+      "publisher": "Halborn"
+    }
+  ]
+}

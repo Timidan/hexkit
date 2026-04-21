@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 
 interface TopBarProps {
-  onOpenRpcSettings: () => void;
+  onOpenSettings: () => void;
   onOpenStorageManager: () => void;
   className?: string;
   onToggleMobileMenu?: () => void;
@@ -25,7 +25,7 @@ interface TopBarProps {
 }
 
 const TopBar: React.FC<TopBarProps> = ({
-  onOpenRpcSettings,
+  onOpenSettings,
   onOpenStorageManager,
   className,
   onToggleMobileMenu,
@@ -170,7 +170,7 @@ const TopBar: React.FC<TopBarProps> = ({
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
           className="pointer-events-auto w-full max-w-[460px]"
-          onOpenRpcSettings={onOpenRpcSettings}
+          onOpenSettings={onOpenSettings}
           onOpenStorageManager={onOpenStorageManager}
         />
       </div>
@@ -217,14 +217,14 @@ const TopBar: React.FC<TopBarProps> = ({
               type="button"
               variant="icon-borderless"
               size="icon-inline"
-              className="rpc-settings-trigger relative"
+              className="app-settings-trigger relative"
               onClick={(e) => {
                 e.preventDefault();
                 setPopoverOpen(false);
-                onOpenRpcSettings();
+                onOpenSettings();
               }}
-              title="RPC Settings"
-              aria-label="RPC settings"
+              title="Settings"
+              aria-label="Settings"
             >
               <SettingsIcon size={16} />
               {needsKeys && (

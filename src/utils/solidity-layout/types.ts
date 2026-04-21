@@ -73,7 +73,7 @@ export interface ParsedEnumDef {
 export interface ReconstructionResult {
   layout: StorageLayoutResponse;
   /** 'compiler' is never returned by this module -- included for upstream compat */
-  confidence: 'compiler' | 'reconstructed';
+  confidence: 'compiler' | 'reconstructed' | 'heuristic';
   warnings: string[];
 }
 

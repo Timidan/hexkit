@@ -1,0 +1,117 @@
+{
+  "id": "orion-protocol-2023-02",
+  "name": "Orion Protocol Reentrancy Exploit",
+  "chain": "ethereum",
+  "date": "2023-02-02",
+  "protocol": "Orion Protocol",
+  "amountUsd": 2900000,
+  "canonicalTxs": ["0xa6f63fcb6bec8818864d96a5b1bb19e8bd85ee37b2cc916412e720988440b2aa"],
+  "exploitClasses": ["reentrancy"],
+  "tldr": "Attacker deployed a malicious ERC20 token whose transferFrom callback re-entered ExchangeWithAtomic's depositAsset, inflating their recorded balance without actually transferring funds, then withdrew ~$2.9M in USDT (and WETH) from Orion Protocol on Ethereum and BSC.",
+  "coreContradiction": "The swap router credited a deposit based on post-transfer balance deltas, but the malicious token's callback re-entered depositAsset before the original swap settled, doubling the recorded balance at zero cost.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Deploy malicious token & pool",
+      "detail": "Attacker deployed a fake ERC20 (ATK) on Ethereum whose transferFrom function contains a re-entrancy hook, and created Orion pool pairs USDT/ATK and USDC/ATK.",
+      "sourceIds": ["slowmist-orion", "numen-orion"]
+    },
+    {
+      "order": 2,
+      "label": "Seed small deposit",
+      "detail": "Attacker deposited 0.5 USDC into the ExchangeWithAtomic contract to establish an initial balance entry.",
+      "sourceIds": ["slowmist-orion"]
+    },
+    {
+      "order": 3,
+      "label": "Flash-loan USDT via Uniswap V2",
+      "detail": "Attacker borrowed ~2,844,766 USDT from a Uniswap V2 pair using a flash swap, providing funds for the swap path.",
+      "sourceIds": ["numen-orion", "slowmist-orion"]
+    },
+    {
+      "order": 4,
+      "label": "Trigger doSwapThroughOrionPool with malicious path",
+      "detail": "Called ExchangeWithAtomic.doSwapThroughOrionPool with the path USDC → ATK → USDT; the contract transferred ATK tokens through the attacker-controlled malicious ERC20.",
+      "sourceIds": ["numen-orion", "slowmist-orion"]
+    },
+    {
+      "order": 5,
+      "label": "Re-enter depositAsset during ATK transferFrom",
+      "detail": "During the ATK transfer callback, the malicious token called depositAsset again, causing the exchange contract to record an additional 2,844,700 USDT deposit before the outer swap completed, inflating the attacker's ledger balance to ~5,689,532 USDT.",
+      "sourceIds": ["slowmist-orion", "numen-orion", "hackmd-orion"]
+    },
+    {
+      "order": 6,
+      "label": "Withdraw inflated balance & repay flash loan",
+      "detail": "Attacker withdrew 5,689,532 USDT from the victim contract, repaid the 2,844,766 USDT flash loan, and swapped the remaining profit into ~1,651 WETH via Uniswap V3.",
+      "sourceIds": ["slowmist-orion", "hackmd-orion"]
+    },
+    {
+      "order": 7,
+      "label": "Launder via Tornado Cash",
+      "detail": "Attacker self-destructed the exploit contract and laundered proceeds through 11 × 100 ETH deposits into Tornado Cash.",
+      "sourceIds": ["hackmd-orion"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0x837962b686Fd5A407fb4e5f92E8Be86A230484Bd",
+      "label": "Orion Protocol Exploiter EOA"
+    },
+    {
+      "id": "attacker-contract",
+      "role": "attacker-contract",
+      "address": "0x5061F7e6dfc1a867D945d0ec39Ea2A33f772380A",
+      "label": "Attacker exploit contract (self-destructed)"
+    },
+    {
+      "id": "malicious-token",
+      "role": "token",
+      "address": "0x64Acd987A8603EeAF1ee8E87Addd512908599Aec",
+      "label": "Malicious ATK token (Ethereum)"
+    },
+    {
+      "id": "victim-exchange",
+      "role": "victim-contract",
+      "address": "0xb5599f568D3f3e6113B286d010d2BCa40A7745AA",
+      "label": "Orion ExchangeWithAtomic (Ethereum)"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "victim-exchange",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "WETH",
+      "amountHuman": "~1,651 WETH",
+      "note": "Profit after repaying Uniswap flash loan; ~$2.84M on Ethereum"
+    }
+  ],
+  "sources": [
+    {
+      "id": "slowmist-orion",
+      "kind": "forensic-thread",
+      "url": "https://slowmist.medium.com/an-analysis-of-the-attack-on-orion-protocol-c7aef70aff83",
+      "publisher": "SlowMist"
+    },
+    {
+      "id": "numen-orion",
+      "kind": "forensic-thread",
+      "url": "https://www.numencyber.com/analysis-of-orionprotocol-reentrancy-attack-with-poc/",
+      "publisher": "Numen Cyber Labs"
+    },
+    {
+      "id": "hackmd-orion",
+      "kind": "forensic-thread",
+      "url": "https://hackmd.io/@yOzPcv5lQjCfGsgDW-f82A/SJBnGagi2",
+      "publisher": "HackMD (community forensic)"
+    },
+    {
+      "id": "rekt-orion",
+      "kind": "post-mortem",
+      "url": "https://rekt.news/orion-protocol-rekt",
+      "publisher": "rekt.news"
+    }
+  ]
+}

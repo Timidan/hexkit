@@ -1,0 +1,118 @@
+{
+  "id": "beanstalk-2022-04",
+  "name": "Beanstalk Governance Flash Loan Attack",
+  "chain": "ethereum",
+  "date": "2022-04-17",
+  "protocol": "Beanstalk Farms",
+  "amountUsd": 182000000,
+  "canonicalTxs": ["0xcd314668aaa9bbfebaf1a0bd2b6553d01dd58899c508d4729fa7311dc5d33ad7"],
+  "exploitClasses": ["governance-takeover", "flashloan-price-manipulation"],
+  "tldr": "Attacker flash-borrowed ~$1B in stablecoins from Aave/Uniswap/SushiSwap to acquire 79% of Beanstalk's Stalk voting power in a single block, then called emergencyCommit on a pre-planted malicious BIP that transferred all protocol assets (~$182M) to the attacker contract.",
+  "coreContradiction": "Beanstalk's governance counted flash-borrowed liquidity-pool deposits as legitimate long-term voting power, so temporary capital worth $1B could irrevocably commit a protocol-draining proposal in the same transaction.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Plant malicious BIPs",
+      "detail": "A day before the exploit, the attacker created two governance proposals: BIP-18 (drain all funds to attacker) and BIP-19 (donate $250k BEAN to Ukraine as distraction).",
+      "sourceIds": ["rekt-beanstalk", "immunefi-beanstalk"]
+    },
+    {
+      "order": 2,
+      "label": "Flash-borrow ~$1B",
+      "detail": "In a single transaction the attacker borrowed 350M DAI, 500M USDC, and 150M USDT from Aave, 32M BEAN from Uniswap V2, and 11.6M LUSD from SushiSwap.",
+      "sourceIds": ["immunefi-beanstalk", "certik-beanstalk"]
+    },
+    {
+      "order": 3,
+      "label": "Convert to BEAN3CRV-f LP tokens",
+      "detail": "Deposited stablecoins into Curve 3pool for 3Crv, then deposited 3Crv into the BEAN3CRV-f Curve pool, obtaining BEAN3CRV-f LP tokens.",
+      "sourceIds": ["immunefi-beanstalk"]
+    },
+    {
+      "order": 4,
+      "label": "Deposit into Beanstalk (acquire Stalk)",
+      "detail": "Deposited all BEAN3CRV-f tokens into the Beanstalk Diamond, which automatically minted Stalk voting power via LibSilo.incrementBipRoots, giving the attacker ~79% of total Stalk.",
+      "sourceIds": ["immunefi-beanstalk", "rekt-beanstalk"]
+    },
+    {
+      "order": 5,
+      "label": "emergencyCommit BIP-18",
+      "detail": "Called GovernanceFacet.emergencyCommit(18), which required only ≥67% Stalk approval; the malicious BIP used delegatecall to transfer all BEAN3CRV-f held by the Beanstalk Diamond to the attacker contract.",
+      "sourceIds": ["immunefi-beanstalk", "certik-beanstalk"]
+    },
+    {
+      "order": 6,
+      "label": "Unwind and repay flashloans",
+      "detail": "Converted BEAN3CRV-f back through Curve into stablecoins, repaid all flash loans with fees, and retained ~24,830 ETH (~$76M) which was bridged to Tornado Cash.",
+      "sourceIds": ["rekt-beanstalk", "certik-beanstalk"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0x1c5dCdd006EA78a7E4783f9e6021C32935a10fb4",
+      "label": "Attacker EOA"
+    },
+    {
+      "id": "attacker-contract",
+      "role": "attacker-contract",
+      "address": "0x79224bC0bf70EC34F0ef56ed8251619499a59dEf",
+      "label": "Attacker exploit contract"
+    },
+    {
+      "id": "beanstalk-diamond",
+      "role": "victim-contract",
+      "address": "0xC1E088fC1323b20BCBee9bd1B9fC9546db5624C5",
+      "label": "Beanstalk Diamond proxy"
+    },
+    {
+      "id": "governance-facet",
+      "role": "implementation",
+      "address": "0xf480eE81a54E21Be47aa02D0F9E29985Bc7667c4",
+      "label": "GovernanceFacet (emergencyCommit)"
+    },
+    {
+      "id": "malicious-bip",
+      "role": "attacker-contract",
+      "address": "0xE5eCF73603D98A0128F05ed30506ac7A663dBb69",
+      "label": "Malicious BIP-18 proposal contract"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "beanstalk-diamond",
+      "toEntityId": "attacker-contract",
+      "tokenSymbol": "BEAN3CRV-f",
+      "amountHuman": "~$182M in protocol assets",
+      "note": "All protocol funds transferred via emergencyCommit delegatecall in BIP-18"
+    },
+    {
+      "fromEntityId": "attacker-contract",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "ETH",
+      "amountHuman": "24,830 ETH (~$76M net profit)",
+      "note": "After repaying $1B flashloans; proceeds sent to Tornado Cash"
+    }
+  ],
+  "sources": [
+    {
+      "id": "rekt-beanstalk",
+      "kind": "post-mortem",
+      "url": "https://rekt.news/beanstalk-rekt/",
+      "publisher": "Rekt News"
+    },
+    {
+      "id": "immunefi-beanstalk",
+      "kind": "forensic-thread",
+      "url": "https://medium.com/immunefi/hack-analysis-beanstalk-governance-attack-april-2022-f42788fc821e",
+      "publisher": "Immunefi"
+    },
+    {
+      "id": "certik-beanstalk",
+      "kind": "forensic-thread",
+      "url": "https://www.certik.com/resources/blog/6HaLMGIL5sI2fpfEZc0nzS-revisiting-beanstalk-farms-exploit",
+      "publisher": "CertiK"
+    }
+  ]
+}

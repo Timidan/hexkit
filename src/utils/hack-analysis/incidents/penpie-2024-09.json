@@ -1,0 +1,40 @@
+{
+  "id": "penpie-2024-09",
+  "name": "Penpie Finance Reentrancy Drain",
+  "chain": "ethereum",
+  "date": "2024-09-03",
+  "protocol": "Penpie Finance",
+  "amountUsd": 27000000,
+  "canonicalTxs": [
+    "0x663b55a1ee992603f7636ef23ff5cf19d3b261ab81494d06e218c86482df5342",
+    "0x42b2ec27c732100dd9037c76da415e10329ea41598de453bb0c0c9ea7ce0d8e5",
+    "0x56e09abb35ff12271fdb38ff8a23e4d4a7396844426a94c4d3af2e8b7a0a2813"
+  ],
+  "exploitClasses": ["reentrancy", "math-invariant-manipulation"],
+  "tldr": "Penpie lost ~$27M when an attacker registered a fake Pendle market whose SY token re-entered MasterPenpie's depositMarket during batchHarvestMarketRewards, inflating share balance mid-harvest to siphon rewards in agETH, rsETH and other Pendle PT/YT tokens.",
+  "coreContradiction": "MasterPenpie allowed permissionless Pendle market registration and did not guard batchHarvestMarketRewards against reentrancy, so an attacker-controlled SY transfer hook could mutate staking shares inside the very loop that was measuring them.",
+  "attackSteps": [
+    { "order": 1, "label": "Deploy malicious SY + market", "detail": "Attacker deployed a fake Pendle SY token, used Pendle's permissionless createYieldContract and createNewMarket in PendleMarketFactoryV3 to mint PT/YT backed by the fake SY, then called registerPenpiePool on Penpie's Staking proxy so MasterPenpie would recognise the rogue market.", "sourceIds": ["slowmist-penpie", "rekt-penpie"] },
+    { "order": 2, "label": "Borrow seed liquidity via flashloan", "detail": "Attacker flash-borrowed agETH and rswETH from Balancer Vault to seed real Pendle markets and the fake market, then deposited Pendle LP into MasterPenpie as the sole depositor.", "sourceIds": ["slowmist-penpie", "threesigma-penpie"] },
+    { "order": 3, "label": "Reenter depositMarket during harvest", "detail": "Calling batchHarvestMarketRewards on MasterPenpie routed a claimRewards call through the fake SY; the attacker-controlled SY transfer callback re-entered PendleStaking.depositMarket on a legitimate Pendle market, inflating the attacker's tracked share balance before the outer harvest loop snapshotted rewards.", "sourceIds": ["slowmist-penpie", "halborn-penpie", "threesigma-penpie"] },
+    { "order": 4, "label": "Claim disproportionate rewards", "detail": "Because the harvest accounted rewards proportional to the now-inflated share balance, multiclaim paid out ~$27M worth of agETH, rsETH, sUSDe and Pendle PT/YT tokens to the attacker across three exploit transactions on Ethereum mainnet.", "sourceIds": ["rekt-penpie", "threesigma-penpie"] },
+    { "order": 5, "label": "Launder through Tornado Cash", "detail": "Attacker refused the whitehat bounty, bridged proceeds to ETH and began washing funds through Tornado Cash rather than returning them.", "sourceIds": ["halborn-penpie", "rekt-penpie"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x7A2f4D625Fb21F5e51562cE8Dc2E722e12A61d1B", "label": "Penpiexyz Exploiter (EOA)" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0xCDE2cD6AEAaF0238F4cE33295be13704E4a97dE2", "label": "Exploit contract (fake SY / entry)" },
+    { "id": "master-penpie", "role": "victim-contract", "address": "0x16296859C15289731521F199F0a5f762dF6347d0", "label": "MasterPenpie (reward proxy)" },
+    { "id": "penpie-staking", "role": "victim-contract", "address": "0x6E799758CEE75DAe3d84e09D40dc416eCf713652", "label": "PendleStaking / Penpie Staking proxy" },
+    { "id": "pendle-router", "role": "router", "address": "0x888888888889758F76e7103c6CbF23ABbF58F946", "label": "Pendle Router V4" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "master-penpie", "toEntityId": "attacker-contract", "tokenSymbol": null, "amountHuman": "~$27M in agETH, rsETH, sUSDe, Pendle PT/YT", "note": "paid out via multiclaim against inflated shares" },
+    { "fromEntityId": "attacker-contract", "toEntityId": "attacker-eoa", "tokenSymbol": "ETH", "amountHuman": null, "note": "consolidated proceeds sent to exploiter EOA before Tornado Cash laundering" }
+  ],
+  "sources": [
+    { "id": "rekt-penpie", "kind": "forensic-thread", "url": "https://rekt.news/penpie-rekt/", "publisher": "rekt.news" },
+    { "id": "slowmist-penpie", "kind": "forensic-thread", "url": "https://slowmist.medium.com/slowmist-incident-analysis-penpie-hack-e6157975898f", "publisher": "SlowMist" },
+    { "id": "halborn-penpie", "kind": "post-mortem", "url": "https://www.halborn.com/blog/post/explained-the-penpie-hack-september-2024", "publisher": "Halborn" },
+    { "id": "threesigma-penpie", "kind": "post-mortem", "url": "https://threesigma.xyz/blog/exploit/penpie-reentrancy-exploit-analysis", "publisher": "Three Sigma" }
+  ]
+}

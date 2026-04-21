@@ -1,0 +1,41 @@
+{
+  "id": "team-finance-2022-10",
+  "name": "Team Finance Liquidity Locker Migration Exploit",
+  "chain": "ethereum",
+  "date": "2022-10-27",
+  "protocol": "Team Finance",
+  "amountUsd": 14500000,
+  "canonicalTxs": ["0xb2e3ea72d353da43a2ac9a8f1670fd16463ab370e563b9b5b26119b2601277ce"],
+  "exploitClasses": ["access-control-bypass", "math-invariant-manipulation"],
+  "tldr": "Team Finance's liquidity locker lost ~$14.5M when an attacker abused its unvalidated Uniswap v2 to v3 migrate() function to redirect locked LP for CAW, TSUKA, KNDX, and FEG into attacker-controlled v3 positions.",
+  "coreContradiction": "migrate() trusted the caller to name which locked pair to migrate, so locking a throwaway token was enough to pull any other project's real LP through the Uniswap v3 migrator.",
+  "attackSteps": [
+    { "order": 1, "label": "Lock decoy token", "detail": "Attacker contract created a worthless token, paired it on Uniswap v2, and locked that LP in the Team Finance locker to obtain a valid lock id.", "sourceIds": ["slowmist-teamfinance", "halborn-teamfinance"] },
+    { "order": 2, "label": "Call migrate() with mismatched pair", "detail": "Using the decoy lock id, the attacker invoked migrate() but passed parameters pointing at a different, real v2 pair (CAW/USDC, TSUKA/USDC, KNDX/WETH, FEG/WETH); the locker never checked that the migrated pair matched the locked token.", "sourceIds": ["slowmist-teamfinance", "rekt-teamfinance"] },
+    { "order": 3, "label": "Skewed v3 pool initialization", "detail": "Through the Uniswap v3 Migrator the attacker initialized the new v3 pool at a heavily skewed price, so almost the entire underlying liquidity minted as a single in-range v3 position to the attacker instead of to the original locker.", "sourceIds": ["halborn-teamfinance", "rekt-teamfinance"] },
+    { "order": 4, "label": "Collect v3 NFT and cash out", "detail": "Four Uniswap v3 position NFTs were minted to the attacker contract; it burned them to withdraw the paired tokens (CAW, TSUKA, KNDX, FEG, USDC, WETH) and forwarded the proceeds to EOA 0x161c...99Fd and secondary wallet 0xBa39...7e6E.", "sourceIds": ["rekt-teamfinance", "coindesk-teamfinance"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x161cebB807Ac181d5303A4cCec2FC580CC5899Fd", "label": "Attacker EOA (deployer)" },
+    { "id": "attacker-eoa-2", "role": "attacker-eoa", "address": "0xBa399a2580785A2dEd740F5e30EC89Fb3E617e6E", "label": "Attacker secondary EOA (stolen fund holder)" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0xCFF07C4e6aa9E2fEc04DAaF5f41d1b10f3adAdF4", "label": "Attacker exploit contract" },
+    { "id": "victim-locker", "role": "victim-contract", "address": "0xE2fE530C047f2d85298b07D9333C05737f1435fB", "label": "TrustSwap/Team Finance Lock (vulnerable migrate)" },
+    { "id": "uni-v3-migrator", "role": "router", "address": "0xA5644E29708357803b5A882D272c41cC0dF92B34", "label": "Uniswap V3 Migrator" },
+    { "id": "uni-v3-npm", "role": "router", "address": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "label": "Uniswap V3 NonfungiblePositionManager" },
+    { "id": "pool-caw", "role": "pool", "address": "0x7a809081f991eCfe0aB2727C7E90D2Ad7c2E411E", "label": "Uniswap V2 USDC/CAW pair" },
+    { "id": "pool-tsuka", "role": "pool", "address": "0x67CeA36eEB36Ace126A3Ca6E21405258130CF33C", "label": "Uniswap V2 USDC/TSUKA pair" },
+    { "id": "pool-kndx", "role": "pool", "address": "0x9267C29e4f517cE9f6d603a15B50Aa47cE32278D", "label": "Uniswap V2 KNDX pair" },
+    { "id": "pool-feg", "role": "pool", "address": "0x854373387E41371Ac6E307A1F29603c6Fa10D872", "label": "Uniswap V2 FEG pair" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "victim-locker", "toEntityId": "uni-v3-migrator", "tokenSymbol": null, "amountHuman": "4 LP positions", "note": "Locked v2 LP for CAW, TSUKA, KNDX, FEG handed to v3 migrator via unchecked migrate()" },
+    { "fromEntityId": "uni-v3-npm", "toEntityId": "attacker-contract", "tokenSymbol": null, "amountHuman": "4 v3 position NFTs", "note": "v3 positions minted to attacker because of skewed initial price" },
+    { "fromEntityId": "attacker-contract", "toEntityId": "attacker-eoa-2", "tokenSymbol": null, "amountHuman": "~$14.5M in CAW, TSUKA, KNDX, FEG, USDC, WETH", "note": "Proceeds aggregated in attacker wallet 0xBa39...7e6E; ~$7M later returned" }
+  ],
+  "sources": [
+    { "id": "slowmist-teamfinance", "kind": "forensic-thread", "url": "https://slowmist.medium.com/analysis-review-of-team-finance-exploit-f439c2f63e2", "publisher": "SlowMist" },
+    { "id": "halborn-teamfinance", "kind": "forensic-thread", "url": "https://www.halborn.com/blog/post/explained-the-team-finance-hack-october-2022", "publisher": "Halborn" },
+    { "id": "rekt-teamfinance", "kind": "post-mortem", "url": "https://rekt.news/teamfinance-rekt", "publisher": "rekt.news" },
+    { "id": "coindesk-teamfinance", "kind": "official", "url": "https://www.coindesk.com/tech/2022/10/31/attacker-behind-145m-team-finance-exploit-returns-7m", "publisher": "CoinDesk" }
+  ]
+}

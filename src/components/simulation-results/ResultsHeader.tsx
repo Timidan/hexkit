@@ -3,6 +3,7 @@ import { ArrowLeft, ShareNetwork, ArrowsClockwise, DownloadSimple } from "@phosp
 import { Button } from "../ui/button";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "../ui/hover-card";
 import { DebugPillButton } from "./DebugPillButton";
+import { SummarizeButton } from "../tx-analysis/SummarizeButton";
 import type { DebugPrepState } from "../../types/debug";
 
 interface ResultsHeaderProps {
@@ -21,6 +22,7 @@ interface ResultsHeaderProps {
   hasLiveDebugSession: boolean;
   debugPrepState: DebugPrepState;
   cancelDebugPrep: () => void;
+  handleSummarize?: () => void;
 }
 
 export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
@@ -39,6 +41,7 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
   hasLiveDebugSession,
   debugPrepState,
   cancelDebugPrep,
+  handleSummarize,
 }) => {
   return (
     <header className="sim-results-header">
@@ -75,6 +78,9 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
           </HoverCardTrigger>
           <HoverCardContent>Export EDB test script</HoverCardContent>
         </HoverCard>
+        {handleSummarize ? (
+          <SummarizeButton onSummarize={handleSummarize} />
+        ) : null}
         <Button
           onClick={handleShare}
           variant="outline"

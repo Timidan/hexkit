@@ -1,0 +1,32 @@
+{
+  "id": "bybit-2025-02",
+  "name": "Bybit Cold Wallet Drain",
+  "chain": "ethereum",
+  "date": "2025-02-21",
+  "protocol": "Bybit",
+  "amountUsd": 1460000000,
+  "canonicalTxs": ["0x46deef0f52e3a983b67abf4714448a41dd7ffd6d32d32da69d62081c68ad7882"],
+  "exploitClasses": ["signer-compromise", "delegatecall-to-user-controlled"],
+  "tldr": "Bybit lost ~$1.46B when signers unknowingly approved a delegatecall that swapped the Safe's singleton to attacker-controlled code.",
+  "coreContradiction": "The Safe UI showed a routine ERC20 transfer while the calldata actually invoked a delegatecall rewriting the masterCopy slot.",
+  "attackSteps": [
+    { "order": 1, "label": "Malicious JS injected", "detail": "Attacker compromised a Safe{Wallet} developer machine and pushed tampered JS that altered what specific Bybit signers saw when approving.", "sourceIds": ["ncc-bybit"] },
+    { "order": 2, "label": "Signers approve distorted calldata", "detail": "Three signers approved what looked like a cold-to-hot transfer; the wire format encoded a delegatecall to the attacker contract.", "sourceIds": ["ncc-bybit", "chainalysis-bybit"] },
+    { "order": 3, "label": "Singleton swap", "detail": "delegatecall wrote slot 0 of the Safe to point at the attacker implementation, silently replacing the multisig's code.", "sourceIds": ["ncc-bybit"] },
+    { "order": 4, "label": "Drain ~401k ETH", "detail": "Attacker's implementation transferred the full cold-wallet balance across many intermediary addresses.", "sourceIds": ["elliptic-bybit"] }
+  ],
+  "entities": [
+    { "id": "victim-safe", "role": "victim-contract", "address": "0x1Db92e2EeBC8E0c075a02BeA49a2935BcD2dFCF4", "label": "Bybit cold wallet (Safe)" },
+    { "id": "attacker-impl", "role": "attacker-contract", "address": "0xbDd077f651EBe7f7b3cE16fe5F2b025BE2969516", "label": "Attacker implementation" },
+    { "id": "legit-singleton", "role": "implementation", "address": "0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F", "label": "Legit Safe singleton (pre-swap)" },
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x0fa09C3A328792253f8dee7116848723b72a6d2e", "label": "Attacker EOA" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "victim-safe", "toEntityId": "attacker-eoa", "tokenSymbol": "ETH", "amountHuman": "401,347 ETH", "note": "drained in one tx" }
+  ],
+  "sources": [
+    { "id": "ncc-bybit", "kind": "forensic-thread", "url": "https://www.nccgroup.com/research/in-depth-technical-analysis-of-the-bybit-hack/", "publisher": "NCC Group" },
+    { "id": "chainalysis-bybit", "kind": "official", "url": "https://www.chainalysis.com/blog/bybit-exchange-hack-february-2025-crypto-security-dprk/", "publisher": "Chainalysis" },
+    { "id": "elliptic-bybit", "kind": "forensic-thread", "url": "https://www.elliptic.co/blog/bybit-hack-largest-in-history", "publisher": "Elliptic" }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "qubit-2022-01",
+  "name": "Qubit Finance QBridge Exploit",
+  "chain": "bsc",
+  "date": "2022-01-27",
+  "protocol": "Qubit Finance / QBridge",
+  "amountUsd": 80000000,
+  "canonicalTxs": [
+    "0x478d83f2ad909c64a9a3d807b3d8399bb67a997f9721fc5580ae2c51fab92acf",
+    "0x33628dcc2ca6cd89a96d241bdf17cdc8785cf4322dcaf2c79766c990579aea02"
+  ],
+  "exploitClasses": ["bridge-message-forgery", "access-control-bypass"],
+  "tldr": "Qubit's QBridge accepted a zero-value deposit() call on Ethereum as if real ETH had been escrowed; BSC relayers then minted 77,162 qXETH to the attacker, who drained ~206,809 BNB (~$80M) from Qubit's lending pool.",
+  "coreContradiction": "The legacy deposit() path forwarded any ERC20-style payload to the handler without enforcing msg.value, so a WETH resourceID plus crafted data emitted a canonical Deposit event for ETH that was never delivered.",
+  "attackSteps": [
+    { "order": 1, "label": "Zero-value deposit on Ethereum", "detail": "Attacker EOA called QBridge.deposit(destinationChainID=1, WETH resourceID, data) on the Ethereum QBridge with 0 ETH attached; the legacy deposit function dispatched to the ETH handler and emitted a valid Deposit event despite no ETH being escrowed.", "sourceIds": ["halborn-qubit", "certik-qubit", "slowmist-qubit"] },
+    { "order": 2, "label": "Relayer votes proposal on BSC", "detail": "Qubit's off-chain relayer observed the Ethereum Deposit event and submitted voteProposal on the BSC QBridge, which on quorum executed the handler and minted qXETH on BSC to the attacker.", "sourceIds": ["slowmist-qubit", "qubit-postmortem"] },
+    { "order": 3, "label": "Repeat to accumulate qXETH", "detail": "Attacker repeated the zero-value deposit flow across multiple transactions, accumulating ~77,162 qXETH on BSC without ever depositing ETH on Ethereum.", "sourceIds": ["certik-qubit", "merkle-qubit"] },
+    { "order": 4, "label": "Borrow against fake collateral and drain", "detail": "Using the forged qXETH as collateral in Qubit's lending pools, the attacker borrowed the protocol's entire available liquidity, exiting with ~206,809 BNB and other assets worth ~$80M.", "sourceIds": ["certik-qubit", "merkle-qubit", "qubit-postmortem"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0xD01Ae1A708614948B2B5e0B7AB5be6AFA01325c7", "label": "QubitFin Exploiter EOA" },
+    { "id": "qbridge-eth", "role": "bridge", "address": "0x20E5E35ba29dC3B540a1aee781D0814D5c77Bce6", "label": "QBridge proxy (Ethereum, deposit entrypoint)" },
+    { "id": "qbridge-bsc", "role": "bridge", "address": "0x4d8aE68fCAe98Bf93299548545933c0D273BA23a", "label": "QBridge proxy (BSC, voteProposal target)" },
+    { "id": "qbridge-bsc-impl", "role": "implementation", "address": "0xD88E328c305f541e2De6D3c85ed081653cd8A726", "label": "QBridge implementation (BSC)" },
+    { "id": "qxeth-token", "role": "token", "address": "0xfD7A5506F434f5334C100EFb765025243C39137C", "label": "qXETH token proxy (BSC)" },
+    { "id": "qxeth-impl", "role": "implementation", "address": "0x02971e8d3a32C0c76beA97c1D18967b9AFbefa69", "label": "QTokenExploited implementation (qXETH)" },
+    { "id": "qubit-pool", "role": "pool", "address": "0xbE1B5D17777565D67A5D2793f879aBF59Ae5D351", "label": "Qubit lending pool (borrow target on BSC)" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "attacker-eoa", "toEntityId": "qbridge-eth", "tokenSymbol": "ETH", "amountHuman": "0 ETH", "note": "zero-value deposit() call that emitted a Deposit event for WETH" },
+    { "fromEntityId": "qxeth-token", "toEntityId": "attacker-eoa", "tokenSymbol": "qXETH", "amountHuman": "~77,162 qXETH", "note": "minted on BSC after relayers voted the forged proposal" },
+    { "fromEntityId": "qubit-pool", "toEntityId": "attacker-eoa", "tokenSymbol": "BNB", "amountHuman": "~206,809 BNB", "note": "borrowed against fake qXETH collateral; ~$80M total drained" }
+  ],
+  "sources": [
+    { "id": "qubit-postmortem", "kind": "post-mortem", "url": "https://medium.com/@QubitFin/protocol-exploit-report-2-30aade4d66de", "publisher": "Qubit Finance" },
+    { "id": "certik-qubit", "kind": "forensic-thread", "url": "https://certik.medium.com/qubit-bridge-collapse-exploited-to-the-tune-of-80-million-a7ab9068e1a0", "publisher": "CertiK" },
+    { "id": "slowmist-qubit", "kind": "forensic-thread", "url": "https://slowmist.medium.com/our-analysis-of-the-80m-qubit-finance-exploit-b0f272cd8c25", "publisher": "SlowMist" },
+    { "id": "halborn-qubit", "kind": "forensic-thread", "url": "https://www.halborn.com/blog/post/explained-the-qubit-hack-january-2022", "publisher": "Halborn" },
+    { "id": "merkle-qubit", "kind": "forensic-thread", "url": "https://www.merklescience.com/blog/hack-track-analysis-of-qubit-finance-exploit", "publisher": "Merkle Science" }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "kyberswap-elastic-2023-11",
+  "name": "KyberSwap Elastic Tick-Crossing Drain",
+  "chain": "ethereum",
+  "date": "2023-11-22",
+  "protocol": "KyberSwap Elastic",
+  "amountUsd": 48000000,
+  "canonicalTxs": ["0x485e08dc2b6a4b3aeadcb89c3d18a37666dc7d9424961a2091d6b3696792f0f3"],
+  "exploitClasses": ["math-invariant-manipulation"],
+  "tldr": "KyberSwap Elastic lost ~$48M across multiple chains when an attacker exploited a precision/tick-crossing flaw in the concentrated-liquidity swap math; the largest single-chain drain was on Ethereum, with parallel drains on Arbitrum, Optimism, Polygon, Base, Avalanche, and BSC pools.",
+  "coreContradiction": "Because computeSwapStep rounded the pre-tick amountIn using base+reinvestment liquidity but the post-swap price check used only base liquidity, the pool could cross a tick without ever calling _updateLiquidityAndCrossTick, letting the same liquidity be counted on both sides of the boundary.",
+  "attackSteps": [
+    { "order": 1, "label": "Flash loan WETH", "detail": "Attacker EOA 0x5027...be836 deployed exploit contract 0xaF2A...CDC13 and funded it with ~2,000 WETH flash-loaned from AAVE on Ethereum.", "sourceIds": ["kyberswap-postmortem", "slowmist-kyber"] },
+    { "order": 2, "label": "Price push past LP range", "detail": "Swap ~6.85 WETH into the frxETH/WETH KyberSwap Elastic pool (0xFd7B...4703) to push sqrtPrice above every existing LP position's upper tick, leaving the pool with zero active base liquidity.", "sourceIds": ["blocksec-kyber", "slowmist-kyber"] },
+    { "order": 3, "label": "Mint and partially burn", "detail": "Attacker minted a tiny position in the narrow range [tick 110909, 111310] and burned most of it so that only their liquidity was active inside that range while the reinvestment curve still held residual liquidity.", "sourceIds": ["blocksec-kyber", "halborn-kyber"] },
+    { "order": 4, "label": "Trigger double-count tick cross", "detail": "A precisely-sized reverse swap made computeSwapStep overestimate amountIn (it folded in reinvestment liquidity) so post-swap sqrtPrice exceeded the boundary tick without satisfying the strict inequality that calls _updateLiquidityAndCrossTick; liquidity was effectively counted twice.", "sourceIds": ["blocksec-kyber", "kyberswap-postmortem"] },
+    { "order": 5, "label": "Drain pool and repeat", "detail": "The flawed accounting let the attacker pull ~396 WETH out for ~0.006 frxETH, ~9 WETH more than the forward leg; the exploit contract repeated the pattern across multiple Ethereum Elastic pools and replayed it on six other chains for a total ~$48M loss.", "sourceIds": ["rekt-kyber", "kyberswap-postmortem"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x50275E0B7261559cE1644014d4b78D4AA63BE836", "label": "KyberSwap Exploiter 1 (EOA)" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0xaF2Acf3D4ab78e4c702256D214a3189A874CDC13", "label": "Exploit contract" },
+    { "id": "victim-pool", "role": "pool", "address": "0xFd7B111AA83b9b6F547E617C7601EfD997F64703", "label": "KyberSwap Elastic frxETH/WETH pool" },
+    { "id": "elastic-factory", "role": "victim-contract", "address": "0xC7a590291e07B9fe9E64b86c58fD8fC764308C4A", "label": "KyberSwap Elastic Factory" },
+    { "id": "position-manager", "role": "router", "address": "0xe222fBE074A436145b255442D919E4E3A6c6a480", "label": "KyberSwap Elastic Anti-Sniping Position Manager" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "victim-pool", "toEntityId": "attacker-contract", "tokenSymbol": "WETH", "amountHuman": "~396 WETH", "note": "net drain from frxETH/WETH pool via reverse swap; contract repeated pattern on other Elastic pools" },
+    { "fromEntityId": "attacker-contract", "toEntityId": "attacker-eoa", "tokenSymbol": null, "amountHuman": null, "note": "proceeds forwarded to KyberSwap Exploiter 1 EOA after flash-loan repayment" }
+  ],
+  "sources": [
+    { "id": "kyberswap-postmortem", "kind": "post-mortem", "url": "https://blog.kyberswap.com/post-mortem-kyberswap-elastic-exploit/", "publisher": "KyberSwap" },
+    { "id": "rekt-kyber", "kind": "database-row", "url": "https://rekt.news/kyberswap-rekt/", "publisher": "rekt.news" },
+    { "id": "blocksec-kyber", "kind": "forensic-thread", "url": "https://blocksec.com/blog/yet-another-tragedy-of-precision-loss-an-in-depth-analysis-of-the-kyber-swap-incident-1", "publisher": "BlockSec" },
+    { "id": "slowmist-kyber", "kind": "forensic-thread", "url": "https://slowmist.medium.com/a-deep-dive-into-the-kyberswap-hack-3e13f3305d3a", "publisher": "SlowMist" },
+    { "id": "halborn-kyber", "kind": "forensic-thread", "url": "https://www.halborn.com/blog/post/explained-the-kyberswap-hack-november-2023", "publisher": "Halborn" }
+  ]
+}

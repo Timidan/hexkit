@@ -1,0 +1,32 @@
+{
+  "id": "ledger-connect-2023-12",
+  "name": "Ledger Connect Kit Supply-Chain Drainer",
+  "chain": "ethereum",
+  "date": "2023-12-14",
+  "protocol": "Ledger Connect Kit",
+  "amountUsd": 610000,
+  "canonicalTxs": ["0xf2b76233561ded9382612352eb4cd511e081b715b577c2e2236704af9e8050f4"],
+  "exploitClasses": ["approval-drain"],
+  "tldr": "A former Ledger employee's npm session token was phished, letting Angel Drainer publish malicious @ledgerhq/connect-kit 1.1.5/1.1.6/1.1.7 that injected a wallet-drainer into every dApp (SushiSwap, Zapper, Revoke.cash, Kyber, Balancer front-ends) loading the library for ~5 hours, harvesting ERC20 approvals and draining ~$610k before Ledger rotated the package.",
+  "coreContradiction": "The CDN-loaded Connect Kit was trusted as Ledger-signed dApp infrastructure, yet a single upstream npm publish token let an attacker silently swap the wallet-connect flow for an approve(drainer, max) prompt on every integrating dApp.",
+  "attackSteps": [
+    { "order": 1, "label": "npm session token phished", "detail": "A former Ledger employee was phished; despite 2FA, the attacker replayed the stolen session token to regain publish rights on the @ledgerhq/connect-kit npm package.", "sourceIds": ["ledger-postmortem", "slowmist-ledger"] },
+    { "order": 2, "label": "Malicious versions published", "detail": "Attacker published @ledgerhq/connect-kit versions 1.1.5, 1.1.6, and 1.1.7 containing a drainer payload that replaced the normal window provider with a Drainer class loading from a rogue WalletConnect project.", "sourceIds": ["ledger-postmortem", "slowmist-ledger"] },
+    { "order": 3, "label": "dApps auto-pull poisoned CDN", "detail": "Any dApp using connect-kit-loader dynamically fetched the tampered bundle from jsDelivr/unpkg, so SushiSwap, Zapper, Revoke.cash, Kyber and others began serving the drainer to end users.", "sourceIds": ["slowmist-ledger", "hacken-ledger"] },
+    { "order": 4, "label": "Victims sign approve / permit", "detail": "The injected Drainer popup prompted users to sign approve(drainer, max), setApprovalForAll, or EIP-2612 permit messages for ERC20s and NFTs, disguised as normal wallet-connect flows.", "sourceIds": ["slowmist-ledger", "hacken-ledger"] },
+    { "order": 5, "label": "transferFrom pulls to drainer EOA", "detail": "Once signatures landed, the attacker called transferFrom / permitted pulls, consolidating drained tokens into the Angel Drainer EOA with an 85/15 split to the fee-collector address.", "sourceIds": ["slowmist-ledger", "ledger-postmortem"] },
+    { "order": 6, "label": "Tether freezes drainer", "detail": "At 14:55 UTC on Dec 14 2023 the Tether multisig executed confirmTransaction(2665), emitting AddedBlackList for the drainer EOA and halting USDT movement; Ledger rotated to 1.1.8 shortly after.", "sourceIds": ["ledger-postmortem"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x658729879fCa881D9526480B82aE00EFc54B5c2d", "label": "Angel Drainer exploiter EOA (Ledger Exploiter)" },
+    { "id": "drainer-fee", "role": "attacker-eoa", "address": "0x412f10AAd96fD78da6736387e2C84931Ac20313f", "label": "Angel Drainer 15% fee-collector EOA" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "attacker-eoa", "toEntityId": "drainer-fee", "tokenSymbol": null, "amountHuman": "~15% of drained value", "note": "Angel Drainer-as-a-Service split: 85% to exploiter EOA, 15% to fee address" }
+  ],
+  "sources": [
+    { "id": "ledger-postmortem", "kind": "post-mortem", "url": "https://www.ledger.com/blog/security-incident-report", "publisher": "Ledger" },
+    { "id": "slowmist-ledger", "kind": "forensic-thread", "url": "https://slowmist.medium.com/supply-chain-attack-on-ledger-connect-kit-analyzing-the-impact-and-preventive-measures-1005e39422fd", "publisher": "SlowMist" },
+    { "id": "hacken-ledger", "kind": "forensic-thread", "url": "https://hacken.io/insights/ledger-hack-explained/", "publisher": "Hacken" }
+  ]
+}

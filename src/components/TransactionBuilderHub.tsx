@@ -7,28 +7,46 @@ import { LayoutTransitionWrapper } from "./ui/animated-tabs";
 import { useSimulation } from "../contexts/SimulationContext";
 import { AnimatedZapIcon, AnimatedPlayIcon } from "./icons/IconLibrary";
 import { SUPPORTED_CHAINS } from "../utils/chains";
+import type { BridgeSimulationResponsePayload } from "../utils/transaction-simulation/types";
 
-type BuilderMode = "live" | "simulation";
-type BuilderIntentMode = "live" | "simulation" | "replay";
+type BuilderMode = "live" | "simulation" | "analysis";
+type BuilderIntentMode = "live" | "simulation" | "replay" | "analysis";
 
 const TXHASH_REPLAY_KEY = 'web3-toolkit:txhash-replay';
 
 const loadSimpleGridUI = () => import("./SimpleGridUI");
 const loadTransactionBuilderWagmi = () => import("./TransactionBuilderWagmi");
+const loadTxAnalysisPanel = () => import("./tx-analysis/TxAnalysisPanel");
 
 const SimpleGridUI = React.lazy(loadSimpleGridUI);
 const TransactionBuilderWagmi = React.lazy(loadTransactionBuilderWagmi);
+const TxAnalysisPanel = React.lazy(loadTxAnalysisPanel);
 
 function parseBuilderIntentMode(search: string): BuilderIntentMode | null {
   const mode = new URLSearchParams(search).get('mode');
-  if (mode === 'live' || mode === 'simulation' || mode === 'replay') {
+  if (mode === 'live' || mode === 'simulation' || mode === 'replay' || mode === 'analysis') {
     return mode;
   }
   return null;
 }
 
 const TransactionBuilderHub: React.FC = () => {
-  const { contractContext } = useSimulation();
+  const { contractContext, analysisSubject, currentSimulation, simulationId } = useSimulation();
+
+  const resolvedAnalysisSubject = useMemo(() => {
+    if (analysisSubject) return analysisSubject;
+    if (!currentSimulation || !simulationId) return null;
+    const from = currentSimulation.from ?? null;
+    const to = currentSimulation.to ?? contractContext?.address ?? null;
+    if (!from || !to) return null;
+    return {
+      simulationId,
+      from,
+      to,
+      txHash: contractContext?.replayTxHash ?? null,
+      simulation: currentSimulation as unknown as BridgeSimulationResponsePayload,
+    };
+  }, [analysisSubject, currentSimulation, simulationId, contractContext?.address, contractContext?.replayTxHash]);
   const location = useLocation();
   const urlIntentMode = parseBuilderIntentMode(location.search);
   const builderSearchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -81,7 +99,12 @@ const TransactionBuilderHub: React.FC = () => {
   // Explicit URL mode intent should win when present.
   useEffect(() => {
     if (!urlIntentMode) return;
-    const nextMode: BuilderMode = urlIntentMode === 'live' ? 'live' : 'simulation';
+    const nextMode: BuilderMode =
+      urlIntentMode === 'live'
+        ? 'live'
+        : urlIntentMode === 'analysis'
+          ? 'analysis'
+          : 'simulation';
     setMode((prev) => (prev === nextMode ? prev : nextMode));
   }, [urlIntentMode]);
 
@@ -129,7 +152,19 @@ const TransactionBuilderHub: React.FC = () => {
       <div className="tool-content-container">
         <LayoutTransitionWrapper activeKey={mode}>
           <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
-            {mode === "live" ? <SimpleGridUI mode="live" initialContractData={liveInitialContractData} /> : <TransactionBuilderWagmi />}
+            {mode === "live" ? (
+              <SimpleGridUI mode="live" initialContractData={liveInitialContractData} />
+            ) : mode === "analysis" ? (
+              <TxAnalysisPanel
+                simulation={resolvedAnalysisSubject?.simulation ?? null}
+                simulationId={resolvedAnalysisSubject?.simulationId ?? null}
+                from={resolvedAnalysisSubject?.from ?? null}
+                to={resolvedAnalysisSubject?.to ?? null}
+                txHash={resolvedAnalysisSubject?.txHash ?? null}
+              />
+            ) : (
+              <TransactionBuilderWagmi />
+            )}
           </Suspense>
         </LayoutTransitionWrapper>
       </div>

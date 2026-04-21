@@ -1,0 +1,47 @@
+{
+  "id": "inverse-finance-2022-04",
+  "name": "Inverse Finance Anchor Oracle Manipulation",
+  "chain": "ethereum",
+  "date": "2022-04-02",
+  "protocol": "Inverse Finance",
+  "amountUsd": 15600000,
+  "canonicalTxs": [
+    "0x20a6dcff06a791a7f8be9f423053ce8caee3f9eecc31df32445fc98d4ccd8365",
+    "0x600373f67521324c8068cfd025f121a0843d57ec813411661b07edc5ff781842"
+  ],
+  "exploitClasses": ["oracle-manipulation", "flashloan-price-manipulation"],
+  "tldr": "Inverse Finance's Anchor lending market lost ~$15.6M when an attacker pumped the INV/WETH SushiSwap TWAP feed that Anchor's Keep3r oracle read, then borrowed ETH, WBTC, YFI, and DOLA against a tiny amount of INV collateral priced at the manipulated rate.",
+  "coreContradiction": "Anchor trusted a Keep3r TWAP rooted in a thinly traded SushiSwap INV/WETH pool, so collateral value was decided by the same pool a single actor could move with ~500 ETH of swap volume.",
+  "attackSteps": [
+    { "order": 1, "label": "Fund from Tornado", "detail": "Attacker drew 901 ETH from Tornado Cash and spread 1.5 ETH across 241 fresh addresses via Disperse to pay gas while spamming blocks around the oracle update.", "sourceIds": ["rekt-inverse"] },
+    { "order": 2, "label": "Pump INV price via SushiSwap", "detail": "Attacker EOA 0x8B4C... ran tx 0x20a6dc... through the exploit contract, swapping WETH->INV through the shallow SushiSwap INV/WETH pair (and the INV/DOLA route) to push INV's price ~50x on the Keep3r TWAP feed.", "sourceIds": ["rekt-inverse", "certik-inverse"] },
+    { "order": 3, "label": "Spam blocks to freeze the TWAP", "detail": "Gas-bribed spam transactions ensured the inflated SushiSwap price was observed by Keep3r's TWAP update before arbitrage could revert it, so Anchor read the manipulated price.", "sourceIds": ["rekt-inverse"] },
+    { "order": 4, "label": "Deposit INV, borrow everything", "detail": "Second EOA 0x117C... called mint() on the attacker contract (tx 0x600373...) which deposited ~1,746 INV into anINV (xINV), entered the markets, and borrowed 1,588 ETH, 94 WBTC, 39.37 YFI, and 3,999,669 DOLA from anETH/anWBTC/anYFI/anDOLA.", "sourceIds": ["certik-inverse", "rekt-inverse"] },
+    { "order": 5, "label": "Exit through Tornado", "detail": "~$15.6M of borrowed assets were swapped to ETH and funneled back through Tornado Cash while the INV collateral was left behind to be liquidated at a fraction of the borrow value.", "sourceIds": ["rekt-inverse", "coindesk-inverse"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0x8B4C1083cd6Aef062298E1Fa900df9832c8351b3", "label": "Inverse Exploiter 2 (price-pump EOA)" },
+    { "id": "attacker-eoa-2", "role": "attacker-eoa", "address": "0x117C0391B3483E32AA665b5ecb2Cc539669EA7E9", "label": "Inverse Exploiter 1 (borrow EOA)" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0xeA0c959BBb7476DDD6cD4204bDee82b790AA1562", "label": "Exploit orchestrator contract" },
+    { "id": "anchor-comptroller", "role": "victim-contract", "address": "0x4dCf7407AE5C07f8681e1659f626E114A7667339", "label": "Inverse Anchor Unitroller (Comptroller)" },
+    { "id": "an-eth", "role": "victim-contract", "address": "0x697b4acAa24430F254224eB794d2a85ba1Fa1FB8", "label": "anETH market" },
+    { "id": "an-wbtc", "role": "victim-contract", "address": "0x17786f3813E6bA35343211bd8Fe18EC4de14F28b", "label": "anWBTC market" },
+    { "id": "an-yfi", "role": "victim-contract", "address": "0xde2af899040536884e062D3a334F2dD36F34b4a4", "label": "anYFI market (pre-deprecation)" },
+    { "id": "an-dola", "role": "victim-contract", "address": "0x7Fcb7DAC61eE35b3D4a51117A7c58D53f0a8a670", "label": "anDOLA market" },
+    { "id": "sushi-inv-weth", "role": "oracle", "address": "0x328dFd0139e26cB0FEF7B0742B49b0fe4325F821", "label": "SushiSwap INV/WETH pair (manipulated TWAP source)" },
+    { "id": "inv-token", "role": "token", "address": "0x41D5D79431A913C4aE7d69a668ecdfE5fF9DFB68", "label": "INV governance token" },
+    { "id": "dola-token", "role": "token", "address": "0x865377367054516e17014CcdED1e7d814EDC9ce4", "label": "DOLA stablecoin" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "an-eth", "toEntityId": "attacker-contract", "tokenSymbol": "ETH", "amountHuman": "1,588.26 ETH", "note": "borrowed against manipulated INV collateral" },
+    { "fromEntityId": "an-wbtc", "toEntityId": "attacker-contract", "tokenSymbol": "WBTC", "amountHuman": "94.03 WBTC", "note": "borrowed against manipulated INV collateral" },
+    { "fromEntityId": "an-yfi", "toEntityId": "attacker-contract", "tokenSymbol": "YFI", "amountHuman": "39.37 YFI", "note": "borrowed against manipulated INV collateral" },
+    { "fromEntityId": "an-dola", "toEntityId": "attacker-contract", "tokenSymbol": "DOLA", "amountHuman": "3,999,669 DOLA", "note": "borrowed against manipulated INV collateral" },
+    { "fromEntityId": "attacker-contract", "toEntityId": "attacker-eoa-2", "tokenSymbol": null, "amountHuman": null, "note": "proceeds consolidated to Exploiter 1 EOA before Tornado Cash" }
+  ],
+  "sources": [
+    { "id": "rekt-inverse", "kind": "forensic-thread", "url": "https://rekt.news/inverse-finance-rekt/", "publisher": "rekt.news" },
+    { "id": "certik-inverse", "kind": "forensic-thread", "url": "https://www.certik.com/resources/blog/3HEBdgXIaSemB73rTFNrXT-inverse-finance-02-april-2022", "publisher": "CertiK" },
+    { "id": "coindesk-inverse", "kind": "database-row", "url": "https://www.coindesk.com/tech/2022/04/02/defi-lender-inverse-finance-exploited-for-156-million", "publisher": "CoinDesk" }
+  ]
+}

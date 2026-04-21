@@ -1,0 +1,39 @@
+{
+  "id": "platypus-2023-02",
+  "name": "Platypus Finance emergencyWithdraw Exploit",
+  "chain": "avalanche",
+  "date": "2023-02-16",
+  "protocol": "Platypus Finance",
+  "amountUsd": 8500000,
+  "canonicalTxs": ["0x1266a937c2ccd970e5d7929021eed3ec593a95c68a99b4920c2efa226679b430"],
+  "exploitClasses": ["math-invariant-manipulation", "flashloan-price-manipulation"],
+  "tldr": "An attacker used a $44M AAVE flash loan to deposit USDC as collateral, borrow the maximum USP stablecoin against it, then call emergencyWithdraw to retrieve the collateral without repaying the debt — draining ~$8.5M because the solvency check in MasterPlatypusV4 failed to account for outstanding borrows.",
+  "coreContradiction": "emergencyWithdraw verified collateral sufficiency but never checked whether the user still held an outstanding loan, so a fully-leveraged borrower could exit with both the collateral and the borrowed funds.",
+  "attackSteps": [
+    { "order": 1, "label": "Flash-loan 44M USDC", "detail": "Attacker contract borrowed 44,000,000 USDC from AAVE v3 on Avalanche in a single flash loan.", "sourceIds": ["immunefi-platypus", "numen-platypus"] },
+    { "order": 2, "label": "Deposit to Platypus pool", "detail": "Deposited the 44M USDC into the Platypus USDC pool, receiving an equivalent amount of LP-USDC tokens.", "sourceIds": ["immunefi-platypus", "numen-platypus"] },
+    { "order": 3, "label": "Stake LP as collateral", "detail": "Staked LP-USDC in MasterPlatypusV4 via the deposit function, registering the position as collateral eligible for USP borrowing.", "sourceIds": ["immunefi-platypus"] },
+    { "order": 4, "label": "Borrow max USP", "detail": "Called PlatypusTreasure to borrow ~41.8M USP (95% of staked collateral value), the protocol maximum.", "sourceIds": ["immunefi-platypus", "numen-platypus"] },
+    { "order": 5, "label": "emergencyWithdraw LP without repaying", "detail": "Called MasterPlatypusV4.emergencyWithdraw(); the broken solvency check only confirmed collateral value against the 95% cap but did not verify whether a loan existed — so it returned all LP tokens while the USP debt remained outstanding.", "sourceIds": ["immunefi-platypus", "numen-platypus"] },
+    { "order": 6, "label": "Redeem USDC, repay flash loan", "detail": "Used recovered LP-USDC to withdraw the original 44M USDC from the Platypus pool, then repaid the AAVE flash loan, keeping the USP as profit.", "sourceIds": ["immunefi-platypus"] },
+    { "order": 7, "label": "Swap USP for stablecoins", "detail": "Swapped the 41M+ USP against existing stablecoin liquidity in Platypus pools, extracting approximately $8.5M in real stablecoins before the protocol could pause.", "sourceIds": ["immunefi-platypus", "numen-platypus"] }
+  ],
+  "entities": [
+    { "id": "attacker-eoa", "role": "attacker-eoa", "address": "0xefF003D64046A6f521BA31f39405cb720E953958", "label": "Attacker EOA" },
+    { "id": "attacker-contract", "role": "attacker-contract", "address": "0x67AfDD6489D40a01DaE65f709367E1b1D18a5322", "label": "Exploit contract" },
+    { "id": "victim-masterplatypus", "role": "victim-contract", "address": "0xc007f27B757A782c833C568f5851Ae1DFE0e6ec7", "label": "MasterPlatypusV4" },
+    { "id": "victim-proxy", "role": "proxy", "address": "0xfF6934aAC9C94E1C39358D4fDCF70aeca77D0AB0", "label": "MasterPlatypusV4 proxy" },
+    { "id": "victim-treasure", "role": "victim-contract", "address": "0xBCD6796177aB8071F6a9ba2C3e2E0301Ee91BEf5", "label": "PlatypusTreasure (USP minter)" },
+    { "id": "victim-pool", "role": "pool", "address": "0x66357dCaCe80431aee0A7507e2E361B7e2402370", "label": "Platypus USDC pool" }
+  ],
+  "fundFlow": [
+    { "fromEntityId": "victim-pool", "toEntityId": "attacker-contract", "tokenSymbol": "USDC", "amountHuman": "44,000,000 USDC", "note": "flash loan from AAVE, routed through pool LP position" },
+    { "fromEntityId": "victim-treasure", "toEntityId": "attacker-contract", "tokenSymbol": "USP", "amountHuman": "~41,794,533 USP", "note": "borrowed against LP collateral" },
+    { "fromEntityId": "victim-pool", "toEntityId": "attacker-eoa", "tokenSymbol": "USDC", "amountHuman": "~8,500,000 USDC", "note": "net profit after repaying flash loan — extracted by swapping USP into pool stablecoins" }
+  ],
+  "sources": [
+    { "id": "immunefi-platypus", "kind": "forensic-thread", "url": "https://immunefi.com/blog/industry-trends/platypus-finance-hack-analysis/", "publisher": "Immunefi" },
+    { "id": "numen-platypus", "kind": "forensic-thread", "url": "https://www.numencyber.com/platypus-finance-project-hit-by-8-5m-flash-loan-attack/", "publisher": "Numen Cyber" },
+    { "id": "dn-platypus", "kind": "database-row", "url": "https://dn.institute/research/cyberattacks/incidents/2023-02-16-platypus/", "publisher": "Distributed Networks Institute" }
+  ]
+}

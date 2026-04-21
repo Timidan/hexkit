@@ -1,0 +1,121 @@
+{
+  "id": "ankr-2022-12",
+  "name": "Ankr aBNBc Infinite Mint",
+  "chain": "bsc",
+  "date": "2022-12-02",
+  "protocol": "Ankr",
+  "amountUsd": 5000000,
+  "canonicalTxs": [
+    "0xcbc5ff4a6c9a66274f9bde424777c3dc862ab576e282fbea3c9c2609ca3e282b",
+    "0xe367d05e7ff37eb6d0b7d763495f218740c979348d7a3b6d8e72d3b947c86e33"
+  ],
+  "exploitClasses": ["access-control-bypass"],
+  "tldr": "A former Ankr developer's retained deployer private key was used to upgrade the aBNBc token contract to a malicious implementation, enabling the attacker to mint 10 trillion tokens out of thin air and drain ~$5M from DEX liquidity pools.",
+  "coreContradiction": "The upgradeable token's owner check was bypassed not through a code flaw but through legitimate admin authority — the deployer key was real, making the unauthorized upgrade indistinguishable from a routine contract update.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Deployer key compromised",
+      "detail": "A former Ankr developer retained the deployer private key (0x2Ffc59d32A524611Bb891cab759112A51f9e33C0); the attacker obtained it, likely via supply-chain or phishing, giving full admin control over the upgradeable aBNBc proxy.",
+      "sourceIds": ["rekt-ankr", "ankr-official"]
+    },
+    {
+      "order": 2,
+      "label": "Malicious implementation deployed",
+      "detail": "The attacker deployed a new aBNBc implementation contract containing an extra function (selector 0x3b3a5522) that mints tokens to any caller with no authorization checks.",
+      "sourceIds": ["rekt-ankr", "quillaudits-ankr"]
+    },
+    {
+      "order": 3,
+      "label": "Proxy upgraded to malicious impl",
+      "detail": "From the compromised deployer address, the attacker called upgrade() on the proxy admin (0x1bD5dF997c8612652886723406131F582ab93DEf), pointing the aBNBc proxy at the malicious implementation — all at block timestamp Dec-02-2022 12:43:09 UTC.",
+      "sourceIds": ["rekt-ankr", "quillaudits-ankr"]
+    },
+    {
+      "order": 4,
+      "label": "10 trillion aBNBc minted",
+      "detail": "Nine seconds later the attacker called the backdoor mint function, minting 10,000,000,000,000 aBNBc directly to their wallet (0xf3a465C9fA6663fF50794C698F600Faa4b05c777).",
+      "sourceIds": ["rekt-ankr", "neptune-ankr"]
+    },
+    {
+      "order": 5,
+      "label": "Dumped through PancakeSwap & Helio",
+      "detail": "The attacker swapped 20 trillion aBNBc for BNB via PancakeSwap, collapsing the token price 99.5% and extracting ~$5M. A secondary actor exploited Helio's stale aBNBc oracle for an additional ~$15.5M.",
+      "sourceIds": ["rekt-ankr", "neptune-ankr"]
+    },
+    {
+      "order": 6,
+      "label": "Proceeds bridged and laundered",
+      "detail": "BNB and USDC proceeds were bridged to Ethereum via Celer cBridge and routed through Tornado Cash to obscure the trail.",
+      "sourceIds": ["neptune-ankr", "quillaudits-ankr"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa",
+      "role": "attacker-eoa",
+      "address": "0xf3a465C9fA6663fF50794C698F600Faa4b05c777",
+      "label": "Ankr Exploiter EOA"
+    },
+    {
+      "id": "compromised-deployer",
+      "role": "signer",
+      "address": "0x2Ffc59d32A524611Bb891cab759112A51f9e33C0",
+      "label": "Ankr Compromised Deployer"
+    },
+    {
+      "id": "victim-abnbc",
+      "role": "token",
+      "address": "0xE85aFCcDaFBE7F2B096f268e31ccE3da8dA2990A",
+      "label": "aBNBc Token Proxy"
+    },
+    {
+      "id": "proxy-admin",
+      "role": "proxy",
+      "address": "0x1bD5dF997c8612652886723406131F582ab93DEf",
+      "label": "aBNBc Proxy Admin"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "victim-abnbc",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "aBNBc",
+      "amountHuman": "10,000,000,000,000 aBNBc",
+      "note": "Minted from zero address via backdoor function"
+    },
+    {
+      "fromEntityId": "attacker-eoa",
+      "toEntityId": "attacker-eoa",
+      "tokenSymbol": "USDC",
+      "amountHuman": "~5,000,000 USD",
+      "note": "aBNBc swapped for BNB/USDC via PancakeSwap, then bridged to Ethereum"
+    }
+  ],
+  "sources": [
+    {
+      "id": "rekt-ankr",
+      "kind": "post-mortem",
+      "url": "https://rekt.news/ankr-helio-rekt",
+      "publisher": "rekt.news"
+    },
+    {
+      "id": "ankr-official",
+      "kind": "official",
+      "url": "https://www.ankr.com/blog/the-abnbc-token-report/",
+      "publisher": "Ankr"
+    },
+    {
+      "id": "quillaudits-ankr",
+      "kind": "forensic-thread",
+      "url": "https://quillaudits.medium.com/ankr-protocol-exploit-analysis-quillaudits-553cd4c8d17c",
+      "publisher": "QuillAudits"
+    },
+    {
+      "id": "neptune-ankr",
+      "kind": "forensic-thread",
+      "url": "https://medium.com/neptune-mutual/taking-a-closer-look-at-ankr-hack-7c6f57ee8d25",
+      "publisher": "Neptune Mutual"
+    }
+  ]
+}

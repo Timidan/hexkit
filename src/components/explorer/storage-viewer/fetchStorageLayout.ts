@@ -21,7 +21,7 @@ import { reconstructStorageLayout, reconstructBestStorageLayout } from '../../..
 import { fetchSourcifyV2Cached, prewarmSourcifyCache } from '../../../utils/cache/sourcifyCache';
 
 /** Confidence level for the layout source */
-export type LayoutConfidence = 'compiler' | 'reconstructed';
+export type LayoutConfidence = 'compiler' | 'reconstructed' | 'heuristic';
 
 /** Result from fetchStorageLayout including confidence metadata */
 export interface StorageLayoutResult {
@@ -131,6 +131,58 @@ export interface FetchLayoutOptions {
   observedSlots?: Set<number>;
   /** Additional addresses to try fetching layout from (e.g., diamond facets) */
   fallbackAddresses?: string[];
+  /**
+   * Heimdall-backed heuristic layout tier. When primary + AST + diamond all
+   * produce nothing, synthesize from a dump + optional decompilation. The caller
+   * provides fetchers so this module stays decoupled from the heimdall API.
+   *
+   * Note: the client passes `chainId` only. The bridge resolves the RPC URL
+   * server-side from an allowlist (Plan 2) and computes any bytecode hash
+   * itself. Never accept `rpcUrl` or `bytecodeHash` from the caller here —
+   * those are bridge-internal concerns (SSRF / cache-poisoning defense).
+   */
+  heimdall?: {
+    chainId: number;
+    blockNumber?: number;
+    fetchStorageDump: (args: {
+      address: string;
+      chainId: number;
+      blockNumber?: number;
+    }) => Promise<import('../../../utils/heimdall/types').HeimdallStorageDump>;
+    fetchDecompilation?: (args: {
+      address: string;
+      chainId: number;
+    }) => Promise<import('../../../utils/heimdall/types').HeimdallDecompilation>;
+  };
+}
+
+async function tryHeuristicLayout(
+  address: string,
+  heimdall: NonNullable<FetchLayoutOptions['heimdall']>,
+): Promise<StorageLayoutResult | null> {
+  try {
+    const { synthesizeHeuristicLayout } = await import('../../../utils/heuristic-layout/heuristicLayout');
+    const dump = await heimdall.fetchStorageDump({
+      address,
+      chainId: heimdall.chainId,
+      blockNumber: heimdall.blockNumber,
+    });
+    let decompilation;
+    if (heimdall.fetchDecompilation) {
+      decompilation = await heimdall.fetchDecompilation({
+        address,
+        chainId: heimdall.chainId,
+      }).catch(() => undefined);
+    }
+    const layout = synthesizeHeuristicLayout({ dump, decompilation });
+    if (layout.storage.length > 0) {
+      return { layout, confidence: 'heuristic' };
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[fetchStorageLayout] heuristic tier failed:', err);
+  }
+  return null;
 }
 
 /**
@@ -247,7 +299,13 @@ export async function fetchStorageLayout(
   }
 
   // If no fallbacks, return whatever primary result we have (may be null)
-  if (!hasFallbacks) return primaryResult;
+  if (!hasFallbacks) {
+    if (!primaryResult && opts.heimdall) {
+      const heuristic = await tryHeuristicLayout(address, opts.heimdall);
+      if (heuristic) return heuristic;
+    }
+    return primaryResult;
+  }
 
   // 3. Diamond facet fallback: fetch layouts from facets with early exit.
   //    Different facets may reference different versions of AppStorage, so
@@ -322,6 +380,11 @@ export async function fetchStorageLayout(
     return richest;
   }
 
-  // No facet layouts found either; return primary if we have one
+  // No facet layouts found either; return primary if we have one.
+  // Heuristic fires as the last resort when nothing else produced a layout.
+  if (!primaryResult && opts.heimdall) {
+    const heuristic = await tryHeuristicLayout(address, opts.heimdall);
+    if (heuristic) return heuristic;
+  }
   return primaryResult;
 }

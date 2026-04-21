@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { Lightning, Play, Code, GitDiff, Database } from "@phosphor-icons/react";
+import { Lightning, Play, Code, GitDiff, Database, Detective } from "@phosphor-icons/react";
 import {
   SearchIcon,
   HashtagIcon,
@@ -49,6 +49,7 @@ const TOOLS: ToolDef[] = [
     subTabs: [
       { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
       { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
+      { id: "analysis", label: "Analysis", shortLabel: "Analysis", paramKey: "mode", icon: <Detective width={12} height={12} /> },
     ],
   },
   {

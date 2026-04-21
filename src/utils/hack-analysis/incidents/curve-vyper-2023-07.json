@@ -1,0 +1,162 @@
+{
+  "id": "curve-vyper-2023-07",
+  "name": "Curve Finance Vyper Reentrancy Exploit",
+  "chain": "ethereum",
+  "date": "2023-07-30",
+  "protocol": "Curve Finance",
+  "amountUsd": 52000000,
+  "canonicalTxs": ["0xb676d789bb8b66a08105c844a49c2bcffb400e5c1cfabd4bc30cca4bff3c9801"],
+  "exploitClasses": ["reentrancy"],
+  "tldr": "A compiler bug in Vyper 0.2.15/0.2.16/0.3.0 silently broke the @nonreentrant guard, letting attackers reenter Curve pool functions and drain four pools (pETH, msETH, alETH, CRV/ETH) for ~$70M gross; ~$52M net after white-hat recoveries.",
+  "coreContradiction": "The @nonreentrant('lock') decorator compiled to separate storage slots per function, so the lock held by one function did not block reentry into a different function — the guard existed in source but was a no-op at runtime.",
+  "attackSteps": [
+    {
+      "order": 1,
+      "label": "Flash-loan WETH",
+      "detail": "Attacker borrowed 40,000 WETH from Balancer's vault via flash loan, converting to ETH as needed for the Curve native-ETH pool.",
+      "sourceIds": ["llamarisk-pm"]
+    },
+    {
+      "order": 2,
+      "label": "Add liquidity (first deposit)",
+      "detail": "Attacker deposited a large ETH tranche into the target Curve pool (e.g., alETH/ETH), receiving LP tokens. The pool's add_liquidity function was compiled with Vyper 0.3.0 which had the broken reentrancy lock.",
+      "sourceIds": ["llamarisk-pm", "certik-analysis"]
+    },
+    {
+      "order": 3,
+      "label": "Trigger reentrancy via ETH callback",
+      "detail": "When the pool sent ETH back during remove_liquidity, the attacker contract's fallback received the ETH callback and immediately re-entered add_liquidity. Because the reentrancy lock slot for add_liquidity and remove_liquidity were distinct, the lock was not set for add_liquidity during the remove callback.",
+      "sourceIds": ["llamarisk-pm", "certik-analysis"]
+    },
+    {
+      "order": 4,
+      "label": "Inflate LP token balance",
+      "detail": "The re-entered add_liquidity calculated LP tokens using stale pre-burn balances (the burn from remove_liquidity had not yet been finalized), minting far more LP tokens than warranted — effectively creating a fraudulent claim on the pool's reserves.",
+      "sourceIds": ["llamarisk-pm"]
+    },
+    {
+      "order": 5,
+      "label": "Drain pool assets",
+      "detail": "Using the inflated LP token balance, the attacker withdrew far more ETH and pool tokens than deposited, repeating the cycle to extract the majority of pool liquidity.",
+      "sourceIds": ["llamarisk-pm", "certik-analysis"]
+    },
+    {
+      "order": 6,
+      "label": "Repay flash loan, keep profit",
+      "detail": "Flash loan repaid to Balancer; net profit (~7,258 ETH and 4,821 alETH from the alETH pool alone) retained by the attacker.",
+      "sourceIds": ["llamarisk-pm"]
+    }
+  ],
+  "entities": [
+    {
+      "id": "attacker-eoa-aleth",
+      "role": "attacker-eoa",
+      "address": "0xDCe5d6b41C32f578f875EfFfc0d422C57A75d7D8",
+      "label": "Alchemix/CurveFinance Exploiter (alETH attacker EOA)"
+    },
+    {
+      "id": "attacker-contract-aleth",
+      "role": "attacker-contract",
+      "address": "0x30FB95794a2051ABe30A67892B3A1FA73947aEE5",
+      "label": "Alchemix/CurveFinance Exploit Contract"
+    },
+    {
+      "id": "attacker-eoa-peth",
+      "role": "attacker-eoa",
+      "address": "0x6Ec21d1868743a44318c3C259a6d4953F9978538",
+      "label": "JPEG'd pETH Exploiter EOA (Frontrunner)"
+    },
+    {
+      "id": "attacker-contract-peth",
+      "role": "attacker-contract",
+      "address": "0x9420F8821aB4609Ad9FA514f8D2F5344C3c0A6Ab",
+      "label": "JPEG'd pETH Exploit Contract"
+    },
+    {
+      "id": "whitehat-eoa",
+      "role": "attacker-eoa",
+      "address": "0xC0ffeEBABE5D496B2DDE509f9fa189C25cF29671",
+      "label": "c0ffeebabe.eth (white-hat MEV bot — returned funds)"
+    },
+    {
+      "id": "victim-aleth-pool",
+      "role": "pool",
+      "address": "0xC4C319E2D4d66CcA4464C0c2B32c9Bd23ebe784e",
+      "label": "Curve alETH/ETH pool (victim)"
+    },
+    {
+      "id": "victim-peth-pool",
+      "role": "pool",
+      "address": "0x9848482da3Ee3076165ce6497eDA906E66bB85C5",
+      "label": "Curve pETH/ETH pool (victim)"
+    },
+    {
+      "id": "victim-mseth-pool",
+      "role": "pool",
+      "address": "0xc897b98272AA23714464Ea2A0Bd5180f1B8C0025",
+      "label": "Curve msETH/ETH pool (victim)"
+    }
+  ],
+  "fundFlow": [
+    {
+      "fromEntityId": "victim-aleth-pool",
+      "toEntityId": "attacker-eoa-aleth",
+      "tokenSymbol": "ETH",
+      "amountHuman": "7,258 ETH",
+      "note": "ETH drained from alETH/ETH pool (canonical highest-value malicious tx)"
+    },
+    {
+      "fromEntityId": "victim-aleth-pool",
+      "toEntityId": "attacker-eoa-aleth",
+      "tokenSymbol": "alETH",
+      "amountHuman": "4,821 alETH",
+      "note": "alETH drained alongside ETH in same exploit; later returned by attacker"
+    },
+    {
+      "fromEntityId": "victim-peth-pool",
+      "toEntityId": "attacker-eoa-peth",
+      "tokenSymbol": "ETH",
+      "amountHuman": "6,107 ETH",
+      "note": "ETH drained from pETH/ETH pool (~$11M)"
+    },
+    {
+      "fromEntityId": "victim-mseth-pool",
+      "toEntityId": "whitehat-eoa",
+      "tokenSymbol": "ETH",
+      "amountHuman": "~1,556 ETH",
+      "note": "c0ffeebabe.eth front-ran the msETH exploit and returned ~$1.6M to Metronome"
+    }
+  ],
+  "sources": [
+    {
+      "id": "llamarisk-pm",
+      "kind": "post-mortem",
+      "url": "https://hackmd.io/@LlamaRisk/BJzSKHNjn",
+      "publisher": "LlamaRisk"
+    },
+    {
+      "id": "vyper-pm",
+      "kind": "official",
+      "url": "https://hackmd.io/@vyperlang/HJUgNMhs2",
+      "publisher": "Vyper"
+    },
+    {
+      "id": "certik-analysis",
+      "kind": "forensic-thread",
+      "url": "https://www.certik.com/resources/blog/2qbPMcyJpR5UfoKrcjWxlQ-vyper-incident-anaylsis",
+      "publisher": "CertiK"
+    },
+    {
+      "id": "chainalysis-curve",
+      "kind": "database-row",
+      "url": "https://www.chainalysis.com/blog/curve-finance-liquidity-pool-hack/",
+      "publisher": "Chainalysis"
+    },
+    {
+      "id": "alchemix-pm",
+      "kind": "post-mortem",
+      "url": "https://alchemixfi.medium.com/curve-exploit-post-mortem-7142e78bc339",
+      "publisher": "Alchemix Finance"
+    }
+  ]
+}
