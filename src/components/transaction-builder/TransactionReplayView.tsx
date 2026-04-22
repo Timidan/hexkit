@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import type { Chain } from "../../types";
 import {
   replayTransactionWithSimulator,
-} from "../../utils/transactionSimulation";
+} from "../../utils/transaction-simulation";
 import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { classifySimulationError } from "../../utils/errorParser";

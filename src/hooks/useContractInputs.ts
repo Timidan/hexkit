@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { ethers } from 'ethers';
 import { getDefaultValue } from '../components/ContractInputComponent';
 import type { ABIInput } from '../components/ContractInputComponent';
+import { useLiveRef } from './useLiveRef';
 
 interface InputState {
   value: any;
@@ -65,74 +67,47 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
     }
   }, [selectedFunction?.name, inputs, applyTrigger]);
 
-  // Store callbacks in refs to avoid dependency issues
-  const onValuesChangeRef = useRef(onValuesChange);
-  const onCalldataGeneratedRef = useRef(onCalldataGenerated);
-  const selectedFunctionRef = useRef(selectedFunction);
-  const inputsRef = useRef(inputs);
+  const onValuesChangeRef = useLiveRef(onValuesChange);
+  const onCalldataGeneratedRef = useLiveRef(onCalldataGenerated);
+  const inputsRef = useLiveRef(inputs);
 
-  // Keep refs updated
-  useEffect(() => {
-    onValuesChangeRef.current = onValuesChange;
-    onCalldataGeneratedRef.current = onCalldataGenerated;
-    selectedFunctionRef.current = selectedFunction;
-    inputsRef.current = inputs;
-  });
+  const iface = useMemo(
+    () => (selectedFunction ? new ethers.utils.Interface([selectedFunction]) : null),
+    [selectedFunction]
+  );
 
   const handleInputChange = useCallback((inputName: string, value: any, isValid: boolean) => {
-    setInputStates(prev => {
-      const newStates = {
-        ...prev,
-        [inputName]: { value, isValid }
-      };
-
-      // Extract current values and validity
-      const currentValues: Record<string, any> = {};
-      let allValid = true;
-
-      Object.entries(newStates).forEach(([name, state]) => {
-        currentValues[name] = state.value;
-        if (!state.isValid) {
-          allValid = false;
-        }
-      });
-
-      // Schedule callback outside of state setter to avoid issues
-      setTimeout(() => {
-        // Notify parent of changes
-        if (onValuesChangeRef.current) {
-          onValuesChangeRef.current(currentValues, allValid);
-        }
-
-        // Generate calldata if function is available
-        const func = selectedFunctionRef.current;
-        const currentInputs = inputsRef.current;
-        if (onCalldataGeneratedRef.current && func && allValid) {
-          try {
-            import('ethers').then(({ ethers }) => {
-              const formattedArgs = currentInputs.map(input => {
-                const state = newStates[input.name];
-                if (!state) return formatValueForContract(getDefaultValue(input.type), input.type);
-                return formatValueForContract(state.value, input.type);
-              });
-
-              const iface = new ethers.utils.Interface([func]);
-              const calldata = iface.encodeFunctionData(func.name, formattedArgs);
-              onCalldataGeneratedRef.current?.(calldata);
-            }).catch(error => {
-              console.error('Failed to generate calldata:', error);
-              onCalldataGeneratedRef.current?.("0x");
-            });
-          } catch (error) {
-            console.error('Failed to generate calldata:', error);
-            onCalldataGeneratedRef.current?.("0x");
-          }
-        }
-      }, 0);
-
-      return newStates;
-    });
+    setInputStates(prev => ({
+      ...prev,
+      [inputName]: { value, isValid }
+    }));
   }, []);
+
+  useEffect(() => {
+    const currentValues: Record<string, any> = {};
+    let allValid = true;
+    for (const [name, state] of Object.entries(inputStates)) {
+      currentValues[name] = state.value;
+      if (!state.isValid) allValid = false;
+    }
+
+    onValuesChangeRef.current?.(currentValues, allValid);
+
+    if (iface && selectedFunction && allValid && onCalldataGeneratedRef.current) {
+      try {
+        const formattedArgs = inputsRef.current.map(input => {
+          const state = inputStates[input.name];
+          if (!state) return formatValueForContract(getDefaultValue(input.type), input.type);
+          return formatValueForContract(state.value, input.type);
+        });
+        const calldata = iface.encodeFunctionData(selectedFunction.name, formattedArgs);
+        onCalldataGeneratedRef.current(calldata);
+      } catch (error) {
+        console.error('Failed to generate calldata:', error);
+        onCalldataGeneratedRef.current('0x');
+      }
+    }
+  }, [inputStates, iface, selectedFunction]);
 
   const getCurrentValues = useCallback((): Record<string, any> => {
     const values: Record<string, any> = {};
@@ -225,8 +200,17 @@ function formatValueForContract(value: any, type: string): any {
     const result = value.map(item => formatValueForContract(item, baseType));
     return result;
   } else if (type.includes('uint') || type.includes('int')) {
-    const num = typeof value === 'number' ? value : parseInt(value.toString(), 10);
-    return isNaN(num) ? 0 : num;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        throw new Error(`Invalid integer for ${type}: ${value}`);
+      }
+      return value;
+    }
+    const str = value.toString().trim();
+    if (!/^-?\d+$/.test(str)) {
+      throw new Error(`Invalid integer for ${type}: "${str}"`);
+    }
+    return parseInt(str, 10);
   } else if (type === 'bool') {
     if (typeof value === 'boolean') return value;
     return value === 'true' || value === true;

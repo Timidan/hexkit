@@ -1,4 +1,6 @@
 import { ethers } from "ethers";
+import { setLimitedCacheEntry } from "./cache/limitedCache";
+import { DEFILLAMA_CHAIN_SLUG } from "./priceRegistry";
 
 // Standard event topic hashes for token transfers
 export const TRANSFER_TOPIC = ethers.utils.id("Transfer(address,address,uint256)");
@@ -143,21 +145,6 @@ export function getTokenIconUrls(tokenAddress: string, chainId: number = 1): str
   return urls;
 }
 
-// Chain ID to DeFiLlama chain name mapping
-const CHAIN_ID_TO_LLAMA: Record<number, string> = {
-  1: "ethereum",
-  10: "optimism",
-  56: "bsc",
-  137: "polygon",
-  250: "fantom",
-  42161: "arbitrum",
-  43114: "avax",
-  8453: "base",
-  324: "zksync",
-  59144: "linea",
-  534352: "scroll",
-};
-
 // Price cache with TTL (5 minutes)
 const MAX_TOKEN_CACHE_SIZE = 500;
 const priceCache = new Map<string, { price: TokenPrice; fetchedAt: number }>();
@@ -172,7 +159,7 @@ export async function fetchTokenPrice(
   tokenAddress: string,
   chainId: number = 1
 ): Promise<TokenPrice | null> {
-  const chainName = CHAIN_ID_TO_LLAMA[chainId];
+  const chainName = DEFILLAMA_CHAIN_SLUG[chainId];
   if (!chainName) {
     console.warn(`Unknown chain ID ${chainId} for DeFiLlama price lookup`);
     return null;
@@ -211,11 +198,7 @@ export async function fetchTokenPrice(
     };
 
     // Cache the result
-    priceCache.set(cacheKey, { price, fetchedAt: Date.now() });
-    if (priceCache.size > MAX_TOKEN_CACHE_SIZE) {
-      const first = priceCache.keys().next().value;
-      if (first) priceCache.delete(first);
-    }
+    setLimitedCacheEntry(priceCache, cacheKey, { price, fetchedAt: Date.now() }, MAX_TOKEN_CACHE_SIZE);
 
     return price;
   } catch (e) {
@@ -238,7 +221,7 @@ export async function fetchTokenPrices(
   const addressToKey = new Map<string, string>();
 
   for (const { address, chainId = 1 } of tokens) {
-    const chainName = CHAIN_ID_TO_LLAMA[chainId];
+    const chainName = DEFILLAMA_CHAIN_SLUG[chainId];
     if (!chainName) continue;
 
     const cacheKey = `${chainName}:${address.toLowerCase()}`;
@@ -343,11 +326,7 @@ export async function fetchTokenMetadata(
     }
 
     const metadata: TokenMetadata = { symbol, name, decimals };
-    tokenMetadataCache.set(cacheKey, metadata);
-    if (tokenMetadataCache.size > MAX_TOKEN_CACHE_SIZE) {
-      const first = tokenMetadataCache.keys().next().value;
-      if (first) tokenMetadataCache.delete(first);
-    }
+    setLimitedCacheEntry(tokenMetadataCache, cacheKey, metadata, MAX_TOKEN_CACHE_SIZE);
     return metadata;
   } catch (e) {
     console.warn(`Failed to fetch metadata for ${tokenAddress}:`, e);

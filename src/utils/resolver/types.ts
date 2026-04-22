@@ -5,9 +5,10 @@
  * Designed for parallel fetching, proper caching, and progressive enhancement.
  */
 
+import { ethers } from 'ethers';
 import type { Chain } from '../../types';
 
-export type Source = 'sourcify' | 'etherscan' | 'blockscout' | 'blockscout-ebd' | 'whatsabi';
+export type Source = 'sourcify' | 'etherscan' | 'blockscout' | 'whatsabi';
 
 export type Confidence = 'verified' | 'inferred' | 'bytecode-only';
 
@@ -19,13 +20,6 @@ export interface SourceAttempt {
   durationMs: number;
   error?: string;
   confidence?: Confidence;
-}
-
-export interface SourceConfig {
-  name: Source;
-  timeout: number;
-  priority: number; // Lower = preferred (tried first in race)
-  rateLimit?: number; // Requests per second (for throttling)
 }
 
 export interface AbiInput {
@@ -162,12 +156,21 @@ export interface ResolveResult {
 
 export interface ResolveOptions {
   signal?: AbortSignal;
-  priority?: 'speed' | 'completeness';
   skipCache?: boolean;
   preferredSources?: Source[];
   etherscanApiKey?: string;
   blockscoutApiKey?: string;
   onProgress?: (attempt: SourceAttempt) => void;
+  /**
+   * Allow the resolver to fall back to bytecode-inferred sources
+   * (currently: whatsabi) when no verified explorer returns an ABI.
+   * Inferred results report `confidence: 'inferred'` and `verified: false`,
+   * and are never persisted to the contract cache. Defaults to true.
+   * Callers doing security-critical decoding (e.g. decoding of untrusted
+   * calldata where a fabricated ABI could mislead a user) should set this
+   * to false.
+   */
+  enableInferred?: boolean;
 }
 
 export interface SourceResult {
@@ -201,34 +204,12 @@ export interface CacheStats {
   totalMisses: number;
 }
 
-export interface MultiChainSearchOptions {
-  signal?: AbortSignal;
-  stopOnFirst?: boolean;
-  etherscanApiKey?: string;
-  onProgress?: (chainId: number, result: ResolveResult | null, error?: string) => void;
-}
-
-export interface MultiChainSearchResult {
-  results: Map<number, ResolveResult>;
-  firstFound: ResolveResult | null;
-  errors: Map<number, string>;
-  duration: number;
-}
-
 export interface DiamondResolveOptions {
   signal?: AbortSignal;
   concurrency?: number;
   etherscanApiKey?: string;
   onFacetProgress?: (completed: number, total: number, facet?: FacetInfo) => void;
 }
-
-export const SOURCE_CONFIGS: Record<Source, SourceConfig> = {
-  sourcify: { name: 'sourcify', timeout: 4000, priority: 1 },
-  etherscan: { name: 'etherscan', timeout: 5000, priority: 2, rateLimit: 5 },
-  blockscout: { name: 'blockscout', timeout: 5000, priority: 3 },
-  'blockscout-ebd': { name: 'blockscout-ebd', timeout: 8000, priority: 4 },
-  whatsabi: { name: 'whatsabi', timeout: 6000, priority: 5 },
-};
 
 export const isVerifiedConfidence = (confidence: Confidence): boolean =>
   confidence === 'verified';
@@ -253,10 +234,15 @@ export function extractExternalFunctions(abi: AbiItem[]): {
   for (const item of abi) {
     if (item.type !== 'function' || !item.name) continue;
 
+    const signature = `${item.name}(${(item.inputs || []).map((i) => i.type).join(',')})`;
+    let selector = '';
+    try {
+      selector = ethers.utils.id(signature).slice(0, 10);
+    } catch {}
     const fn: ExternalFunction = {
       name: item.name,
-      signature: `${item.name}(${(item.inputs || []).map((i) => i.type).join(',')})`,
-      selector: '', // Will be computed if needed
+      signature,
+      selector,
       inputs: item.inputs || [],
       outputs: item.outputs || [],
       stateMutability: item.stateMutability || 'nonpayable',

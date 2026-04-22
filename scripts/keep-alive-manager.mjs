@@ -22,6 +22,7 @@ import {
 } from "./bridge-config.mjs";
 import { redactRpcUrl } from "./bridge-security.mjs";
 import { terminatePidWithFallback, extractJsonFromOutputInternal } from "./simulation-runner.mjs";
+import { extractDebugSession, parseSimulatorOutput } from "./bridge-ffi-adapter.mjs";
 
 /**
  * @typedef {Object} KeepAliveSession
@@ -187,40 +188,12 @@ function looksLikeKeepAliveSimulationResult(result) {
 }
 
 function normalizeKeepAliveDebugSession(result) {
-  if (!result || typeof result !== "object") {
-    return null;
-  }
-
-  const rawSession =
-    result.debugSession && typeof result.debugSession === "object"
-      ? result.debugSession
-      : result.debug_session && typeof result.debug_session === "object"
-        ? result.debug_session
-        : null;
-
-  if (!rawSession) {
-    return null;
-  }
-
-  const rpcPortRaw = rawSession.rpcPort ?? rawSession.rpc_port;
-  const snapshotCountRaw = rawSession.snapshotCount ?? rawSession.snapshot_count;
-  const rpcUrl =
-    typeof rawSession.rpcUrl === "string"
-      ? rawSession.rpcUrl
-      : typeof rawSession.rpc_url === "string"
-        ? rawSession.rpc_url
-        : "";
-  const rpcPort = Number(rpcPortRaw);
-  const snapshotCount = Number(snapshotCountRaw ?? 0);
-
-  if (!Number.isInteger(rpcPort) || rpcPort <= 0 || !rpcUrl) {
-    return null;
-  }
-
+  const session = extractDebugSession(result);
+  if (!session) return null;
   return {
-    rpcPort,
-    rpcUrl,
-    snapshotCount: Number.isFinite(snapshotCount) ? snapshotCount : 0,
+    rpcPort: session.rpcPort,
+    rpcUrl: session.rpcUrl,
+    snapshotCount: session.snapshotCount,
   };
 }
 
@@ -339,10 +312,15 @@ export function runSimulationWithKeepAlive(payload, options = {}) {
       reject(error);
     };
 
-    const resolveParsedKeepAliveResult = (result) => {
-      if (settled || jsonParsed || !looksLikeKeepAliveSimulationResult(result)) {
+    const resolveParsedKeepAliveResult = (rawResult) => {
+      if (settled || jsonParsed || !looksLikeKeepAliveSimulationResult(rawResult)) {
         return false;
       }
+
+      const result = parseSimulatorOutput(rawResult, {
+        label: "simulator-bridge keep-alive",
+        silentFailures: true,
+      });
 
       jsonParsed = true;
       recentBuffer = Buffer.alloc(0);
@@ -547,7 +525,7 @@ export async function gatedRunSimulationWithKeepAlive(simulationSemaphore, paylo
   const release = await simulationSemaphore.acquire(signal);
   try {
     const memErr = checkMemoryPressure();
-    if (memErr) { release(); throw memErr; }
+    if (memErr) throw memErr;
     return await runSimulationWithKeepAlive(payload, options);
   } finally {
     release();

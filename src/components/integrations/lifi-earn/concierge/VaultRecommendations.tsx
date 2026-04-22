@@ -21,38 +21,71 @@ import type {
 } from "./types";
 import type { EarnVault } from "../types";
 
+/**
+ * Normalized per-card view model. Both portfolio (idle-sweep) and intent
+ * (free-form yield goal) modes build a list of these and feed them in — no
+ * synthetic IdleAsset sentinel is needed to fake the intent-mode path.
+ */
+export interface RecommendationTarget {
+  /** `${chainId}:${tokenAddress}` — must match `rec.forChainId:rec.forTokenAddress`. */
+  key: string;
+  /** Card header title. */
+  displayTitle: string;
+  /** Chain ID for the header ChainIcon. `null` or `0` = hide the icon. */
+  displayChainId: number | null;
+  /** Tooltip text for the chain icon (human-readable chain name). */
+  displayChainName: string;
+  /**
+   * Source chain used for route detection (bridge required?). `null` skips
+   * route detection — intent mode passes null because the recommendation is
+   * not tied to a specific source chain.
+   */
+  sourceChainId: number | null;
+}
+
 interface VaultRecommendationsProps {
-  selections: Map<string, SelectedSource>;
+  targets: RecommendationTarget[];
   recommendations: VaultRecommendation[];
   destination: EarnVault | null;
   perAssetDestinations?: Map<string, EarnVault>;
   onPick: (vault: EarnVault, selectionKey: string) => void;
   isLoading?: boolean;
   sourceTokenSymbol?: string | null;
-  /** Explicit card header title for non-portfolio mode (e.g. "Top Vaults", "ETH Vaults"). Null = derive from asset symbol (portfolio mode). */
-  headerTitle?: string | null;
-  /** Chain ID to show in card header. Null = hide chain icon. */
-  headerChainId?: number | null;
   /** Notice text to show above recommendations (e.g. symbol-relaxation warning). */
   headerNotice?: string | null;
   /** Cap on visible vault slots. 1 = Best only, 2 = Best+Safest, 3 = +1 Alt, 4/null = all. */
   resultCount?: number | null;
 }
 
+/** Convenience: build portfolio-mode targets from an idle-sweep selections map. */
+export function portfolioTargets(
+  selections: Map<string, SelectedSource>,
+): RecommendationTarget[] {
+  const out: RecommendationTarget[] = [];
+  for (const [key, sel] of selections) {
+    out.push({
+      key,
+      displayTitle: sel.asset.token.symbol,
+      displayChainId: sel.asset.chainId,
+      displayChainName: sel.asset.chainName,
+      sourceChainId: sel.asset.chainId > 0 ? sel.asset.chainId : null,
+    });
+  }
+  return out;
+}
+
 export function VaultRecommendations({
-  selections,
+  targets,
   recommendations,
   destination,
   perAssetDestinations,
   onPick,
   isLoading = false,
   sourceTokenSymbol,
-  headerTitle,
-  headerChainId,
   headerNotice,
   resultCount,
 }: VaultRecommendationsProps) {
-  if (selections.size === 0) {
+  if (targets.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
         Select one or more idle assets above to see vault recommendations.
@@ -60,12 +93,13 @@ export function VaultRecommendations({
     );
   }
 
+  const targetByKey = new Map(targets.map((t) => [t.key, t]));
   const relevant = recommendations.filter((r) =>
-    selections.has(`${r.forChainId}:${r.forTokenAddress}`)
+    targetByKey.has(`${r.forChainId}:${r.forTokenAddress}`),
   );
 
   if (isLoading && relevant.length === 0) {
-    return <RecommendationsSkeleton count={selections.size} />;
+    return <RecommendationsSkeleton count={targets.length} />;
   }
 
   if (relevant.length === 0) {
@@ -76,7 +110,6 @@ export function VaultRecommendations({
     );
   }
 
-  // Determine how many slots to show based on resultCount
   const maxSlots = resultCount != null ? Math.min(Math.max(resultCount, 1), 4) : 4;
 
   return (
@@ -89,8 +122,8 @@ export function VaultRecommendations({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {relevant.map((rec) => {
           const key = `${rec.forChainId}:${rec.forTokenAddress}`;
-          const sel = selections.get(key);
-          if (!sel) return null;
+          const target = targetByKey.get(key);
+          if (!target) return null;
 
           const activeDestination =
             perAssetDestinations?.get(key) ?? destination;
@@ -105,7 +138,6 @@ export function VaultRecommendations({
               .slice(0, 2)
               .map((p) => ({ label: "Alt", pick: p })),
           ];
-          // Sort populated picks first so capping never hides a valid recommendation.
           const populated = allSlots.filter((s) => s.pick !== null);
           const empty = allSlots.filter((s) => s.pick === null);
           const slots = [...populated, ...empty].slice(0, maxSlots);
@@ -113,26 +145,26 @@ export function VaultRecommendations({
             slots.push({ label: "—", pick: null });
           }
 
-          const displayTitle = headerTitle ?? sel.asset.token.symbol;
-          const displayChainId = headerTitle != null ? headerChainId : sel.asset.chainId;
+          const showChainIcon =
+            target.displayChainId != null && target.displayChainId > 0;
 
           return (
             <Card key={key} className={maxSlots === 1 ? "p-3 sm:col-span-2" : "p-3"}>
               <div className="mb-2.5 flex items-center gap-2">
                 <span className="text-sm font-semibold tracking-tight">
-                  {displayTitle}
+                  {target.displayTitle}
                 </span>
-                {displayChainId != null && displayChainId > 0 && (
+                {showChainIcon && (
                   <>
                     <span className="text-muted-foreground/50">·</span>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="inline-flex cursor-help">
-                          <ChainIcon chainId={displayChainId} size={16} rounded={999} />
+                          <ChainIcon chainId={target.displayChainId!} size={16} rounded={999} />
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        {sel.asset.chainName}
+                        {target.displayChainName}
                       </TooltipContent>
                     </Tooltip>
                   </>
@@ -158,7 +190,7 @@ export function VaultRecommendations({
                     }
                     onPick={(v) => onPick(v, key)}
                     sourceTokenSymbol={sourceTokenSymbol}
-                    sourceChainId={sel.asset.chainId > 0 ? sel.asset.chainId : undefined}
+                    sourceChainId={target.sourceChainId ?? undefined}
                   />
                 ))}
               </div>

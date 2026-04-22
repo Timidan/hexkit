@@ -84,20 +84,6 @@ export async function fetchStorageLayoutFromSourcify(
 }
 
 /**
- * Fetch source files from Sourcify V2 API for AST-based reconstruction.
- * Uses the shared cache to avoid redundant requests.
- */
-async function fetchSourcesFromSourcify(
-  chainId: number,
-  address: string,
-  signal?: AbortSignal,
-): Promise<{ files: Record<string, string>; contractName: string; compilerVersion?: string } | null> {
-  const data = await fetchSourcifyV2Cached(chainId, address, ['sources', 'compilation'], signal);
-  if (!data) return null;
-  return extractSources(data);
-}
-
-/**
  * Fetch BOTH storage layout AND sources in a single V2 API call.
  * Returns both results, avoiding the 2-request-per-facet pattern.
  */

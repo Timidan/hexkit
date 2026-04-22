@@ -46,14 +46,21 @@ function extractFunctions(abi: AbiItem[]): ExternalFunction[] {
     .filter((item): item is AbiItem & { name: string } =>
       item.type === 'function' && !!item.name
     )
-    .map((item) => ({
-      name: item.name,
-      signature: `${item.name}(${(item.inputs || []).map((i) => i.type).join(',')})`,
-      selector: '',
-      inputs: item.inputs || [],
-      outputs: item.outputs || [],
-      stateMutability: item.stateMutability || 'nonpayable',
-    }));
+    .map((item) => {
+      const signature = `${item.name}(${(item.inputs || []).map((i) => i.type).join(',')})`;
+      let selector = '';
+      try {
+        selector = ethers.utils.id(signature).slice(0, 10);
+      } catch {}
+      return {
+        name: item.name,
+        signature,
+        selector,
+        inputs: item.inputs || [],
+        outputs: item.outputs || [],
+        stateMutability: item.stateMutability || 'nonpayable',
+      };
+    });
 }
 
 function mergeFacetAbis(facets: FacetInfo[]): AbiItem[] {
@@ -64,16 +71,7 @@ function mergeFacetAbis(facets: FacetInfo[]): AbiItem[] {
     if (!facet.abi) continue;
 
     for (const item of facet.abi) {
-      let key: string;
-      if (item.type === 'function' && item.name) {
-        key = `function:${item.name}:${(item.inputs || []).map((i) => i.type).join(',')}`;
-      } else if (item.type === 'event' && item.name) {
-        key = `event:${item.name}`;
-      } else if (item.type === 'error' && item.name) {
-        key = `error:${item.name}`;
-      } else {
-        key = `${item.type}:${JSON.stringify(item, (_k, v) => typeof v === 'bigint' ? v.toString() : v)}`;
-      }
+      const key = abiItemDedupKey(item);
 
       if (!seenSignatures.has(key)) {
         seenSignatures.add(key);
@@ -83,6 +81,21 @@ function mergeFacetAbis(facets: FacetInfo[]): AbiItem[] {
   }
 
   return combined;
+}
+
+function abiItemDedupKey(item: AbiItem): string {
+  if (
+    (item.type === 'function' || item.type === 'event' || item.type === 'error') &&
+    item.name
+  ) {
+    try {
+      const sighash = ethers.utils.Fragment.from(item as any).format('sighash');
+      return `${item.type}:${sighash}`;
+    } catch {}
+  }
+  return `${item.type}:${JSON.stringify(item, (_k, v) =>
+    typeof v === 'bigint' ? v.toString() : v
+  )}`;
 }
 
 /**
@@ -170,7 +183,6 @@ export async function resolveDiamond(
           contractResolver.resolve(facetAddress, chain, {
             signal,
             etherscanApiKey: options.etherscanApiKey,
-            priority: 'speed',
           }),
         ]);
 

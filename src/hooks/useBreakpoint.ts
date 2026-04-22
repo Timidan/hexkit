@@ -31,25 +31,12 @@ export function useBreakpoint(): BreakpointResult {
   );
 
   useEffect(() => {
-    const queries = BREAKPOINTS.map((bp) => ({
-      name: bp.name,
-      mql: window.matchMedia(`(min-width: ${bp.minWidth}px)`),
-    }));
-
     const handleChange = () => {
       setWidth(window.innerWidth);
     };
 
-    queries.forEach(({ mql }) => {
-      mql.addEventListener("change", handleChange);
-    });
-
     window.addEventListener("resize", handleChange);
-
     return () => {
-      queries.forEach(({ mql }) => {
-        mql.removeEventListener("change", handleChange);
-      });
       window.removeEventListener("resize", handleChange);
     };
   }, []);

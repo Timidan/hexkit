@@ -31,7 +31,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
     activeTab, setActiveTab,
     searchQuery, setSearchQuery, deferredSearchQuery,
     traceFilters, handleToggleFilter,
-    highlightedTraceRow, highlightedValue, setHighlightedValue,
+    highlightedValue, setHighlightedValue,
     isLoadingFromHistory, loadError,
     lookedUpEventNames, eventNameFilter, setEventNameFilter,
     eventContractFilter, setEventContractFilter,

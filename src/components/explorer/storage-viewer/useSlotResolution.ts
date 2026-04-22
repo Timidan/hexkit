@@ -10,7 +10,6 @@ import type {
 } from '../../../types/debug';
 import {
   buildSlotMap,
-  tryResolveMappingSlot,
   tryResolveArraySlot,
 } from '../../../utils/storageLayoutResolver';
 import {
@@ -248,7 +247,6 @@ function extractMappingEntries(layout: StorageLayoutResponse): MappingEntry[] {
 export function useSlotResolution(
   evidence: SlotEvidence[],
   layout: StorageLayoutResponse | null,
-  knownKeys: string[] = [],
 ) {
   // Defer layout changes so the table keeps showing old resolved data
   // while the new slotMap/descriptorIndex/resolvedSlots recompute.
@@ -397,27 +395,7 @@ export function useSlotResolution(
         };
       }
 
-      // 3. Try mapping resolution with known keys
-      if (deferredLayout && knownKeys.length > 0) {
-        const mappingResult = tryResolveMappingSlot(slot, deferredLayout, knownKeys);
-        if (mappingResult) {
-          // Override heuristic decodedFields with type-aware decode when type info is available
-          const derivedFields = value && mappingResult.valueTypeLabel
-            ? typeAwareDecode(value, mappingResult.valueTypeLabel, mappingResult.valueNumberOfBytes ?? 32, mappingResult.valueEncoding ?? 'inplace')
-            : undefined;
-          return {
-            ...base,
-            ...(derivedFields ? { decodedFields: derivedFields } : {}),
-            label: mappingResult.label,
-            typeLabel: mappingResult.valueTypeLabel ?? 'mapping',
-            decodeKind: 'derived' as const,
-            confidence: 'medium' as const,
-            kind: 'leaf' as const,
-          };
-        }
-      }
-
-      // 4. Try array element resolution
+      // 3. Try array element resolution
       if (deferredLayout) {
         const arrayResult = tryResolveArraySlot(slot, deferredLayout);
         if (arrayResult) {
@@ -437,7 +415,7 @@ export function useSlotResolution(
         }
       }
 
-      // 5. Check if it has layout metadata (from seedFromLayout)
+      // 4. Check if it has layout metadata (from seedFromLayout)
       if (layoutLabel) {
         // Type-aware decode: override heuristic fields when we know the scalar type
         const metaDerived = value && typeLabelFromLayout
@@ -453,7 +431,7 @@ export function useSlotResolution(
         };
       }
 
-      // 6. Unknown slot
+      // 5. Unknown slot
       return {
         ...base,
         decodeKind: 'unknown' as const,
@@ -461,7 +439,7 @@ export function useSlotResolution(
         kind: 'leaf' as const,
       };
     });
-  }, [evidence, slotMap, descriptorIndex, deferredLayout, knownKeys, layoutEntryIndex]);
+  }, [evidence, slotMap, descriptorIndex, deferredLayout, layoutEntryIndex]);
 
   /** Filter helpers */
   const getResolved = useCallback(

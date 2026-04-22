@@ -34,6 +34,7 @@ import type {
 import { networkConfigManager } from '../config/networkConfig';
 import { getSimulatorBridgeUrl, getBridgeHeaders } from '../utils/env';
 import { extractInlineArtifacts } from '../utils/debugArtifacts';
+import { setLimitedCacheEntry } from '../utils/cache/limitedCache';
 import {
   transformEdbSnapshot,
   toSolValue,
@@ -132,17 +133,7 @@ class DebugBridgeService {
   private storageValueCache = new Map<string, string>();
 
   private putStorageCache(cacheKey: string, value: string): void {
-    if (this.storageValueCache.has(cacheKey)) {
-      this.storageValueCache.delete(cacheKey);
-    }
-    this.storageValueCache.set(cacheKey, value);
-    if (this.storageValueCache.size <= STORAGE_CACHE_MAX_ENTRIES) {
-      return;
-    }
-    const oldestKey = this.storageValueCache.keys().next().value;
-    if (oldestKey) {
-      this.storageValueCache.delete(oldestKey);
-    }
+    setLimitedCacheEntry(this.storageValueCache, cacheKey, value, STORAGE_CACHE_MAX_ENTRIES);
   }
 
   private clearStorageCacheForSession(sessionId: string): void {
@@ -420,10 +411,6 @@ class DebugBridgeService {
         'Check that the EDB bridge is running and the contract has available source code.' +
         (failureDetails ? ` Details: ${failureDetails}` : '')
       );
-    }
-
-    if (!sessionId) {
-      throw new Error('Failed to start debug session');
     }
 
     let trace: { entries?: TraceEntry[]; rootId?: number } | null = null;

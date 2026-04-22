@@ -1,6 +1,4 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { isAddress } from 'ethers/lib/utils';
 import type { Chain } from '../../types';
 import { getExplorerChains, getChainById } from '../../utils/chains';
 import { useStorageEvidence } from './storage-viewer/useStorageEvidence';
@@ -11,9 +9,7 @@ import { useDebug } from '../../contexts/DebugContext';
 import {
   computeMappingSlot,
   computeArrayElementSlot,
-  computeNestedMappingSlot,
   formatSlotHex,
-  parseSlotInput,
   ZERO_WORD,
 } from '../../utils/storageSlotCalculator';
 import { resolveContractContext } from '../../utils/resolver/contractContext';
@@ -21,19 +17,19 @@ import { resolveLeafValueType } from '../../utils/storageLayoutResolver';
 import type { ProxyInfo } from '../../utils/resolver/types';
 import type {
   ViewFilter,
-  SlotMode,
-  MappingKey,
   StorageIconState,
   ResolvedSlot,
   PathSegment,
   DiscoveredMappingKey,
 } from './storageViewerTypes';
-import { shortHex } from './storageViewerHelpers';
+import { shortHex, storageKeyType } from './storageViewerHelpers';
 import { useGridCharLimits } from './storageViewerHooks';
 import { useStorageViewerData } from './useStorageViewerData';
+import { useStorageProbe } from './useStorageProbe';
+import { useStorageAutoDiscoveryScan } from './useStorageAutoDiscoveryScan';
+import { useStorageUrlSync } from './useStorageUrlSync';
 
 export function useStorageViewerState() {
-  const location = useLocation();
   const { session } = useDebug();
 
   const [contractAddress, setContractAddress] = useState('');
@@ -62,15 +58,6 @@ export function useStorageViewerState() {
   }, []);
 
   const [pathSegments, setPathSegments] = useState<PathSegment[]>([]);
-
-  const [probeMode, setProbeMode] = useState<SlotMode>('simple');
-  const [baseSlotInput, setBaseSlotInput] = useState('0');
-  const [mappingKey, setMappingKey] = useState<MappingKey>({ type: 'address', value: '' });
-  const [arrayIndex, setArrayIndex] = useState('0');
-  const [nestedKeys, setNestedKeys] = useState<MappingKey[]>([
-    { type: 'address', value: '' },
-  ]);
-  const [manualSlotReading, setManualSlotReading] = useState(false);
   const [postLoadResolving, setPostLoadResolving] = useState(false);
   const [isFetchPending, setIsFetchPending] = useState(false);
 
@@ -109,10 +96,9 @@ export function useStorageViewerState() {
     getMappingEntries,
     getMappingEntriesImmediate,
     isLayoutPending,
-  } = useSlotResolution(evidence, layout, []);
+  } = useSlotResolution(evidence, layout);
 
   const mappingEntries = useMemo(() => getMappingEntries(), [getMappingEntries]);
-  // Non-deferred mapping entries for auto-discovery (avoids stale data)
   const mappingEntriesForDiscovery = useMemo(() => getMappingEntriesImmediate(), [getMappingEntriesImmediate]);
 
   const mappingEntriesBySlot = useMemo(() => {
@@ -129,26 +115,20 @@ export function useStorageViewerState() {
   const [slotGraphOpen, setSlotGraphOpen] = useState(false);
 
   const discovery = useAutoDiscovery();
-  const { startScan: discoveryStartScan, stopScan: discoveryStopScan } = discovery;
-  const [lookbackBlocks, setLookbackBlocks] = useState(20_000);
-  const autoScanTriggered = useRef(false);
-  const pendingUrlFetchRef = useRef<{ address: string; chainId: number } | null>(null);
+  const lookbackBlocks = 20_000;
 
   const sessionId = session?.sessionId ?? null;
   const chainId = selectedChain.id;
   const isMappingView = pathSegments.length > 0;
 
-  // Dynamic per-column character limits based on actual rendered widths
   const tableHeaderRef = useRef<HTMLDivElement | null>(null);
   const viewKey = isMappingView ? 'mapping' : 'standard';
   const charLimits = useGridCharLimits(tableHeaderRef, viewKey);
 
-  /** Merged keys: manual + auto-discovered */
   const mergedKeys = useMemo(() => {
     return discovery.mergeWithManualKeys(manualKeys);
   }, [manualKeys, discovery]);
 
-  /** Map derivedSlot -> key for displaying the KEY column in mapping view */
   const keyBySlot = useMemo(() => {
     if (!isMappingView) return new Map<string, DiscoveredMappingKey>();
     const currentSegment = pathSegments[pathSegments.length - 1];
@@ -161,37 +141,20 @@ export function useStorageViewerState() {
     return map;
   }, [isMappingView, pathSegments, mergedKeys]);
 
-  const computedSlot = useMemo(() => {
-    try {
-      const baseSlot = parseSlotInput(baseSlotInput);
-
-      switch (probeMode) {
-        case 'simple':
-          return { hex: formatSlotHex(baseSlot), raw: baseSlot, error: null };
-
-        case 'mapping': {
-          if (!mappingKey.value.trim()) return { hex: '', raw: 0n, error: null };
-          const slot = computeMappingSlot(baseSlot, mappingKey.value.trim(), mappingKey.type);
-          return { hex: formatSlotHex(slot), raw: slot, error: null };
-        }
-
-        case 'array': {
-          const index = BigInt(arrayIndex || '0');
-          const slot = computeArrayElementSlot(baseSlot, index);
-          return { hex: formatSlotHex(slot), raw: slot, error: null };
-        }
-
-        case 'nested': {
-          const validKeys = nestedKeys.filter((k) => k.value.trim());
-          if (validKeys.length === 0) return { hex: '', raw: 0n, error: null };
-          const slot = computeNestedMappingSlot(baseSlot, validKeys);
-          return { hex: formatSlotHex(slot), raw: slot, error: null };
-        }
-      }
-    } catch (e: unknown) {
-      return { hex: '', raw: 0n, error: e instanceof Error ? e.message : 'Computation failed' };
-    }
-  }, [probeMode, baseSlotInput, mappingKey, arrayIndex, nestedKeys]);
+  // Slot-probe form state + derived slot + commit action.
+  const {
+    probeMode, setProbeMode,
+    baseSlotInput, setBaseSlotInput,
+    mappingKey, setMappingKey,
+    arrayIndex, setArrayIndex,
+    nestedKeys, addNestedKey, removeNestedKey, updateNestedKey,
+    manualSlotReading, computedSlot, handleProbeSlot,
+  } = useStorageProbe({
+    contractAddress, chainId, sessionId, session,
+    pathSegments, setPathSegments,
+    mappingEntriesBySlot, setManualKeys,
+    addManualSlot, readAndUpdateSlot, readSlotFromRpc, readSlotFromEdb,
+  });
 
   const { stats, filteredSlots, displayRows, treeGroups } = useStorageViewerData({
     resolvedSlots,
@@ -206,6 +169,17 @@ export function useStorageViewerState() {
     contractAddress,
     mappingEntriesBySlot,
     layout,
+  });
+
+  // Auto-trigger the event scanner once a layout is ready; expose manual
+  // start/rescan for the discovery toolbar.
+  const {
+    handleStartDiscovery,
+    handleRescanDiscovery,
+    resetAutoScanTrigger,
+  } = useStorageAutoDiscoveryScan({
+    discovery, layout, contractAddress, chainId,
+    mappingEntriesForDiscovery, isLoading, lookbackBlocks,
   });
 
   const handleCancel = useCallback(() => {
@@ -234,9 +208,8 @@ export function useStorageViewerState() {
     setManualKeys(new Map());
     setContractMeta(null);
     discovery.stopScan();
-    autoScanTriggered.current = false;
+    resetAutoScanTrigger();
 
-    // Resolve contract context
     let proxyType: import('../../utils/resolver/types').ProxyType | undefined;
     let diamondFacets: import('../../utils/resolver/types').FacetInfo[] | null = null;
     let implAddresses: string[] = [];
@@ -265,7 +238,7 @@ export function useStorageViewerState() {
           proxyInfo: ctx.proxyInfo || null,
         });
 
-            const metaForSources = ctx.implementationMetadata || ctx.metadata;
+        const metaForSources = ctx.implementationMetadata || ctx.metadata;
         if (metaForSources?.sources && Object.keys(metaForSources.sources).length > 0) {
           sourceBundle = {
             files: metaForSources.sources,
@@ -383,165 +356,18 @@ export function useStorageViewerState() {
 
     performance.mark('storage-fetch-end');
     performance.measure('storage-slot-table-paint', 'storage-fetch-start', 'storage-fetch-end');
-  }, [contractAddress, chainId, sessionId, loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc, discovery]);
+  }, [
+    contractAddress, chainId, sessionId,
+    loadStorageForContract, seedFromLayout, seedDiamondNamespace, readSlotFromRpc,
+    discovery, resetAutoScanTrigger,
+  ]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const requestedAddress = params.get('address')?.trim();
-    if (!requestedAddress || !isAddress(requestedAddress)) return;
-
-    const requestedChainIdRaw = params.get('chainId');
-    const requestedChainId = requestedChainIdRaw ? Number.parseInt(requestedChainIdRaw, 10) : Number.NaN;
-    const fallbackChain = getChainById(1) || getExplorerChains()[0];
-    const nextChain = getChainById(requestedChainId) || fallbackChain;
-
-    if (selectedChain.id !== nextChain.id) {
-      setSelectedChain(nextChain);
-    }
-    if (contractAddress.trim().toLowerCase() !== requestedAddress.toLowerCase()) {
-      setContractAddress(requestedAddress);
-    }
-
-    pendingUrlFetchRef.current = {
-      address: requestedAddress.toLowerCase(),
-      chainId: nextChain.id,
-    };
-  }, [location.search]);
-
-  useEffect(() => {
-    const pending = pendingUrlFetchRef.current;
-    if (!pending) return;
-
-    const currentAddress = contractAddress.trim().toLowerCase();
-    if (!currentAddress || currentAddress !== pending.address) return;
-    if (selectedChain.id !== pending.chainId) return;
-
-    pendingUrlFetchRef.current = null;
-    void handleFetch();
-  }, [contractAddress, selectedChain.id, handleFetch]);
-
-  useEffect(() => {
-    if (
-      !autoScanTriggered.current &&
-      layout &&
-      contractAddress.trim() &&
-      !isLoading
-    ) {
-      autoScanTriggered.current = true;
-      discoveryStartScan({
-        chainId,
-        contractAddress: contractAddress.trim(),
-        layout,
-        mappingEntries: mappingEntriesForDiscovery,
-        lookbackBlocks,
-      });
-    }
-    return () => {
-      discoveryStopScan();
-      autoScanTriggered.current = false;
-    };
-  }, [layout, mappingEntriesForDiscovery, contractAddress, isLoading, chainId, lookbackBlocks, discoveryStartScan, discoveryStopScan]);
-
-  const handleStartDiscovery = useCallback(() => {
-    if (!layout || !contractAddress.trim()) return;
-    discoveryStartScan({
-      chainId,
-      contractAddress: contractAddress.trim(),
-      layout,
-      mappingEntries: mappingEntriesForDiscovery,
-      lookbackBlocks,
-    });
-  }, [layout, mappingEntriesForDiscovery, contractAddress, chainId, lookbackBlocks, discoveryStartScan]);
-
-  const handleRescanDiscovery = useCallback(() => {
-    if (!layout || !contractAddress.trim()) return;
-    discovery.rescan({
-      chainId,
-      contractAddress: contractAddress.trim(),
-      layout,
-      mappingEntries: mappingEntriesForDiscovery,
-      lookbackBlocks,
-    });
-  }, [layout, mappingEntriesForDiscovery, contractAddress, chainId, lookbackBlocks, discovery]);
-
-  const handleProbeSlot = useCallback(async () => {
-    const addr = contractAddress.trim();
-    if (!addr || !computedSlot.hex) return;
-
-    setManualSlotReading(true);
-    try {
-      if (probeMode === 'mapping' && mappingKey.value.trim()) {
-        const baseSlotHex = formatSlotHex(parseSlotInput(baseSlotInput));
-        const mappingEntry = mappingEntriesBySlot.get(baseSlotHex.toLowerCase());
-
-        const variable = mappingEntry?.variable || `slot_${baseSlotInput}`;
-        const keyType = mappingKey.type;
-        const key = mappingKey.value.trim();
-        const derivedSlotHex = computedSlot.hex;
-
-        const entry: DiscoveredMappingKey = {
-          key,
-          keyType,
-          derivedSlot: derivedSlotHex,
-          value: null,
-          variable,
-          baseSlot: baseSlotHex,
-          source: 'manual_lookup',
-          sourceLabel: 'Manual',
-          sources: ['manual_lookup'],
-          sourceLabels: ['Manual'],
-          evidenceCount: 1,
-        };
-
-        setManualKeys((prev) => {
-          const next = new Map(prev);
-          const bucket = baseSlotHex.toLowerCase();
-          const existing = next.get(bucket) || [];
-          if (!existing.some((e) => e.key === key && e.derivedSlot.toLowerCase() === derivedSlotHex.toLowerCase())) {
-            next.set(bucket, [...existing, entry]);
-          }
-          return next;
-        });
-
-        if (pathSegments.length === 0) {
-          setPathSegments([{
-            label: variable,
-            variable,
-            baseSlot: baseSlotHex,
-            keyTypeId: mappingEntry?.keyTypeId,
-          }]);
-        }
-
-        readSlotFromRpc(chainId, addr, derivedSlotHex).then((value) => {
-          if (value) {
-            setManualKeys((prev) => {
-              const next = new Map(prev);
-              const bucket = baseSlotHex.toLowerCase();
-              const existing = next.get(bucket) || [];
-              next.set(
-                bucket,
-                existing.map((e) =>
-                  e.derivedSlot.toLowerCase() === derivedSlotHex.toLowerCase()
-                    ? { ...e, value }
-                    : e,
-                ),
-              );
-              return next;
-            });
-          }
-        });
-      } else {
-        addManualSlot(addr, computedSlot.hex);
-        await readAndUpdateSlot(chainId, addr, computedSlot.hex);
-      }
-
-      if (sessionId && session?.totalSnapshots && session.totalSnapshots > 0) {
-        await readSlotFromEdb(sessionId, session.totalSnapshots - 1, computedSlot.hex);
-      }
-    } finally {
-      setManualSlotReading(false);
-    }
-  }, [contractAddress, computedSlot.hex, chainId, sessionId, session?.totalSnapshots, addManualSlot, readAndUpdateSlot, readSlotFromEdb, probeMode, mappingKey, baseSlotInput, mappingEntriesBySlot, readSlotFromRpc, pathSegments.length]);
+  // ?address=&chainId= → state sync → auto-fetch once state settles.
+  useStorageUrlSync({
+    selectedChain, setSelectedChain,
+    contractAddress, setContractAddress,
+    handleFetch,
+  });
 
   const toggleSlotExpansion = useCallback((slotHex: string) => {
     setExpandedSlot((prev) => (prev === slotHex ? null : slotHex));
@@ -586,14 +412,7 @@ export function useStorageViewerState() {
     const isArray = currentSegment.slotKind === 'dynamic_array';
     const keyTypeId = currentSegment.keyTypeId;
 
-    let keyType = 'uint256';
-    if (!isArray && keyTypeId) {
-      if (keyTypeId.includes('address') || keyTypeId.startsWith('t_contract')) keyType = 'address';
-      else if (keyTypeId.includes('bytes32')) keyType = 'bytes32';
-      else if (keyTypeId.includes('bool')) keyType = 'bool';
-      else if (keyTypeId.includes('uint')) keyType = 'uint256';
-      else if (keyTypeId.includes('int')) keyType = 'int256';
-    }
+    const keyType = isArray ? 'uint256' : storageKeyType(keyTypeId);
 
     const key = keyInput.trim();
     setIsLookingUp(true);
@@ -639,7 +458,6 @@ export function useStorageViewerState() {
     }
   }, [keyInput, pathSegments, chainId, contractAddress, readSlotFromRpc]);
 
-
   const navigateTo = useCallback((segIdx: number) => {
     if (segIdx < 0) {
       setPathSegments([]);
@@ -655,16 +473,6 @@ export function useStorageViewerState() {
       if (next.has(group)) next.delete(group);
       else next.add(group);
       return next;
-    });
-  }, []);
-
-  const addNestedKey = useCallback(() => setNestedKeys((prev) => [...prev, { type: 'address', value: '' }]), []);
-  const removeNestedKey = useCallback((i: number) => setNestedKeys((prev) => prev.filter((_, idx) => idx !== i)), []);
-  const updateNestedKey = useCallback((i: number, field: 'type' | 'value', val: string) => {
-    setNestedKeys((prev) => {
-      const updated = [...prev];
-      updated[i] = { ...updated[i], [field]: val };
-      return updated;
     });
   }, []);
 

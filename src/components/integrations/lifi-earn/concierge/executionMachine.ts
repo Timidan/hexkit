@@ -108,9 +108,7 @@ export function legsReducer(state: LegState, action: LegAction): LegState {
     }
     case "NEXT": {
       const nextIdx = state.legs.findIndex(
-        (l, i) =>
-          i > state.currentIndex &&
-          (l.status === "pending" || l.status === "ready")
+        (l, i) => i > state.currentIndex && l.status === "pending"
       );
       return { ...state, currentIndex: nextIdx };
     }

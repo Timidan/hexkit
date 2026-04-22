@@ -14,6 +14,7 @@ import {
   encodeTraceDetailPayload,
   pruneTraceDetailStore,
 } from "./trace-detail-store.mjs";
+import { parseSimulatorOutput, getRenderedTrace, getRawTrace } from "./bridge-ffi-adapter.mjs";
 
 // =============================================================================
 // EVM Opcode Name Mapping
@@ -382,69 +383,60 @@ export function buildTraceLite(rawTrace) {
 // =============================================================================
 
 export function parseSimulationResult(raw) {
-  let result;
-  if (raw && typeof raw === "object") {
-    result = raw;
-  } else if (typeof raw === "string") {
-    result = JSON.parse(raw);
-    if (!result || typeof result !== "object") {
-      throw new Error("simulator returned non-object JSON response");
-    }
-  } else {
-    throw new Error("simulator returned unsupported response type");
-  }
+  const result = parseSimulatorOutput(raw, { label: "simulator-bridge" });
 
   // V3 rendered trace: when the Rust engine provides fully-decoded rows,
   // set traceSchemaVersion=3 so the frontend can skip TypeScript decode.
-  if (result.renderedTrace && typeof result.renderedTrace === "object") {
-    const rt = result.renderedTrace;
-    if (Array.isArray(rt.rows) && rt.rows.length > 0) {
-      result.traceSchemaVersion = 3;
+  const rt = getRenderedTrace(result);
+  if (!rt) return result;
 
-      const rawTrace = result.rawTrace;
-      if (rawTrace && typeof rawTrace === "object") {
-        const heavyFields = ["snapshots", "sources", "opcodeTrace"];
-        const strippedSizes = {};
-        for (const field of heavyFields) {
-          if (rawTrace[field]) {
-            const size = Array.isArray(rawTrace[field]) ? rawTrace[field].length : "object";
-            strippedSizes[field] = size;
-            delete rawTrace[field];
-          }
-          if (rawTrace.inner && typeof rawTrace.inner === "object" && rawTrace.inner[field]) {
-            delete rawTrace.inner[field];
-          }
-        }
-        if (rawTrace.artifacts && typeof rawTrace.artifacts === "object") {
-          let artifactCount = 0;
-          for (const [addr, artifact] of Object.entries(rawTrace.artifacts)) {
-            if (artifact && typeof artifact === "object") {
-              const meta = artifact.meta || null;
-              const cName = meta?.ContractName || meta?.Name || null;
-              const storageLayout = extractStorageLayoutFromArtifact(artifact, cName);
-              rawTrace.artifacts[addr] = {
-                ...(meta ? { meta } : {}),
-                ...(storageLayout ? { storageLayout } : {}),
-              };
-              artifactCount++;
-            }
-          }
-          strippedSizes["artifacts"] = `${artifactCount} contracts (kept meta)`;
-        }
-        console.log(
-          `[simulator-bridge] V3 rendered trace: ${rt.rows.length} rows, ` +
-          `${Object.keys(rt.sourceTexts || {}).length} source files — ` +
-          `stripped heavy fields: ${JSON.stringify(strippedSizes)}`
-        );
-      } else {
-        console.log(
-          `[simulator-bridge] V3 rendered trace: ${rt.rows.length} rows, ` +
-          `${Object.keys(rt.sourceTexts || {}).length} source files, ` +
-          `schemaVersion=${rt.schemaVersion}`
-        );
-      }
+  result.traceSchemaVersion = 3;
+  const rawTrace = getRawTrace(result);
+
+  if (!rawTrace) {
+    console.log(
+      `[simulator-bridge] V3 rendered trace: ${rt.rows.length} rows, ` +
+      `${Object.keys(rt.sourceTexts || {}).length} source files, ` +
+      `schemaVersion=${rt.schemaVersion}`
+    );
+    return result;
+  }
+
+  const heavyFields = ["snapshots", "sources", "opcodeTrace"];
+  const strippedSizes = {};
+  for (const field of heavyFields) {
+    if (rawTrace[field]) {
+      const size = Array.isArray(rawTrace[field]) ? rawTrace[field].length : "object";
+      strippedSizes[field] = size;
+      delete rawTrace[field];
+    }
+    if (rawTrace.inner && typeof rawTrace.inner === "object" && rawTrace.inner[field]) {
+      delete rawTrace.inner[field];
     }
   }
+
+  if (rawTrace.artifacts && typeof rawTrace.artifacts === "object") {
+    let artifactCount = 0;
+    for (const [addr, artifact] of Object.entries(rawTrace.artifacts)) {
+      if (artifact && typeof artifact === "object") {
+        const meta = artifact.meta || null;
+        const cName = meta?.ContractName || meta?.Name || null;
+        const storageLayout = extractStorageLayoutFromArtifact(artifact, cName);
+        rawTrace.artifacts[addr] = {
+          ...(meta ? { meta } : {}),
+          ...(storageLayout ? { storageLayout } : {}),
+        };
+        artifactCount++;
+      }
+    }
+    strippedSizes["artifacts"] = `${artifactCount} contracts (kept meta)`;
+  }
+
+  console.log(
+    `[simulator-bridge] V3 rendered trace: ${rt.rows.length} rows, ` +
+    `${Object.keys(rt.sourceTexts || {}).length} source files — ` +
+    `stripped heavy fields: ${JSON.stringify(strippedSizes)}`
+  );
 
   return result;
 }

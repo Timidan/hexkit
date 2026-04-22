@@ -49,8 +49,25 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
     [vaultsQuery.data]
   );
 
+  const underlyingsSignature = useMemo(() => {
+    if (!underlyingsByChain || underlyingsByChain.size === 0) return "";
+    const chainIds = Array.from(underlyingsByChain.keys() as IterableIterator<number>).sort(
+      (a: number, b: number) => a - b
+    );
+    return chainIds
+      .map((id) => {
+        const tokens = (underlyingsByChain.get(id) ?? []) as Array<{ address: string }>;
+        const addrs = tokens
+          .map((t) => t.address.toLowerCase())
+          .sort()
+          .join(",");
+        return `${id}:${addrs}`;
+      })
+      .join("|");
+  }, [underlyingsByChain]);
+
   const scanQuery = useQuery({
-    queryKey: ["concierge-idle-balances", targetAddress, underlyingsByChain.size],
+    queryKey: ["concierge-idle-balances", targetAddress, underlyingsSignature],
     enabled:
       !!targetAddress && (underlyingsByChain?.size ?? 0) > 0,
     staleTime: 60 * 1000,

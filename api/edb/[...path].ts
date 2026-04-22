@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { maybeInjectDefaultEtherscanKey } from "../edbShared.js";
+import {
+  EDB_MAX_BODY_BYTES,
+  EDB_FETCH_TIMEOUT_MS,
+} from "../_shared/limits.js";
 
 export const config = {
   api: { bodyParser: false },
   maxDuration: 300,
 };
 
-const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB (artifacts_inline can be large)
-const FETCH_TIMEOUT_MS = 120_000; // 2 min for regular requests
 const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS", "HEAD"]);
 
 // CORS allowlist — dev servers by default; extend via EDB_CORS_ALLOWED_ORIGINS (comma-separated).
@@ -58,7 +60,7 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
     let total = 0;
     req.on("data", (chunk: Buffer) => {
       total += chunk.length;
-      if (total > MAX_BODY_BYTES) {
+      if (total > EDB_MAX_BODY_BYTES) {
         req.destroy();
         reject(new Error("body_too_large"));
         return;
@@ -106,12 +108,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Extract sub-path from URL — more reliable than req.query.path across Vercel runtimes
   const urlPath = (req.url || "").split("?")[0];
-  const subPath = urlPath.replace(/^\/api\/edb\/?/, "");
+  const subPath = urlPath.replace(/^\/api\/edb\/?/, "").replace(/\/+$/, "");
 
-  // Validate each path segment
   const parts = subPath ? subPath.split("/") : [];
+  if (parts.length > 8) {
+    return res.status(400).json({ error: "invalid_path" });
+  }
   for (const seg of parts) {
-    if (seg === "." || seg === ".." || /[^a-zA-Z0-9_\-:.]/.test(seg)) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(seg);
+    } catch {
+      return res.status(400).json({ error: "invalid_path" });
+    }
+    if (
+      decoded === "" ||
+      decoded === "." ||
+      decoded === ".." ||
+      decoded.length > 256 ||
+      /[^a-zA-Z0-9_\-:.]/.test(decoded)
+    ) {
       return res.status(400).json({ error: "invalid_path" });
     }
   }
@@ -150,7 +166,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       req.on("close", () => controller.abort());
     } else {
       // Regular requests get a hard timeout
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), EDB_FETCH_TIMEOUT_MS);
       req.on("close", () => clearTimeout(timer));
     }
 

@@ -7,7 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '../ui/resizable';
-import { useDebug, DebugProvider } from '../../contexts/DebugContext';
+import { useDebug } from '../../contexts/DebugContext';
 import { useSimulation } from '../../contexts/SimulationContext';
 import DebugToolbar from './DebugToolbar';
 import SourceViewPanel from './SourceViewPanel';
@@ -392,20 +392,8 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
 
 DebugWindowInner.displayName = 'DebugWindowInner';
 
-export const DebugWindow: React.FC<DebugWindowProps> = React.memo((props) => {
-  return (
-    <DebugProvider>
-      <DebugWindowInner {...props} />
-    </DebugProvider>
-  );
-});
-
-DebugWindow.displayName = 'DebugWindow';
-
 export const DebugWindowWithContext: React.FC<DebugWindowProps> = React.memo((props) => {
   return <DebugWindowInner {...props} />;
 });
 
 DebugWindowWithContext.displayName = 'DebugWindowWithContext';
-
-export default DebugWindow;

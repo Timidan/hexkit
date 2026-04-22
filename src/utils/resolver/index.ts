@@ -13,13 +13,6 @@
 // Main resolver
 export { contractResolver, ContractResolver } from './ContractResolver';
 
-// Multi-chain search
-export {
-  searchAcrossChains,
-  quickSearchAcrossChains,
-  findAllDeployments,
-} from './multiChainSearch';
-
 // Diamond resolution helpers (lightweight ABI checks only)
 export {
   hasDiamondLoupeFunctions,
@@ -29,8 +22,6 @@ export {
 // Proxy resolution
 export {
   resolveProxyInfo,
-  isLikelyProxy,
-  resolveNestedProxies,
   clearProxyCache,
   clearAllProxyCache,
 } from './proxyResolver';
@@ -38,7 +29,6 @@ export {
 // Contract context (unified proxy + token detection)
 export {
   resolveContractContext,
-  contractExists,
   clearContextCache,
   clearAllContextCache,
   type ContractContext,
@@ -55,7 +45,6 @@ export type {
   Confidence,
   SourceStatus,
   SourceAttempt,
-  SourceConfig,
 
   // ABI types
   AbiItem,
@@ -77,8 +66,6 @@ export type {
   ContractMetadata,
 
   // Search types
-  MultiChainSearchOptions,
-  MultiChainSearchResult,
   DiamondResolveOptions,
 
   // Cache types
@@ -87,4 +74,4 @@ export type {
 } from './types';
 
 // Constants & Helpers
-export { SOURCE_CONFIGS, isVerifiedConfidence, isReadFunction, isWriteFunction, extractExternalFunctions } from './types';
+export { isVerifiedConfidence, isReadFunction, isWriteFunction, extractExternalFunctions } from './types';

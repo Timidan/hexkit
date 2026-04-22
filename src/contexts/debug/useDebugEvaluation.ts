@@ -39,7 +39,6 @@ import {
 } from './structStorageDecoding';
 import {
   isValidSnapshotId,
-  setLimitedCacheEntry,
   waitForLiveSessionReady,
   scanForHookSnapshot,
   resolveEvalSnapshotId,
@@ -47,6 +46,8 @@ import {
   EVAL_VARIABLE_HINT_CACHE_MAX,
   EVAL_TOTAL_BUDGET_MS,
 } from './evalSnapshotResolver';
+import { setLimitedCacheEntry, setNumericBoundedCacheEntry } from '../../utils/cache/limitedCache';
+import { isTraceSessionId } from './sessionRef';
 import type { DebugSharedState, DebugEvaluationActions } from './types';
 
 const NO_HOOK_SNAPSHOTS_ERROR =
@@ -344,11 +345,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       traceToLiveSnapshotCacheRef.current.set(cacheKey, bestMatch.snapshotId);
       setSnapshotCache((prev) => {
         const next = new Map(prev);
-        next.set(bestMatch!.snapshotId, bestMatch!.snapshot);
-        if (next.size > 500) {
-          const sortedKeys = [...next.keys()].sort((a, b) => a - b);
-          sortedKeys.slice(0, next.size - 500).forEach((key) => next.delete(key));
-        }
+        setNumericBoundedCacheEntry(next, bestMatch!.snapshotId, bestMatch!.snapshot, 500);
         return next;
       });
 
@@ -372,7 +369,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         };
       }
       const totalSnapshots = activeSession.totalSnapshots ?? session?.totalSnapshots ?? 0;
-      const isTraceSession = activeSession.sessionId.startsWith('trace-');
+      const isTraceSession = isTraceSessionId(activeSession.sessionId);
       const traceRows = decodedTraceRowsRef.current;
       const traceSnapshotExists = (snapshotId: number | null | undefined): snapshotId is number =>
         typeof snapshotId === 'number' &&
@@ -1076,7 +1073,5 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
     addWatchExpression,
     removeWatchExpression,
     refreshWatchExpressions,
-    resolveEvalSnapshotId: resolveEvalSnapshotIdCb,
-    scanForHookSnapshot: scanForHookSnapshotCb,
   };
 }

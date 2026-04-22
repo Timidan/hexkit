@@ -493,7 +493,6 @@ export interface DebugContextValue {
 
   // Breakpoints
   breakpoints: Breakpoint[];
-  breakpointHits: Map<string, number[]>;
 
   // Watch expressions
   watchExpressions: WatchExpression[];
