@@ -50,7 +50,6 @@ export function phaseFinalize(ctx: DecodeTraceContext): {
     rowIdx: number;
     traceId: number | undefined;
     depth: number;
-    ownId: number;
     lastValidId: number;           // most recent valid child id seen
     foundChild: boolean;
   }
@@ -141,14 +140,14 @@ export function phaseFinalize(ctx: DecodeTraceContext): {
     if (isEntry) {
       childStack.push({
         rowIdx: i, traceId: rowTraceId, depth: rowDepth,
-        ownId: row.id, lastValidId: row.id, foundChild: false,
+        lastValidId: row.id, foundChild: false,
       });
     }
     // Push new frame for external call opcodes without entryMeta (rail detection)
     else if (externalCallOpcodes.has(row.name) && !row.hasChildren) {
       childStack.push({
         rowIdx: i, traceId: rowTraceId, depth: rowDepth,
-        ownId: row.id, lastValidId: row.id, foundChild: false,
+        lastValidId: row.id, foundChild: false,
       });
     }
   }
@@ -353,7 +352,6 @@ export function phaseFinalize(ctx: DecodeTraceContext): {
   // ==========================================================================
   // FALLBACK: Extract events from LOG opcodes
   // ==========================================================================
-  const callEventsCount = rawEvents.length;
   if (rowsWithJumps && Array.isArray(rowsWithJumps)) {
     const existingEventSigs = new Set<string>();
     rawEvents.forEach(evt => {

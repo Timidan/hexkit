@@ -28,32 +28,6 @@ export const hasInternalInfo = (rows?: InternalInfoRow[]): boolean =>
       row?.hasChildren
   );
 
-// ---- Context / result extras ------------------------------------------
-
-export type ContractContextExtras = {
-  debugEnabled?: boolean;
-  networkId?: number;
-  networkName?: string;
-  blockOverride?: string | number;
-  fromAddress?: string;
-  address?: string;
-  calldata?: string;
-  ethValue?: string;
-};
-
-export type SimulationResultExtras = {
-  simulationId?: string;
-  transactionHash?: string;
-  debugEnabled?: boolean;
-  chainId?: number;
-  networkName?: string;
-  forkBlockTag?: string | number;
-  rawTrace?: { snapshots?: unknown[] };
-  blockNumber?: string | number;
-  gasLimit?: string | number;
-  gas?: string | number;
-};
-
 // ---- Address-to-name map builder --------------------------------------
 
 export function buildAddressToNameMap(

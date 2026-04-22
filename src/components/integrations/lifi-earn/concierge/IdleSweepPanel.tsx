@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { useAccount } from "wagmi";
 import { Button } from "../../../../components/ui/button";
 import { useIdleBalances } from "./hooks/useIdleBalances";
 import { useVaultRecommendations } from "./hooks/useVaultRecommendations";
-import { useExecutionLegs } from "./hooks/useExecutionLegs";
+import { initialLegState, legsReducer } from "./executionMachine";
 import { IdleAssetsTable, keyForAsset, rawFromPercent } from "./IdleAssetsTable";
-import { VaultRecommendations } from "./VaultRecommendations";
+import { VaultRecommendations, portfolioTargets } from "./VaultRecommendations";
 import { DestinationPicker } from "./DestinationPicker";
 import { ExecutionQueue } from "./ExecutionQueue";
 import { FlowDiagram, type RoutingMode } from "./FlowDiagram";
@@ -96,7 +96,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
     }
   }, [hasAnyDestination]);
 
-  const { state: legState, dispatch: legDispatch } = useExecutionLegs();
+  const [legState, legDispatch] = useReducer(legsReducer, initialLegState);
 
   const {
     data: recsData,
@@ -282,7 +282,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
 
   const queueBuilt = legState.legs.length > 0;
   const hasInFlightStep = legState.legs.some((l) =>
-    ["quoting", "approving", "executing", "bridging", "ready"].includes(l.status)
+    ["executing", "bridging"].includes(l.status)
   );
   useEffect(() => {
     if (isReadOnly) return;
@@ -539,7 +539,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
             isRetrying={recsFetching}
           />
           <VaultRecommendations
-            selections={selections}
+            targets={portfolioTargets(selections)}
             recommendations={recommendations}
             destination={
               routingMode === "consolidate" ? consolidatedDestination : null

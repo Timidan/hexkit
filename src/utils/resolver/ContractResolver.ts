@@ -21,14 +21,17 @@ import type {
   Source,
   SourceAttempt,
   AbiItem,
-  SOURCE_CONFIGS,
 } from './types';
 import { extractExternalFunctions } from './types';
 import { contractCache } from './ContractCache';
-import { fetchEtherscan, fetchSourcify, fetchBlockscout } from './sources';
+import { fetchEtherscan, fetchSourcify, fetchBlockscout, fetchWhatsabi } from './sources';
+import { raceWithTimeout } from '../withAbortTimeout';
 
-const SETTLEMENT_WINDOW_MS = 200; // Time to wait for better sources after first success
 const SOURCE_TIMEOUT_MS = 5000; // Default timeout per source
+// Head-start given to the verified explorer sources (Sourcify/Etherscan/Blockscout)
+// before whatsabi is allowed to begin its bytecode analysis. If a verified result
+// lands inside this window the race aborts and whatsabi never touches RPC.
+const WHATSABI_DELAY_MS = 2000;
 
 function createEmptyResult(address: string, chainId: number, chain: Chain): ResolveResult {
   return {
@@ -107,7 +110,10 @@ class ContractResolver {
     try {
       const result = await resolvePromise;
 
-      if (result.abi) {
+      // Only persist verified results. Inferred (whatsabi) ABIs are never
+      // cached — we want every future request to get a fresh shot at the
+      // verified explorers rather than reading a bytecode-guessed ABI back.
+      if (result.abi && result.confidence === 'verified') {
         await contractCache.set(address, chainId, result);
       }
 
@@ -131,24 +137,30 @@ class ContractResolver {
       options.signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
-    const sourceOrder = this.getSourceOrder(options.preferredSources);
+    const sourceOrder = this.getSourceOrder(options.preferredSources, options.enableInferred);
 
     type SourceFetcher = {
       source: Source;
       fetch: () => Promise<SourceResult>;
     };
 
-    const fetchers: SourceFetcher[] = sourceOrder.map((source) => ({
-      source,
-      fetch: () =>
-        this.fetchWithTimeout(
+    const fetchers: SourceFetcher[] = sourceOrder.map((source) => {
+      const runFetch = () =>
+        this.fetchWithTimeout(source, address, chain, options, controller.signal);
+
+      // whatsabi joins the race after a head-start so the HTTP-only verified
+      // sources get first crack. If any of them returns verified within the
+      // window, controller.abort() fires and the delay rejects before
+      // whatsabi ever hits RPC.
+      if (source === 'whatsabi') {
+        return {
           source,
-          address,
-          chain,
-          options,
-          controller.signal
-        ),
-    }));
+          fetch: () => this.delayedFetch(WHATSABI_DELAY_MS, runFetch, controller.signal),
+        };
+      }
+
+      return { source, fetch: runFetch };
+    });
 
     let bestResult: SourceResult | null = null;
     let resolved = false;
@@ -274,16 +286,11 @@ class ContractResolver {
     options: ResolveOptions,
     signal: AbortSignal
   ): Promise<SourceResult> {
-    const timeoutPromise = new Promise<SourceResult>((_, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`${source} timed out after ${SOURCE_TIMEOUT_MS}ms`));
-      }, SOURCE_TIMEOUT_MS);
-
-      signal.addEventListener('abort', () => clearTimeout(timeoutId));
-    });
-
-    const fetchPromise = this.fetchFromSource(source, address, chain, options, signal);
-    return Promise.race([fetchPromise, timeoutPromise]);
+    return raceWithTimeout(
+      this.fetchFromSource(source, address, chain, options, signal),
+      SOURCE_TIMEOUT_MS,
+      () => new Error(`${source} timed out after ${SOURCE_TIMEOUT_MS}ms`)
+    );
   }
 
   private async fetchFromSource(
@@ -303,21 +310,44 @@ class ContractResolver {
       case 'blockscout':
         return fetchBlockscout(address, chain, options.blockscoutApiKey, signal);
 
-      case 'blockscout-ebd':
-        // TODO: Implement Blockscout EBD (bytecode database) source
-        return { success: false, error: 'Blockscout EBD not yet implemented' };
-
       case 'whatsabi':
-        // TODO: Implement WhatsABI source for unverified contracts
-        return { success: false, error: 'WhatsABI not yet implemented' };
+        return fetchWhatsabi(address, chain, signal);
 
       default:
         return { success: false, error: `Unknown source: ${source}` };
     }
   }
 
-  private getSourceOrder(preferred?: Source[]): Source[] {
-    const defaultOrder: Source[] = ['sourcify', 'etherscan', 'blockscout'];
+  private delayedFetch(
+    delayMs: number,
+    fetch: () => Promise<SourceResult>,
+    signal: AbortSignal
+  ): Promise<SourceResult> {
+    return new Promise((resolve, reject) => {
+      if (signal.aborted) {
+        reject(new DOMException('Aborted', 'AbortError'));
+        return;
+      }
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
+
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        fetch().then(resolve, reject);
+      }, delayMs);
+
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  private getSourceOrder(preferred?: Source[], enableInferred = true): Source[] {
+    const verifiedOrder: Source[] = ['sourcify', 'etherscan', 'blockscout'];
+    const defaultOrder: Source[] = enableInferred
+      ? [...verifiedOrder, 'whatsabi']
+      : verifiedOrder;
 
     if (!preferred || preferred.length === 0) {
       return defaultOrder;

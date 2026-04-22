@@ -1,6 +1,6 @@
 import React from "react";
 import { EventCard } from "./EventCard";
-import { decodeRawEvent } from "./eventDecoder";
+import { decodeRawEvent, eventTopic0, normalizeTopic } from "./eventDecoder";
 import { shortenAddress } from "../shared/AddressDisplay";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -104,10 +104,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
   if (decodedTrace?.rows) {
     decodedTrace.rows.forEach((row: any) => {
       if (row.name?.startsWith("LOG") && row.decodedLog) {
-        const rawTopics = (row.logInfo?.topics || []).map((t: any) => {
-          const hex = String(t).replace(/^0x/, "");
-          return "0x" + hex.padStart(64, "0");
-        });
+        const rawTopics = (row.logInfo?.topics || []).map(normalizeTopic);
 
         let rawData = "";
         if (row.logInfo && row.memory) {
@@ -194,21 +191,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
         eventArgs = decoded.args;
       }
       if (!eventName || eventName === "Anonymous Event") {
-        let topic0: string | null = null;
-        if (event.data?.topics?.[0]) {
-          topic0 =
-            "0x" +
-            String(event.data.topics[0]).replace(/^0x/, "").padStart(64, "0");
-        } else if (event.topics?.[0]) {
-          topic0 =
-            "0x" + String(event.topics[0]).replace(/^0x/, "").padStart(64, "0");
-        } else if (event.logInfo?.topics?.[0]) {
-          topic0 =
-            "0x" +
-            String(event.logInfo.topics[0])
-              .replace(/^0x/, "")
-              .padStart(64, "0");
-        }
+        const topic0 = eventTopic0(event);
         if (topic0 && lookedUpEventNames[topic0]) {
           eventName = lookedUpEventNames[topic0];
         }

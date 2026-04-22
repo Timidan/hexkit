@@ -1,9 +1,7 @@
-import React, { useState, Suspense, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
+import React, { useState, Suspense, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AnimatedTabContent } from '../ui/animated-tabs';
 import ContractExplorer from './ContractExplorer';
-import { Code, GitDiff, Database } from '@phosphor-icons/react';
 
 type SourceSubTool = 'explorer' | 'diff' | 'storage';
 
@@ -22,7 +20,6 @@ function isSourceSubTool(value: string | null): value is SourceSubTool {
 
 const SourceTools: React.FC<SourceToolsProps> = ({ initialTool = 'explorer' }) => {
   const location = useLocation();
-  const navigate = useNavigate();
   const [activeTool, setActiveTool] = useState<SourceSubTool>(initialTool);
 
   useEffect(() => {
@@ -36,24 +33,6 @@ const SourceTools: React.FC<SourceToolsProps> = ({ initialTool = 'explorer' }) =
       setActiveTool(requestedTool);
     }
   }, [location.search, activeTool]);
-
-  const handleToolChange = useCallback((value: string) => {
-    if (!isSourceSubTool(value)) return;
-
-    setActiveTool(value);
-
-    const params = new URLSearchParams(location.search);
-    if (params.get('tool') === value) return;
-
-    params.set('tool', value);
-    navigate(
-      {
-        pathname: location.pathname,
-        search: `?${params.toString()}`,
-      },
-      { replace: true },
-    );
-  }, [location.pathname, location.search, navigate]);
 
   return (
     <div className="h-full flex flex-col gap-2">

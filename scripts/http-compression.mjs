@@ -40,14 +40,18 @@ function negotiateEncoding(req) {
  * @param {import('node:http').IncomingMessage} req
  * @param {number} statusCode
  * @param {unknown} data — will be JSON.stringify'd
+ * @param {Record<string, string>} [extraHeaders] — optional extra response headers
+ *        (e.g. Retry-After). Reserved headers (Content-Type, Content-Length,
+ *        Content-Encoding, Vary) managed by this function are not overridable.
  */
-export function sendJson(res, req, statusCode, data) {
+export function sendJson(res, req, statusCode, data, extraHeaders) {
   const jsonBody = JSON.stringify(data);
   const bodyBytes = Buffer.byteLength(jsonBody, "utf8");
 
   // Small responses: skip compression overhead
   if (bodyBytes < MIN_COMPRESS_BYTES) {
     res.writeHead(statusCode, {
+      ...(extraHeaders || {}),
       "Content-Type": "application/json",
       "Content-Length": String(bodyBytes),
       "Vary": "Accept-Encoding",
@@ -60,6 +64,7 @@ export function sendJson(res, req, statusCode, data) {
 
   if (encoding === "identity") {
     res.writeHead(statusCode, {
+      ...(extraHeaders || {}),
       "Content-Type": "application/json",
       "Content-Length": String(bodyBytes),
       "Vary": "Accept-Encoding",
@@ -81,6 +86,7 @@ export function sendJson(res, req, statusCode, data) {
 
   // Remove Content-Length since we're streaming compressed data
   res.writeHead(statusCode, {
+    ...(extraHeaders || {}),
     "Content-Type": "application/json",
     "Content-Encoding": encoding,
     "Vary": "Accept-Encoding",
@@ -88,4 +94,26 @@ export function sendJson(res, req, statusCode, data) {
 
   compressor.pipe(res);
   compressor.end(jsonBody);
+}
+
+/**
+ * Send an error JSON response through the compression pipeline.
+ *
+ * This is a thin wrapper over sendJson that exists to mark the call site as
+ * an error path and keep the wire shape of `payload` identical to the
+ * pre-migration inline `res.writeHead(...); res.end(JSON.stringify(payload))`.
+ *
+ * The `payload` object is passed through to sendJson unchanged — no fields
+ * are added, renamed, or dropped. Callers that were emitting `{ error }`,
+ * `{ error, details }`, `{ success: false, error, ... }`, or nested shapes
+ * continue to emit exactly the same JSON on the wire.
+ *
+ * @param {import('node:http').ServerResponse} res
+ * @param {import('node:http').IncomingMessage} req
+ * @param {number} statusCode
+ * @param {unknown} payload — the error object to serialize (shape unchanged)
+ * @param {Record<string, string>} [extraHeaders] — e.g. { "Retry-After": "30" }
+ */
+export function sendError(res, req, statusCode, payload, extraHeaders) {
+  sendJson(res, req, statusCode, payload, extraHeaders);
 }

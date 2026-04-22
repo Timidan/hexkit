@@ -30,7 +30,6 @@ export async function simulateAssetMovements(
       tx,
       chain,
       fromAddress,
-      undefined,
       // liteEventsOnly skips the Sourcify/Blockscout artifact pre-fetch and
       // tells EDB to disable per-opcode snapshot collection. We only read
       // rawEvents for Transfer extraction below, so none of the heavy trace

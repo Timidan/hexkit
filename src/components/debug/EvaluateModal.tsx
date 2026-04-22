@@ -15,6 +15,8 @@ import { useSimulation } from '../../contexts/SimulationContext';
 import { useNetworkConfig } from '../../contexts/NetworkConfigContext';
 import { getChainById } from '../../utils/chains';
 import { extractInlineArtifacts } from '../../utils/debugArtifacts';
+import { raceWithTimeout } from '../../utils/withAbortTimeout';
+import { isTraceSessionId } from '../../contexts/debug/sessionRef';
 import type { SolValue, DebugVariable } from '../../types/debug';
 import { cn } from '../../lib/utils';
 import LoadingSpinner from '../shared/LoadingSpinner';
@@ -37,21 +39,12 @@ interface EvalResult {
 const LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS = 120000;
 const EVALUATION_TIMEOUT_MS = 15000;
 
-async function withTimeout<T>(
+function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   timeoutMessage: string
 ): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+  return raceWithTimeout(promise, timeoutMs, () => new Error(timeoutMessage));
 }
 
 function hasUnreadFields(value: SolValue | DebugVariable): boolean {
@@ -179,7 +172,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
       currentDebugSession?.sessionId || prepSessionId || null;
     const hasValidCurrentLiveSession =
       !!session &&
-      !session.sessionId.startsWith('trace-') &&
+      !isTraceSessionId(session.sessionId) &&
       (!targetSessionId || session.sessionId === targetSessionId) &&
       (!expectedSimulationId || session.simulationId === expectedSimulationId);
 
@@ -310,8 +303,8 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
       !session ||
       !!(
         currentSimulation?.debugSession?.sessionId &&
-        !session?.sessionId.startsWith('trace-') &&
-        session?.sessionId !== currentSimulation.debugSession.sessionId
+        !isTraceSessionId(session.sessionId) &&
+        session.sessionId !== currentSimulation.debugSession.sessionId
       );
 
     if (shouldEnsureLiveSession) {

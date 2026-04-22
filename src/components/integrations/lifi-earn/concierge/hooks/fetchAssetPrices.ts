@@ -2,83 +2,15 @@
 // the asset could not be priced — keep amountUsd null, don't fabricate zero.
 import { formatUnits } from "viem";
 import type { IdleAsset } from "../types";
+import {
+  DEFILLAMA_CHAIN_SLUG,
+  NATIVE_COINGECKO_ID,
+} from "../../../../../utils/priceRegistry";
 
 const NATIVE_SENTINELS = new Set([
   "0x0000000000000000000000000000000000000000",
   "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 ]);
-
-const LLAMA_CHAIN_SLUG: Record<number, string> = {
-  1: "ethereum",
-  10: "optimism",
-  25: "cronos",
-  56: "bsc",
-  100: "xdai",
-  130: "unichain",
-  137: "polygon",
-  146: "sonic",
-  204: "op_bnb",
-  250: "fantom",
-  252: "fraxtal",
-  324: "era",
-  1088: "metis",
-  1135: "lisk",
-  1284: "moonbeam",
-  1329: "sei",
-  1868: "soneium",
-  2020: "ronin",
-  2741: "abstract",
-  5000: "mantle",
-  8453: "base",
-  33139: "apechain",
-  34443: "mode",
-  42161: "arbitrum",
-  42220: "celo",
-  43114: "avax",
-  57073: "ink",
-  59144: "linea",
-  60808: "bob",
-  80094: "berachain",
-  81457: "blast",
-  167000: "taiko",
-  534352: "scroll",
-};
-
-const NATIVE_COINGECKO_ID: Record<number, string> = {
-  1: "coingecko:ethereum",
-  10: "coingecko:ethereum",
-  25: "coingecko:crypto-com-chain",
-  56: "coingecko:binancecoin",
-  100: "coingecko:xdai",
-  130: "coingecko:ethereum",
-  137: "coingecko:matic-network",
-  146: "coingecko:sonic-3",
-  204: "coingecko:binancecoin",
-  250: "coingecko:fantom",
-  252: "coingecko:frax",
-  324: "coingecko:ethereum",
-  1088: "coingecko:metis-token",
-  1135: "coingecko:ethereum",
-  1284: "coingecko:moonbeam",
-  1329: "coingecko:sei-network",
-  1868: "coingecko:ethereum",
-  2020: "coingecko:ronin",
-  2741: "coingecko:ethereum",
-  5000: "coingecko:mantle",
-  8453: "coingecko:ethereum",
-  33139: "coingecko:apecoin",
-  34443: "coingecko:ethereum",
-  42161: "coingecko:ethereum",
-  42220: "coingecko:celo",
-  43114: "coingecko:avalanche-2",
-  57073: "coingecko:ethereum",
-  59144: "coingecko:ethereum",
-  60808: "coingecko:bitcoin",
-  80094: "coingecko:berachain-bera",
-  81457: "coingecko:ethereum",
-  167000: "coingecko:ethereum",
-  534352: "coingecko:ethereum",
-};
 
 function keyFor(chainId: number, address: string): string {
   return `${chainId}:${address.toLowerCase()}`;
@@ -92,7 +24,7 @@ function coinIdForAsset(asset: IdleAsset): string | null {
   if (isNative(asset.token.address)) {
     return NATIVE_COINGECKO_ID[asset.chainId] ?? null;
   }
-  const slug = LLAMA_CHAIN_SLUG[asset.chainId];
+  const slug = DEFILLAMA_CHAIN_SLUG[asset.chainId];
   if (!slug) return null;
   return `${slug}:${asset.token.address.toLowerCase()}`;
 }

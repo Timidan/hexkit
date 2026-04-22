@@ -6,25 +6,13 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-
-// Chain ID → DeFiLlama identifier for the native wrapped token
-const NATIVE_TOKEN_ID: Record<number, string> = {
-  1: 'coingecko:ethereum',
-  10: 'coingecko:ethereum', // Optimism uses ETH
-  56: 'coingecko:binancecoin',
-  137: 'coingecko:matic-network',
-  8453: 'coingecko:ethereum', // Base uses ETH
-  42161: 'coingecko:ethereum', // Arbitrum uses ETH
-  43114: 'coingecko:avalanche-2',
-  534352: 'coingecko:ethereum', // Scroll uses ETH
-  324: 'coingecko:ethereum', // zkSync uses ETH
-};
+import { NATIVE_COINGECKO_ID } from '../utils/priceRegistry';
 
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const priceCache = new Map<string, { price: number; fetchedAt: number }>();
 
 async function fetchNativePrice(chainId: number): Promise<number | null> {
-  const coinId = NATIVE_TOKEN_ID[chainId] ?? 'coingecko:ethereum';
+  const coinId = NATIVE_COINGECKO_ID[chainId] ?? 'coingecko:ethereum';
 
   const cached = priceCache.get(coinId);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
@@ -65,7 +53,7 @@ export interface NativeTokenPrice {
  */
 export function useNativeTokenPrice(chainId: number = 1): NativeTokenPrice {
   const [price, setPrice] = useState<number | null>(() => {
-    const coinId = NATIVE_TOKEN_ID[chainId] ?? 'coingecko:ethereum';
+    const coinId = NATIVE_COINGECKO_ID[chainId] ?? 'coingecko:ethereum';
     const cached = priceCache.get(coinId);
     return cached && Date.now() - cached.fetchedAt < CACHE_TTL ? cached.price : null;
   });

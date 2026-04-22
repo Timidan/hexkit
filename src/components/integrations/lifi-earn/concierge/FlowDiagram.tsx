@@ -182,13 +182,9 @@ function statusToBorder(status: LegStatus | "idle"): string {
       return "border-emerald-500/70";
     case "failed":
       return "border-red-500/70";
-    case "quoting":
-    case "approving":
     case "executing":
     case "bridging":
       return "border-amber-500/70";
-    case "ready":
-      return "border-blue-500/70";
     case "pending":
     case "idle":
     default:
@@ -202,13 +198,9 @@ function statusToEdgeColor(status: LegStatus | "idle"): string {
       return "#10b981";
     case "failed":
       return "#ef4444";
-    case "quoting":
-    case "approving":
     case "executing":
     case "bridging":
       return "#f59e0b";
-    case "ready":
-      return "#3b82f6";
     case "pending":
     case "idle":
     default:
@@ -217,12 +209,7 @@ function statusToEdgeColor(status: LegStatus | "idle"): string {
 }
 
 function statusIsAnimating(status: LegStatus | "idle"): boolean {
-  return (
-    status === "quoting" ||
-    status === "approving" ||
-    status === "executing" ||
-    status === "bridging"
-  );
+  return status === "executing" || status === "bridging";
 }
 
 export type RoutingMode = "per-asset" | "consolidate";
@@ -557,7 +544,6 @@ function labelForEdge(sel: SelectedSource, dest: EarnVault): string {
 function rollupStatus(statuses: Array<LegStatus | "idle">): LegStatus | "idle" {
   if (statuses.some((s) => s === "failed")) return "failed";
   if (statuses.some(statusIsAnimating)) return "bridging";
-  if (statuses.some((s) => s === "ready")) return "ready";
   if (statuses.some((s) => s === "pending")) return "pending";
   if (statuses.every((s) => s === "done")) return "done";
   return "idle";

@@ -32,20 +32,3 @@ export function redactRpcUrl(url) {
     return "[invalid-url]";
   }
 }
-
-/**
- * Sanitize an object for logging - redacts sensitive fields
- * @param {Object} obj
- * @returns {Object}
- */
-export function sanitizeForLogging(obj) {
-  if (!obj || typeof obj !== "object") return obj;
-  const sanitized = { ...obj };
-  if ("rpcUrl" in sanitized) {
-    sanitized.rpcUrl = redactRpcUrl(sanitized.rpcUrl);
-  }
-  if ("rpc_url" in sanitized) {
-    sanitized.rpc_url = redactRpcUrl(sanitized.rpc_url);
-  }
-  return sanitized;
-}

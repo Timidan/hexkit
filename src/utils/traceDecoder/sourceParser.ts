@@ -251,6 +251,9 @@ export function validateSrcMapContent(
 
 /**
  * Validates that the SOURCE line (caller side) contains a call to the function.
+ *
+ * Regex probe; compensates for EDB internal-JUMP src-map drift. Remove once
+ * upstream emits accurate caller-site line metadata.
  */
 export function validateSourceLineContainsFunctionCall(
   sourceTexts: Record<string, string>,
@@ -280,6 +283,9 @@ export function validateSourceLineContainsFunctionCall(
 /**
  * Find the correct line number where a function is actually called.
  * Source maps for internal JUMPs are often inaccurate.
+ *
+ * Regex probe retained until EDB emits accurate src-line metadata for
+ * internal JUMPs; see callHierarchy.ts for consumer sites.
  */
 export function findCorrectCallLine(
   sourceTexts: Record<string, string>,

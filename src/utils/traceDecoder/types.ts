@@ -196,7 +196,6 @@ export interface DecodeTraceContext {
   traceIdToParentId: Map<number, number | null>;
   traceIdToCodeAddr: Map<number, string>;
   traceIdToTarget: Map<number, string>;
-  childrenByParentId: Map<number, number[]>;
   storageDiffsBySlot: Map<string, { before: string; after: string }>;
 
   // Addresses

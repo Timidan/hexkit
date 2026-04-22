@@ -16,6 +16,7 @@ import {
   PopoverContent,
 } from "../../../components/ui/popover";
 import { SUPPORTED_CHAINS } from "../../../utils/chains";
+import { copyTextToClipboard } from "../../../utils/clipboard";
 import ChainIcon from "../../icons/ChainIcon";
 import { TokenIcon } from "./TokenIcon";
 import type { EarnVault, VaultFilters } from "./types";
@@ -717,7 +718,7 @@ export function VaultCard({
 
   const handleCopyAddress = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(vault.address);
+    copyTextToClipboard(vault.address).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

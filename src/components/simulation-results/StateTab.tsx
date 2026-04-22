@@ -12,6 +12,7 @@ import {
   type SlotDescriptor,
 } from "../../utils/storageLayoutDecode";
 import { formatTokenValue } from "../../utils/displayFormatters";
+import { parseRawTraceObject } from "./formatters";
 import "./StateTab.css";
 
 /** Format a decoded value, optionally applying token decimal formatting */
@@ -93,15 +94,10 @@ function renderHighlightedHex(
 }
 
 export const StateTab: React.FC<StateTabProps> = ({ result, artifacts, contractContext }) => {
-  // Memoize parsed rawTrace to avoid JSON.parse on every render
-  const parsedRawTrace = useMemo(() => {
-    const rawTrace = (result as any)?.rawTrace;
-    try {
-      return typeof rawTrace === 'string' ? JSON.parse(rawTrace) : rawTrace;
-    } catch {
-      return rawTrace;
-    }
-  }, [(result as any)?.rawTrace]);
+  const parsedRawTrace = useMemo(
+    () => parseRawTraceObject((result as any)?.rawTrace),
+    [(result as any)?.rawTrace]
+  );
 
   const rtArtifacts = useMemo(
     () => parsedRawTrace?.artifacts || {},

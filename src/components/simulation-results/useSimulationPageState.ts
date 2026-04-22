@@ -1,6 +1,5 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { lookupEventSignatures, getCachedSignatures, cacheSignature } from "../../utils/signatureDatabase";
 import {
   extractSimulationArtifacts,
   flattenCallTreeEntries,
@@ -11,27 +10,24 @@ import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { useNotifications } from "../NotificationManager";
 import type { TraceFilters } from "../ExecutionStackTrace";
-import { collectTraceAddresses, createTraceContractMap } from "../../utils/traceAddressCollector";
 import { traceVaultService } from "../../services/TraceVaultService";
 import { useDecodedTrace } from "../../hooks/useDecodedTrace";
 import { useDebug } from "../../contexts/DebugContext";
-import { getChainById } from "../../utils/chains";
 import type { SimulationResultsPageProps, SimulatorTab } from "./types";
-import { decodeRawEvent } from "./eventDecoder";
 import { useTraceRows } from "./useTraceRows";
+import { useSimulationHistoryLoader } from "./useSimulationHistoryLoader";
+import { useEventSignatureLookup } from "./useEventSignatureLookup";
+import { useTraceSourceResolver } from "./useTraceSourceResolver";
+import { useSimulationDebugActions } from "./useSimulationDebugActions";
 
-// Extracted helpers
 import {
-  type InternalInfoRow,
-  type ContractContextExtras,
-  type SimulationResultExtras,
-  hasInternalInfo,
   buildAddressToNameMap,
   buildRevertInfo,
   buildTraceDiagnostics,
   buildEnrichedTraceRows,
   buildCallSummaryRow,
 } from "./useSimulationPageHelpers";
+import type { ContractContextExtras, SimulationResultExtras } from "./gasHelpers";
 
 export type { ContractContextExtras, SimulationResultExtras };
 
@@ -63,97 +59,14 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const [traceFilters, setTraceFilters] = useState<TraceFilters>({
     gas: true, full: true, storage: true, events: true,
   });
-  const [highlightedTraceRow, setHighlightedTraceRow] = useState<string | null>(null);
   const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
-  const [isLoadingFromHistory, setIsLoadingFromHistory] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const hasAttemptedLoad = useRef(false);
-  const resolvedAddressesRef = useRef<Set<string>>(new Set());
-  const autoStartedDebugPrepRef = useRef<Set<string>>(new Set());
-  const [lookedUpEventNames, setLookedUpEventNames] = useState<Record<string, string>>({});
-  const [eventNameFilter, setEventNameFilter] = useState<string>("");
-  const [eventContractFilter, setEventContractFilter] = useState<string>("");
 
-  // ---- Load from history ----
-  useEffect(() => {
-    const loadFromHistory = async () => {
-      if (propResult || currentSimulation || !id) return;
-      if (hasAttemptedLoad.current) return;
-
-      hasAttemptedLoad.current = true;
-      setIsLoadingFromHistory(true);
-      setLoadError(null);
-
-      try {
-        const { simulationHistoryService } = await import('../../services/SimulationHistoryService');
-        const stored = await simulationHistoryService.getSimulation(id);
-
-        if (stored) {
-          setSimulation(stored.result, stored.contractContext, { skipHistorySave: true });
-          try {
-            const traceBundle = await traceVaultService.loadDecodedTrace(id, { includeHeavy: false });
-            let rowsToUse = traceBundle?.rows;
-            if (
-              stored.decodedTraceRows &&
-              stored.decodedTraceRows.length > 0 &&
-              (!rowsToUse ||
-                rowsToUse.length === 0 ||
-                (!hasInternalInfo(rowsToUse) &&
-                  hasInternalInfo(stored.decodedTraceRows)))
-            ) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              rowsToUse = recomputeHierarchy(stored.decodedTraceRows);
-            }
-            if (rowsToUse && rowsToUse.length > 0) {
-              setDecodedTraceRows(rowsToUse);
-            }
-            if (traceBundle?.sourceTexts && Object.keys(traceBundle.sourceTexts).length > 0) {
-              setSourceTexts(traceBundle.sourceTexts);
-            }
-            if (traceBundle) {
-              setDecodedTraceMeta({
-                sourceLines: traceBundle.sourceLines ?? [],
-                callMeta: traceBundle.callMeta,
-                rawEvents: traceBundle.rawEvents ?? [],
-                implementationToProxy: traceBundle.implementationToProxy,
-              });
-            }
-          } catch (traceErr) {
-            console.warn("[SimulationResultsPage] Failed to load trace vault:", traceErr);
-            if (stored.decodedTraceRows && stored.decodedTraceRows.length > 0) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              setDecodedTraceRows(recomputeHierarchy(stored.decodedTraceRows));
-            }
-          }
-        } else {
-          setLoadError(`Simulation not found`);
-        }
-      } catch (err) {
-        console.error("[SimulationResultsPage] Failed to load from history:", err);
-        setLoadError("Failed to load simulation from history");
-      } finally {
-        setIsLoadingFromHistory(false);
-      }
-    };
-
-    if (propResult || currentSimulation || !id || hasAttemptedLoad.current) return;
-
-    if (isFreshNavigation) {
-      setIsLoadingFromHistory(true);
-      const timer = window.setTimeout(() => { loadFromHistory(); }, 500);
-      return () => window.clearTimeout(timer);
-    }
-
-    loadFromHistory();
-  }, [id, propResult, currentSimulation, setSimulation, setDecodedTraceRows, setDecodedTraceMeta, setSourceTexts, isFreshNavigation]);
-
-  useEffect(() => {
-    if (currentSimulation) setIsLoadingFromHistory(false);
-  }, [currentSimulation]);
-
-  useEffect(() => {
-    hasAttemptedLoad.current = false;
-  }, [id]);
+  // History loader — rehydrates a stored simulation when opened via /sim/:id.
+  const { isLoadingFromHistory, loadError } = useSimulationHistoryLoader({
+    id, propResult, isFreshNavigation,
+    currentSimulation, setSimulation,
+    setDecodedTraceRows, setDecodedTraceMeta, setSourceTexts,
+  });
 
   const result = propResult || currentSimulation;
 
@@ -233,73 +146,16 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const events = useMemo(() => artifacts?.events ?? [], [artifacts?.events]);
   const storageDiffs = useMemo(() => artifacts?.storageDiffs ?? [], [artifacts?.storageDiffs]);
 
-  // ---- Event signature lookup ----
-  useEffect(() => {
-    if (activeTab !== 'events' || events.length === 0) return;
-
-    const lookupUnknownEvents = async () => {
-      const cachedSignatures = getCachedSignatures('event');
-      const cachedNamesToAdd: Record<string, string> = {};
-      const allAbis: any[] = [];
-      if (contractContext?.abi) allAbis.push(contractContext.abi);
-      if (contractContext?.diamondFacets) {
-        contractContext.diamondFacets.forEach((f: any) => { if (f.abi) allAbis.push(f.abi); });
-      }
-      const unknownTopics: string[] = [];
-
-      events.forEach((event: any) => {
-        if (event.name && event.name !== 'Anonymous Event') return;
-        let topic0: string | null = null;
-        if (event.data?.topics?.[0]) topic0 = String(event.data.topics[0]);
-        else if (event.topics?.[0]) topic0 = String(event.topics[0]);
-        if (!topic0) return;
-        const normalizedTopic = '0x' + topic0.replace(/^0x/, '').padStart(64, '0');
-        if (cachedSignatures[normalizedTopic]) {
-          if (!lookedUpEventNames[normalizedTopic]) {
-            cachedNamesToAdd[normalizedTopic] = cachedSignatures[normalizedTopic].name;
-          }
-          return;
-        }
-        if (lookedUpEventNames[normalizedTopic]) return;
-        const decoded = decodeRawEvent(event, allAbis);
-        if (decoded?.name) return;
-        if (!unknownTopics.includes(normalizedTopic)) unknownTopics.push(normalizedTopic);
-      });
-
-      if (Object.keys(cachedNamesToAdd).length > 0) {
-        setLookedUpEventNames(prev => ({ ...prev, ...cachedNamesToAdd }));
-      }
-
-      if (unknownTopics.length > 0) {
-        try {
-          const response = await lookupEventSignatures(unknownTopics);
-          if (response.ok && response.result?.event) {
-            const newNames: Record<string, string> = {};
-            Object.entries(response.result.event).forEach(([hash, signatures]) => {
-              if (signatures && signatures.length > 0) {
-                const name = signatures[0].name;
-                const eventName = name.split('(')[0];
-                newNames[hash] = eventName;
-                cacheSignature(hash, eventName, 'event');
-              }
-            });
-            if (Object.keys(newNames).length > 0) {
-              setLookedUpEventNames(prev => ({ ...prev, ...newNames }));
-            }
-          }
-        } catch (err) {
-          console.warn('[Events] Failed to look up event signatures:', err);
-        }
-      }
-    };
-
-    lookupUnknownEvents();
-  }, [activeTab, events, contractContext, lookedUpEventNames]);
+  // Event signature hydration for anonymous events in the Events tab.
+  const {
+    lookedUpEventNames,
+    eventNameFilter, setEventNameFilter,
+    eventContractFilter, setEventContractFilter,
+  } = useEventSignatureLookup({ activeTab, events, contractContext });
 
   // ---- Persist decoded trace ----
   const persistDecodedTrace = useCallback(
     async (decoded: any, simulationId: string) => {
-      const hasJumpRows = decoded?.rows?.some((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall);
       const jumpRowCount = decoded?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
 
       try {
@@ -327,270 +183,17 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     decodeMode: "lite",
   });
 
-  const buildReplayDebugPrepRequest = useCallback(() => {
-    const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
-    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-    const txHash = resultWithExtras?.transactionHash || contextWithExtras?.replayTxHash;
-    if (!txHash) {
-      return null;
-    }
+  // Debug actions — prep, reuse live session, fall back to trace mode.
+  const { handleOpenDebug, hasLiveDebugSession } = useSimulationDebugActions({
+    result, contractContext, contextSimulationId, id, decodedTrace,
+    resolveRpcUrl, showSuccess, showError,
+    openDebugWindow, session: debugSession,
+    initFromTraceData, connectToSession,
+    debugPrepState, startDebugPrep,
+  });
 
-    const chainId = result?.chainId || contractContext?.networkId || 1;
-    const chain = getChainById(chainId);
-    if (!chain) {
-      return null;
-    }
-
-    const rpcUrl = resolveRpcUrl(chain.id, chain.rpcUrl).url;
-    if (!rpcUrl) {
-      return null;
-    }
-
-    const forkBlockTag =
-      typeof resultWithExtras?.forkBlockTag === "string" && resultWithExtras.forkBlockTag.trim()
-        ? resultWithExtras.forkBlockTag.trim()
-        : undefined;
-
-    return {
-      rpcUrl,
-      chainId,
-      txHash,
-      ...(forkBlockTag ? { blockTag: forkBlockTag } : {}),
-    };
-  }, [contractContext, resolveRpcUrl, result]);
-
-  const startReplayDebugPreparation = useCallback(
-    (simulationId: string) => {
-      const prepStateForSimulation =
-        debugPrepState?.simulationId === simulationId ? debugPrepState : null;
-      if (
-        prepStateForSimulation?.status === "queued" ||
-        prepStateForSimulation?.status === "preparing" ||
-        prepStateForSimulation?.status === "ready"
-      ) {
-        return true;
-      }
-
-      const request = buildReplayDebugPrepRequest();
-      if (!request) {
-        return false;
-      }
-
-      autoStartedDebugPrepRef.current.add(simulationId);
-      startDebugPrep(request, simulationId);
-      return true;
-    },
-    [buildReplayDebugPrepRequest, debugPrepState, startDebugPrep]
-  );
-
-  useEffect(() => {
-    const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
-    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-    const debugRequested =
-      resultWithExtras?.debugEnabled === true ||
-      contextWithExtras?.debugEnabled === true;
-
-    if (!debugRequested || result?.debugSession?.sessionId) {
-      return;
-    }
-
-    const txHash = resultWithExtras?.transactionHash || contextWithExtras?.replayTxHash;
-    if (!txHash) {
-      return;
-    }
-
-    const simulationId = resultWithExtras?.simulationId || contextSimulationId || id;
-    if (!simulationId || autoStartedDebugPrepRef.current.has(simulationId)) {
-      return;
-    }
-
-    const prepStateForSimulation =
-      debugPrepState?.simulationId === simulationId ? debugPrepState : null;
-    if (
-      prepStateForSimulation?.status === "queued" ||
-      prepStateForSimulation?.status === "preparing" ||
-      prepStateForSimulation?.status === "ready" ||
-      prepStateForSimulation?.status === "failed"
-    ) {
-      return;
-    }
-
-    startReplayDebugPreparation(simulationId);
-  }, [
-    contractContext,
-    contextSimulationId,
-    debugPrepState,
-    id,
-    result,
-    startReplayDebugPreparation,
-  ]);
-
-  // ---- Debug window ----
-  const handleOpenDebug = useCallback(async () => {
-    const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;
-    const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
-    const debugRequested =
-      resultWithExtras?.debugEnabled === true ||
-      contextWithExtras?.debugEnabled === true;
-
-    const chainId = result?.chainId || contractContext?.networkId || 1;
-    const simulationId =
-      resultWithExtras?.simulationId || contextSimulationId || id || `debug-${Date.now()}`;
-    const debugPrepForSimulation =
-      debugPrepState?.simulationId === simulationId ? debugPrepState : null;
-
-    if (
-      debugPrepForSimulation?.status === "queued" ||
-      debugPrepForSimulation?.status === "preparing"
-    ) {
-      return;
-    }
-
-    const targetLiveSessionId = result?.debugSession?.sessionId || null;
-    const isExistingTraceSession = debugSession?.sessionId?.startsWith('trace-');
-    const hasReusableLiveSession =
-      !!debugSession && !isExistingTraceSession &&
-      (
-        (targetLiveSessionId && debugSession.sessionId === targetLiveSessionId) ||
-        (!targetLiveSessionId && debugSession.simulationId === simulationId)
-      );
-    if (hasReusableLiveSession) { openDebugWindow(); return; }
-
-    let traceForDebug = decodedTrace;
-    const hasHeavyTraceRows =
-      !!decodedTrace?.rows?.some((row: any) => Array.isArray(row.stack) || Array.isArray(row.memory));
-    if (decodedTrace?.rows?.length && !hasHeavyTraceRows) {
-      try {
-        const fullTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: true });
-        if (fullTrace?.rows?.length) traceForDebug = fullTrace as any;
-      } catch (err) {
-        console.warn("[handleOpenDebug] Failed to load full trace:", err);
-      }
-    }
-
-    if (result?.debugSession?.sessionId) {
-      try {
-        await connectToSession({
-          sessionId: result.debugSession.sessionId,
-          rpcPort: result.debugSession.rpcPort,
-          snapshotCount: result.debugSession.snapshotCount,
-          chainId, simulationId,
-        });
-        openDebugWindow();
-        return;
-      } catch (err) {
-        console.warn('Failed to connect to live EDB session:', err);
-        if (debugRequested) {
-          showError(
-            "Debug Session Unavailable",
-            "This simulation was requested with live debugging, but its session could not be reconnected. Re-simulate with Debug enabled."
-          );
-          return;
-        }
-      }
-    }
-
-    if (debugRequested) {
-      if (startReplayDebugPreparation(simulationId)) {
-        showSuccess(
-          "Preparing Debug Session",
-          "Building a live debug session for this replay. The debugger will be available when preparation completes."
-        );
-      } else {
-        showError(
-          "Debug Session Missing",
-          "This replay is missing the RPC or transaction context required to prepare a live debug session. Re-run the replay with Debug enabled."
-        );
-      }
-      return;
-    }
-
-    if (traceForDebug?.rows && traceForDebug.rows.length > 0) {
-      initFromTraceData({
-        simulationId, chainId,
-        traceRows: traceForDebug.rows,
-        sourceTexts: traceForDebug.sourceTexts || {},
-        rawTrace: resultWithExtras?.rawTrace,
-      });
-      openDebugWindow();
-      return;
-    }
-
-    openDebugWindow();
-  }, [
-    connectToSession,
-    contextSimulationId,
-    contractContext,
-    debugPrepState,
-    debugSession,
-    decodedTrace,
-    id,
-    initFromTraceData,
-    openDebugWindow,
-    result,
-    showError,
-    showSuccess,
-    startReplayDebugPreparation,
-  ]);
-
-  const hasLiveDebugSession = !!result?.debugSession?.sessionId;
-
-  // ---- Trace source resolution ----
-  const contractContextRef = useRef(contractContext);
-  contractContextRef.current = contractContext;
-
-  useEffect(() => {
-    const resolveTraceSources = async () => {
-      const ctx = contractContextRef.current;
-      if (!decodedTrace?.rows || !ctx) return;
-
-      const txFrom = ctx.fromAddress?.toLowerCase();
-      const addresses = collectTraceAddresses(decodedTrace.rows, txFrom);
-      if (addresses.size === 0) return;
-
-      const addressKey = Array.from(addresses).sort().join(',');
-      if (resolvedAddressesRef.current.has(addressKey)) return;
-      resolvedAddressesRef.current.add(addressKey);
-
-      const contractMap = createTraceContractMap(addresses);
-      const addressList = Array.from(addresses).slice(0, 10);
-
-      try {
-        const { contractResolver } = await import('../../utils/resolver/ContractResolver');
-        const chainId = ctx.networkId;
-        const chainName = ctx.networkName;
-
-        await Promise.allSettled(
-          addressList.map(async (addr) => {
-            try {
-              const result = await Promise.race([
-                contractResolver.resolve(addr, { id: chainId, name: chainName } as any),
-                new Promise<null>((_, reject) =>
-                  setTimeout(() => reject(new Error('timeout')), 5000)
-                )
-              ]);
-              if (result && result.verified) {
-                const contract = contractMap.get(addr);
-                if (contract) {
-                  contract.name = result.name || contract.name;
-                  contract.sourceCode = result.metadata?.sourceCode;
-                  contract.verified = true;
-                  contract.sourceProvider = result.source || undefined;
-                }
-              }
-              return result;
-            } catch { return null; }
-          })
-        );
-
-        setTraceContracts(contractMap);
-      } catch (err) {
-        console.warn('[SimResultsPage] Failed to resolve trace sources:', err);
-      }
-    };
-
-    resolveTraceSources();
-  }, [decodedTrace, setTraceContracts]);
+  // Trace source resolution — fetch verified contract names into the sim ctx.
+  useTraceSourceResolver({ decodedTrace, contractContext, setTraceContracts });
 
   useEffect(() => {
     if (decodedTrace?.sourceTexts && Object.keys(decodedTrace.sourceTexts).length > 0) {
@@ -674,18 +277,18 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   );
 
   const formatAddressWithName = useCallback((address: string): { display: string; hasName: boolean } => {
-    if (!address || address === "\u2014") return { display: address, hasName: false };
+    if (!address || address === "—") return { display: address, hasName: false };
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) return { display: address, hasName: false };
     const normalized = address.toLowerCase();
     const name = addressToName.get(normalized);
     if (name) return { display: name, hasName: true };
-    return { display: `${address.slice(0, 10)}\u2026${address.slice(-8)}`, hasName: false };
+    return { display: `${address.slice(0, 10)}…${address.slice(-8)}`, hasName: false };
   }, [addressToName]);
 
   const normalizeValue = useCallback((value: string | undefined | null): string | null => {
     if (!value) return null;
     const trimmed = value.trim();
-    if (!trimmed || trimmed === "0x" || trimmed === "0x0" || trimmed === "\u2014") return null;
+    if (!trimmed || trimmed === "0x" || trimmed === "0x0" || trimmed === "—") return null;
     if (trimmed.startsWith("0x")) return trimmed.toLowerCase();
     return trimmed;
   }, []);
@@ -709,18 +312,11 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
   const handleGoToRevert = useCallback(() => {
     if (!revertRowId) return;
-    setHighlightedTraceRow(revertRowId);
     requestAnimationFrame(() => {
       const element = document.getElementById(`trace-row-${revertRowId}`);
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }, [revertRowId]);
-
-  useEffect(() => {
-    if (!highlightedTraceRow) return;
-    const timer = window.setTimeout(() => setHighlightedTraceRow(null), 2000);
-    return () => window.clearTimeout(timer);
-  }, [highlightedTraceRow]);
 
   // ---- Trace diagnostics (delegated) ----
   const traceDiagnostics = useMemo(
@@ -747,7 +343,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     searchQuery, setSearchQuery, deferredSearchQuery,
     traceFilters, handleToggleFilter,
     // UI state
-    highlightedTraceRow, highlightedValue, setHighlightedValue,
+    highlightedValue, setHighlightedValue,
     isLoadingFromHistory, loadError,
     // events
     lookedUpEventNames, eventNameFilter, setEventNameFilter,

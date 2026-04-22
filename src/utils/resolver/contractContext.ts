@@ -41,6 +41,7 @@ import { contractResolver } from './ContractResolver';
 import { hasDiamondLoupeFunctions } from './diamondLoupe';
 import { detectTokenType, type TokenDetectionResult } from '../universalTokenDetector';
 import { networkConfigManager } from '../../config/networkConfig';
+import { raceWithTimeout } from '../withAbortTimeout';
 
 export interface ContractContext {
   address: string;
@@ -233,8 +234,13 @@ function mergeAbis(proxyAbi: AbiItem[], implAbi: AbiItem[]): AbiItem[] {
 
 function getAbiItemKey(item: AbiItem): string | null {
   if (!item.name) return null;
-  const inputTypes = (item.inputs || []).map((i) => i.type).join(',');
-  return `${item.type}:${item.name}(${inputTypes})`;
+  try {
+    const sighash = ethers.utils.Fragment.from(item as any).format('sighash');
+    return `${item.type}:${sighash}`;
+  } catch {
+    const inputTypes = (item.inputs || []).map((i) => i.type).join(',');
+    return `${item.type}:${item.name}(${inputTypes})`;
+  }
 }
 
 const IMPLEMENTATION_SELECTOR = '0x5c60da1b'; // implementation()
@@ -486,12 +492,11 @@ async function doResolve(
 
   if (opts.detectProxy && provider) {
     parallelTasks.push(
-      Promise.race([
+      raceWithTimeout<ProxyInfo>(
         resolveProxyInfo(address, chain, provider),
-        new Promise<ProxyInfo>((resolve) =>
-          setTimeout(() => resolve({ isProxy: false }), opts.proxyTimeout)
-        ),
-      ])
+        opts.proxyTimeout,
+        () => ({ isProxy: false })
+      )
         .then((result) => {
           if (result.isProxy) {
             proxyInfo = result;
@@ -607,21 +612,16 @@ async function doResolve(
   if (opts.detectToken && provider) {
     opts.onProgress?.('Detecting token type...');
     try {
-      const detection = await Promise.race([
+      const detection = await raceWithTimeout<TokenDetectionResult>(
         detectTokenType(provider, address),
-        new Promise<TokenDetectionResult>((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                type: 'unknown',
-                isDiamond: false,
-                method: 'timeout',
-                confidence: 0,
-              }),
-            opts.proxyTimeout
-          )
-        ),
-      ]);
+        opts.proxyTimeout,
+        () => ({
+          type: 'unknown',
+          isDiamond: false,
+          method: 'timeout',
+          confidence: 0,
+        })
+      );
 
       if (detection.type !== 'unknown') {
         tokenType = detection.type as 'ERC20' | 'ERC721' | 'ERC1155';
@@ -700,22 +700,3 @@ async function doResolve(
   return result;
 }
 
-/**
- * Quick check if a contract exists on chain
- */
-export async function contractExists(
-  address: string,
-  chain: Chain
-): Promise<boolean> {
-  if (!address || !address.startsWith('0x') || address.length !== 42) {
-    return false;
-  }
-
-  try {
-    const provider = getSharedProvider(chain);
-    const code = await provider.getCode(address);
-    return !!code && code !== '0x';
-  } catch {
-    return false;
-  }
-}

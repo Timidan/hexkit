@@ -5,7 +5,7 @@ export interface SimulationResultsPageProps {
   onReSimulate?: () => void;
 }
 
-export type SimulatorTab = "summary" | "contracts" | "events" | "assets" | "state" | "gas" | "debug";
+export type SimulatorTab = "summary" | "contracts" | "events" | "state";
 export type TraceRowType = "call" | "opcode" | "event" | "storage";
 
 /**

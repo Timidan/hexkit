@@ -738,36 +738,11 @@ export function useStorageEvidence() {
     [],
   );
 
-  const addTraceSlots = useCallback(
-    (items: Array<{ address: string; slot: string; before?: string; after?: string }>) => {
-      mergeEvidence(
-        items.map((item) => ({
-          address: item.address,
-          slot: formatSlotHex(BigInt(item.slot)),
-          source: 'trace' as SlotSource,
-          before: item.before,
-          after: item.after,
-        })),
-      );
-    },
-    [mergeEvidence],
-  );
-
-  /** Cancel an in-progress load without clearing already-collected evidence */
   const cancelLoad = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
     setIsLoading(false);
     setLoadingPhase('done');
-    setError(null);
-  }, []);
-
-  const clearEvidence = useCallback(() => {
-    abortRef.current?.abort();
-    setEvidence([]);
-    setLayout(null);
-    setLayoutConfidence(null);
-    setLoadingPhase('idle');
     setError(null);
   }, []);
 
@@ -786,7 +761,5 @@ export function useStorageEvidence() {
     readAndUpdateSlot,
     readSlotFromRpc,
     readSlotFromEdb,
-    addTraceSlots,
-    clearEvidence,
   };
 }

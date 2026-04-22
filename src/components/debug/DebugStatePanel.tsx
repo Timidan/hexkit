@@ -6,7 +6,7 @@
  * Shows: function, opcode, addresses, gas info, decoded inputs/outputs
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useDebug } from '../../contexts/DebugContext';
 import { ScrollArea } from '../ui/scroll-area';
 import { cn } from '../../lib/utils';
@@ -118,7 +118,6 @@ function buildStateFromSnapshot(
     decodedOutput?: Record<string, unknown>;
     totalGasUsed?: number;
     callStack?: Array<{ address: string; functionName?: string }>;
-    callerBalance?: string | null; // ETH balance in human-readable format
   }
 ): Record<string, unknown> {
   const state: Record<string, unknown> = {};
@@ -164,17 +163,11 @@ function buildStateFromSnapshot(
     const callerAddress = options.callStack[callerIndex]?.address;
     state['caller'] = {
       address: callerAddress,
-      ...(options?.callerBalance ? {
-        balance: options.callerBalance,
-      } : {}),
     };
   } else if (options?.from) {
     // If no callStack, use from address as caller
     state['caller'] = {
       address: options.from,
-      ...(options?.callerBalance ? {
-        balance: options.callerBalance,
-      } : {}),
     };
   }
 
@@ -257,22 +250,7 @@ export const DebugStatePanel: React.FC<DebugStatePanelProps> = React.memo(({
   className,
   simulationContext,
 }) => {
-  const { currentSnapshot, error, callStack, session } = useDebug();
-  const [callerBalance, setCallerBalance] = useState<string | null>(null);
-
-  // Determine caller address - either from callStack or from simulationContext
-  const callerAddress = callStack?.length && callStack.length > 1
-    ? callStack[callStack.length - 2]?.address
-    : simulationContext?.from;
-
-  // Fetch caller balance when caller address changes
-  // Note: Disabled for debug sessions as the EDB RPC server doesn't support eth_getBalance
-  // The balance would need to come from the original chain RPC, which isn't available in debug mode
-  useEffect(() => {
-    // Skip balance fetch - EDB debug RPC doesn't support eth_getBalance properly
-    // and we don't want to spam the console with errors
-    setCallerBalance(null);
-  }, [callerAddress, session?.rpcUrl]);
+  const { currentSnapshot, error, callStack } = useDebug();
 
   if (!currentSnapshot) {
     return (
@@ -298,7 +276,6 @@ export const DebugStatePanel: React.FC<DebugStatePanelProps> = React.memo(({
       address: frame.address,
       functionName: frame.functionName,
     })),
-    callerBalance,
   };
 
   const stateData = buildStateFromSnapshot(currentSnapshot, buildOptions);

@@ -12,9 +12,6 @@ import {
 } from "./revertHandling";
 import { classifySimulationError } from "../errorParser";
 
-// Re-export for barrel
-export { replayTransactionWithSimulator } from "./bridgeSimulation";
-
 export interface SimulationExecutionOptions {
   enableDebug?: boolean;
   /**
@@ -31,7 +28,6 @@ export const simulateTransaction = async (
   transaction: TransactionRequest,
   chain: Chain,
   fromAddress: string,
-  _provider?: unknown,
   options: SimulationExecutionOptions = {},
 ): Promise<SimulationResult> => {
   try {

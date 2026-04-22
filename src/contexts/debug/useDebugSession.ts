@@ -25,6 +25,8 @@ import {
   isSessionNotFoundError,
   debugLog,
 } from './debugHelpers';
+import { setNumericBoundedCacheEntry } from '../../utils/cache/limitedCache';
+import { isTraceSessionId } from './sessionRef';
 import type { DebugSharedState, DebugSessionActions } from './types';
 
 const INITIAL_SNAPSHOT_PREFETCH_COUNT = 20;
@@ -87,7 +89,6 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setCurrentLine,
     setEvalHint,
     setBreakpoints,
-    setBreakpointHits,
     setWatchExpressions,
     setStorageDiffs,
     traceRowsRef,
@@ -154,7 +155,11 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setStorageDiffs(diffs);
 
     // Cache the snapshot
-    setSnapshotCache(prev => { const next = new Map(prev); next.set(row.id, snapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+    setSnapshotCache(prev => {
+      const next = new Map(prev);
+      setNumericBoundedCacheEntry(next, row.id, snapshot, 500);
+      return next;
+    });
   }, []);
 
   const goToSnapshotInternal = useCallback(async (
@@ -179,7 +184,11 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         });
         snapshot = response.snapshot;
 
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, snapshot!); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache(prev => {
+          const next = new Map(prev);
+          setNumericBoundedCacheEntry(next, snapshotId, snapshot!, 500);
+          return next;
+        });
       }
 
       const resolvedSnapshot = snapshot ? enhanceHookSnapshot(snapshot, sourceFilesRef.current) : snapshot;
@@ -187,7 +196,11 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       setCurrentSnapshotId(snapshotId);
       setCurrentSnapshot(resolvedSnapshot || null);
       if (resolvedSnapshot) {
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, resolvedSnapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache(prev => {
+          const next = new Map(prev);
+          setNumericBoundedCacheEntry(next, snapshotId, resolvedSnapshot, 500);
+          return next;
+        });
       }
 
       // Update source location if hook snapshot
@@ -316,7 +329,6 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       updateSourceFiles(files);
       setSnapshotCache(new Map());
       setSnapshotList([]);
-      setBreakpointHits(new Map());
 
       const firstFile = Array.from(files.keys())[0];
       if (firstFile) {
@@ -394,7 +406,6 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       updateSourceFiles(files);
       setSnapshotCache(new Map());
       setSnapshotList([]);
-      setBreakpointHits(new Map());
 
       const firstFile = Array.from(files.keys())[0];
       if (firstFile) {
@@ -455,7 +466,6 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setCurrentLine(null);
     setEvalHint(null);
     setBreakpoints([]);
-    setBreakpointHits(new Map());
     setWatchExpressions([]);
     setStorageDiffs([]);
     setError(null);
@@ -531,11 +541,11 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       startedAt: Date.now(),
     };
 
+    sessionRef.current = newSession;
     setSession(newSession);
     updateSourceFiles(files);
     setSnapshotList(snapshots);
     setSnapshotCache(new Map());
-    setBreakpointHits(new Map());
     setError(null);
 
     const firstFile = Array.from(files.keys())[0];
@@ -551,14 +561,14 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
   }, []);
 
   const isTraceBasedSession = useCallback(() => {
-    return session?.sessionId.startsWith('trace-') ?? false;
+    return session ? isTraceSessionId(session.sessionId) : false;
   }, [session]);
 
   const loadSnapshotBatch = useCallback(
     async (startId: number, count: number) => {
       if (!session) return;
 
-      if (session.sessionId.startsWith('trace-')) {
+      if (isTraceSessionId(session.sessionId)) {
         return;
       }
 

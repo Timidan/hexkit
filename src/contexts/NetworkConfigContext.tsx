@@ -75,7 +75,6 @@ const readAck = (): boolean => {
 const writeAck = (): void => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(DEFAULTS_ACK_KEY, '1');
-  window.dispatchEvent(new CustomEvent('rpc-defaults-acknowledged'));
 };
 
 export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
@@ -107,16 +106,12 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
       }
     };
 
-    const handleAck = () => setHasAcknowledgedDefaults(true);
-
     window.addEventListener('network-config-updated', handleConfigUpdate);
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('rpc-defaults-acknowledged', handleAck);
 
     return () => {
       window.removeEventListener('network-config-updated', handleConfigUpdate);
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('rpc-defaults-acknowledged', handleAck);
     };
   }, []);
 

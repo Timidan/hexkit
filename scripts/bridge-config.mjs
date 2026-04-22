@@ -4,7 +4,6 @@
 
 import { resolve as pathResolve } from "node:path";
 import { existsSync } from "node:fs";
-import { totalmem, freemem } from "node:os";
 
 export const PORT = Number(process.env.SIMULATOR_BRIDGE_PORT ?? 5789);
 export const EDB_API_KEY = process.env.EDB_API_KEY || "";
