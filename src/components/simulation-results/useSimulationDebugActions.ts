@@ -24,7 +24,15 @@ interface DebugSlice {
     chainId: number;
     simulationId: string;
   }) => Promise<void>;
-  debugPrepState: { simulationId?: string; status?: string } | null | undefined;
+  debugPrepState:
+    | {
+        simulationId?: string | null;
+        status?: string;
+        sessionId?: string | null;
+        snapshotCount?: number | null;
+      }
+    | null
+    | undefined;
   startDebugPrep: (
     request: {
       rpcUrl: string;
@@ -307,6 +315,7 @@ export function useSimulationDebugActions(args: Args) {
 
     openDebugWindow();
   }, [
+    cancelDebugPrep,
     connectToSession,
     contextSimulationId,
     contractContext,
