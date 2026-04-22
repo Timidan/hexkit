@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { traceVaultService } from "../../services/TraceVaultService";
 import type { SimulationResult } from "../../types/transaction";
-import type { DecodedTraceMeta } from "../../contexts/SimulationContext";
-import type { DecodedTraceRow } from "../../types/decoded-trace";
-import type { ContractContext } from "../../utils/resolver";
+import type {
+  DecodedTraceMeta,
+  SimulationContractContext,
+} from "../../contexts/SimulationContext";
+import type { DecodedTraceRow } from "../../utils/traceDecoder/types";
 import { hasInternalInfo } from "./useSimulationPageHelpers";
+
+interface SetSimulationOptions {
+  skipHistorySave?: boolean;
+}
 
 interface SimulationContextSlice {
   currentSimulation: SimulationResult | null;
   setSimulation: (
     result: SimulationResult,
-    ctx: ContractContext | null,
-    opts?: { skipHistorySave?: boolean },
+    contractContext?: SimulationContractContext,
+    options?: SetSimulationOptions,
   ) => void;
   setDecodedTraceRows: (rows: DecodedTraceRow[]) => void;
   setDecodedTraceMeta: (meta: DecodedTraceMeta) => void;

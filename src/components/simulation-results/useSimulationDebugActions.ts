@@ -24,7 +24,7 @@ interface DebugSlice {
     chainId: number;
     simulationId: string;
   }) => Promise<void>;
-  debugPrepState: { simulationId?: string; status?: string } | null | undefined;
+  debugPrepState: { simulationId?: string | null; status?: string } | null | undefined;
   startDebugPrep: (
     request: {
       rpcUrl: string;
