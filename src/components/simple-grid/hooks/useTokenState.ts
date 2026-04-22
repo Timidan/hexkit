@@ -1,8 +1,5 @@
 /**
- * useTokenState – manages token detection flags and token info.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * useTokenState – manages token detection flags and token info. */
 import { useState } from "react";
 
 export function useTokenState() {

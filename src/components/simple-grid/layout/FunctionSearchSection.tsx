@@ -1,6 +1,5 @@
 /**
  * FunctionSearchSection - Search popup + search results.
- * Extracted from GridLayout.tsx lines 1643-1903.
  */
 import React from "react";
 import { SearchIcon } from "../../icons/IconLibrary";

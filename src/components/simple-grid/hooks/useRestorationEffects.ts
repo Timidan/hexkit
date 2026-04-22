@@ -1,7 +1,6 @@
 /**
  * useRestorationEffects - Handles restoring state from initialContractData
  * and SimulationContext contractContext.
- * Extracted from SimpleGridMain.tsx (pure structural split -- no behaviour changes).
  */
 import { useEffect, type MutableRefObject } from "react";
 import { ethers } from "ethers";

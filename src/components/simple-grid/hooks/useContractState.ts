@@ -1,9 +1,6 @@
 /**
  * useContractState – manages contract address, network, ABI fetching,
- * saved-contracts storage, and all closely related state.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * saved-contracts storage, and all closely related state. */
 import { useState, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import type { Chain, ContractInfo } from "../../../types";

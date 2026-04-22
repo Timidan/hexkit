@@ -1,8 +1,5 @@
 /**
- * useDiamondState – manages diamond facet selection, sidebar, and loading.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * useDiamondState – manages diamond facet selection, sidebar, and loading. */
 import { useState, useCallback, useMemo } from "react";
 import { ethers } from "ethers";
 import type { DiamondFacet } from "../../../utils/diamondFacetFetcher";

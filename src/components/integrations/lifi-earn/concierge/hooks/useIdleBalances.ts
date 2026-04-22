@@ -7,18 +7,7 @@ import { networkConfigManager } from "../../../../../config/networkConfig";
 import { fetchAssetPrices, applyPricesToAssets } from "./fetchAssetPrices";
 import type { EarnToken, EarnVault } from "../../types";
 import type { IdleAsset } from "../types";
-
-const NATIVE_SENTINELS = new Set([
-  "0x0000000000000000000000000000000000000000",
-  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-]);
-
-// Multicall3 is deployed at this address on virtually every EVM chain.
-const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
-
-function isNative(address: string): boolean {
-  return NATIVE_SENTINELS.has(address.toLowerCase());
-}
+import { isNativeToken, MULTICALL3_ADDRESS } from "../../../../../utils/addressConstants";
 
 export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs = 8000) {
 
@@ -175,8 +164,8 @@ async function scanSingleChain(args: {
     transport: http(rpcUrl),
   });
 
-  const erc20s = tokens.filter((t) => !isNative(t.address));
-  const nativeTokenMeta = tokens.find((t) => isNative(t.address));
+  const erc20s = tokens.filter((t) => !isNativeToken(t.address));
+  const nativeTokenMeta = tokens.find((t) => isNativeToken(t.address));
 
   const multicallCalls = erc20s.map((tok) => ({
     address: tok.address as `0x${string}`,

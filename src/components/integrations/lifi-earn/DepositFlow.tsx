@@ -1195,18 +1195,16 @@ export function DepositFlow({
                       type="button"
                       disabled={isBusy}
                       onClick={() => {
-                        try {
-                          if (!maxStr) return;
-                          const maxVal = parseFloat(maxStr);
-                          if (!Number.isFinite(maxVal) || maxVal <= 0) return;
-                          const val = (maxVal * pct) / 100;
-                          const dp = Math.min(selectedToken.decimals, 6);
-                          setAmount(val.toFixed(dp));
-                          setSimResult(null);
-                          setErrorMsg(null);
-                          setFlowState("idle");
-                          setSpenderCheck({ status: "idle" });
-                        } catch {}
+                        if (!maxStr) return;
+                        const maxVal = parseFloat(maxStr);
+                        if (!Number.isFinite(maxVal) || maxVal <= 0) return;
+                        const val = (maxVal * pct) / 100;
+                        const dp = Math.min(selectedToken.decimals, 6);
+                        setAmount(val.toFixed(dp));
+                        setSimResult(null);
+                        setErrorMsg(null);
+                        setFlowState("idle");
+                        setSpenderCheck({ status: "idle" });
                       }}
                       className="flex-1 rounded border border-border/40 bg-muted/30 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
                     >

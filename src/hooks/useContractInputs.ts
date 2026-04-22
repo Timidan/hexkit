@@ -108,25 +108,20 @@ export function useContractInputs({ inputs, onValuesChange, onCalldataGenerated,
         const func = selectedFunctionRef.current;
         const currentInputs = inputsRef.current;
         if (onCalldataGeneratedRef.current && func && allValid) {
-          try {
-            import('ethers').then(({ ethers }) => {
-              const formattedArgs = currentInputs.map(input => {
-                const state = newStates[input.name];
-                if (!state) return formatValueForContract(getDefaultValue(input.type), input.type);
-                return formatValueForContract(state.value, input.type);
-              });
-
-              const iface = new ethers.utils.Interface([func]);
-              const calldata = iface.encodeFunctionData(func.name, formattedArgs);
-              onCalldataGeneratedRef.current?.(calldata);
-            }).catch(error => {
-              console.error('Failed to generate calldata:', error);
-              onCalldataGeneratedRef.current?.("0x");
+          import('ethers').then(({ ethers }) => {
+            const formattedArgs = currentInputs.map(input => {
+              const state = newStates[input.name];
+              if (!state) return formatValueForContract(getDefaultValue(input.type), input.type);
+              return formatValueForContract(state.value, input.type);
             });
-          } catch (error) {
+
+            const iface = new ethers.utils.Interface([func]);
+            const calldata = iface.encodeFunctionData(func.name, formattedArgs);
+            onCalldataGeneratedRef.current?.(calldata);
+          }).catch(error => {
             console.error('Failed to generate calldata:', error);
             onCalldataGeneratedRef.current?.("0x");
-          }
+          });
         }
       }, 0);
 

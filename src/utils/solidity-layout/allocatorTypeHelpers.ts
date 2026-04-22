@@ -1,9 +1,6 @@
 /**
  * Type resolution, sizing, encoding, and label-building helpers
- * for the Solidity slot allocator.
- *
- * Extracted from allocator.ts to keep each module under 800 lines.
- */
+ * for the Solidity slot allocator. */
 
 import type {
   ParsedTypeName,

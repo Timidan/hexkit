@@ -1,9 +1,6 @@
 /**
  * useSimulationState – manages simulation execution, results, stack frames,
- * and rendering helpers.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * and rendering helpers. */
 import React, { useState, useCallback, useMemo, type ReactNode } from "react";
 import { ethers } from "ethers";
 import type { SimulationResult, TransactionRequest } from "../../../types/transaction";

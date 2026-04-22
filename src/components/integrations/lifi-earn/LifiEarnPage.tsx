@@ -12,10 +12,7 @@ import { IdleYieldBanner } from "./IdleYieldBanner";
 import { useEarnPositions } from "./hooks/useEarnPositions";
 import { usePositionVaults } from "./hooks/usePositionVaults";
 import type { EarnVault } from "./types";
-
-function truncateAddress(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
+import { shortenAddress as truncateAddress } from "../../shared/AddressDisplay";
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 

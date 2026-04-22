@@ -44,17 +44,6 @@ export {
   parseStorageWrite,
 } from './solidityStructLayout';
 
-export {
-  getSourceLineText,
-  deriveStructValueFromTrace,
-  deriveScalarStateValueFromTrace,
-  computeDynamicArrayDataSlot,
-  fillUnreadFieldsFromStorage,
-  matchesSourceLocation,
-  findNearestHookSnapshotIdBySource,
-  findNearestHookSnapshotIdByFunction,
-} from './structStorageDecoding';
-
 // ── Gated debug logger ─────────────────────────────────────────────────
 
 const EDB_DEBUG_LOGS = import.meta.env.DEV && typeof localStorage !== 'undefined' && localStorage.getItem('edb:debugLogs') === '1';

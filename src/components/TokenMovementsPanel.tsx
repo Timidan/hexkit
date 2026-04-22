@@ -13,6 +13,7 @@ import {
   type TokenPrice,
 } from "../utils/tokenMovements";
 import { normalizeValue } from "../utils/displayFormatters";
+import { ZERO_ADDRESS } from "../utils/addressConstants";
 import { Button } from "./ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 import "../styles/TokenMovementsPanel.css";
@@ -48,7 +49,6 @@ interface TokenMovementsPanelProps {
 }
 
 type GroupingMode = "address" | "chronological";
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
   events = [],
@@ -256,7 +256,7 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
 
   // Handle empty state
   if (movements.length === 0) {
-    return null; // Don't render anything if no token movements
+    return null;
   }
 
   return (

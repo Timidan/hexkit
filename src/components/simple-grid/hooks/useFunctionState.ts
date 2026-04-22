@@ -1,9 +1,6 @@
 /**
  * useFunctionState – manages function selection, inputs, calldata generation
- * and decoded calldata state.
- *
- * Extracted from SimpleGridMain.tsx (pure structural split – no behaviour changes).
- */
+ * and decoded calldata state. */
 import { useState, useCallback, useMemo, useRef } from "react";
 import { ethers } from "ethers";
 import type { ABIInput } from "../../ContractInputComponent";

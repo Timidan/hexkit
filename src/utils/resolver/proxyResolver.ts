@@ -18,6 +18,7 @@ import { ethers } from 'ethers';
 import type { Chain } from '../../types';
 import type { ProxyInfo, ProxyType } from './types';
 import { getSharedProvider } from '../providerPool';
+import { ZERO_ADDRESS } from '../addressConstants';
 let diamondResolverPromise: Promise<typeof import('./diamondResolver')> | null = null;
 
 const loadDiamondResolver = () => {
@@ -60,9 +61,6 @@ const EIP1167_REGEX = new RegExp(
   `^0x${EIP1167_PREFIX}([0-9a-fA-F]{40})${EIP1167_SUFFIX}`,
   'i'
 );
-
-// Zero address constant
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 // Cache TTL (5 minutes)
 const CACHE_TTL_MS = 5 * 60 * 1000;
