@@ -21,8 +21,6 @@ export interface AnalysisLocals {
   resolveCodeAddrForFrame: (frameId: any) => string | undefined;
   /** Full PcInfo for a given (pc, frameId) */
   pcInfoForPc: (pc: number, frameId?: any) => PcInfo | undefined;
-  /** Resolved source line for a given (pc, frameId) */
-  lineForPc: (pc: number, frameId?: any) => number | undefined;
   /** Function name at a given pc */
   fnForPc: (pc: number, frameId?: any) => string | null;
   /** Modifier name at a given pc */
@@ -39,8 +37,6 @@ export interface AnalysisLocals {
     line: number | null | undefined,
     frameId?: any
   ) => string | null;
-  /** Map from fn name → lowest entry PC */
-  fnEntryPc: Map<string, number>;
   /** All JUMP/JUMPI opcode rows */
   allJumps: DecodedTraceRow[];
   /** Extract traceId from frame_id */
@@ -355,21 +351,6 @@ export function buildAnalysisLocals(ctx: DecodeTraceContext, callFrameRows: Deco
     return pcMapFull ? pcMapFull.get(pc) : undefined;
   };
 
-  const lineForPc = (pc: number, frameId?: any): number | undefined => {
-    const pcInfo = pcInfoForPc(pc, frameId);
-    if (pcInfo?.line !== undefined) return pcInfo.line;
-    if (frameId) {
-      const codeAddr = resolveCodeAddrForFrame(frameId);
-      if (codeAddr) {
-        const filtered = pcMapsFilteredPerContract.get(codeAddr);
-        if (filtered?.has(pc)) return filtered.get(pc);
-        if (hasMultipleContractMaps) return undefined;
-      }
-    }
-    if (pcMapFiltered && pcMapFiltered.has(pc)) return pcMapFiltered.get(pc);
-    return undefined;
-  };
-
   const fnForPc = (pc: number, frameId?: any) => {
     const pcInfo = pcInfoForPc(pc, frameId);
     if (!pcInfo) return null;
@@ -493,23 +474,6 @@ export function buildAnalysisLocals(ctx: DecodeTraceContext, callFrameRows: Deco
 
   const jumpOpcodes = new Set(["JUMP", "JUMPI"]);
 
-  const fnEntryPc = new Map<string, number>();
-  const fnEntryHasJumpdest = new Set<string>();
-  opRows.forEach((r) => {
-    if (!r.fn || r.pc === undefined) return;
-    const existing = fnEntryPc.get(r.fn);
-    if (r.name === "JUMPDEST") {
-      if (!fnEntryHasJumpdest.has(r.fn) || existing === undefined || r.pc < existing) {
-        fnEntryPc.set(r.fn, r.pc);
-        fnEntryHasJumpdest.add(r.fn);
-      }
-      return;
-    }
-    if (!fnEntryHasJumpdest.has(r.fn) && (existing === undefined || r.pc < existing)) {
-      fnEntryPc.set(r.fn, r.pc);
-    }
-  });
-
   const allJumps = opRows.filter((r) => jumpOpcodes.has(r.name));
 
   const traceIdFromFrame = (frameId: any): number | null => {
@@ -600,14 +564,12 @@ export function buildAnalysisLocals(ctx: DecodeTraceContext, callFrameRows: Deco
     callFrameRows,
     resolveCodeAddrForFrame,
     pcInfoForPc,
-    lineForPc,
     fnForPc,
     modifierForPc,
     fnForPcIfAtEntry,
     jumpTypeForPc,
     getSourceContent,
     findSingleCalledFunctionOnLine,
-    fnEntryPc,
     allJumps,
     traceIdFromFrame,
     opRowIndexByIdForJump,

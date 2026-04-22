@@ -24,7 +24,6 @@ export const DEFAULT_ANALYSIS_OPTIONS: BridgeAnalysisOptions = {
   quickMode: true,
   collectCallTree: true,
   collectEvents: true,
-  collectStorageDiff: true,
   collectStorageDiffs: true,
   // Snapshots provide full VM state per opcode — required for the legacy
   // 3-phase FE decode to produce rich trace data (function args, internal
@@ -171,16 +170,6 @@ export const mergeAnalysisOptions = (
   return {
     ...DEFAULT_ANALYSIS_OPTIONS,
     ...(overrides ?? {}),
-    collectStorageDiffs:
-      overrides?.collectStorageDiffs ??
-      overrides?.collectStorageDiff ??
-      DEFAULT_ANALYSIS_OPTIONS.collectStorageDiffs,
-    collectStorageDiff:
-      overrides?.collectStorageDiff ??
-      overrides?.collectStorageDiffs ??
-      DEFAULT_ANALYSIS_OPTIONS.collectStorageDiff,
-    collectSnapshots:
-      overrides?.collectSnapshots ?? DEFAULT_ANALYSIS_OPTIONS.collectSnapshots,
     ...(etherscanKey ? { etherscanApiKey: etherscanKey } : {}),
     artifactSourcePriority,
   };

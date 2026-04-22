@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { SimulationResult } from "../../types/transaction";
 import { shortenAddress } from "../shared/AddressDisplay";
 import { SourceBadge } from "../shared/ContractBadges";
+import { parseRawTraceObject } from "./formatters";
 
 type SourceProvider = 'etherscan' | 'sourcify' | 'blockscout' | null;
 
@@ -35,13 +36,7 @@ const explorerBase: Record<number, ExplorerConfig> = {
 export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractContext }) => {
   const navigate = useNavigate();
 
-  const rawTrace = (result as any)?.rawTrace;
-  let parsedRawTrace: any = null;
-  try {
-    parsedRawTrace = typeof rawTrace === 'string' ? JSON.parse(rawTrace) : rawTrace;
-  } catch {
-    parsedRawTrace = rawTrace;
-  }
+  const parsedRawTrace = parseRawTraceObject((result as any)?.rawTrace);
   const traceArtifacts = parsedRawTrace?.artifacts || {};
   const traceOpcodeLines = parsedRawTrace?.opcodeLines || {};
 
@@ -120,13 +115,6 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
   const chainId = (result as any)?.chainId || contractContext?.networkId || 1;
   const chainExplorer = explorerBase[chainId] || explorerBase[1];
 
-  const getExplorerDisplayName = (provider: SourceProvider): string | null => {
-    if (provider === 'sourcify') return 'Sourcify';
-    if (provider === 'blockscout') return chainExplorer.blockscoutName || 'Blockscout';
-    if (provider === 'etherscan') return chainExplorer.etherscanName;
-    return null;
-  };
-
   const getExplorerUrl = (addr: string, provider: SourceProvider): string | null => {
     if (provider === 'sourcify') {
       return `https://repo.sourcify.dev/contracts/full_match/${chainId}/${addr}/`;
@@ -200,7 +188,6 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
           {/* Table Rows */}
           {contracts.map((contract, index) => {
             const explorerUrl = contract.verified ? getExplorerUrl(contract.address, contract.sourceProvider) : null;
-            const sourceLabel = getExplorerDisplayName(contract.sourceProvider);
 
             return (
               <div

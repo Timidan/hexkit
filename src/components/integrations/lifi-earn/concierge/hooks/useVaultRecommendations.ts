@@ -20,6 +20,9 @@ import {
 } from "../fallback";
 import { llmRecommendationSchema, type LlmRecommendationResponse } from "../schema";
 import { DEFAULT_CONFIG } from "../types";
+import { setLimitedCacheEntry } from "../../../../../utils/cache/limitedCache";
+import { classifyErrorMessage, isRetryableErrorKind } from "../../../../../utils/classifyError";
+import { parseLlmJson } from "../../../../../utils/llmJsonParser";
 
 // Client-side rate limit: 3 LLM calls per address per hour for non-connected addresses.
 const LLM_RATE_LIMIT = 3;
@@ -45,19 +48,12 @@ function recordLlmCall(address: string): void {
   const key = address.toLowerCase();
   const log = llmCallLog.get(key) ?? [];
   log.push(Date.now());
-  llmCallLog.set(key, log);
-  // Evict oldest entries if map grows too large
-  if (llmCallLog.size > LLM_MAX_TRACKED_ADDRESSES) {
-    const firstKey = llmCallLog.keys().next().value;
-    if (firstKey !== undefined) llmCallLog.delete(firstKey);
-  }
+  setLimitedCacheEntry(llmCallLog, key, log, LLM_MAX_TRACKED_ADDRESSES);
 }
 
-// "live" → call Gemini, "fixture" → read from fixtures/llm/*.json,
-// "off" → skip LLM and always use rules-based fallback.
+// "live" → call Gemini, "off" → skip LLM and always use rules-based fallback.
 const LLM_MODE =
-  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
-  "live";
+  (import.meta.env.VITE_LLM_MODE as "live" | "off" | undefined) ?? "live";
 
 export interface RecommendationsResult {
   recommendations: VaultRecommendation[];
@@ -156,7 +152,7 @@ export function useVaultRecommendations(args: {
           llmError: string | null;
         }> => {
           const skipLlm = isExternalAddress && targetAddress != null && isLlmRateLimited(targetAddress);
-          const result = await fetchRecommendationForAsset(source, cands, chainRestrictedVaults, skipLlm);
+          const result = await fetchRecommendationForAsset(source, cands, chainRestrictedVaults, skipLlm, targetAddress ?? null);
           if (!skipLlm && isExternalAddress && targetAddress != null) {
             recordLlmCall(targetAddress);
           }
@@ -200,6 +196,7 @@ async function fetchRecommendationForAsset(
   candidates: EarnVault[],
   vaultPool: EarnVault[],
   skipLlm = false,
+  targetAddress: string | null = null,
 ): Promise<{ rec: VaultRecommendation; llmError: string | null }> {
   const asset = source.asset;
   if (LLM_MODE === "off" || skipLlm) {
@@ -217,14 +214,14 @@ async function fetchRecommendationForAsset(
   let lastError: string | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await postLlmRecommend(request);
+      const raw = await postLlmRecommend(request, { targetAddress });
       const text = extractGeminiText(raw);
       if (!text) {
         // eslint-disable-next-line no-console
         console.warn("[concierge] raw LLM response (no text extracted):", raw);
         throw new Error("empty LLM response");
       }
-      const json = safeParseJson(text);
+      const json = parseLlmJson(text);
       if (!json) {
         // eslint-disable-next-line no-console
         console.warn("[concierge] LLM text (not valid JSON):", text.slice(0, 500));
@@ -242,13 +239,17 @@ async function fetchRecommendationForAsset(
       lastError = null;
       break;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = msg;
+      const classified = classifyErrorMessage(err);
+      lastError = classified.message;
       // eslint-disable-next-line no-console
       console.warn(
-        `[concierge] LLM attempt ${attempt + 1} failed for ${keyOf(asset)}:`,
-        msg
+        `[concierge] LLM attempt ${attempt + 1} failed for ${keyOf(asset)} (${classified.kind}):`,
+        classified.message,
       );
+      if (!isRetryableErrorKind(classified.kind)) {
+        parsed = null;
+        break;
+      }
       if (attempt === 1) parsed = null;
     }
   }
@@ -399,34 +400,6 @@ function extractGeminiText(raw: unknown): string | null {
     return joined.length > 0 ? joined : null;
   } catch {
     return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Strip common noise: code fences, leading commentary
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      // Thinking models sometimes prepend prose before the JSON object.
-      // Find the first `{` and last `}` and try parsing that substring.
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
   }
 }
 

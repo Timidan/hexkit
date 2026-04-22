@@ -10,4 +10,10 @@
  * continue to work without changes.
  */
 
-export { DebugProvider, useDebug, default } from './debug/DebugProvider';
+export {
+  DebugProvider,
+  useDebug,
+  useDebugSessionContext,
+  useDebugNavigationContext,
+  useDebugInspectionContext,
+} from './debug/DebugProvider';

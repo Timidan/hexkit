@@ -481,7 +481,8 @@ export async function fillUnreadFieldsFromStorage(
         }
 
         const elementType = child.type.replace('[]', '');
-        const elementSize = elementType === 'address' ? 1 : 1;
+        // Dynamic arrays reserve one slot per element when sizeof(T) > 16 bytes.
+        // Packed small-element arrays (e.g. uint8[]) are not supported here.
         const arrayChildren: DebugVariable[] = [];
         const readBatchSize = 8;
         for (let start = 0; start < maxElements; start += readBatchSize) {
@@ -489,7 +490,7 @@ export async function fillUnreadFieldsFromStorage(
           const indexes = Array.from({ length: end - start }, (_, idx) => start + idx);
           const chunkValues = await Promise.all(
             indexes.map(async (j) => {
-              const elementSlot = dataSlot + BigInt(j * elementSize);
+              const elementSlot = dataSlot + BigInt(j);
               const elementValueHex = await debugBridgeService.getStorage(
                 sessionId,
                 snapshotId,

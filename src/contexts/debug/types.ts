@@ -13,7 +13,6 @@ import type {
   BreakpointLocation,
   WatchExpression,
   StorageDiffEntry,
-  HookSnapshotDetail,
   EvalResult,
   StartDebugSessionRequest,
   DebugSessionConnectOptions,
@@ -70,8 +69,6 @@ export interface DebugSharedState {
   // Breakpoints
   breakpoints: Breakpoint[];
   setBreakpoints: Dispatch<SetStateAction<Breakpoint[]>>;
-  breakpointHits: Map<string, number[]>;
-  setBreakpointHits: Dispatch<SetStateAction<Map<string, number[]>>>;
 
   // Watch expressions
   watchExpressions: WatchExpression[];
@@ -152,14 +149,6 @@ export interface DebugEvaluationActions {
   addWatchExpression: (expression: string) => void;
   removeWatchExpression: (id: string) => void;
   refreshWatchExpressions: () => Promise<void>;
-  resolveEvalSnapshotId: () => Promise<number | null>;
-  scanForHookSnapshot: (
-    sessionId: string,
-    baseSnapshotId: number,
-    traceId: number | null,
-    maxOffset: number,
-    predicate?: (detail: HookSnapshotDetail) => boolean
-  ) => Promise<{ snapshotId: number; detail: HookSnapshotDetail } | null>;
 }
 
 /**

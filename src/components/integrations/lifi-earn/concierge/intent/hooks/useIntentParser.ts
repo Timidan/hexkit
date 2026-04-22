@@ -2,11 +2,12 @@ import { useMutation } from "@tanstack/react-query";
 import { postLlmRecommend } from "../../../earnApi";
 import { parsedIntentSchema, type ParsedIntent, DEFAULT_INTENT } from "../schema";
 import type { EarnChainInfo, EarnProtocolInfo } from "../../../types";
+import { classifyErrorMessage, isRetryableErrorKind } from "../../../../../../utils/classifyError";
+import { parseLlmJson } from "../../../../../../utils/llmJsonParser";
 
 // "live" → call Gemini, "off" → skip LLM (dev aid, returns DEFAULT_INTENT).
 const LLM_MODE =
-  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
-  "live";
+  (import.meta.env.VITE_LLM_MODE as "live" | "off" | undefined) ?? "live";
 
 export interface ParseIntentArgs {
   text: string;
@@ -38,7 +39,7 @@ export function useIntentParser() {
           const raw = await postLlmRecommend(request);
           const responseText = extractGeminiText(raw);
           if (!responseText) throw new Error("empty LLM response");
-          const json = safeParseJson(responseText);
+          const json = parseLlmJson(responseText);
           if (!json) throw new Error("LLM did not return JSON");
           const result = parsedIntentSchema.safeParse(json);
           if (!result.success) {
@@ -50,10 +51,14 @@ export function useIntentParser() {
           }
           return { intent: result.data, rawText: trimmed };
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          lastError = msg;
+          const classified = classifyErrorMessage(err);
+          lastError = classified.message;
           // eslint-disable-next-line no-console
-          console.warn(`[intent-parser] attempt ${attempt + 1} failed:`, msg);
+          console.warn(
+            `[intent-parser] attempt ${attempt + 1} failed (${classified.kind}):`,
+            classified.message,
+          );
+          if (!isRetryableErrorKind(classified.kind)) break;
         }
       }
       throw new Error(lastError ?? "Failed to parse intent");
@@ -190,30 +195,5 @@ function extractGeminiText(raw: unknown): string | null {
     return joined.length > 0 ? joined : null;
   } catch {
     return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
   }
 }

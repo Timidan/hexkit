@@ -13,7 +13,7 @@ import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { CopyableCell, ClickableValue } from './StorageCells';
 import { SlotRowWithInspector } from './SlotRow';
-import { shortHex, simplifyType } from './storageViewerHelpers';
+import { shortHex, simplifyType, storageKeyType } from './storageViewerHelpers';
 import { ZERO_VALUE, MAPPING_TABLE_GRID, SLOT_TABLE_GRID } from './storageViewerTypes';
 import type { DiscoveredMappingKey, ResolvedSlot, PathSegment } from './storageViewerTypes';
 import type { useAutoDiscovery } from './storage-viewer/useAutoDiscovery';
@@ -142,19 +142,9 @@ export const StorageTableView: React.FC<StorageTableViewProps> = ({
         const currentSeg = pathSegments[pathSegments.length - 1];
         const isArrayDrillDown = currentSeg.slotKind === 'dynamic_array';
         const keyTypeId = currentSeg.keyTypeId;
-        let keyTypeLabel = isArrayDrillDown ? 'Array index (uint256)' : 'uint256';
-        if (!isArrayDrillDown && keyTypeId) {
-          if (keyTypeId.includes('address') || keyTypeId.startsWith('t_contract')) keyTypeLabel = 'address';
-          else if (keyTypeId.includes('bytes32')) keyTypeLabel = 'bytes32';
-          else if (keyTypeId.includes('bool')) keyTypeLabel = 'bool';
-          else if (/uint\d/.test(keyTypeId)) {
-            const m = keyTypeId.match(/uint(\d+)/);
-            keyTypeLabel = m ? `uint${m[1]}` : 'uint256';
-          } else if (/int\d/.test(keyTypeId)) {
-            const m = keyTypeId.match(/int(\d+)/);
-            keyTypeLabel = m ? `int${m[1]}` : 'int256';
-          }
-        }
+        const keyTypeLabel = isArrayDrillDown
+          ? 'Array index (uint256)'
+          : storageKeyType(keyTypeId);
         const hasInput = keyInput.trim().length > 0;
 
         let arrayLength: string | null = null;

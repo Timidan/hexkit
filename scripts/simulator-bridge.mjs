@@ -29,7 +29,7 @@ import {
 } from "./bridge-config.mjs";
 
 import { redactRpcUrl } from "./bridge-security.mjs";
-import { sendJson } from "./http-compression.mjs";
+import { sendJson, sendError } from "./http-compression.mjs";
 
 import {
   traceDetailStore,
@@ -68,6 +68,27 @@ import {
   runAsyncDebugPrep,
 } from "./debug-sessions.mjs";
 
+import {
+  SimulateSchema,
+  TraceDetailSchema,
+  DebugPrepareSchema,
+  DebugStartSchema,
+  DebugRpcSchema,
+  DebugEndSchema,
+} from "./bridge-schemas.mjs";
+
+function validateBody(schema, body, res, req) {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    sendError(res, req, 400, {
+      error: "invalid_body",
+      issues: parsed.error.issues,
+    });
+    return null;
+  }
+  return parsed.data;
+}
+
 // =============================================================================
 // Startup Validation
 // =============================================================================
@@ -85,14 +106,13 @@ const allowedOriginsSet = new Set(ALLOWED_ORIGINS);
 // Helper: 503 Capacity Error Response
 // =============================================================================
 
-function send503(res, err) {
+function send503(res, req, err) {
   const retryAfterSec = Math.ceil(SIMULATION_QUEUE_TIMEOUT_MS / 1000);
-  res.writeHead(503, {
-    "Content-Type": "application/json",
-    "Retry-After": String(retryAfterSec),
-  });
-  res.end(
-    JSON.stringify({
+  sendError(
+    res,
+    req,
+    503,
+    {
       success: false,
       error: err.message,
       code: err.code,
@@ -103,7 +123,8 @@ function send503(res, err) {
         maxConcurrent: simulationSemaphore.maxConcurrent,
         maxQueue: simulationSemaphore.maxQueueSize,
       },
-    }),
+    },
+    { "Retry-After": String(retryAfterSec) },
   );
 }
 
@@ -136,8 +157,7 @@ const server = http.createServer(async (req, res) => {
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
     const queryKey = urlObj.searchParams.get("apiKey");
     if (headerKey !== EDB_API_KEY && queryKey !== EDB_API_KEY) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "unauthorized" }));
+      sendError(res, req, 401, { error: "unauthorized" });
       return;
     }
   }
@@ -147,32 +167,29 @@ const server = http.createServer(async (req, res) => {
   // Health check
   if (req.method === "GET" && url === "/health") {
     pruneTraceDetailStore();
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        edbServerRunning: false,
-        activeSessions: keepAliveSessions.size,
-        traceDetailHandles: traceDetailStore.size,
-        traceDetailBytes: Array.from(traceDetailStore.values()).reduce(
-          (sum, entry) => sum + getTraceDetailEntryBytes(entry),
-          0,
-        ),
-        concurrency: {
-          activeSimulations: simulationSemaphore.activeCount,
-          queuedRequests: simulationSemaphore.queueLength,
-          maxConcurrent: simulationSemaphore.maxConcurrent,
-          maxQueue: simulationSemaphore.maxQueueSize,
-          queueTimeoutMs: SIMULATION_QUEUE_TIMEOUT_MS,
-        },
-        memory: {
-          totalMB: Math.round(totalmem() / (1024 * 1024)),
-          freeMB: Math.round(freemem() / (1024 * 1024)),
-          pressureThresholdMB: MEMORY_PRESSURE_THRESHOLD_MB,
-          hardLimitMB: MEMORY_PRESSURE_HARD_LIMIT_MB,
-        },
-      }),
-    );
+    sendJson(res, req, 200, {
+      status: "ok",
+      edbServerRunning: false,
+      activeSessions: keepAliveSessions.size,
+      traceDetailHandles: traceDetailStore.size,
+      traceDetailBytes: Array.from(traceDetailStore.values()).reduce(
+        (sum, entry) => sum + getTraceDetailEntryBytes(entry),
+        0,
+      ),
+      concurrency: {
+        activeSimulations: simulationSemaphore.activeCount,
+        queuedRequests: simulationSemaphore.queueLength,
+        maxConcurrent: simulationSemaphore.maxConcurrent,
+        maxQueue: simulationSemaphore.maxQueueSize,
+        queueTimeoutMs: SIMULATION_QUEUE_TIMEOUT_MS,
+      },
+      memory: {
+        totalMB: Math.round(totalmem() / (1024 * 1024)),
+        freeMB: Math.round(freemem() / (1024 * 1024)),
+        pressureThresholdMB: MEMORY_PRESSURE_THRESHOLD_MB,
+        hardLimitMB: MEMORY_PRESSURE_HARD_LIMIT_MB,
+      },
+    });
     return;
   }
 
@@ -185,8 +202,7 @@ const server = http.createServer(async (req, res) => {
       const prepareId = sseMatch[1];
       const job = prepareJobs.get(prepareId);
       if (!job) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "prepare_job_not_found" }));
+        sendError(res, req, 404, { error: "prepare_job_not_found" });
         return;
       }
 
@@ -241,36 +257,30 @@ const server = http.createServer(async (req, res) => {
       const prepareId = pollMatch[1];
       const job = prepareJobs.get(prepareId);
       if (!job) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "prepare_job_not_found" }));
+        sendError(res, req, 404, { error: "prepare_job_not_found" });
         return;
       }
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          prepareId: job.prepareId,
-          status: job.status,
-          stage: job.stage,
-          progressPct: job.progressPct,
-          message: job.message,
-          sessionId: job.sessionId,
-          snapshotCount: job.snapshotCount,
-          sourceFiles: job.sourceFiles,
-          error: job.error,
-        }),
-      );
+      sendJson(res, req, 200, {
+        prepareId: job.prepareId,
+        status: job.status,
+        stage: job.stage,
+        progressPct: job.progressPct,
+        message: job.message,
+        sessionId: job.sessionId,
+        snapshotCount: job.snapshotCount,
+        sourceFiles: job.sourceFiles,
+        error: job.error,
+      });
       return;
     }
 
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "not_found" }));
+    sendError(res, req, 404, { error: "not_found" });
     return;
   }
 
   if (req.method !== "POST") {
-    res.writeHead(405, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "method_not_allowed" }));
+    sendError(res, req, 405, { error: "method_not_allowed" });
     return;
   }
 
@@ -282,8 +292,10 @@ const server = http.createServer(async (req, res) => {
       // Simulation Endpoint
       // =========================================================================
       case "/simulate": {
-        const { rpcUrl, transaction, txHash, mode, enableDebug } = body;
-        const payload = JSON.stringify(body);
+        const data = validateBody(SimulateSchema, body, res, req);
+        if (!data) return;
+        const { rpcUrl, transaction, txHash, mode, enableDebug } = data;
+        const payload = JSON.stringify(data);
         const enableLiteTraceTransport =
           TRACE_LITE_TRANSPORT_ENABLED && enableDebug === false;
 
@@ -292,7 +304,7 @@ const server = http.createServer(async (req, res) => {
           release = await simulationSemaphore.acquire(abortSignalFromReq(req));
         } catch (capacityErr) {
           if (capacityErr instanceof SimulationCapacityError) {
-            send503(res, capacityErr);
+            send503(res, req, capacityErr);
             break;
           }
           throw capacityErr;
@@ -301,8 +313,7 @@ const server = http.createServer(async (req, res) => {
         try {
           const memErr = checkMemoryPressure();
           if (memErr) {
-            release();
-            send503(res, memErr);
+            send503(res, req, memErr);
             break;
           }
 
@@ -398,28 +409,22 @@ const server = http.createServer(async (req, res) => {
                 console.error(
                   "[simulator-bridge] trace output exceeds Node.js string limit, cannot proceed",
                 );
-                res.writeHead(413, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    error:
-                      "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
-                    details: errorMessage,
-                  }),
-                );
+                sendError(res, req, 413, {
+                  success: false,
+                  error:
+                    "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
+                  details: errorMessage,
+                });
                 break;
               }
 
               // Fail closed for debug requests: never silently downgrade to
               // non-debug simulation when keep-alive bootstrap fails.
-              res.writeHead(502, { "Content-Type": "application/json" });
-              res.end(
-                JSON.stringify({
-                  success: false,
-                  error: "debug_bootstrap_failed",
-                  details: errorMessage,
-                }),
-              );
+              sendError(res, req, 502, {
+                success: false,
+                error: "debug_bootstrap_failed",
+                details: errorMessage,
+              });
             }
           } else {
             try {
@@ -436,23 +441,17 @@ const server = http.createServer(async (req, res) => {
                 err.message?.includes("ERR_STRING_TOO_LONG") ||
                 err.message?.includes("string longer than");
               if (isOutputTooLarge) {
-                res.writeHead(413, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    error:
-                      "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
-                    details: err.message,
-                  }),
-                );
+                sendError(res, req, 413, {
+                  success: false,
+                  error:
+                    "Transaction trace output is too large to process — the trace data exceeded processing limits. Try simulating a simpler transaction.",
+                  details: err.message,
+                });
               } else {
-                res.writeHead(500, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    error: err.message || "Simulation failed",
-                  }),
-                );
+                sendError(res, req, 500, {
+                  success: false,
+                  error: err.message || "Simulation failed",
+                });
               }
             }
           }
@@ -466,18 +465,14 @@ const server = http.createServer(async (req, res) => {
       // Trace Detail Endpoint
       // =========================================================================
       case "/trace/detail": {
-        const { id } = body || {};
-        if (!id || typeof id !== "string") {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Missing required field: id" }));
-          return;
-        }
+        const data = validateBody(TraceDetailSchema, body, res, req);
+        if (!data) return;
+        const { id } = data;
 
         pruneTraceDetailStore();
         const detailEntry = traceDetailStore.get(id);
         if (!detailEntry) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "trace_detail_not_found" }));
+          sendError(res, req, 404, { error: "trace_detail_not_found" });
           return;
         }
         let decodedFields;
@@ -489,8 +484,7 @@ const server = http.createServer(async (req, res) => {
             error,
           );
           traceDetailStore.delete(id);
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "trace_detail_decode_failed" }));
+          sendError(res, req, 500, { error: "trace_detail_decode_failed" });
           return;
         }
 
@@ -508,6 +502,8 @@ const server = http.createServer(async (req, res) => {
       // =========================================================================
 
       case "/debug/prepare": {
+        const data = validateBody(DebugPrepareSchema, body, res, req);
+        if (!data) return;
         const {
           rpcUrl,
           chainId,
@@ -517,18 +513,7 @@ const server = http.createServer(async (req, res) => {
           analysisOptions,
           artifacts,
           artifacts_inline,
-        } = body;
-
-        if (!rpcUrl || !chainId || (!transaction && !txHash)) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              error:
-                "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
-            }),
-          );
-          return;
-        }
+        } = data;
 
         pruneStalePrepareSessions();
 
@@ -569,12 +554,13 @@ const server = http.createServer(async (req, res) => {
           );
         });
 
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ prepareId }));
+        sendJson(res, req, 200, { prepareId });
         break;
       }
 
       case "/debug/start": {
+        const data = validateBody(DebugStartSchema, body, res, req);
+        if (!data) return;
         const {
           rpcUrl,
           chainId,
@@ -584,18 +570,7 @@ const server = http.createServer(async (req, res) => {
           analysisOptions,
           artifacts,
           artifacts_inline,
-        } = body;
-
-        if (!rpcUrl || !chainId || (!transaction && !txHash)) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              error:
-                "Missing required fields: rpcUrl, chainId, and (transaction or txHash)",
-            }),
-          );
-          return;
-        }
+        } = data;
 
         const session = await startDebugSession(simulationSemaphore, {
           rpcUrl,
@@ -618,17 +593,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       case "/debug/rpc": {
-        const { sessionId, method, params } = body;
-
-        if (!sessionId || !method) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              error: "Missing required fields: sessionId, method",
-            }),
-          );
-          return;
-        }
+        const data = validateBody(DebugRpcSchema, body, res, req);
+        if (!data) return;
+        const { sessionId, method, params } = data;
 
         const keepAliveSession = keepAliveSessions.get(sessionId);
         if (keepAliveSession) {
@@ -639,31 +606,23 @@ const server = http.createServer(async (req, res) => {
           );
           sendJson(res, req, 200, { result });
         } else {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({ error: `Debug session not found: ${sessionId}` }),
-          );
+          sendError(res, req, 404, {
+            error: `Debug session not found: ${sessionId}`,
+          });
         }
         break;
       }
 
       case "/debug/end": {
-        const { sessionId } = body;
-
-        if (!sessionId) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({ error: "Missing required field: sessionId" }),
-          );
-          return;
-        }
+        const data = validateBody(DebugEndSchema, body, res, req);
+        if (!data) return;
+        const { sessionId } = data;
 
         if (keepAliveSessions.has(sessionId)) {
           endKeepAliveSession(sessionId);
         }
 
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true }));
+        sendJson(res, req, 200, { success: true });
         break;
       }
 
@@ -684,17 +643,18 @@ const server = http.createServer(async (req, res) => {
       }
 
       default:
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "not_found" }));
+        sendError(res, req, 404, { error: "not_found" });
     }
   } catch (err) {
     if (err instanceof SimulationCapacityError) {
-      send503(res, err);
+      send503(res, req, err);
       return;
     }
     console.error(`[simulator-bridge] error on ${url}:`, err);
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "internal_error", details: String(err) }));
+    sendError(res, req, 500, {
+      error: "internal_error",
+      details: String(err),
+    });
   }
 });
 

@@ -1,11 +1,27 @@
+import { z } from "zod";
+
 export type EtherscanContractAction = "getabi" | "getsourcecode";
 
-export interface EtherscanLookupRequest {
-  action: EtherscanContractAction;
-  address: string;
-  chainId: number;
-  personalApiKey?: string;
-}
+export const EtherscanLookupRequestSchema = z.object({
+  action: z.enum(["getabi", "getsourcecode"]),
+  address: z
+    .string()
+    .trim()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "invalid address"),
+  chainId: z
+    .union([
+      z.number().int().positive(),
+      z.string().trim().regex(/^[1-9]\d*$/),
+    ])
+    .transform((v) => (typeof v === "string" ? Number(v) : v)),
+  personalApiKey: z
+    .string()
+    .trim()
+    .min(1)
+    .optional(),
+});
+
+export type EtherscanLookupRequest = z.infer<typeof EtherscanLookupRequestSchema>;
 
 type ExplorerChainConfig = {
   apiBaseUrl: string;
@@ -65,32 +81,11 @@ const ETHERSCAN_CHAINS: Record<number, ExplorerChainConfig> = {
   },
 };
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const normalizeString = (value: unknown): string | undefined => {
-  if (typeof value !== "string") {
-    return undefined;
-  }
+const normalizeEnvString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
-
-const normalizeChainId = (value: unknown): number | undefined => {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
-    return Number(value.trim());
-  }
-  return undefined;
-};
-
-const isValidAddress = (value: unknown): value is string =>
-  typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value.trim());
-
-const isSupportedAction = (value: unknown): value is EtherscanContractAction =>
-  value === "getabi" || value === "getsourcecode";
 
 const jsonResponse = (status: number, payload: Record<string, unknown>): Response =>
   new Response(JSON.stringify(payload), {
@@ -101,36 +96,8 @@ const jsonResponse = (status: number, payload: Record<string, unknown>): Respons
 export function parseEtherscanLookupRequest(
   body: unknown
 ): EtherscanLookupRequest | null {
-  if (!isObject(body)) {
-    return null;
-  }
-
-  const chainId = normalizeChainId(body.chainId);
-  const action = body.action;
-  const address = normalizeString(body.address);
-  const personalApiKey = normalizeString(body.personalApiKey);
-
-  if (!chainId || !isSupportedAction(action) || !address || !isValidAddress(address)) {
-    return null;
-  }
-
-  return {
-    action,
-    address,
-    chainId,
-    personalApiKey,
-  };
-}
-
-function resolveDefaultApiKey(
-  chainId: number,
-  env: NodeJS.ProcessEnv
-): string | undefined {
-  const chain = ETHERSCAN_CHAINS[chainId];
-  if (!chain) {
-    return undefined;
-  }
-  return normalizeString(env.ETHERSCAN_API_KEY);
+  const parsed = EtherscanLookupRequestSchema.safeParse(body);
+  return parsed.success ? parsed.data : null;
 }
 
 export async function handleEtherscanLookup(
@@ -147,7 +114,7 @@ export async function handleEtherscanLookup(
     return jsonResponse(400, { error: "unsupported_chain" });
   }
 
-  const apiKey = request.personalApiKey || resolveDefaultApiKey(request.chainId, env);
+  const apiKey = request.personalApiKey || normalizeEnvString(env.ETHERSCAN_API_KEY);
   if (!apiKey) {
     return jsonResponse(503, { error: "explorer_key_not_configured" });
   }

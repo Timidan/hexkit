@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { postLlmRecommend } from "../../../earnApi";
 import { llmRecommendationSchema } from "../../schema";
 import { DEFAULT_CONFIG } from "../../types";
+import { classifyErrorMessage, isRetryableErrorKind } from "../../../../../../utils/classifyError";
+import { parseLlmJson } from "../../../../../../utils/llmJsonParser";
 import type {
   VaultRecommendation,
   RecommendationPick,
@@ -44,8 +46,7 @@ function isDuplicatePick(
 
 // "live" → call Gemini, "off" → skip LLM entirely and use rules fallback.
 const LLM_MODE =
-  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
-  "live";
+  (import.meta.env.VITE_LLM_MODE as "live" | "off" | undefined) ?? "live";
 
 // How many of the already-ranked intent vaults we surface to the LLM. Must
 // stay low — candidate payload size drives token cost and latency.
@@ -95,7 +96,18 @@ export function useIntentRecommendation(
       args?.synthTokenAddress ?? "",
       intentCacheKey(args?.intent),
       args?.rankedVaults.slice(0, args?.intent?.target_symbol === null && !args?.intent?.my_assets ? MAX_CANDIDATES_DISCOVERY : MAX_CANDIDATES_DEFAULT).map((v) => v.slug).join(",") ?? "",
-      args?.walletAssets.map((a) => `${a.chainId}:${a.token.symbol}`).join(",") ?? "",
+      // Mirror the prompt's filter/sort/slice so the key tracks what the LLM actually sees,
+      // bucketing USD amounts logarithmically to avoid refetching on every price tick.
+      args?.walletAssets
+        .filter((a) => (a.amountUsd ?? 0) > 0.5)
+        .sort((a, b) => (b.amountUsd ?? 0) - (a.amountUsd ?? 0))
+        .slice(0, 15)
+        .map((a) => {
+          const usd = a.amountUsd ?? 0;
+          const bucket = usd <= 0 ? "0" : String(Math.min(6, Math.floor(Math.log10(usd))));
+          return `${a.chainId}:${a.token.symbol}:${bucket}`;
+        })
+        .join(",") ?? "",
     ] as const,
     enabled: !!args && args.rankedVaults.length > 0,
     staleTime: 5 * 60 * 1000,
@@ -152,7 +164,7 @@ export async function buildRecommendation(
       const raw = await postLlmRecommend(request);
       const text = extractGeminiText(raw);
       if (!text) throw new Error("empty LLM response");
-      const json = safeParseJson(text);
+      const json = parseLlmJson(text);
       if (!json) throw new Error("LLM did not return JSON");
       const result = llmRecommendationSchema.safeParse(json);
       if (!result.success) {
@@ -235,10 +247,16 @@ export async function buildRecommendation(
         llmError: null,
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = msg;
+      const classified = classifyErrorMessage(err);
+      lastError = classified.message;
       // eslint-disable-next-line no-console
-      console.warn(`[intent-rec] LLM attempt ${attempt + 1} failed:`, msg);
+      console.warn(
+        `[intent-rec] LLM attempt ${attempt + 1} failed (${classified.kind}):`,
+        classified.message,
+      );
+      // Validation / auth / rate-limit / not-found retries just burn quota.
+      // Only retry transient server/network/timeout classes.
+      if (!isRetryableErrorKind(classified.kind)) break;
     }
   }
 
@@ -515,31 +533,6 @@ function extractGeminiText(raw: unknown): string | null {
   }
 }
 
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      // Thinking models sometimes prepend prose before the JSON object.
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
-  }
-}
 
 function formatApy(apy: number | null): string {
   if (apy == null) return "—";

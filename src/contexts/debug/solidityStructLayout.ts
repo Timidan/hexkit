@@ -4,8 +4,28 @@
  * Source-level analysis for Solidity struct definitions, type parsing,
  * field layout computation, and scalar value decoding.
  * Used by struct-based storage decoding in structStorageDecoding.ts.
+ *
+ * Parsing is backed by `@solidity-parser/parser`; layout computation and
+ * decoding follow Solidity's packing rules.
  */
 
+import { parse, visit } from '@solidity-parser/parser';
+import type {
+  SourceUnit,
+  ContractDefinition,
+  FunctionDefinition,
+  StructDefinition,
+  VariableDeclaration,
+  VariableDeclarationStatement,
+  StateVariableDeclaration,
+  FileLevelConstant,
+  TypeName,
+  ArrayTypeName,
+  Mapping as MappingTypeNode,
+  UserDefinedTypeName,
+  ElementaryTypeName,
+  Expression,
+} from '@solidity-parser/parser/dist/src/ast-types';
 import type {
   SourceFile,
   DebugVariable,
@@ -32,60 +52,123 @@ export type StructFieldLayout = {
   arrayElementSize?: number;
 };
 
-// ── Source text helpers ─────────────────────────────────────────────────
+// ── AST parse cache ────────────────────────────────────────────────────
 
-export function stripSolidityComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '');
+const astCache = new WeakMap<Map<string, SourceFile>, Map<string, SourceUnit | null>>();
+
+function parseFile(content: string): SourceUnit | null {
+  try {
+    return parse(content, { tolerant: true, loc: false, range: false }) as SourceUnit;
+  } catch {
+    return null;
+  }
 }
 
-export function extractBraceBlock(source: string, startIndex: number): string | null {
-  const openIndex = source.indexOf('{', startIndex);
-  if (openIndex === -1) return null;
-  let depth = 0;
-  for (let i = openIndex; i < source.length; i += 1) {
-    const char = source[i];
-    if (char === '{') depth += 1;
-    if (char === '}') depth -= 1;
-    if (depth === 0) {
-      return source.slice(openIndex + 1, i);
+function getParsedFiles(sourceFiles: Map<string, SourceFile>): Map<string, SourceUnit | null> {
+  const cached = astCache.get(sourceFiles);
+  if (cached) return cached;
+  const parsed = new Map<string, SourceUnit | null>();
+  for (const [path, file] of sourceFiles.entries()) {
+    parsed.set(path, parseFile(file.content));
+  }
+  astCache.set(sourceFiles, parsed);
+  return parsed;
+}
+
+function parseSingleSource(source: string): SourceUnit | null {
+  return parseFile(source);
+}
+
+// ── TypeName rendering (AST → source-text form) ────────────────────────
+
+type ConstantMap = ReadonlyMap<string, string>;
+
+function renderTypeName(node: TypeName, constants?: ConstantMap): string {
+  switch (node.type) {
+    case 'ElementaryTypeName':
+      return (node as ElementaryTypeName).name;
+    case 'UserDefinedTypeName':
+      return (node as UserDefinedTypeName).namePath;
+    case 'Mapping': {
+      const mapping = node as MappingTypeNode;
+      return `mapping(${renderTypeName(mapping.keyType, constants)} => ${renderTypeName(mapping.valueType, constants)})`;
+    }
+    case 'ArrayTypeName': {
+      const array = node as ArrayTypeName;
+      const lengthStr = renderArrayLength(array.length, constants);
+      return `${renderTypeName(array.baseTypeName, constants)}[${lengthStr}]`;
+    }
+    case 'FunctionTypeName':
+      return 'function';
+    default:
+      return 'unknown';
+  }
+}
+
+function renderArrayLength(expr: Expression | null, constants?: ConstantMap): string {
+  if (!expr) return '';
+  if (expr.type === 'NumberLiteral') return expr.number;
+  if (expr.type === 'HexLiteral') return expr.value;
+  if (expr.type === 'Identifier' && constants) {
+    const resolved = constants.get(expr.name);
+    if (resolved) return resolved;
+  }
+  return '';
+}
+
+// ── Constant resolution (file-level + contract-level numeric literals) ──
+
+function literalToNumericString(expr: Expression | null | undefined): string | null {
+  if (!expr) return null;
+  if (expr.type === 'NumberLiteral') {
+    // Normalize to decimal so parseTypeSpec's /\[[0-9]*\]/g regex accepts it;
+    // NumberLiteral.number can be "0xA", "1_000", "1e2", etc.
+    const raw = expr.number.replace(/_/g, '');
+    try {
+      const big = BigInt(raw);
+      return big.toString(10);
+    } catch {
+      const n = Number(raw);
+      return Number.isFinite(n) ? String(n) : null;
+    }
+  }
+  if (expr.type === 'HexLiteral') {
+    try {
+      return BigInt(expr.value).toString(10);
+    } catch {
+      return null;
     }
   }
   return null;
 }
 
-export function extractParenBlock(source: string, startIndex: number): { body: string; endIndex: number } | null {
-  const openIndex = source.indexOf('(', startIndex);
-  if (openIndex === -1) return null;
-  let depth = 0;
-  for (let i = openIndex; i < source.length; i += 1) {
-    const char = source[i];
-    if (char === '(') depth += 1;
-    if (char === ')') depth -= 1;
-    if (depth === 0) {
-      return { body: source.slice(openIndex + 1, i), endIndex: i };
-    }
-  }
-  return null;
-}
+function buildConstantsMap(
+  ast: SourceUnit,
+  contract: ContractDefinition | null,
+): ConstantMap {
+  const out = new Map<string, string>();
 
-export function splitParams(params: string): string[] {
-  const result: string[] = [];
-  let depth = 0;
-  let current = '';
-  for (const char of params) {
-    if (char === '(') depth += 1;
-    if (char === ')') depth -= 1;
-    if (char === ',' && depth === 0) {
-      if (current.trim()) result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
+  for (const node of ast.children) {
+    if (node.type !== 'FileLevelConstant') continue;
+    const fc = node as FileLevelConstant;
+    const value = literalToNumericString(fc.initialValue);
+    if (value !== null) out.set(fc.name, value);
+  }
+
+  if (contract) {
+    for (const sub of contract.subNodes) {
+      if (sub.type !== 'StateVariableDeclaration') continue;
+      const svd = sub as StateVariableDeclaration;
+      const shared = literalToNumericString(svd.initialValue);
+      for (const v of svd.variables) {
+        if (!v.isDeclaredConst || !v.name) continue;
+        const value = literalToNumericString(v.expression) ?? shared;
+        if (value !== null) out.set(v.name, value);
+      }
     }
   }
-  if (current.trim()) result.push(current.trim());
-  return result;
+
+  return out;
 }
 
 // ── Variable type extraction from source ───────────────────────────────
@@ -93,42 +176,42 @@ export function splitParams(params: string): string[] {
 export function findVariableTypeInFunction(
   source: string,
   functionName: string,
-  variableName: string
+  variableName: string,
 ): string | null {
-  const cleaned = stripSolidityComments(source);
-  const fnRegex = new RegExp(`function\\s+${functionName}\\s*\\(`, 'm');
-  const fnMatch = fnRegex.exec(cleaned);
-  if (!fnMatch) return null;
+  const ast = parseSingleSource(source);
+  if (!ast) return null;
 
-  // First, check function parameters
-  const paramsBlock = extractParenBlock(cleaned, fnMatch.index);
-  if (!paramsBlock) return null;
-  const params = splitParams(paramsBlock.body);
-  for (const param of params) {
-    const tokens = param.split(/\s+/).filter(Boolean);
-    if (tokens.length < 2) continue;
-    const name = tokens[tokens.length - 1];
-    if (name !== variableName) continue;
-    const typeTokens = tokens
-      .slice(0, -1)
-      .filter((token) => !['storage', 'memory', 'calldata'].includes(token));
-    const typeName = typeTokens.join(' ');
-    return typeName || null;
-  }
+  for (const node of ast.children) {
+    if (node.type !== 'ContractDefinition') continue;
+    const contract = node as ContractDefinition;
+    const constants = buildConstantsMap(ast, contract);
+    for (const sub of contract.subNodes) {
+      if (sub.type !== 'FunctionDefinition') continue;
+      const fn = sub as FunctionDefinition;
+      if (fn.name !== functionName) continue;
 
-  // If not found in parameters, search in function body for local variable declarations
-  const fnBody = extractBraceBlock(cleaned, paramsBlock.endIndex);
-  if (fnBody) {
-    const localVarPatterns = [
-      new RegExp(`([A-Za-z_][A-Za-z0-9_]*)\\s+(?:storage|memory|calldata)\\s+${variableName}\\b`, 'm'),
-      new RegExp(`([A-Za-z_][A-Za-z0-9_]*)\\s+${variableName}\\s*[=;]`, 'm'),
-    ];
-
-    for (const pattern of localVarPatterns) {
-      const localMatch = pattern.exec(fnBody);
-      if (localMatch) {
-        return localMatch[1];
+      for (const param of fn.parameters) {
+        if (param.name === variableName && param.typeName) {
+          return renderTypeName(param.typeName, constants);
+        }
       }
+
+      if (!fn.body) continue;
+      let found: string | null = null;
+      visit(fn.body, {
+        VariableDeclarationStatement: (stmt: VariableDeclarationStatement) => {
+          if (found) return;
+          for (const decl of stmt.variables) {
+            if (!decl || decl.type !== 'VariableDeclaration') continue;
+            const v = decl as VariableDeclaration;
+            if (v.name === variableName && v.typeName) {
+              found = renderTypeName(v.typeName, constants);
+              return;
+            }
+          }
+        },
+      });
+      if (found) return found;
     }
   }
 
@@ -182,26 +265,44 @@ export function getBaseTypeSize(base: string): number | null {
 
 export function findStructFields(
   structName: string,
-  sourceFiles: Map<string, SourceFile>
+  sourceFiles: Map<string, SourceFile>,
 ): StructFieldDef[] | null {
-  for (const file of sourceFiles.values()) {
-    const cleaned = stripSolidityComments(file.content);
-    const structRegex = new RegExp(`struct\\s+${structName}\\s*\\{`, 'm');
-    const match = structRegex.exec(cleaned);
-    if (!match) continue;
-    const body = extractBraceBlock(cleaned, match.index);
-    if (!body) continue;
-    const entries = body
-      .split(';')
-      .map((entry) => entry.replace(/\s+/g, ' ').trim())
-      .filter(Boolean);
+  const parsed = getParsedFiles(sourceFiles);
+  for (const ast of parsed.values()) {
+    if (!ast) continue;
+    const found = findStructInUnit(ast, structName);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findStructInUnit(ast: SourceUnit, structName: string): StructFieldDef[] | null {
+  const extract = (
+    node: StructDefinition,
+    constants: ConstantMap,
+  ): StructFieldDef[] | null => {
     const fields: StructFieldDef[] = [];
-    for (const entry of entries) {
-      const fieldMatch = entry.match(/^(.+)\s+([A-Za-z_][A-Za-z0-9_]*)$/);
-      if (!fieldMatch) continue;
-      fields.push({ type: fieldMatch[1].trim(), name: fieldMatch[2].trim() });
+    for (const member of node.members) {
+      if (!member.typeName || !member.name) continue;
+      fields.push({ name: member.name, type: renderTypeName(member.typeName, constants) });
     }
     return fields.length > 0 ? fields : null;
+  };
+
+  for (const node of ast.children) {
+    if (node.type === 'StructDefinition' && (node as StructDefinition).name === structName) {
+      const fields = extract(node as StructDefinition, buildConstantsMap(ast, null));
+      if (fields) return fields;
+    }
+    if (node.type === 'ContractDefinition') {
+      const contract = node as ContractDefinition;
+      for (const sub of contract.subNodes) {
+        if (sub.type === 'StructDefinition' && (sub as StructDefinition).name === structName) {
+          const fields = extract(sub as StructDefinition, buildConstantsMap(ast, contract));
+          if (fields) return fields;
+        }
+      }
+    }
   }
   return null;
 }

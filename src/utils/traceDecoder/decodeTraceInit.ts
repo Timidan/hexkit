@@ -7,7 +7,6 @@
 import { ethers } from "ethers";
 import type { RawTrace, DecodedTraceRow, PcInfo, DecodeTraceContext, FunctionRange } from './types';
 import { opcodeNames, STATIC_GAS_COSTS, getStaticGasCost } from './opcodes';
-import { formatAbiVal } from './formatting';
 import { parseFunctions, parseModifiers, parseFunctionSignatures, fnForLine } from './sourceParser';
 import { buildFullPcLineMap } from './pcMapper';
 import { getCallFrames } from './stackDecoding';
@@ -26,10 +25,6 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
   const call = callFrames[0];
   const sources = (raw as any).sources || {};
   const artifacts = (raw as any).artifacts || {};
-
-  const firstSourceKey = Object.keys(sources)[0];
-  const firstSource = firstSourceKey ? sources[firstSourceKey] : null;
-  const sourceFiles = firstSource?.Source?.sources;
 
   // Combine sources from ALL artifacts for Diamond proxy patterns
   const allArtifactSources: Record<string, ArtifactSourceValue> = {};
@@ -179,9 +174,17 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
 
   const addAbiItems = (abiArray: AbiItemLike[]) => {
     for (const item of abiArray) {
-      const sigKey = item.type === 'event' || item.type === 'function'
-        ? `${item.type}:${item.name}:${(item.inputs || []).map((i) => i.type).join(',')}`
-        : JSON.stringify(item);
+      let sigKey: string;
+      if ((item.type === 'event' || item.type === 'function') && item.name) {
+        try {
+          const sighash = ethers.utils.Fragment.from(item as any).format('sighash');
+          sigKey = `${item.type}:${sighash}`;
+        } catch {
+          sigKey = `${item.type}:${item.name}:${(item.inputs || []).map((i) => i.type).join(',')}`;
+        }
+      } else {
+        sigKey = JSON.stringify(item);
+      }
       if (!seenSignatures.has(sigKey)) {
         seenSignatures.add(sigKey);
         combinedAbi.push(item);
@@ -269,15 +272,6 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     if (id !== undefined) {
       traceIdToDepth.set(id, depth);
       traceIdToParentId.set(id, parentId);
-    }
-  });
-
-  const childrenByParentId = new Map<number, number[]>();
-  traceIdToParentId.forEach((parentId, childId) => {
-    if (parentId !== null && parentId !== undefined) {
-      const children = childrenByParentId.get(parentId) || [];
-      children.push(childId);
-      childrenByParentId.set(parentId, children);
     }
   });
 
@@ -703,27 +697,6 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     }
   });
 
-  // Parse call input to extract function name and arguments
-  let inputParsed: { sig: string; args: any[]; fragment: any } | null = null;
-  let decodedInputArgs: { name: string; type: string; value: string }[] | null = null;
-
-  if (iface && call?.input) {
-    try {
-      const parsed = iface.parseTransaction({ data: call.input });
-      if (parsed) {
-        const argsArray = Array.from(parsed.args);
-        inputParsed = { sig: parsed.signature, args: argsArray, fragment: parsed.functionFragment };
-        if (parsed.functionFragment?.inputs) {
-          decodedInputArgs = parsed.functionFragment.inputs.map((inp: any, idx: number) => ({
-            name: inp.name || `arg${idx}`,
-            type: inp.type,
-            value: formatAbiVal(inp.type, parsed.args[idx]),
-          }));
-        }
-      }
-    } catch {}
-  }
-
   // Get contract name from first artifact metadata
   const mainArtifactKey = raw.artifacts ? Object.keys(raw.artifacts)[0] : null;
   const mainArtifact = mainArtifactKey ? (raw.artifacts as any)[mainArtifactKey] : null;
@@ -754,7 +727,6 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     traceIdToParentId,
     traceIdToCodeAddr,
     traceIdToTarget,
-    childrenByParentId,
     storageDiffsBySlot,
     primaryAddr,
     hasAnyArtifacts,

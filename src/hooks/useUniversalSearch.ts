@@ -225,12 +225,8 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
   );
 
   const persistTxReplayIntent = useCallback((txHash: string, noAutoReplay = false) => {
-    const networkId = 1;
-    const replayData = {
+    const replayData: Record<string, unknown> = {
       transactionHash: txHash,
-      networkId,
-      chainId: networkId,
-      networkName: `Chain ${networkId}`,
       timestamp: Date.now(),
       noAutoReplay,
       source: 'universal-search',

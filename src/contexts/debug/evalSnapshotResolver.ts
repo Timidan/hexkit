@@ -18,6 +18,8 @@ import {
   debugLog,
   HOOK_SCAN_CHUNK_SIZE,
 } from './debugHelpers';
+import { setNumericBoundedCacheEntry } from '../../utils/cache/limitedCache';
+import { isTraceSessionId } from './sessionRef';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -32,27 +34,6 @@ export const EVAL_VARIABLE_HINT_CACHE_MAX = 1024;
  * outer timeout fires with a vague message.
  */
 export const EVAL_TOTAL_BUDGET_MS = 40000;
-
-// ── LRU cache helper ──────────────────────────────────────────────────
-
-export function setLimitedCacheEntry<T>(
-  cache: Map<string, T>,
-  key: string,
-  value: T,
-  maxEntries: number
-) {
-  if (cache.has(key)) {
-    cache.delete(key);
-  }
-  cache.set(key, value);
-  if (cache.size <= maxEntries) {
-    return;
-  }
-  const oldestKey = cache.keys().next().value;
-  if (oldestKey) {
-    cache.delete(oldestKey);
-  }
-}
 
 // ── Snapshot ID validation ─────────────────────────────────────────────
 
@@ -127,11 +108,7 @@ export async function waitForLiveSessionReady(
           const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
           deps.setSnapshotCache((prev) => {
             const next = new Map(prev);
-            next.set(candidateId, resolved);
-            if (next.size > 500) {
-              const sortedKeys = [...next.keys()].sort((a, b) => a - b);
-              sortedKeys.slice(0, next.size - 500).forEach((k) => next.delete(k));
-            }
+            setNumericBoundedCacheEntry(next, candidateId, resolved, 500);
             return next;
           });
           return { ready: true, snapshotId: candidateId };
@@ -214,7 +191,11 @@ export async function scanForHookSnapshot(
         snapshotId,
       });
       const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-      deps.setSnapshotCache((prev) => { const next = new Map(prev); next.set(snapshotId, resolved); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+      deps.setSnapshotCache((prev) => {
+        const next = new Map(prev);
+        setNumericBoundedCacheEntry(next, snapshotId, resolved, 500);
+        return next;
+      });
       if (resolved.type !== 'hook') return null;
       if (!matchesTraceId(resolved.frameId, traceId)) {
         return null;
@@ -310,7 +291,7 @@ export async function resolveEvalSnapshotId(
   if (deps.sessionInvalid) {
     return null;
   }
-  if (activeSession.sessionId.startsWith('trace-')) {
+  if (isTraceSessionId(activeSession.sessionId)) {
     return null;
   }
 

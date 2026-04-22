@@ -1,7 +1,10 @@
 /**
- * Debug Provider Component
+ * Debug Provider — 3-context split (A3).
  *
- * Composes all debug hooks and provides the unified DebugContext.
+ * Session state, navigation state, and inspection state are published on
+ * three distinct contexts so consumers only rerender when the slice they
+ * actually read changes. `useDebug()` still merges all three for backwards
+ * compatibility — existing consumers don't need to migrate.
  */
 
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from 'react';
@@ -28,14 +31,77 @@ import { useDebugPrep } from './useDebugPrep';
 import type { DebugSharedState } from './types';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import type { parseFunctions } from '../../utils/traceDecoder/sourceParser';
+import { useLiveRef } from '../../hooks/useLiveRef';
 
-const DebugContext = createContext<DebugContextValue | undefined>(undefined);
+type SessionSlice = Pick<
+  DebugContextValue,
+  | 'session'
+  | 'isLoading'
+  | 'error'
+  | 'isDebugging'
+  | 'startSession'
+  | 'connectToSession'
+  | 'endSession'
+  | 'initFromTraceData'
+  | 'loadSnapshotBatch'
+  | 'openDebugWindow'
+  | 'openDebugAtSnapshot'
+  | 'openDebugAtRevert'
+  | 'closeDebugWindow'
+  | 'debugPrepState'
+  | 'startDebugPrep'
+  | 'cancelDebugPrep'
+>;
+
+type NavigationSlice = Pick<
+  DebugContextValue,
+  | 'totalSnapshots'
+  | 'currentSnapshotId'
+  | 'currentSnapshot'
+  | 'snapshotCache'
+  | 'snapshotList'
+  | 'sourceFiles'
+  | 'currentFile'
+  | 'currentLine'
+  | 'currentExecutingAddress'
+  | 'callStack'
+  | 'goToSnapshot'
+  | 'stepNext'
+  | 'stepPrev'
+  | 'stepNextCall'
+  | 'stepPrevCall'
+  | 'stepUp'
+  | 'stepOver'
+  | 'continueToBreakpoint'
+  | 'setCurrentFile'
+  | 'setCurrentLine'
+  | 'setCurrentExecutingAddress'
+  | 'setEvalHint'
+>;
+
+type InspectionSlice = Pick<
+  DebugContextValue,
+  | 'breakpoints'
+  | 'watchExpressions'
+  | 'storageDiffs'
+  | 'addBreakpoint'
+  | 'removeBreakpoint'
+  | 'toggleBreakpoint'
+  | 'updateBreakpointCondition'
+  | 'evaluateExpression'
+  | 'addWatchExpression'
+  | 'removeWatchExpression'
+  | 'refreshWatchExpressions'
+>;
+
+const DebugSessionContext = createContext<SessionSlice | undefined>(undefined);
+const DebugNavigationContext = createContext<NavigationSlice | undefined>(undefined);
+const DebugInspectionContext = createContext<InspectionSlice | undefined>(undefined);
 
 export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { decodedTraceRows, currentSimulation, contractContext } = useSimulation();
   const { resolveRpcUrl } = useNetworkConfig();
 
-  // Compute RPC URL for storage fallback based on current chain
   const rpcFallbackConfig = useMemo(() => {
     const chainId = contractContext?.networkId || currentSimulation?.chainId || 1;
     const chain = getChainById(chainId);
@@ -46,21 +112,16 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { rpcUrl, contractAddress, blockTag: String(blockTag) };
   }, [contractContext, currentSimulation, resolveRpcUrl]);
 
-  // Session state
   const [session, setSession] = useState<DebugSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Debug window state
   const [isDebugging, setIsDebugging] = useState(false);
 
-  // Snapshot state
   const [currentSnapshotId, setCurrentSnapshotId] = useState<number | null>(null);
   const [currentSnapshot, setCurrentSnapshot] = useState<DebugSnapshot | null>(null);
   const [snapshotCache, setSnapshotCache] = useState<Map<number, DebugSnapshot>>(new Map());
   const [snapshotList, setSnapshotList] = useState<SnapshotListItem[]>([]);
 
-  // Source code state
   const [sourceFiles, setSourceFiles] = useState<Map<string, SourceFile>>(new Map());
   const sourceFilesRef = useRef<Map<string, SourceFile>>(new Map());
   const updateSourceFiles = useCallback((files: Map<string, SourceFile>) => {
@@ -75,35 +136,22 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     functionName?: string | null;
   } | null>(null);
 
-  // Current executing contract (for Diamond proxy support)
   const [currentExecutingAddress, setCurrentExecutingAddress] = useState<string | null>(null);
 
-  // Breakpoints
   const [breakpoints, setBreakpoints] = useState<Breakpoint[]>([]);
-  const [breakpointHits, setBreakpointHits] = useState<Map<string, number[]>>(new Map());
 
-  // Watch expressions
   const [watchExpressions, setWatchExpressions] = useState<WatchExpression[]>([]);
-
-  // Storage
   const [storageDiffs, setStorageDiffs] = useState<StorageDiffEntry[]>([]);
 
-  // Session validity
   const [sessionInvalid, setSessionInvalid] = useState(false);
 
-  // Refs for stable callbacks
-  const sessionRef = useRef(session);
-  sessionRef.current = session;
+  const sessionRef = useLiveRef(session);
   const functionRangesRef = useRef<Map<string, ReturnType<typeof parseFunctions>>>(new Map());
-  const decodedTraceRowsRef = useRef<DecodedTraceRow[] | null>(null);
-  const traceRowsRef = useRef<any[]>([]);
-
-  useEffect(() => {
-    decodedTraceRowsRef.current = decodedTraceRows;
-  }, [decodedTraceRows]);
-
-  // Keep traceRowsRef in sync whenever decodedTraceRows changes.
-  // Clearing stale refs prevents navigation/eval from using rows from a previous session.
+  const decodedTraceRowsRef = useLiveRef<DecodedTraceRow[] | null>(decodedTraceRows);
+  // traceRowsRef is overwritten manually by `initFromTraceData` with a heavier
+  // vault-loaded trace than decodedTraceRows. Only resync on decodedTraceRows
+  // change so unrelated provider re-renders don't stomp that assignment.
+  const traceRowsRef = useRef<any[]>(decodedTraceRows ?? []);
   useEffect(() => {
     traceRowsRef.current = decodedTraceRows ?? [];
   }, [decodedTraceRows]);
@@ -141,8 +189,6 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentExecutingAddress,
     breakpoints,
     setBreakpoints,
-    breakpointHits,
-    setBreakpointHits,
     watchExpressions,
     setWatchExpressions,
     storageDiffs,
@@ -168,52 +214,57 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [decodedTraceRows, currentSnapshotId]
   );
 
-  const contextValue: DebugContextValue = useMemo(
+  const sessionValue = useMemo<SessionSlice>(
     () => ({
-      // Session state
       session,
       isLoading,
       error,
-
-      // Debug window state
       isDebugging,
-
-      // Snapshot navigation
-      totalSnapshots,
-      currentSnapshotId,
-      currentSnapshot,
-      snapshotCache,
-      snapshotList,
-
-      // Source code
-      sourceFiles,
-      currentFile,
-      currentLine,
-
-      // Current executing contract
-      currentExecutingAddress,
-
-      // Breakpoints
-      breakpoints,
-      breakpointHits,
-
-      // Watch expressions
-      watchExpressions,
-
-      // Call stack
-      callStack,
-
-      // Storage
-      storageDiffs,
-
-      // Session actions
       startSession: sessionActions.startSession,
       connectToSession: sessionActions.connectToSession,
       endSession: sessionActions.endSession,
       initFromTraceData: sessionActions.initFromTraceData,
       loadSnapshotBatch: sessionActions.loadSnapshotBatch,
+      openDebugWindow: windowActions.openDebugWindow,
+      openDebugAtSnapshot: windowActions.openDebugAtSnapshot,
+      openDebugAtRevert: windowActions.openDebugAtRevert,
+      closeDebugWindow: windowActions.closeDebugWindow,
+      debugPrepState: prepActions.debugPrepState,
+      startDebugPrep: prepActions.startDebugPrep,
+      cancelDebugPrep: prepActions.cancelDebugPrep,
+    }),
+    [
+      session,
+      isLoading,
+      error,
+      isDebugging,
+      sessionActions.startSession,
+      sessionActions.connectToSession,
+      sessionActions.endSession,
+      sessionActions.initFromTraceData,
+      sessionActions.loadSnapshotBatch,
+      windowActions.openDebugWindow,
+      windowActions.openDebugAtSnapshot,
+      windowActions.openDebugAtRevert,
+      windowActions.closeDebugWindow,
+      prepActions.debugPrepState,
+      prepActions.startDebugPrep,
+      prepActions.cancelDebugPrep,
+    ]
+  );
 
-      // Navigation actions
+  const navigationValue = useMemo<NavigationSlice>(
+    () => ({
+      totalSnapshots,
+      currentSnapshotId,
+      currentSnapshot,
+      snapshotCache,
+      snapshotList,
+      sourceFiles,
+      currentFile,
+      currentLine,
+      currentExecutingAddress,
+      callStack,
       goToSnapshot: navigationActions.goToSnapshot,
       stepNext: navigationActions.stepNext,
       stepPrev: navigationActions.stepPrev,
@@ -222,41 +273,12 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       stepUp: navigationActions.stepUp,
       stepOver: navigationActions.stepOver,
       continueToBreakpoint: navigationActions.continueToBreakpoint,
-
-      // Breakpoint actions
-      addBreakpoint: breakpointActions.addBreakpoint,
-      removeBreakpoint: breakpointActions.removeBreakpoint,
-      toggleBreakpoint: breakpointActions.toggleBreakpoint,
-      updateBreakpointCondition: breakpointActions.updateBreakpointCondition,
-
-      // Evaluation actions
-      evaluateExpression: evaluationActions.evaluateExpression,
-      addWatchExpression: evaluationActions.addWatchExpression,
-      removeWatchExpression: evaluationActions.removeWatchExpression,
-      refreshWatchExpressions: evaluationActions.refreshWatchExpressions,
-
-      // Debug window actions
-      openDebugWindow: windowActions.openDebugWindow,
-      openDebugAtSnapshot: windowActions.openDebugAtSnapshot,
-      openDebugAtRevert: windowActions.openDebugAtRevert,
-      closeDebugWindow: windowActions.closeDebugWindow,
-
-      // Async debug preparation
-      debugPrepState: prepActions.debugPrepState,
-      startDebugPrep: prepActions.startDebugPrep,
-      cancelDebugPrep: prepActions.cancelDebugPrep,
-
-      // Setters
       setCurrentFile,
       setCurrentLine,
       setCurrentExecutingAddress,
       setEvalHint,
     }),
     [
-      session,
-      isLoading,
-      error,
-      isDebugging,
       totalSnapshots,
       currentSnapshotId,
       currentSnapshot,
@@ -266,16 +288,7 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       currentFile,
       currentLine,
       currentExecutingAddress,
-      breakpoints,
-      breakpointHits,
-      watchExpressions,
       callStack,
-      storageDiffs,
-      sessionActions.startSession,
-      sessionActions.connectToSession,
-      sessionActions.endSession,
-      sessionActions.initFromTraceData,
-      sessionActions.loadSnapshotBatch,
       navigationActions.goToSnapshot,
       navigationActions.stepNext,
       navigationActions.stepPrev,
@@ -284,6 +297,27 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       navigationActions.stepUp,
       navigationActions.stepOver,
       navigationActions.continueToBreakpoint,
+    ]
+  );
+
+  const inspectionValue = useMemo<InspectionSlice>(
+    () => ({
+      breakpoints,
+      watchExpressions,
+      storageDiffs,
+      addBreakpoint: breakpointActions.addBreakpoint,
+      removeBreakpoint: breakpointActions.removeBreakpoint,
+      toggleBreakpoint: breakpointActions.toggleBreakpoint,
+      updateBreakpointCondition: breakpointActions.updateBreakpointCondition,
+      evaluateExpression: evaluationActions.evaluateExpression,
+      addWatchExpression: evaluationActions.addWatchExpression,
+      removeWatchExpression: evaluationActions.removeWatchExpression,
+      refreshWatchExpressions: evaluationActions.refreshWatchExpressions,
+    }),
+    [
+      breakpoints,
+      watchExpressions,
+      storageDiffs,
       breakpointActions.addBreakpoint,
       breakpointActions.removeBreakpoint,
       breakpointActions.toggleBreakpoint,
@@ -292,26 +326,43 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       evaluationActions.addWatchExpression,
       evaluationActions.removeWatchExpression,
       evaluationActions.refreshWatchExpressions,
-      windowActions.openDebugWindow,
-      windowActions.openDebugAtSnapshot,
-      windowActions.openDebugAtRevert,
-      windowActions.closeDebugWindow,
-      prepActions.debugPrepState,
-      prepActions.startDebugPrep,
-      prepActions.cancelDebugPrep,
-      setEvalHint,
     ]
   );
 
-  return <DebugContext.Provider value={contextValue}>{children}</DebugContext.Provider>;
+  return (
+    <DebugSessionContext.Provider value={sessionValue}>
+      <DebugNavigationContext.Provider value={navigationValue}>
+        <DebugInspectionContext.Provider value={inspectionValue}>
+          {children}
+        </DebugInspectionContext.Provider>
+      </DebugNavigationContext.Provider>
+    </DebugSessionContext.Provider>
+  );
+};
+
+export const useDebugSessionContext = (): SessionSlice => {
+  const value = useContext(DebugSessionContext);
+  if (!value) throw new Error('useDebugSessionContext must be used within DebugProvider');
+  return value;
+};
+
+export const useDebugNavigationContext = (): NavigationSlice => {
+  const value = useContext(DebugNavigationContext);
+  if (!value) throw new Error('useDebugNavigationContext must be used within DebugProvider');
+  return value;
+};
+
+export const useDebugInspectionContext = (): InspectionSlice => {
+  const value = useContext(DebugInspectionContext);
+  if (!value) throw new Error('useDebugInspectionContext must be used within DebugProvider');
+  return value;
 };
 
 export const useDebug = (): DebugContextValue => {
-  const context = useContext(DebugContext);
-  if (!context) {
-    throw new Error('useDebug must be used within DebugProvider');
-  }
-  return context;
+  const sessionSlice = useDebugSessionContext();
+  const navSlice = useDebugNavigationContext();
+  const inspectionSlice = useDebugInspectionContext();
+  return { ...sessionSlice, ...navSlice, ...inspectionSlice };
 };
 
-export default DebugContext;
+export default DebugSessionContext;

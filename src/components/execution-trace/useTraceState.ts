@@ -9,6 +9,7 @@ import {
 } from "../../utils/signatureDatabase";
 import { networkConfigManager } from "../../config/networkConfig";
 import { decodeCalldataWithSignature, formatParamValue } from "./traceTypes";
+import { copyTextToClipboard } from "../../utils/clipboard";
 import type {
   TraceRow,
   TraceFilters,
@@ -662,7 +663,7 @@ export function useTraceState(props: UseTraceStateProps) {
   ]);
 
   const handleCopy = useCallback((text: string) => {
-    navigator.clipboard.writeText(text).catch(() => {});
+    copyTextToClipboard(text).catch(() => {});
   }, []);
 
   const handleJumpToStep = useCallback(

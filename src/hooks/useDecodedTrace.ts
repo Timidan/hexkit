@@ -8,6 +8,7 @@ import {
   getCachedRawTraceText,
   clearCachedRawTraceText,
 } from "../utils/traceRawTextCache";
+import { setLimitedCacheEntry } from "../utils/cache/limitedCache";
 
 type DecodedTrace = ReturnType<typeof decodeTrace>;
 
@@ -31,16 +32,28 @@ interface UseDecodedTraceResult {
 const MAX_DECODE_CACHE = 3;
 
 const updateCache = (cache: Map<string, DecodedTrace>, key: string, value: DecodedTrace) => {
-  if (cache.has(key)) {
-    cache.delete(key);
-  }
-  cache.set(key, value);
-  if (cache.size > MAX_DECODE_CACHE) {
-    const firstKey = cache.keys().next().value;
-    if (firstKey) {
-      cache.delete(firstKey);
-    }
-  }
+  setLimitedCacheEntry(cache, key, value, MAX_DECODE_CACHE);
+};
+
+type TraceDecodeWorkerMessage = {
+  id: string;
+  decoded?: DecodedTrace;
+  error?: string;
+};
+
+interface CreateTraceDecodeWorkerOptions {
+  onMessage: (event: MessageEvent<TraceDecodeWorkerMessage>) => void;
+}
+
+const createTraceDecodeWorker = ({
+  onMessage,
+}: CreateTraceDecodeWorkerOptions): Worker => {
+  const worker = new Worker(
+    new URL("../workers/traceDecoderWorker.ts", import.meta.url),
+    { type: "module" }
+  );
+  worker.addEventListener("message", onMessage);
+  return worker;
 };
 
 const parseJson = (rawText: string) => {
@@ -111,14 +124,12 @@ export const useDecodedTrace = ({
   onDecodedRef.current = onDecoded;
   decodeModeRef.current = decodeMode;
 
+  const handleWorkerMessageRef = useRef<
+    ((event: MessageEvent<TraceDecodeWorkerMessage>) => void) | null
+  >(null);
+
   useEffect(() => {
     if (typeof Worker === "undefined") return;
-
-    const worker = new Worker(
-      new URL("../workers/traceDecoderWorker.ts", import.meta.url),
-      { type: "module" }
-    );
-    workerRef.current = worker;
 
     const clearDecodeTimeout = () => {
       if (decodeTimeoutRef.current !== null) {
@@ -127,7 +138,7 @@ export const useDecodedTrace = ({
       }
     };
 
-    const handleMessage = (event: MessageEvent<{ id: string; decoded?: DecodedTrace; error?: string }>) => {
+    const handleMessage = (event: MessageEvent<TraceDecodeWorkerMessage>) => {
       if (pendingRequestRef.current !== event.data.id) {
         return;
       }
@@ -163,15 +174,20 @@ export const useDecodedTrace = ({
       setIsDecoding(false);
     };
 
-    worker.addEventListener("message", handleMessage);
+    handleWorkerMessageRef.current = handleMessage;
+
+    const worker = createTraceDecodeWorker({ onMessage: handleMessage });
+    workerRef.current = worker;
 
     return () => {
       clearDecodeTimeout();
-      worker.removeEventListener("message", handleMessage);
-      worker.terminate();
-      if (workerRef.current === worker) {
-        workerRef.current = null;
+      const currentWorker = workerRef.current;
+      if (currentWorker) {
+        currentWorker.removeEventListener("message", handleMessage);
+        currentWorker.terminate();
       }
+      workerRef.current = null;
+      handleWorkerMessageRef.current = null;
     };
   }, []);
 
@@ -382,10 +398,10 @@ export const useDecodedTrace = ({
         workerRef.current = null;
         decodeOnMain();
         try {
-          workerRef.current = new Worker(
-            new URL("../workers/traceDecoderWorker.ts", import.meta.url),
-            { type: "module" }
-          );
+          const handler = handleWorkerMessageRef.current;
+          if (handler) {
+            workerRef.current = createTraceDecodeWorker({ onMessage: handler });
+          }
         } catch {}
       }, 15000);
 

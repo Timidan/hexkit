@@ -26,6 +26,7 @@ import {
 } from '../ui/dropdown-menu';
 import { useDebug } from '../../contexts/DebugContext';
 import { useSimulation } from '../../contexts/SimulationContext';
+import { isTraceSessionId } from '../../contexts/debug/sessionRef';
 import { EvaluateModal } from './EvaluateModal';
 
 interface DebugToolbarProps {
@@ -64,7 +65,7 @@ export const DebugToolbar: React.FC<DebugToolbarProps> = React.memo(({ className
           ? 'Enable Debug mode during simulation to use expression evaluation'
           : 'No active debug session')
       : null;
-  const isTraceBasedSession = session?.sessionId?.startsWith('trace-') ?? false;
+  const isTraceBasedSession = session ? isTraceSessionId(session.sessionId) : false;
   const currentTraceIndex = useMemo(() => {
     if (!isTraceBasedSession || currentSnapshotId === null) return -1;
     return snapshotList.findIndex((snap) => snap.id === currentSnapshotId);

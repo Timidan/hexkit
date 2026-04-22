@@ -1,0 +1,6 @@
+export const EDB_MAX_BODY_BYTES = 50 * 1024 * 1024;
+export const EDB_FETCH_TIMEOUT_MS = 120_000;
+
+export const LIFI_UPSTREAM_TIMEOUT_MS = 25_000;
+
+export const LLM_UPSTREAM_TIMEOUT_MS = 55_000;

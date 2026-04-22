@@ -12,7 +12,10 @@ import {
 } from "@phosphor-icons/react";
 import { Textarea } from "../../../../../components/ui/textarea";
 import ChainIcon from "../../../../icons/ChainIcon";
-import { VaultRecommendations } from "../VaultRecommendations";
+import {
+  VaultRecommendations,
+  type RecommendationTarget,
+} from "../VaultRecommendations";
 import { LlmErrorAlert } from "../LlmErrorAlert";
 import { ExecutionQueue } from "../ExecutionQueue";
 import { initialLegState, legsReducer } from "../executionMachine";
@@ -139,8 +142,9 @@ const EXAMPLE_INTENTS = [
   "Best vault for my ETH even if I need to swap tokens",
 ];
 
-// Zero address stands in for "target token" when we hand a synthetic IdleAsset
-// to <VaultRecommendations>. Only used as a lookup key; never an actual ERC20.
+// Sentinel key used as forChainId/forTokenAddress by useIntentRecommendation in
+// single-target mode (no wallet asset drives the recommendation). The matching
+// RecommendationTarget is built with the same synth key below.
 const SYNTH_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 function formatTvl(tvlUsd: string | number): string {
@@ -321,7 +325,11 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   const parser = useIntentParser();
   const thinkingLabel = useThinkingLabel(parser.isPending);
   // ── my_assets mode: fan out per wallet asset ──────────────────────────
-  const isMyAssetsMode = intent?.my_assets && idleAssets.length > 0;
+  // `wantsMyAssetsMode` gates empty-state branches; `isMyAssetsMode` gates
+  // actual per-asset rendering. They diverge when the intent wants my_assets
+  // but there are no idle assets yet (disconnected / empty wallet).
+  const wantsMyAssetsMode = Boolean(intent?.my_assets);
+  const isMyAssetsMode = wantsMyAssetsMode && idleAssets.length > 0;
 
   // Deduplicate wallet assets by symbol (keep highest-USD-value per symbol)
   const dedupedAssets = useMemo<IdleAsset[]>(() => {
@@ -357,15 +365,16 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   // Single-target mode vault query (also used for consolidate — global search)
   const singleIntent = useMemo(() => {
     if (!intent) return null;
-    if (!isMyAssetsMode) return intent;
-    // Consolidate mode: do a global vault search (no target_symbol) using the
-    // user's APY/TVL/objective filters. Any transactional vault is a candidate
-    // because LI.FI handles swaps from the user's held tokens.
-    if (intent.routing_mode === "consolidate") {
-      return { ...intent, my_assets: false, target_symbol: null };
+    // Never fall back to single-target when the intent wants my_assets: the
+    // empty-state branches below need a null query to render.
+    if (wantsMyAssetsMode) {
+      if (isMyAssetsMode && intent.routing_mode === "consolidate") {
+        return { ...intent, my_assets: false, target_symbol: null };
+      }
+      return null;
     }
-    return null; // per-asset mode uses useMultiAssetVaults instead
-  }, [intent, isMyAssetsMode]);
+    return intent;
+  }, [intent, wantsMyAssetsMode, isMyAssetsMode]);
   const {
     ranked,
     isLoading: vaultsLoading,
@@ -396,45 +405,10 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     return map;
   }, [chains]);
 
-  // Build a synthetic "asset" that stands in for the user's intent so we can
-  // reuse <VaultRecommendations>, which was originally written for idle-sweep.
-  // The asset's chain/symbol populate the card header; address is a sentinel.
-  const synthAsset = useMemo<IdleAsset | null>(() => {
-    if (!intent || isMyAssetsMode) return null;
-    const chainId = intent.target_chain_id ?? 0;
-    const chainName =
-      intent.target_chain_id !== null
-        ? (chainNameById.get(intent.target_chain_id) ??
-          `chain ${intent.target_chain_id}`)
-        : "Any chain";
-    return {
-      chainId,
-      chainName,
-      token: {
-        address: SYNTH_TOKEN_ADDRESS,
-        symbol: (intent.target_symbol ?? "ANY").toUpperCase(),
-        decimals: 18,
-      },
-      amountRaw: "0",
-      amountDecimal: "0",
-      amountUsd: null,
-    };
-  }, [intent, isMyAssetsMode, chainNameById]);
-
-  const synthSelections = useMemo<Map<string, SelectedSource>>(() => {
-    const map = new Map<string, SelectedSource>();
-    if (isMyAssetsMode) {
-      // One selection per deduped wallet asset
-      for (const a of dedupedAssets) {
-        const key = `${a.chainId}:${a.token.address.toLowerCase()}`;
-        map.set(key, { asset: a, amountRaw: a.amountRaw });
-      }
-    } else if (synthAsset) {
-      const key = `${synthAsset.chainId}:${synthAsset.token.address.toLowerCase()}`;
-      map.set(key, { asset: synthAsset, amountRaw: "0" });
-    }
-    return map;
-  }, [isMyAssetsMode, dedupedAssets, synthAsset]);
+  // Synth key used to anchor the single-target recommendation in the
+  // RecommendationTarget list. Must match what useIntentRecommendation writes
+  // into buildRecommendation's forChainId/forTokenAddress.
+  const singleTargetChainId = intent?.target_chain_id ?? 0;
 
   // Presentation props for the non-portfolio card header.
   // Computed here so VaultRecommendations doesn't infer mode from token symbols.
@@ -478,17 +452,57 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
   // Single-target recommendation
   const singleRecArgs = useMemo(
     () =>
-      intent && synthAsset && effectiveRanked.length > 0
+      intent && !isMyAssetsMode && effectiveRanked.length > 0
         ? {
-            synthChainId: synthAsset.chainId,
-            synthTokenAddress: synthAsset.token.address,
+            synthChainId: singleTargetChainId,
+            synthTokenAddress: SYNTH_TOKEN_ADDRESS,
             intent,
             rankedVaults: effectiveRanked,
             walletAssets: idleAssets,
           }
         : null,
-    [intent, synthAsset, effectiveRanked, idleAssets],
+    [intent, isMyAssetsMode, singleTargetChainId, effectiveRanked, idleAssets],
   );
+
+  // Normalized per-card targets for <VaultRecommendations>. Replaces the
+  // earlier synthetic-IdleAsset + selections-map plumbing.
+  const intentTargets = useMemo<RecommendationTarget[]>(() => {
+    if (isMyAssetsMode) {
+      return dedupedAssets.map((a) => ({
+        key: `${a.chainId}:${a.token.address.toLowerCase()}`,
+        displayTitle: a.token.symbol,
+        displayChainId: a.chainId,
+        displayChainName: a.chainName,
+        sourceChainId: a.chainId > 0 ? a.chainId : null,
+      }));
+    }
+    if (!intent) return [];
+    const displayTitle =
+      presentationProps.headerTitle ??
+      (intent.target_symbol?.toUpperCase() ?? "Top Vaults");
+    const displayChainId = presentationProps.headerChainId;
+    const displayChainName =
+      displayChainId != null
+        ? (chainNameById.get(displayChainId) ?? `chain ${displayChainId}`)
+        : "";
+    return [
+      {
+        key: `${singleTargetChainId}:${SYNTH_TOKEN_ADDRESS.toLowerCase()}`,
+        displayTitle,
+        displayChainId,
+        displayChainName,
+        // Intent mode has no fixed source chain, so skip bridge detection.
+        sourceChainId: null,
+      },
+    ];
+  }, [
+    isMyAssetsMode,
+    dedupedAssets,
+    intent,
+    presentationProps,
+    chainNameById,
+    singleTargetChainId,
+  ]);
 
   const {
     recommendation: singleRec,
@@ -849,13 +863,13 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
       {/* Recommendation card — reuses the same component idle-sweep uses */}
       {hasIntent && (
         <>
-          {isMyAssetsMode && !isConsolidateMode && !isConnected && !scanAddress ? (
+          {wantsMyAssetsMode && !isConsolidateMode && !isConnected && !scanAddress ? (
             <div className="rounded-lg border border-dashed border-border/40 p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Connect your wallet or enter an address to get per-asset recommendations.
               </p>
             </div>
-          ) : isMyAssetsMode && !isConsolidateMode && dedupedAssets.length === 0 ? (
+          ) : wantsMyAssetsMode && !isConsolidateMode && dedupedAssets.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border/40 p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 No idle assets found in your wallet.
@@ -943,7 +957,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
               ) : (
                 <>
                   <VaultRecommendations
-                    selections={synthSelections}
+                    targets={intentTargets}
                     recommendations={recommendations}
                     destination={null}
                     perAssetDestinations={undefined}
@@ -956,8 +970,6 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                           ? relaxedFromSymbol
                           : primaryHeldSymbol
                     }
-                    headerTitle={presentationProps.headerTitle}
-                    headerChainId={presentationProps.headerChainId}
                     headerNotice={presentationProps.headerNotice}
                     resultCount={presentationProps.resultCount}
                   />

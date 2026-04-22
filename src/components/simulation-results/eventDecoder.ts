@@ -1,5 +1,21 @@
 import { ethers } from "ethers";
 import { COMMON_EVENTS_ABI } from "./constants";
+import { setLimitedCacheEntry } from "../../utils/cache/limitedCache";
+
+// Normalize a topic hex string to 32-byte 0x-prefixed form.
+export function normalizeTopic(topic: unknown): string {
+  return "0x" + String(topic).replace(/^0x/, "").padStart(64, "0");
+}
+
+// Extract topic[0] (event signature hash) from a log-shaped object, in
+// whichever field it happens to live (data.topics, topics, logInfo.topics).
+export function eventTopic0(event: any): string | null {
+  const raw =
+    (event?.data?.topics?.[0] as unknown) ||
+    (event?.topics?.[0] as unknown) ||
+    (event?.logInfo?.topics?.[0] as unknown);
+  return raw ? normalizeTopic(raw) : null;
+}
 
 // Lazy-init common events interface
 let commonEventsIface: ethers.utils.Interface | null = null;
@@ -34,11 +50,7 @@ function getOrCreateInterface(abi: any[]): ethers.utils.Interface | null {
   if (!iface) {
     try {
       iface = new ethers.utils.Interface(abi);
-      interfaceCache.set(key, iface);
-      if (interfaceCache.size > 100) {
-        const first = interfaceCache.keys().next().value;
-        if (first) interfaceCache.delete(first);
-      }
+      setLimitedCacheEntry(interfaceCache, key, iface, 100);
     } catch { return null; }
   }
   return iface;
@@ -78,10 +90,7 @@ export function decodeRawEvent(
 
   if (!rawTopics || rawTopics.length === 0) return null;
 
-  const topicHex = rawTopics.map((t: any) => {
-    const hex = String(t).replace(/^0x/, '');
-    return '0x' + hex.padStart(64, '0');
-  });
+  const topicHex = rawTopics.map(normalizeTopic);
 
   const interfacesToTry: ethers.utils.Interface[] = [];
 

@@ -21,6 +21,10 @@ import { networkConfigManager } from "../../config/networkConfig";
 import { classifySimulationError } from "../errorParser";
 import { lookupFunctionSignatures } from "../signatureDatabase";
 
+// Bridge responses bundle traces + artifacts and can legitimately be multi-MB;
+// cap at 50 MB to avoid OOM from runaway/hostile payloads.
+const MAX_TRACE_SIZE_BYTES = 50 * 1024 * 1024;
+
 import {
   type BridgeSimulationResponsePayload,
   type BridgeAnalysisOptions,
@@ -132,8 +136,7 @@ export const postSimulatorJob = async (
       headers: getBridgeHeaders(),
       transformResponse: [
         (data: string) => {
-          // Guard against excessively large responses (>50MB)
-          if (typeof data === "string" && data.length > 50 * 1024 * 1024) {
+          if (typeof data === "string" && data.length > MAX_TRACE_SIZE_BYTES) {
             throw new Error(
               "Bridge response exceeds maximum size limit (50MB)",
             );

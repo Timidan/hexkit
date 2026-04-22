@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import type { SimulationResult } from "../types/transaction";
 import type { TraceContract } from "../utils/traceAddressCollector";
 import type { DecodedTraceRow } from "../utils/traceDecoder";
@@ -17,15 +17,8 @@ export interface DecodedTraceMeta {
 }
 
 /**
- * Fields that are safe to strip from in-memory rawTrace.
- * We preserve snapshots/opcode maps to keep trace decoding deterministic after reloads.
- */
-const HEAVY_TRACE_FIELDS = [
-  '__rawText',      // Raw JSON text stored for gas extraction (entire response as string)
-];
-
-/**
- * Strip only non-essential raw text from a simulation result.
+ * Strip raw response text from in-memory rawTrace to cut memory use;
+ * snapshots/opcode maps are preserved for deterministic decoding.
  */
 function stripHeavyTraceDataForRuntime(result: SimulationResult): SimulationResult {
   if (!result || typeof result !== 'object') return result;
@@ -34,13 +27,7 @@ function stripHeavyTraceDataForRuntime(result: SimulationResult): SimulationResu
 
   if (stripped.rawTrace && typeof stripped.rawTrace === 'object') {
     const rawTrace = { ...stripped.rawTrace };
-
-    for (const field of HEAVY_TRACE_FIELDS) {
-      if (field in rawTrace) {
-        delete rawTrace[field];
-      }
-    }
-
+    delete rawTrace.__rawText;
     stripped.rawTrace = rawTrace;
   }
 
@@ -116,8 +103,6 @@ const SimulationContext = createContext<SimulationContextValue | undefined>(
   undefined
 );
 
-const STORAGE_KEY = "web3-toolkit:simulation-state";
-
 export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -129,17 +114,6 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [decodedTraceRows, setDecodedTraceRowsState] = useState<DecodedTraceRow[] | null>(null);
   // Decoded trace metadata - persisted separately to survive page refresh
   const [decodedTraceMeta, setDecodedTraceMetaState] = useState<DecodedTraceMeta | null>(null);
-
-  // Clear old localStorage data on mount to free space
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // Ignore errors
-      }
-    }
-  }, []);
 
   const setSimulation = useCallback((result: SimulationResult, contractCtx?: SimulationContractContext, options?: SetSimulationOptions) => {
     let nextResult = result;

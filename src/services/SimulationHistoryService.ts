@@ -50,15 +50,6 @@ function isSensitiveKey(key: string): boolean {
 }
 
 /**
- * Large fields that should NOT be stored to prevent memory bloat
- * These are stripped from rawTrace before storage
- * NOTE: snapshots are intentionally preserved for trace fidelity across reloads.
- */
-const HEAVY_TRACE_FIELDS = [
-  '__rawText',      // Raw JSON text stored for gas extraction
-];
-
-/**
  * Recursively remove sensitive fields from an object
  */
 function sanitizeObject<T>(obj: T): T {
@@ -93,17 +84,11 @@ function stripHeavyTraceData(result: any): any {
 
   const stripped = { ...result };
 
-  // Strip heavy fields from rawTrace
+  // Strip raw JSON text (kept only for gas extraction at decode time).
+  // Snapshots/opcodes/source maps stay for deterministic decoding on reload.
   if (stripped.rawTrace && typeof stripped.rawTrace === 'object') {
     const rawTrace = { ...stripped.rawTrace };
-
-    // Remove heavy fields
-    for (const field of HEAVY_TRACE_FIELDS) {
-      if (field in rawTrace) {
-        delete rawTrace[field];
-      }
-    }
-
+    delete rawTrace.__rawText;
     stripped.rawTrace = rawTrace;
   }
 

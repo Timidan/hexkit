@@ -17,12 +17,9 @@ export interface EarnProtocol {
 }
 
 // GET /v1/chains response element — authoritative list of chains Earn indexes.
-// networkCaip is EIP-155 CAIP-2 format ("eip155:1") — unused today but kept for
-// future WalletConnect v2 scope wiring.
 export interface EarnChainInfo {
   chainId: number;
   name: string;
-  networkCaip: string;
 }
 
 // GET /v1/protocols response element. `name` is the slug we compare against

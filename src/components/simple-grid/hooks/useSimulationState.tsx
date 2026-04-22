@@ -11,7 +11,7 @@ import {
   getCallNodeError,
   type SimulationCallNode,
 } from "../../../utils/simulationArtifacts";
-import { simulateTransaction } from "../../../utils/transactionSimulation";
+import { simulateTransaction } from "../../../utils/transaction-simulation";
 import { resolveProxyInfo } from "../../../utils/resolver";
 import type { ProxyInfo } from "../../../utils/resolver";
 import { CopyButton } from "../../ui/copy-button";
@@ -154,7 +154,6 @@ export function useSimulationState(deps: UseSimulationStateDeps) {
           transactionWithOverrides,
           selectedNetwork,
           normalizedFrom,
-          provider,
           { enableDebug: simulationOverrides.enableDebug === true }
         );
         // Persist the effective sender used by the simulator for debugging/QA parity.

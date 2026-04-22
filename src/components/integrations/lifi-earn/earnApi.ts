@@ -11,8 +11,33 @@ import type {
 
 const EARN_PROXY = "/api/lifi-earn";
 const COMPOSER_PROXY = "/api/lifi-composer";
-function proxyHeaders(): HeadersInit {
-  return {};
+
+async function fetchJson<T>(
+  url: string,
+  options: {
+    timeoutMs?: number;
+    errorLabel: string;
+    method?: string;
+    headers?: HeadersInit;
+    body?: BodyInit;
+    withBodyText?: boolean;
+  },
+): Promise<T> {
+  const init: RequestInit = {};
+  if (options.method) init.method = options.method;
+  if (options.headers) init.headers = options.headers;
+  if (options.body !== undefined) init.body = options.body;
+  if (options.timeoutMs != null) init.signal = AbortSignal.timeout(options.timeoutMs);
+
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    if (options.withBodyText) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`${options.errorLabel}: ${res.status} ${text}`);
+    }
+    throw new Error(`${options.errorLabel}: ${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
 }
 
 // API key is now mandatory — injected by the `/api/lifi-earn` proxy (vite dev /
@@ -37,57 +62,38 @@ export async function fetchEarnVaults(params?: {
   if (params?.minTvlUsd != null && params.minTvlUsd > 0) url.searchParams.set("minTvlUsd", String(params.minTvlUsd));
   if (params?.limit) url.searchParams.set("limit", String(params.limit));
 
-  const res = await fetch(url.toString(), {
-    signal: AbortSignal.timeout(15000),
+  return fetchJson<EarnVaultsResponse>(url.toString(), {
+    timeoutMs: 15000,
+    errorLabel: "Earn API error",
   });
-
-  if (!res.ok) {
-    throw new Error(`Earn API error: ${res.status} ${res.statusText}`);
-  }
-
-  return res.json();
 }
 
 // Authoritative list of chains Earn indexes. Used to gate the chain filter so
 // the dropdown only offers chains that actually have vaults. Small payload,
 // cached aggressively via React Query.
 export async function fetchEarnChains(): Promise<EarnChainInfo[]> {
-  const res = await fetch(
+  return fetchJson<EarnChainInfo[]>(
     `${window.location.origin}${EARN_PROXY}/v1/chains`,
-    { signal: AbortSignal.timeout(15000) },
+    { timeoutMs: 15000, errorLabel: "Earn chains error" },
   );
-  if (!res.ok) {
-    throw new Error(`Earn chains error: ${res.status} ${res.statusText}`);
-  }
-  return res.json();
 }
 
 // Authoritative list of protocols Earn supports. Used to populate the protocol
 // filter dropdown without waiting for background vault pages to arrive.
 export async function fetchEarnProtocols(): Promise<EarnProtocolInfo[]> {
-  const res = await fetch(
+  return fetchJson<EarnProtocolInfo[]>(
     `${window.location.origin}${EARN_PROXY}/v1/protocols`,
-    { signal: AbortSignal.timeout(15000) },
+    { timeoutMs: 15000, errorLabel: "Earn protocols error" },
   );
-  if (!res.ok) {
-    throw new Error(`Earn protocols error: ${res.status} ${res.statusText}`);
-  }
-  return res.json();
 }
 
 export async function fetchEarnPositions(
   address: string
 ): Promise<EarnPortfolioResponse> {
-  const res = await fetch(
+  return fetchJson<EarnPortfolioResponse>(
     `${window.location.origin}${EARN_PROXY}/v1/portfolio/${address}/positions`,
-    { signal: AbortSignal.timeout(15000) }
+    { timeoutMs: 15000, errorLabel: "Earn Portfolio error" },
   );
-
-  if (!res.ok) {
-    throw new Error(`Earn Portfolio error: ${res.status} ${res.statusText}`);
-  }
-
-  return res.json();
 }
 
 // Composer's /v1/quote is case-sensitive on token addresses: a checksummed
@@ -123,7 +129,6 @@ export async function fetchComposerQuote(params: {
   url.searchParams.set("integrator", "hexkit");
 
   const res = await fetch(url.toString(), {
-    headers: proxyHeaders(),
     signal: AbortSignal.timeout(30000),
   });
 
@@ -180,20 +185,26 @@ export function extractUniqueUnderlyings(
 
 const LLM_PROXY = "/api/llm-recommend";
 
-export async function postLlmRecommend(body: unknown): Promise<unknown> {
-  const res = await fetch(LLM_PROXY, {
+export async function postLlmRecommend(
+  body: unknown,
+  opts: { targetAddress?: string | null } = {}
+): Promise<unknown> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (opts.targetAddress && /^0x[0-9a-fA-F]{40}$/.test(opts.targetAddress)) {
+    headers["x-target-address"] = opts.targetAddress.toLowerCase();
+  }
+  return fetchJson<unknown>(LLM_PROXY, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...proxyHeaders() },
+    headers,
     body: JSON.stringify(body),
     // Gemini 3 Pro thinking responses run 20-50s on realistic payloads; 90s
     // covers the worst case. The serverless proxy itself caps at 60s.
-    signal: AbortSignal.timeout(90_000),
+    timeoutMs: 90_000,
+    errorLabel: "LLM proxy error",
+    withBodyText: true,
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`LLM proxy error: ${res.status} ${text}`);
-  }
-  return res.json();
 }
 
 export async function fetchCrossChainStatus(params: {
@@ -206,13 +217,9 @@ export async function fetchCrossChainStatus(params: {
   url.searchParams.set("fromChain", String(params.fromChain));
   url.searchParams.set("toChain", String(params.toChain));
 
-  const res = await fetch(url.toString(), {
-    headers: proxyHeaders(),
-    signal: AbortSignal.timeout(15000),
+  return fetchJson<LifiStatusResponse>(url.toString(), {
+    timeoutMs: 15000,
+    errorLabel: "Status API error",
+    withBodyText: true,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Status API error: ${res.status} ${body}`);
-  }
-  return res.json();
 }

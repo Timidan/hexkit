@@ -2,6 +2,24 @@ import type { ResolvedSlot } from './storageViewerTypes';
 import type { SlotSource } from '../../types/debug';
 import { ZERO_VALUE } from './storageViewerTypes';
 
+// Map a Solidity storage-layout `keyTypeId` (e.g. `t_address`, `t_uint256`,
+// `t_bool`, `t_contract_X_Y`) to one of the canonical Solidity key types we
+// use for `keccak(abi.encode(key, slot))`. Returns `'uint256'` when the id is
+// empty or unrecognized.
+export function storageKeyType(keyTypeId: string | null | undefined): string {
+  if (!keyTypeId) return 'uint256';
+  if (keyTypeId.includes('address') || keyTypeId.startsWith('t_contract')) return 'address';
+  if (keyTypeId.includes('bytes32')) return 'bytes32';
+  if (keyTypeId.includes('bool')) return 'bool';
+  const u = keyTypeId.match(/uint(\d+)/);
+  if (u) return `uint${u[1]}`;
+  const i = keyTypeId.match(/int(\d+)/);
+  if (i) return `int${i[1]}`;
+  if (keyTypeId.includes('uint')) return 'uint256';
+  if (keyTypeId.includes('int')) return 'int256';
+  return 'uint256';
+}
+
 /** Shorten hex for display */
 export function shortHex(hex: string, head = 8, tail = 6): string {
   if (hex.length <= head + tail + 2) return hex;

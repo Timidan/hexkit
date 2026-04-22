@@ -388,16 +388,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
     return applyCollapseFilter(filteredRows, collapsedIds);
   }, [filteredRows, collapsedIds]);
 
-  const rowHasVisibleChildren = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (let i = 0; i < visibleRows.length; i++) {
-      const row = visibleRows[i];
-      const nextRow = visibleRows[i + 1];
-      map.set(row.id, nextRow !== undefined && nextRow.depth > row.depth);
-    }
-    return map;
-  }, [visibleRows]);
-
   const rowCanCollapse = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const row of filteredRows) {
@@ -465,7 +455,6 @@ export const ExecutionTree: React.FC<ExecutionTreeProps> = React.memo(({ classNa
           ) : (
             visibleRows.map((row, idx) => {
               const canCollapse = rowCanCollapse.get(row.id) ?? false;
-              const hasVisibleChildren = rowHasVisibleChildren.get(row.id) ?? false;
               const showToggle = canCollapse;
 
               return (

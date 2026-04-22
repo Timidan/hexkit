@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import * as crypto from "crypto";
+import { LIFI_UPSTREAM_TIMEOUT_MS } from "./_shared/limits.js";
 
 export const config = {
   api: { bodyParser: false },
@@ -102,7 +103,7 @@ export default async function handler(
         "x-lifi-api-key": LIFI_API_KEY,
         Accept: "application/json",
       },
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(LIFI_UPSTREAM_TIMEOUT_MS),
     });
 
     const body = await upstreamRes.text();

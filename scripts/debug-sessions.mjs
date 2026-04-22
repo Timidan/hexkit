@@ -1,44 +1,12 @@
 // =============================================================================
-// Debug Sessions — EDB server, WebSocket, debug session management, async prep
+// Debug Sessions — keep-alive session start, async prep infrastructure
 // =============================================================================
-
-import http from "node:http";
-import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import WebSocket from "ws";
-
-import {
-  EDB_WS_PORT,
-  EDB_BINARY_PATH,
-} from "./bridge-config.mjs";
 
 import { redactRpcUrl } from "./bridge-security.mjs";
 
 import {
   gatedRunSimulationWithKeepAlive,
 } from "./keep-alive-manager.mjs";
-
-// =============================================================================
-// EDB Server + WebSocket (legacy codepath)
-// =============================================================================
-
-/** @type {import('node:child_process').ChildProcess | null} */
-let edbServerProcess = null;
-
-/** @type {WebSocket | null} */
-let edbWebSocket = null;
-
-/**
- * @typedef {Object} DebugSession
- * @property {string} sessionId
- * @property {number} rpcPort
- * @property {number} snapshotCount
- * @property {string[]} sourceFiles
- * @property {number} createdAt
- */
-
-/** @type {Map<string, DebugSession>} */
-const debugSessions = new Map();
 
 function buildDebugAnalysisOptions(params) {
   const incoming =
@@ -89,85 +57,6 @@ function getKeepAliveSessionError(result) {
   }
 }
 
-/**
- * Start the EDB server process if not already running
- */
-export async function ensureEdbServer() {
-  if (edbServerProcess && !edbServerProcess.killed) {
-    if (edbWebSocket && edbWebSocket.readyState === WebSocket.OPEN) {
-      return;
-    }
-    await connectWebSocket();
-    return;
-  }
-
-  if (!existsSync(EDB_BINARY_PATH)) {
-    throw new Error(
-      `EDB binary not found at ${EDB_BINARY_PATH}. Build with: cargo build -p edb --manifest-path edb/Cargo.toml`,
-    );
-  }
-
-  console.log(`[simulator-bridge] starting EDB server on ws://127.0.0.1:${EDB_WS_PORT}`);
-
-  edbServerProcess = spawn(EDB_BINARY_PATH, ["server", "--ws-port", String(EDB_WS_PORT)], {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-
-  edbServerProcess.stdout?.on("data", (data) => {
-    console.log(`[edb-server] ${data.toString().trim()}`);
-  });
-
-  edbServerProcess.stderr?.on("data", (data) => {
-    console.error(`[edb-server] ${data.toString().trim()}`);
-  });
-
-  edbServerProcess.on("error", (err) => {
-    console.error("[edb-server] process error:", err);
-    edbServerProcess = null;
-  });
-
-  edbServerProcess.on("close", (code) => {
-    console.log(`[edb-server] process exited with code ${code}`);
-    edbServerProcess = null;
-    edbWebSocket = null;
-  });
-
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  await connectWebSocket();
-}
-
-/**
- * Connect to EDB server via WebSocket
- */
-function connectWebSocket() {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${EDB_WS_PORT}`);
-
-    const timeout = setTimeout(() => {
-      ws.close();
-      reject(new Error("WebSocket connection timeout"));
-    }, 5000);
-
-    ws.on("open", () => {
-      clearTimeout(timeout);
-      console.log("[simulator-bridge] connected to EDB server via WebSocket");
-      edbWebSocket = ws;
-      resolve();
-    });
-
-    ws.on("error", (err) => {
-      clearTimeout(timeout);
-      console.error("[simulator-bridge] WebSocket error:", err);
-      reject(err);
-    });
-
-    ws.on("close", () => {
-      console.log("[simulator-bridge] WebSocket connection closed");
-      edbWebSocket = null;
-    });
-  });
-}
-
 // =============================================================================
 // Debug Session CRUD
 // =============================================================================
@@ -176,7 +65,6 @@ function connectWebSocket() {
  * Start a debug session via simulator keep-alive mode.
  * @param {import('./bridge-config.mjs').SimulationSemaphore} simulationSemaphore
  * @param {Object} params
- * @returns {Promise<DebugSession>}
  */
 export async function startDebugSession(simulationSemaphore, params) {
   const hasTxPayload = Boolean(params.transaction);
@@ -227,65 +115,6 @@ export async function startDebugSession(simulationSemaphore, params) {
     sourceFiles: result?.sourceFiles || {},
     createdAt: session.createdAt,
   };
-}
-
-/**
- * Make an RPC call to a debug session (legacy path)
- */
-export async function debugRpcCall(sessionId, method, params = []) {
-  const session = debugSessions.get(sessionId);
-  if (!session) {
-    throw new Error(`Debug session not found: ${sessionId}`);
-  }
-
-  const rpcRequest = {
-    jsonrpc: "2.0",
-    id: Date.now(),
-    method,
-    params,
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = http.request(
-      {
-        hostname: "127.0.0.1",
-        port: session.rpcPort,
-        path: "/",
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            const response = JSON.parse(data);
-            if (response.error) {
-              reject(new Error(response.error.message || JSON.stringify(response.error)));
-            } else {
-              resolve(response.result);
-            }
-          } catch (err) {
-            reject(new Error(`Failed to parse RPC response: ${err.message}`));
-          }
-        });
-      },
-    );
-    req.on("error", reject);
-    req.write(JSON.stringify(rpcRequest));
-    req.end();
-  });
-}
-
-/**
- * End a debug session (legacy path)
- */
-export function endDebugSession(sessionId) {
-  const session = debugSessions.get(sessionId);
-  if (session) {
-    debugSessions.delete(sessionId);
-    console.log(`[simulator-bridge] debug session ended: ${sessionId}`);
-  }
 }
 
 // =============================================================================

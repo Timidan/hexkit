@@ -9,6 +9,7 @@ import type { SnapshotListItem } from '../../types/debug';
 import { debugBridgeService } from '../../services/DebugBridgeService';
 import type { DebugSharedState } from './types';
 import type { DebugSessionActions } from './types';
+import { buildSnapshotItem } from './debugHelpers';
 
 export function useDebugNavigation(
   state: DebugSharedState,
@@ -58,12 +59,7 @@ export function useDebugNavigation(
     if (traceRows && traceRows.length > 0) {
       const traceRow = traceRows.find((r: any) => r.id === snapshotId);
       if (traceRow) {
-        const snapshotItem = {
-          id: traceRow.id,
-          type: (traceRow.sourceFile && traceRow.line) ? 'hook' as const : 'opcode' as const,
-          depth: traceRow.visualDepth ?? traceRow.depth ?? 0,
-        };
-        goToSnapshotFromTrace(snapshotItem, traceRows);
+        goToSnapshotFromTrace(buildSnapshotItem(traceRow), traceRows);
         return;
       }
     }
@@ -82,12 +78,7 @@ export function useDebugNavigation(
       const currentIndex = traceRows.findIndex((r: any) => r.id === currentSnapshotId);
       if (currentIndex >= 0 && currentIndex < traceRows.length - 1) {
         const nextRow = traceRows[currentIndex + 1];
-        const snapshotItem = {
-          id: nextRow.id,
-          type: (nextRow.sourceFile && nextRow.line) ? 'hook' as const : 'opcode' as const,
-          depth: nextRow.visualDepth ?? nextRow.depth ?? 0,
-        };
-        goToSnapshotFromTrace(snapshotItem, traceRows);
+        goToSnapshotFromTrace(buildSnapshotItem(nextRow), traceRows);
         return;
       }
       // Desync: traceRows non-empty but currentSnapshotId not found — fall through
@@ -118,12 +109,7 @@ export function useDebugNavigation(
       const currentIndex = traceRows.findIndex((r: any) => r.id === currentSnapshotId);
       if (currentIndex > 0) {
         const prevRow = traceRows[currentIndex - 1];
-        const snapshotItem = {
-          id: prevRow.id,
-          type: (prevRow.sourceFile && prevRow.line) ? 'hook' as const : 'opcode' as const,
-          depth: prevRow.visualDepth ?? prevRow.depth ?? 0,
-        };
-        goToSnapshotFromTrace(snapshotItem, traceRows);
+        goToSnapshotFromTrace(buildSnapshotItem(prevRow), traceRows);
         return;
       }
       // Desync: traceRows non-empty but currentSnapshotId not found — fall through
@@ -236,12 +222,7 @@ export function useDebugNavigation(
 
     const navigateTo = async (row: any) => {
       if (useTraceRows) {
-        const snapshotItem = {
-          id: row.id,
-          type: (row.sourceFile && row.line) ? 'hook' as const : 'opcode' as const,
-          depth: row.visualDepth ?? row.depth ?? 0,
-        };
-        goToSnapshotFromTrace(snapshotItem, traceRows);
+        goToSnapshotFromTrace(buildSnapshotItem(row), traceRows);
       } else {
         // Desync fallback: we're using snapshotList because traceRows didn't contain
         // the current snapshot. Check if the TARGET is in traceRowsRef before calling
@@ -249,12 +230,7 @@ export function useDebugNavigation(
         const currentTraceRows = traceRowsRef.current;
         const targetInTraceRows = currentTraceRows?.find((r: any) => r.id === row.id);
         if (targetInTraceRows) {
-          const snapshotItem = {
-            id: row.id,
-            type: (targetInTraceRows.sourceFile && targetInTraceRows.line) ? 'hook' as const : 'opcode' as const,
-            depth: targetInTraceRows.visualDepth ?? targetInTraceRows.depth ?? 0,
-          };
-          goToSnapshotFromTrace(snapshotItem, currentTraceRows);
+          goToSnapshotFromTrace(buildSnapshotItem(targetInTraceRows), currentTraceRows);
         } else if (session && row.id >= 0) {
           // Target not in traceRows either — use bridge API directly
           // Guard: only for positive IDs (bridge APIs don't accept negative synthetic IDs)
@@ -365,24 +341,14 @@ export function useDebugNavigation(
 
     const navigateTo = async (row: any) => {
       if (useTraceRows) {
-        const snapshotItem = {
-          id: row.id,
-          type: (row.sourceFile && row.line) ? 'hook' as const : 'opcode' as const,
-          depth: row.visualDepth ?? row.depth ?? 0,
-        };
-        goToSnapshotFromTrace(snapshotItem, traceRows);
+        goToSnapshotFromTrace(buildSnapshotItem(row), traceRows);
       } else {
         // Desync fallback: check if target exists in traceRows before calling
         // goToSnapshotFromTrace (which no-ops if id not found).
         const currentTraceRows = traceRowsRef.current;
         const targetInTraceRows = currentTraceRows?.find((r: any) => r.id === row.id);
         if (targetInTraceRows) {
-          const snapshotItem = {
-            id: row.id,
-            type: (targetInTraceRows.sourceFile && targetInTraceRows.line) ? 'hook' as const : 'opcode' as const,
-            depth: targetInTraceRows.visualDepth ?? targetInTraceRows.depth ?? 0,
-          };
-          goToSnapshotFromTrace(snapshotItem, currentTraceRows);
+          goToSnapshotFromTrace(buildSnapshotItem(targetInTraceRows), currentTraceRows);
         } else if (session && row.id >= 0) {
           await goToSnapshotInternal(session.sessionId, row.id);
         }

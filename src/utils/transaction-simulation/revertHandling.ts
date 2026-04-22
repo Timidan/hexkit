@@ -70,77 +70,86 @@ export function normalizeErrorArgs(args: unknown[]): unknown[] {
   });
 }
 
-const HEX_DATA_REGEX = /0x[0-9a-fA-F]{8,}/;
+// Ethers / viem / wagmi put revert data on known carriers; walking arbitrary
+// object keys picks up tx hashes, addresses, request bodies etc.
+const REVERT_DATA_KEYS = [
+  'data',
+  'revertData',
+  'returnData',
+  'output',
+  'result',
+  'raw',
+  'rawData',
+] as const;
 
-export function findRevertDataInError(error: any): string | null {
-  if (!error) {
+const NESTED_ERROR_KEYS = [
+  'error',
+  'cause',
+  'originalError',
+  'info',
+] as const;
+
+const REVERT_HEX_REGEX = /0x[0-9a-fA-F]{8,}/;
+
+function extractHexFromCarrier(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^0x[0-9a-fA-F]+$/.test(trimmed) && trimmed.length >= 10) {
+      return ensureHexPrefix(trimmed);
+    }
+    const match = trimmed.match(REVERT_HEX_REGEX);
+    if (match && match[0]) {
+      return ensureHexPrefix(match[0]);
+    }
     return null;
   }
-
-  const visited = new Set<any>();
-  const stack: any[] = [error];
-  let iterations = 0;
-
-  while (stack.length && iterations < 200) {
-    iterations += 1;
-    const current = stack.pop();
-    if (current === null || current === undefined) {
-      continue;
+  if (value && typeof value === 'object') {
+    const inner = (value as Record<string, unknown>).data;
+    if (typeof inner === 'string') {
+      return extractHexFromCarrier(inner);
     }
+  }
+  return null;
+}
 
-    if (typeof current === 'string') {
-      const match = current.match(HEX_DATA_REGEX);
-      if (match && match[0]) {
-        return ensureHexPrefix(match[0]);
+export function findRevertDataInError(error: any): string | null {
+  if (!error) return null;
+
+  const visited = new Set<object>();
+  const queue: unknown[] = [error];
+  const MAX_NODES = 32;
+  let processed = 0;
+
+  while (queue.length && processed < MAX_NODES) {
+    processed += 1;
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (visited.has(current as object)) continue;
+    visited.add(current as object);
+
+    const node = current as Record<string, unknown>;
+
+    for (const key of REVERT_DATA_KEYS) {
+      if (key in node) {
+        const hex = extractHexFromCarrier(node[key]);
+        if (hex) return hex;
       }
-      continue;
     }
 
-    if (typeof current !== 'object') {
-      continue;
-    }
-
-    if (visited.has(current)) {
-      continue;
-    }
-    visited.add(current);
-
-    if (Array.isArray(current)) {
-      for (const item of current) {
-        stack.push(item);
-      }
-      continue;
-    }
-
-    for (const [key, value] of Object.entries(current)) {
-      if (value === null || value === undefined) {
-        continue;
-      }
-
-      if (key === 'config' || key === 'request') {
-        continue;
-      }
-
-      if (typeof value === 'string') {
-        const trimmed = value.trim();
-        const match = trimmed.match(HEX_DATA_REGEX);
-        if (match && match[0]) {
-          return ensureHexPrefix(match[0]);
-        }
-
-        if (
-          (trimmed.startsWith('{') || trimmed.startsWith('[')) &&
-          trimmed.length <= 10_000
-        ) {
+    for (const key of NESTED_ERROR_KEYS) {
+      const child = node[key];
+      if (child && typeof child === 'object') {
+        queue.push(child);
+      } else if (typeof child === 'string' && child.length <= 10_000) {
+        const trimmed = child.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
           try {
-            const parsed = JSON.parse(trimmed);
-            stack.push(parsed);
+            queue.push(JSON.parse(trimmed));
           } catch {
-            // ignore JSON parse errors
+            // non-JSON string in nested-error slot — ignore
           }
         }
-      } else if (typeof value === 'object') {
-        stack.push(value);
       }
     }
   }

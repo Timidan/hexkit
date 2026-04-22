@@ -43,9 +43,6 @@ export interface Leg {
 
 export type LegStatus =
   | "pending"
-  | "quoting"
-  | "ready"
-  | "approving"
   | "executing"
   | "bridging"
   | "done"

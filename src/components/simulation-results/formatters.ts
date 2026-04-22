@@ -1,13 +1,14 @@
 import { OPCODE_MNEMONICS } from "./constants";
-import { shortenAddress, shortenHash } from '../shared/AddressDisplay';
 
-export const formatLongAddress = (value?: string | null) => {
-  if (!value) return "0x0";
-  if (value === "0x0000000000000000000000000000000000000000") {
-    return "Zero Address (0x0000\u20260000)";
+export function parseRawTraceObject(rawTrace: unknown): any {
+  if (rawTrace === null || rawTrace === undefined) return null;
+  if (typeof rawTrace !== "string") return rawTrace;
+  try {
+    return JSON.parse(rawTrace);
+  } catch {
+    return rawTrace;
   }
-  return `${shortenAddress(value)} (${shortenHash(value, 10, 4)})`;
-};
+}
 
 export const getOpcodeName = (opcode?: number | null) => {
   if (typeof opcode !== "number") return "OP";
@@ -30,7 +31,7 @@ export const snapshotFrameKey = (frameId: unknown): string | undefined => {
 };
 
 export const formatTimestamp = (value?: number | null) => {
-  if (!value) return "\u2014";
+  if (!value) return "—";
 
   try {
     const date = new Date(value * 1000);
@@ -63,7 +64,7 @@ export const formatTimestamp = (value?: number | null) => {
 
     return `${relativeTime} (${absoluteTime})`;
   } catch {
-    return "\u2014";
+    return "—";
   }
 };
 
@@ -72,30 +73,29 @@ function formatBigIntUnits(wei: bigint, decimals: number, displayDecimals: numbe
   const divisor = 10n ** BigInt(decimals);
   const intPart = wei / divisor;
   const fracPart = wei % divisor;
-  // Pad fractional part and truncate to desired display precision
   const fracStr = fracPart.toString().padStart(decimals, '0').slice(0, displayDecimals);
   return `${intPart}.${fracStr}`;
 }
 
 export const formatGwei = (weiValue?: string | null) => {
-  if (!weiValue) return "\u2014";
+  if (!weiValue) return "—";
   try {
     const wei = BigInt(weiValue);
     return `${formatBigIntUnits(wei, 9, 2)} Gwei`;
   } catch {
-    return "\u2014";
+    return "—";
   }
 };
 
 export const formatEth = (weiValue?: string | null) => {
-  if (!weiValue) return "\u2014";
+  if (!weiValue) return "—";
   try {
     const wei = BigInt(weiValue);
-    const isSmall = wei < 10n ** 14n; // < 0.0001 ETH
+    const isSmall = wei < 10n ** 14n;
     const displayDecimals = isSmall ? 6 : 4;
     return `${formatBigIntUnits(wei, 18, displayDecimals)} ETH`;
   } catch {
-    return "\u2014";
+    return "—";
   }
 };
 
@@ -118,20 +118,8 @@ export const calculateIntrinsicGas = (calldata?: string | null): number => {
   return INTRINSIC_BASE + calldataGas;
 };
 
-export const calculateTxFee = (gasUsed?: string | null, gasPrice?: string | null) => {
-  if (!gasUsed || !gasPrice) return "\u2014";
-  try {
-    const gas = BigInt(gasUsed);
-    const price = BigInt(gasPrice);
-    const feeInWei = gas * price;
-    return formatEth(feeInWei.toString());
-  } catch {
-    return "\u2014";
-  }
-};
-
 export const formatTxType = (type?: number | null) => {
-  if (type === null || type === undefined) return "\u2014";
+  if (type === null || type === undefined) return "—";
   switch (type) {
     case 0:
       return "Legacy (0)";
@@ -157,14 +145,4 @@ export const parseGasSafe = (value: string | number | null | undefined): number 
   const num = typeof value === 'string' ? parseInt(value, 10) : value;
   const MAX_REASONABLE_GAS = 100_000_000;
   return (Number.isFinite(num) && num > 0 && num < MAX_REASONABLE_GAS) ? num : 0;
-};
-
-/** Format contract name with address */
-export const formatContractDisplay = (address?: string, name?: string) => {
-  if (!address) return "—";
-  const short = shortenAddress(address);
-  if (name && name !== address) {
-    return `${name}(${short})`;
-  }
-  return short;
 };

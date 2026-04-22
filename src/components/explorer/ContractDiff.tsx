@@ -7,6 +7,7 @@ import { GitDiff, CircleNotch, Copy, Check } from '@phosphor-icons/react';
 import { getChainById } from '@/utils/chains';
 import { getSharedProvider } from '@/utils/providerPool';
 import { prepareBytecode, diffHexChars, type NormalizeMode, type DiffChar } from '@/utils/bytecodeDiff';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import NetworkSelector, { EXTENDED_NETWORKS, type ExtendedChain } from '@/components/shared/NetworkSelector';
 import { isAddress } from 'ethers/lib/utils';
 import '@/styles/ContractDiff.css';
@@ -30,7 +31,7 @@ const INITIAL_SIDE: BytecodeSide = {
 const CopyBtn: React.FC<{ text: string; label: string }> = ({ text, label }) => {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    navigator.clipboard.writeText(text);
+    copyTextToClipboard(text).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

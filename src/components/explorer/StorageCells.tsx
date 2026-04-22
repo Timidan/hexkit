@@ -2,6 +2,7 @@ import React from 'react';
 import { Database, Hash, Shield, BracketsCurly, WarningCircle } from '@phosphor-icons/react';
 import { middleTruncate } from './storageViewerHelpers';
 import type { ResolvedSlot } from './storageViewerTypes';
+import { copyTextToClipboard } from '../../utils/clipboard';
 
 export const CopyableCell: React.FC<{
   value: string;
@@ -16,7 +17,7 @@ export const CopyableCell: React.FC<{
   const handleCopy = React.useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (!copyText) return;
-    navigator.clipboard.writeText(copyText);
+    copyTextToClipboard(copyText).catch(() => {});
     setCopied(true);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setCopied(false), 1200);
@@ -51,7 +52,7 @@ export const ClickableValue: React.FC<{
   const handleCopy = React.useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (!fullValue || fullValue === '\u2014') return;
-    navigator.clipboard.writeText(fullValue);
+    copyTextToClipboard(fullValue).catch(() => {});
     setCopied(true);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setCopied(false), 1200);

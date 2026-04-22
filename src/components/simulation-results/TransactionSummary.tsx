@@ -3,7 +3,7 @@ import { CopyButton } from "../ui/copy-button";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "../ui/hover-card";
 import ChainIcon, { type ChainKey } from "../icons/ChainIcon";
 import { networkToChainKey } from "./constants";
-import { formatTimestamp, formatGwei, formatEth, calculateTxFee } from "./formatters";
+import { formatTimestamp, formatGwei, formatEth } from "./formatters";
 import { useNativeTokenPrice } from "../../hooks/useNativeTokenPrice";
 
 interface TransactionSummaryProps {

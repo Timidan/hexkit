@@ -7,6 +7,7 @@
 
 import { useCallback, useRef } from 'react';
 import { debugBridgeService } from '../../services/DebugBridgeService';
+import { isTraceSessionId } from './sessionRef';
 import type { DebugSharedState, DebugWindowActions, DebugSessionActions } from './types';
 
 export function useDebugWindow(
@@ -31,9 +32,9 @@ export function useDebugWindow(
   const openDebugWindow = useCallback(() => {
     setIsDebugging(true);
     if (session && currentSnapshotId === null && session.totalSnapshots > 0) {
-      if (session.sessionId.startsWith('trace-') && snapshotList.length > 0) {
+      if (isTraceSessionId(session.sessionId) && snapshotList.length > 0) {
         goToSnapshotFromTrace(snapshotList[0], traceRowsRef.current);
-      } else if (!session.sessionId.startsWith('trace-')) {
+      } else if (!isTraceSessionId(session.sessionId)) {
         goToSnapshotInternal(session.sessionId, 0);
       }
     }
@@ -43,7 +44,7 @@ export function useDebugWindow(
     setIsDebugging(true);
     if (!session) return;
 
-    if (session.sessionId.startsWith('trace-')) {
+    if (isTraceSessionId(session.sessionId)) {
       const snapshotItem = snapshotList.find(s => s.id === snapshotId);
       if (snapshotItem) {
         goToSnapshotFromTrace(snapshotItem, traceRowsRef.current);
@@ -71,7 +72,7 @@ export function useDebugWindow(
     setIsDebugging(true);
     if (!session) return;
 
-    const isTraceBased = session.sessionId.startsWith('trace-');
+    const isTraceBased = isTraceSessionId(session.sessionId);
 
     // Search the snapshot list we already have in memory
     let revertSnapshotId: number | null = null;
@@ -83,23 +84,31 @@ export function useDebugWindow(
       }
     }
 
-    // If not found and more snapshots exist, fetch directly from the bridge
-    // (avoids stale closure issue with loadSnapshotBatch + scanning snapshotList)
+    // If not found, scan the bridge backwards in batches until REVERT is located
+    // or the cap is reached. REVERT is usually near the end but can be buried under
+    // post-revert cleanup opcodes on large sessions.
     if (!isTraceBased && revertSnapshotId === null) {
-      // Fetch last 100 snapshots where REVERT is most likely to be
-      const startId = Math.max(0, session.totalSnapshots - 100);
-      const response = await debugBridgeService.getSnapshotBatch({
-        sessionId: session.sessionId,
-        startId,
-        count: Math.min(100, session.totalSnapshots),
-      });
-
-      for (let i = response.snapshots.length - 1; i >= 0; i--) {
-        const snap = response.snapshots[i];
-        if (snap.type === 'opcode' && snap.opcodeName === 'REVERT') {
-          revertSnapshotId = snap.id;
-          break;
+      const BATCH = 200;
+      const MAX_SCAN = Math.min(session.totalSnapshots, 2000);
+      let scanned = 0;
+      while (revertSnapshotId === null && scanned < MAX_SCAN) {
+        const startId = Math.max(0, session.totalSnapshots - scanned - BATCH);
+        const count = Math.min(BATCH, session.totalSnapshots - startId);
+        if (count <= 0) break;
+        const response = await debugBridgeService.getSnapshotBatch({
+          sessionId: session.sessionId,
+          startId,
+          count,
+        });
+        for (let i = response.snapshots.length - 1; i >= 0; i--) {
+          const snap = response.snapshots[i];
+          if (snap.type === 'opcode' && snap.opcodeName === 'REVERT') {
+            revertSnapshotId = snap.id;
+            break;
+          }
         }
+        if (startId === 0) break;
+        scanned += BATCH;
       }
     }
 
