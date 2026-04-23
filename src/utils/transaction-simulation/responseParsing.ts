@@ -33,7 +33,6 @@ async function resolveErrorSelectorName(selector: string): Promise<string | null
     errorSelectorNameCache.set(normalized, name);
     return name;
   } catch {
-    errorSelectorNameCache.set(normalized, null);
     return null;
   }
 }
