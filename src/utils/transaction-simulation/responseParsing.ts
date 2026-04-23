@@ -13,6 +13,47 @@ import { contractCache } from '../resolver/ContractCache';
 import type { ResolveResult, ContractMetadata } from '../resolver/types';
 import type { BridgeSimulationResponsePayload } from './types';
 import { decodeRevertData } from './revertHandling';
+import { lookupErrorSignatures } from '../signatureDatabase';
+
+// Selector → resolved error name (or null when lookup returned nothing).
+// Persists for the tab lifetime so repeat sims don't hit OpenChain again.
+const errorSelectorNameCache = new Map<string, string | null>();
+
+// Maximum time to wait for an OpenChain selector lookup before failing open.
+const SELECTOR_LOOKUP_TIMEOUT_MS = 3000;
+
+// Sentinel used to distinguish a timeout result from a genuine null result.
+const TIMEOUT_SENTINEL = Symbol('timeout');
+
+async function resolveErrorSelectorName(selector: string): Promise<string | null> {
+  const normalized = selector.toLowerCase();
+  if (errorSelectorNameCache.has(normalized)) {
+    return errorSelectorNameCache.get(normalized) ?? null;
+  }
+  try {
+    const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) =>
+      setTimeout(() => resolve(TIMEOUT_SENTINEL), SELECTOR_LOOKUP_TIMEOUT_MS),
+    );
+    const lookupPromise = lookupErrorSignatures([normalized]).then((response) => {
+      const match = response?.result?.function?.[normalized]?.find(
+        (entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0,
+      );
+      return match?.name?.trim() ?? null;
+    });
+    const result = await Promise.race([lookupPromise, timeoutPromise]);
+    if (result === TIMEOUT_SENTINEL) {
+      // Timed out — fail open without caching so the next call can retry.
+      return null;
+    }
+    // Definitive result (name found or API returned nothing): safe to cache.
+    errorSelectorNameCache.set(normalized, result);
+    return result;
+  } catch {
+    // Network / API error — fail open without caching so transient failures
+    // can be retried on the next simulation.
+    return null;
+  }
+}
 
 export const buildContractsFromTrace = (rawTrace: any): SimulationContract[] => {
   if (!rawTrace) return [];
@@ -223,7 +264,7 @@ export const prewarmCacheFromTrace = (rawTrace: any, chainId: number | null): vo
   }
 };
 
-export const normalizeBridgeResult = (
+export const normalizeBridgeResult = async (
   payload: BridgeSimulationResponsePayload,
   transactionMetadata?: {
     from?: string;
@@ -241,7 +282,7 @@ export const normalizeBridgeResult = (
     effectiveGasPrice?: string | null;
     type?: number | null;
   }
-): SimulationResult => {
+): Promise<SimulationResult> => {
   const rawTrace =
     (payload as any).rawTrace ??
     (payload as any).raw_trace ??
@@ -277,6 +318,15 @@ export const normalizeBridgeResult = (
     const decoded = decodeRevertData(rawRevertReason);
     if (decoded.message) {
       revertReason = decoded.message;
+    } else if (/^0x[a-f0-9]{8}/i.test(rawRevertReason)) {
+      // Custom error fall-through: decodeRevertData only handles Error(string)
+      // and Panic(uint256). Look the 4-byte selector up against the built-in
+      // error table and OpenChain so "0x70f65caa" surfaces as "DeadlinePassed()".
+      const selector = rawRevertReason.slice(0, 10).toLowerCase();
+      const resolved = await resolveErrorSelectorName(selector);
+      if (resolved) {
+        revertReason = resolved;
+      }
     }
   }
   const warnings =

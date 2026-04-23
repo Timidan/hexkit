@@ -159,7 +159,7 @@ export const postSimulatorJob = async (
       cacheRawTraceText(response.data.rawTrace, rawResponseText);
     }
 
-    return normalizeBridgeResult(
+    return await normalizeBridgeResult(
       response.data as BridgeSimulationResponsePayload,
       transactionMetadata,
     );
