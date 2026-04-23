@@ -19,20 +19,38 @@ import { lookupErrorSignatures } from '../signatureDatabase';
 // Persists for the tab lifetime so repeat sims don't hit OpenChain again.
 const errorSelectorNameCache = new Map<string, string | null>();
 
+// Maximum time to wait for an OpenChain selector lookup before failing open.
+const SELECTOR_LOOKUP_TIMEOUT_MS = 3000;
+
+// Sentinel used to distinguish a timeout result from a genuine null result.
+const TIMEOUT_SENTINEL = Symbol('timeout');
+
 async function resolveErrorSelectorName(selector: string): Promise<string | null> {
   const normalized = selector.toLowerCase();
   if (errorSelectorNameCache.has(normalized)) {
     return errorSelectorNameCache.get(normalized) ?? null;
   }
   try {
-    const response = await lookupErrorSignatures([normalized]);
-    const match = response?.result?.function?.[normalized]?.find(
-      (entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0,
+    const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) =>
+      setTimeout(() => resolve(TIMEOUT_SENTINEL), SELECTOR_LOOKUP_TIMEOUT_MS),
     );
-    const name = match?.name?.trim() || null;
-    errorSelectorNameCache.set(normalized, name);
-    return name;
+    const lookupPromise = lookupErrorSignatures([normalized]).then((response) => {
+      const match = response?.result?.function?.[normalized]?.find(
+        (entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0,
+      );
+      return match?.name?.trim() ?? null;
+    });
+    const result = await Promise.race([lookupPromise, timeoutPromise]);
+    if (result === TIMEOUT_SENTINEL) {
+      // Timed out — fail open without caching so the next call can retry.
+      return null;
+    }
+    // Definitive result (name found or API returned nothing): safe to cache.
+    errorSelectorNameCache.set(normalized, result);
+    return result;
   } catch {
+    // Network / API error — fail open without caching so transient failures
+    // can be retried on the next simulation.
     return null;
   }
 }
