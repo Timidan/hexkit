@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   GearSix as SettingsIcon,
   HardDrive,
@@ -61,7 +62,11 @@ const TopBar: React.FC<TopBarProps> = ({
         className,
       )}
     >
-      <div className="flex shrink-0 items-center gap-2.5">
+      <Link
+        to="/"
+        aria-label="HexKit home"
+        className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      >
         <svg
           viewBox="0 0 100 100"
           fill="none"
@@ -165,7 +170,7 @@ const TopBar: React.FC<TopBarProps> = ({
         >
           HEXKIT
         </span>
-      </div>
+      </Link>
 
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
