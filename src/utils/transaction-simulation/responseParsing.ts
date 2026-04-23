@@ -13,6 +13,30 @@ import { contractCache } from '../resolver/ContractCache';
 import type { ResolveResult, ContractMetadata } from '../resolver/types';
 import type { BridgeSimulationResponsePayload } from './types';
 import { decodeRevertData } from './revertHandling';
+import { lookupErrorSignatures } from '../signatureDatabase';
+
+// Selector → resolved error name (or null when lookup returned nothing).
+// Persists for the tab lifetime so repeat sims don't hit OpenChain again.
+const errorSelectorNameCache = new Map<string, string | null>();
+
+async function resolveErrorSelectorName(selector: string): Promise<string | null> {
+  const normalized = selector.toLowerCase();
+  if (errorSelectorNameCache.has(normalized)) {
+    return errorSelectorNameCache.get(normalized) ?? null;
+  }
+  try {
+    const response = await lookupErrorSignatures([normalized]);
+    const match = response?.result?.function?.[normalized]?.find(
+      (entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0,
+    );
+    const name = match?.name?.trim() || null;
+    errorSelectorNameCache.set(normalized, name);
+    return name;
+  } catch {
+    errorSelectorNameCache.set(normalized, null);
+    return null;
+  }
+}
 
 export const buildContractsFromTrace = (rawTrace: any): SimulationContract[] => {
   if (!rawTrace) return [];
@@ -223,7 +247,7 @@ export const prewarmCacheFromTrace = (rawTrace: any, chainId: number | null): vo
   }
 };
 
-export const normalizeBridgeResult = (
+export const normalizeBridgeResult = async (
   payload: BridgeSimulationResponsePayload,
   transactionMetadata?: {
     from?: string;
@@ -241,7 +265,7 @@ export const normalizeBridgeResult = (
     effectiveGasPrice?: string | null;
     type?: number | null;
   }
-): SimulationResult => {
+): Promise<SimulationResult> => {
   const rawTrace =
     (payload as any).rawTrace ??
     (payload as any).raw_trace ??
@@ -277,6 +301,15 @@ export const normalizeBridgeResult = (
     const decoded = decodeRevertData(rawRevertReason);
     if (decoded.message) {
       revertReason = decoded.message;
+    } else if (/^0x[a-f0-9]{8}/i.test(rawRevertReason)) {
+      // Custom error fall-through: decodeRevertData only handles Error(string)
+      // and Panic(uint256). Look the 4-byte selector up against the built-in
+      // error table and OpenChain so "0x70f65caa" surfaces as "DeadlinePassed()".
+      const selector = rawRevertReason.slice(0, 10).toLowerCase();
+      const resolved = await resolveErrorSelectorName(selector);
+      if (resolved) {
+        revertReason = resolved;
+      }
     }
   }
   const warnings =
