@@ -9,6 +9,14 @@
       "destination": "/api/edb-proxy?path=:path*"
     },
     {
+      "source": "/api/starknet-sim",
+      "destination": "/api/starknet-sim-proxy"
+    },
+    {
+      "source": "/api/starknet-sim/:path*",
+      "destination": "/api/starknet-sim-proxy?path=:path*"
+    },
+    {
       "source": "/api/sourcify/repository/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },

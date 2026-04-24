@@ -63,25 +63,34 @@ function starkzapEthersV6(): Plugin {
 }
 
 /**
- * Injects the EDB bridge origin into the CSP connect-src at build time.
- * Set VITE_SIMULATOR_BRIDGE_URL in your Vercel env vars and the CSP
- * automatically allows connections to that origin.
+ * Injects bridge origins into the CSP connect-src at build time.
+ * - VITE_SIMULATOR_BRIDGE_URL for the EDB bridge
+ * - VITE_STARKNET_SIM_BRIDGE_URL for the Starknet sim bridge
+ * A value of "disabled" skips injection for that bridge.
  */
 function injectBridgeCsp(): Plugin {
   return {
     name: "inject-bridge-csp",
     transformIndexHtml(html) {
-      const bridgeUrl = process.env.VITE_SIMULATOR_BRIDGE_URL;
-      if (!bridgeUrl || bridgeUrl === "disabled") return html;
-      try {
-        const origin = new URL(bridgeUrl).origin;
-        return html.replace(
-          /(connect-src\s[^"]*?)(;)/,
-          `$1 ${origin} wss://${new URL(bridgeUrl).host}$2`,
-        );
-      } catch {
-        return html;
+      const origins: string[] = [];
+      for (const envVar of [
+        "VITE_SIMULATOR_BRIDGE_URL",
+        "VITE_STARKNET_SIM_BRIDGE_URL",
+      ]) {
+        const value = process.env[envVar];
+        if (!value || value === "disabled") continue;
+        try {
+          const parsed = new URL(value);
+          origins.push(parsed.origin, `wss://${parsed.host}`);
+        } catch {
+          // Relative paths like "/api/starknet-sim" don't need CSP changes
+        }
       }
+      if (origins.length === 0) return html;
+      return html.replace(
+        /(connect-src\s[^"]*?)(;)/,
+        `$1 ${origins.join(" ")}$2`,
+      );
     },
   };
 }
@@ -323,6 +332,21 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api\/edb/, ""),
           configure: (proxy) => {
             const apiKey = env.EDB_API_KEY || "";
+            proxy.on("proxyReq", (proxyReq) => {
+              if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
+            });
+          },
+        },
+        // Proxy for Starknet simulator bridge — mirrors the EDB proxy: strips
+        // /api/starknet-sim, forwards to STARKNET_SIM_BRIDGE_URL (defaults to
+        // the local binary on :5790), injects X-API-Key server-side.
+        "/api/starknet-sim": {
+          target: env.STARKNET_SIM_BRIDGE_URL || "http://127.0.0.1:5790",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/starknet-sim/, ""),
+          configure: (proxy) => {
+            const apiKey = env.STARKNET_SIM_API_KEY || "";
             proxy.on("proxyReq", (proxyReq) => {
               if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
             });
