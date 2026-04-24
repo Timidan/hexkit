@@ -38,7 +38,12 @@ export const DEFAULT_FAMILY_CAPABILITIES: Record<ChainFamily, ReadonlySet<ChainC
     "signature-tools",
     "earn",
   ]),
-  starknet: new Set<ChainCapability>(),
+  // `simulation` and `tx-replay` unlock /starknet/simulations so the
+  // Starknet sim bridge can trace landed mainnet txs. The bridge itself
+  // (Timidan/starknet-sim gitlink) is the backing executor. `wallet` stays
+  // off here — wallet connection for Starknet is owned by the
+  // bridges/StarknetBridge picker, not the generic capability gate.
+  starknet: new Set<ChainCapability>(["simulation", "tx-replay"]),
   // `earn` only, so /solana/integrations/lifi-earn reaches the SVM stub's
   // "coming soon" card. Real capabilities land with the real SVM adapter.
   svm: new Set<ChainCapability>(["earn"]),

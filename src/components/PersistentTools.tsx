@@ -13,13 +13,24 @@ interface ToolRoute extends ToolEntry {
 const TransactionBuilderHub = React.lazy(() => import("./TransactionBuilderHub"));
 const SignatureDatabase = React.lazy(() => import("./SignatureDatabase"));
 const SimulationHistoryPage = React.lazy(() => import("./SimulationHistoryPage"));
+const StarknetSimulationsPage = React.lazy(
+  () => import("./starknet/StarknetSimulationsPage"),
+);
 const SourceTools = React.lazy(() => import("./explorer/SourceTools"));
 const IntegrationsHub = React.lazy(() => import("./integrations/IntegrationsHub"));
+
+// Dispatches the simulations route by family: Starknet gets the trace view
+// backed by the starknet-sim bridge; EVM keeps its history-backed page.
+const SimulationsDispatch: React.FC = () => {
+  const family = useActiveChainFamily();
+  if (family === "starknet") return <StarknetSimulationsPage />;
+  return <SimulationHistoryPage />;
+};
 
 const TOOL_RENDERERS: Record<string, () => React.ReactElement> = {
   database: () => <SignatureDatabase />,
   builder: () => <TransactionBuilderHub />,
-  simulations: () => <SimulationHistoryPage />,
+  simulations: () => <SimulationsDispatch />,
   explorer: () => <SourceTools />,
   integrations: () => <IntegrationsHub />,
 };

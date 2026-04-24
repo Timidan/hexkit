@@ -19,6 +19,7 @@ import { useNetworkConfig } from "./contexts/NetworkConfigContext";
 import { Button } from "./components/ui/button";
 import TopBar from "./components/TopBar";
 import EdbBridgeStatus from "./components/EdbBridgeStatus";
+import StarknetSimBridgeStatus from "./components/StarknetSimBridgeStatus";
 import ConstellationBackground from "./components/ConstellationBackground";
 import HomePage from "./components/HomePage";
 import MobileDrawer from "./components/MobileDrawer";
@@ -313,6 +314,7 @@ function AppInner() {
 
       <footer className="app-footer">
         <EdbBridgeStatus />
+        <StarknetSimBridgeStatus />
       </footer>
 
       {isRpcModalOpen && (
