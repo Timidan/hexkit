@@ -3,6 +3,10 @@ import type { SimulationResult } from "../types/transaction";
 import type { TraceContract } from "../utils/traceAddressCollector";
 import type { DecodedTraceRow } from "../utils/traceDecoder";
 import { buildOpcodeTraceFromSnapshots } from "../utils/simulationArtifacts";
+import type { EvmChainKey } from "../chains/types/evm";
+import { toEvmChainKey } from "../chains/types/evm";
+import type { StarknetChainId, StarknetChainKey } from "../chains/types/starknet";
+import type { SvmChainKey, SvmCluster } from "../chains/types/svm";
 
 /**
  * Metadata from decoded trace that needs to persist across page refreshes.
@@ -47,12 +51,23 @@ function stripHeavyTraceDataForRuntime(result: SimulationResult): SimulationResu
   return stripped as SimulationResult;
 }
 
-export interface SimulationContractContext {
+// Starknet/Svm branches are scaffolds — EVM is the only one consumers
+// currently exercise, the public SimulationContractContext alias points
+// at EvmSimulationContractContext.
+export interface BaseSimulationContractContext {
+  simulationOrigin?: 'manual' | 'tx-hash-replay';
+  debugEnabled?: boolean;
+  sourceTexts?: Record<string, string>;
+}
+
+export interface EvmSimulationContractContext extends BaseSimulationContractContext {
+  chainFamily: 'evm';
+  chainKey: EvmChainKey;
   address: string;
   name?: string; // Contract name from verification or metadata
   abi: any[] | null;
   abiSource?: string; // Source that provided the ABI (e.g., "etherscan", "sourcify", "blockscout")
-  networkId: number;
+  networkId: number; // legacy alias for chainId — retained during migration
   networkName: string;
   // Re-simulation support: store function selection and args
   selectedFunction?: string; // Function name that was called
@@ -62,7 +77,6 @@ export interface SimulationContractContext {
   fromAddress?: string; // Sender address used in simulation
   ethValue?: string; // ETH value if any
   blockOverride?: string; // Block number override for simulation
-  debugEnabled?: boolean; // Whether simulation was run with live debug session enabled
   // Token detection info to preserve
   tokenType?: "ERC20" | "ERC721" | "ERC1155" | "ERC777" | "ERC4626" | null;
   tokenSymbol?: string;
@@ -77,14 +91,67 @@ export interface SimulationContractContext {
     selectors?: string[];
     abi?: any[];
   }>; // For Diamond (EIP-2535) contracts
-  // Simulation origin: how this simulation was created
-  simulationOrigin?: 'manual' | 'tx-hash-replay';
   // Replay metadata (only set when simulationOrigin === 'tx-hash-replay')
   replayTxHash?: string; // The original transaction hash that was replayed
   // Trace contracts: resolved sources for all contracts in the trace
   traceContracts?: Map<string, TraceContract>;
-  // Source texts from decoded trace (EDB artifacts) - filename to source code
-  sourceTexts?: Record<string, string>;
+}
+
+export interface StarknetSimulationContractContext extends BaseSimulationContractContext {
+  chainFamily: 'starknet';
+  chainKey: StarknetChainKey;
+  starknetChainId: StarknetChainId;
+  contractAddress: string;
+  classHash?: string;
+  abi?: unknown[] | null;
+  entrypoint?: string;
+  calldata?: string[];
+  accountAddress?: string;
+  maxFee?: string;
+  nonce?: string;
+}
+
+export interface SvmSimulationContractContext extends BaseSimulationContractContext {
+  chainFamily: 'svm';
+  chainKey: SvmChainKey;
+  cluster: SvmCluster;
+  programId: string;
+  idl?: unknown | null;
+  instructionName?: string;
+  instructionData?: string;
+  accounts?: Array<{ pubkey: string; isSigner?: boolean; isWritable?: boolean }>;
+  payer?: string;
+  recentBlockhash?: string;
+  computeUnitLimit?: number;
+}
+
+/** Cross-family simulation context union. Narrow with isEvmContext/isStarknetContext/isSvmContext. */
+export type AnyChainSimulationContractContext =
+  | EvmSimulationContractContext
+  | StarknetSimulationContractContext
+  | SvmSimulationContractContext;
+
+// Alias to EVM branch so existing consumers keep compiling without forcing
+// narrowing. Switch to AnyChainSimulationContractContext once adapters
+// narrow at their own boundary.
+export type SimulationContractContext = EvmSimulationContractContext;
+
+export function isEvmContext(
+  ctx: AnyChainSimulationContractContext | null | undefined,
+): ctx is EvmSimulationContractContext {
+  return !!ctx && ctx.chainFamily === 'evm';
+}
+
+export function isStarknetContext(
+  ctx: AnyChainSimulationContractContext | null | undefined,
+): ctx is StarknetSimulationContractContext {
+  return !!ctx && ctx.chainFamily === 'starknet';
+}
+
+export function isSvmContext(
+  ctx: AnyChainSimulationContractContext | null | undefined,
+): ctx is SvmSimulationContractContext {
+  return !!ctx && ctx.chainFamily === 'svm';
 }
 
 interface SetSimulationOptions {
@@ -162,7 +229,12 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
 
     setCurrentSimulation(nextResult);
     if (contractCtx) {
-      setContractContext(contractCtx);
+      // Defensive backfill: legacy contexts (from IndexedDB rows predating the
+      // chainFamily/chainKey migration) may lack these fields. Stamp them as
+      // EVM at the boundary so downstream code can trust the discriminator.
+      const chainFamily = contractCtx.chainFamily ?? 'evm';
+      const chainKey = contractCtx.chainKey ?? toEvmChainKey(contractCtx.networkId ?? 1);
+      setContractContext({ ...contractCtx, chainFamily, chainKey });
     }
     setDecodedTraceRowsState(null);
     setDecodedTraceMetaState(null);

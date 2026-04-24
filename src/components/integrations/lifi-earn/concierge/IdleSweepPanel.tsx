@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useEarnAdapter } from "../../../../features/earn/context/EarnAdapterContext";
 import { Button } from "../../../../components/ui/button";
 import { useIdleBalances } from "./hooks/useIdleBalances";
 import { useVaultRecommendations } from "./hooks/useVaultRecommendations";
@@ -41,7 +41,7 @@ interface IdleSweepPanelProps {
  * the "I have a goal, find me a vault" entry point, see IntentPanel.
  */
 export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
-  const { address: connectedAddress } = useAccount();
+  const { connectedAddress } = useEarnAdapter();
   const isReadOnly =
     targetAddress != null &&
     targetAddress.toLowerCase() !== connectedAddress?.toLowerCase();
@@ -422,7 +422,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
                         {selectedConsolidatedNetwork ? (
                           <ChainIcon
                             chainId={selectedConsolidatedNetwork.id}
-                            chain={selectedConsolidatedNetwork.chainKey}
+                            chain={selectedConsolidatedNetwork.iconKey}
                             size={14}
                             rounded={999}
                           />
@@ -462,7 +462,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
                         >
                           <ChainIcon
                             chainId={network.id}
-                            chain={network.chainKey}
+                            chain={network.iconKey}
                             size={18}
                             rounded={999}
                           />

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useEarnAdapter } from "../../../features/earn/context/EarnAdapterContext";
 import {
   Lightning,
   ArrowRight,
@@ -95,7 +95,7 @@ function buildSuggestions(
  * Clicking it opens a dialog listing idle yield opportunities.
  */
 export function IdleYieldBanner({ onSelectVault, targetAddress }: IdleYieldBannerProps) {
-  const { address: connectedAddress } = useAccount();
+  const { connectedAddress } = useEarnAdapter();
   const isReadOnly = targetAddress != null && targetAddress.toLowerCase() !== connectedAddress?.toLowerCase();
   const { isLoading, idleAssets, vaults } = useIdleBalances(targetAddress);
   const [open, setOpen] = useState(false);

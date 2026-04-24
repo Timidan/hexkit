@@ -1,18 +1,32 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
 import { Database, Wrench, Code, MagnifyingGlass, CaretRight, Stack } from "@phosphor-icons/react";
+import type { IconProps } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useActiveChainFamily } from "../hooks/useActiveChainFamily";
+import { buildFamilyPath, stripFamilyPrefix } from "../routes/familyRoutes";
+import { DEFAULT_FAMILY_CAPABILITIES } from "../chains/capabilities";
+import { TOOL_REGISTRY, isToolAllowed } from "../chains/toolRegistry";
 
 interface MobileDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const TOOLS = [
-  {
+interface DrawerTool {
+  id: string;
+  route: string;
+  label: string;
+  icon: React.FC<IconProps>;
+  subTabs: { id: string; label: string; paramKey: string }[];
+}
+
+/** Display metadata per tool id. The authoritative list + capability gates
+ *  live in TOOL_REGISTRY; we filter below by active family capabilities. */
+const TOOL_DISPLAY: Record<string, Omit<DrawerTool, "route">> = {
+  database: {
     id: "database",
-    route: "/database",
     label: "Signature Database",
     icon: Database,
     subTabs: [
@@ -23,9 +37,8 @@ const TOOLS = [
       { id: "cache", label: "Cache", paramKey: "tab" },
     ],
   },
-  {
+  builder: {
     id: "builder",
-    route: "/builder",
     label: "Transaction Utils",
     icon: Wrench,
     subTabs: [
@@ -33,9 +46,8 @@ const TOOLS = [
       { id: "simulation", label: "Simulation (EDB)", paramKey: "mode" },
     ],
   },
-  {
+  explorer: {
     id: "explorer",
-    route: "/explorer",
     label: "Source Tools",
     icon: Code,
     subTabs: [
@@ -44,29 +56,48 @@ const TOOLS = [
       { id: "storage", label: "Storage", paramKey: "tool" },
     ],
   },
-  {
+  integrations: {
     id: "integrations",
-    route: "/integrations",
     label: "Integrations",
     icon: Stack,
     subTabs: [
       { id: "lifi-earn", label: "LI.FI Earn", paramKey: "route" },
     ],
   },
-];
+};
 
-function getActiveToolId(pathname: string): string {
-  if (pathname.startsWith("/builder") || pathname.startsWith("/simulations")) return "builder";
-  if (pathname.startsWith("/database")) return "database";
-  if (pathname.startsWith("/explorer")) return "explorer";
-  if (pathname.startsWith("/integrations")) return "integrations";
+function getActiveToolId(strippedPath: string): string {
+  if (strippedPath.startsWith("/builder") || strippedPath.startsWith("/simulations")) return "builder";
+  if (strippedPath.startsWith("/database")) return "database";
+  if (strippedPath.startsWith("/explorer")) return "explorer";
+  if (strippedPath.startsWith("/integrations")) return "integrations";
   return "database";
 }
 
 const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeToolId = getActiveToolId(location.pathname);
+  const family = useActiveChainFamily();
+  const strippedPath = useMemo(() => stripFamilyPrefix(location.pathname), [location.pathname]);
+  const familyCapabilities = DEFAULT_FAMILY_CAPABILITIES[family];
+
+  // Build the family-filtered tool list from the shared registry. Any tool
+  // whose capability is not in the active family's set is hidden here, so
+  // non-EVM drawer cannot navigate into EVM-only tools.
+  const tools = useMemo<DrawerTool[]>(
+    () =>
+      TOOL_REGISTRY
+        .filter((entry) => isToolAllowed(entry, familyCapabilities))
+        .map((entry) => {
+          const display = TOOL_DISPLAY[entry.id];
+          if (!display) return null;
+          return { ...display, route: entry.path };
+        })
+        .filter((t): t is DrawerTool => t !== null),
+    [familyCapabilities],
+  );
+
+  const activeToolId = getActiveToolId(strippedPath);
 
   const handleSearch = () => {
     onOpenChange(false);
@@ -75,19 +106,20 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
     );
   };
 
-  const handleToolClick = (route: string) => {
-    navigate(route);
+  const handleToolClick = (tool: DrawerTool) => {
+    navigate(buildFamilyPath(family, tool.route));
     onOpenChange(false);
   };
 
   const handleSubTabClick = (
-    tool: (typeof TOOLS)[number],
+    tool: DrawerTool,
     subId: string,
     paramKey: string
   ) => {
-    // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
+    const familyToolRoute = buildFamilyPath(family, tool.route);
+    // Route-based sub-tabs navigate to a sub-path (e.g. /evm/integrations/lifi-earn)
     if (paramKey === "route") {
-      navigate(`${tool.route}/${subId}`);
+      navigate(`${familyToolRoute}/${subId}`);
       onOpenChange(false);
       return;
     }
@@ -95,7 +127,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
     const params = new URLSearchParams();
     params.set(paramKey, subId);
     navigate(
-      { pathname: tool.route, search: `?${params.toString()}` },
+      { pathname: familyToolRoute, search: `?${params.toString()}` },
       { replace: true }
     );
     onOpenChange(false);
@@ -129,14 +161,19 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
         <div className="h-px bg-border/30 mx-4 my-1" />
 
         <nav className="flex flex-col gap-1 px-2 py-2">
-          {TOOLS.map((tool) => {
+          {tools.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              No tools for this chain family yet.
+            </div>
+          )}
+          {tools.map((tool) => {
             const Icon = tool.icon;
             const isActive = tool.id === activeToolId;
             return (
               <div key={tool.id}>
                 <button
                   type="button"
-                  onClick={() => handleToolClick(tool.route)}
+                  onClick={() => handleToolClick(tool)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive

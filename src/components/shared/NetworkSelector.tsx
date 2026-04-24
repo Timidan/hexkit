@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { CaretDown, Globe, Check } from "@phosphor-icons/react";
 import type { Chain } from "../../types";
-import ChainIcon, { type ChainKey } from "../icons/ChainIcon";
+import ChainIcon, { type ChainKey as ChainIconKey } from "../icons/ChainIcon";
 import { CHAIN_REGISTRY, isTestnet } from "../../chains/registry";
 import {
   Popover,
@@ -12,8 +12,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// Map chain IDs to their ChainKey icon identifiers
-const CHAIN_KEY_MAP: Record<number, ChainKey> = {
+// Map chain IDs to their icon identifiers
+const CHAIN_ICON_KEY_MAP: Record<number, ChainIconKey> = {
   1: "ETH", 10: "OP", 137: "POLY", 8453: "BASE", 42161: "ARB",
   56: "BSC", 100: "GNO", 1135: "LISK", 43114: "AVAX",
   // Testnets inherit parent chain icon
@@ -30,7 +30,7 @@ export interface ExtendedChain extends Partial<Chain> {
   isTestnet?: boolean;
   category?: "mainnet" | "testnet" | "local";
   color?: string;
-  chainKey?: ChainKey;
+  iconKey?: ChainIconKey;
 }
 
 // Comprehensive network list derived from the unified chain registry.
@@ -41,7 +41,7 @@ export const EXTENDED_NETWORKS: ExtendedChain[] = CHAIN_REGISTRY.map((chain) => 
   blockExplorer: chain.blockExplorer || chain.explorerUrl,
   isTestnet: isTestnet(chain.id),
   category: isTestnet(chain.id) ? "testnet" as const : "mainnet" as const,
-  chainKey: CHAIN_KEY_MAP[chain.id],
+  iconKey: CHAIN_ICON_KEY_MAP[chain.id],
 }));
 
 export interface NetworkSelectorProps {
@@ -92,7 +92,7 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
     if (!network) {
       return <Globe size={sz} className="text-muted-foreground" />;
     }
-    return <ChainIcon chainId={network.id} chain={network.chainKey} size={sz} rounded={sz / 2} />;
+    return <ChainIcon chainId={network.id} chain={network.iconKey} size={sz} rounded={sz / 2} />;
   };
 
   const handleSelectNetwork = (network: ExtendedChain) => {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { useAccount } from "wagmi";
+import { useEarnAdapter } from "../../../../../features/earn/context/EarnAdapterContext";
 import {
   CircleNotch,
   Sparkle,
@@ -276,7 +276,8 @@ function useMultiAssetRecommendations(
 export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: IntentPanelProps) {
   const [text, setText] = useState("");
   const [intent, setIntent] = useState<ParsedIntent | null>(null);
-  const { address: walletAddress, isConnected } = useAccount();
+  const { connectedAddress, isConnected } = useEarnAdapter();
+  const walletAddress = connectedAddress ?? undefined;
   const { data: chains = [] } = useEarnChains();
   const { data: protocols = [] } = useEarnProtocols();
 

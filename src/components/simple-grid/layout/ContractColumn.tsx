@@ -61,7 +61,7 @@ export default function ContractColumn(): React.ReactElement {
             type="button"
             variant="icon-borderless"
             size="icon-inline"
-            onClick={() => navigate("/simulations")}
+            onClick={() => navigate("/evm/simulations")}
             title="Simulation History"
             aria-label="Simulation History"
             className="cursor-pointer opacity-50 hover:opacity-100 transition-opacity"

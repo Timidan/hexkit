@@ -5,6 +5,14 @@ import {
   waitForTransactionReceipt as wagmiWaitForReceipt,
 } from "@wagmi/core";
 import { ethers } from "ethers";
+import { useEarnAdapter } from "../../../features/earn/context/EarnAdapterContext";
+import {
+  parseEvmChainId,
+  parseAddress,
+  parseCalldata,
+} from "../../../chains/types/evm";
+import type { EvmChainDescriptor } from "../../../chains/types";
+import type { PreparedTx, PreparedTxEnvelope } from "../../../features/earn/adapter/types";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CircleNotch,
@@ -187,6 +195,11 @@ export function DepositFlow({
   const { address, isConnected, chain: walletChain } = useAccount();
   const wagmiConfig = useConfig();
   const { switchChainAsync } = useSwitchChain();
+  const earnCtx = useEarnAdapter();
+  const evmAdapter =
+    earnCtx.adapter && earnCtx.adapter.family === "evm"
+      ? (earnCtx.adapter as typeof earnCtx.adapter & { family: "evm" })
+      : null;
 
   const fromChainForQuote = override?.fromChain ?? vault.chainId;
 
@@ -734,40 +747,51 @@ export function DepositFlow({
       const { data: freshQuote } = await refetchQuote();
       const q = freshQuote ?? quote;
 
-      if (walletChain?.id !== fromChainForQuote) {
-        await switchChainAsync({ chainId: fromChainForQuote });
+      if (!evmAdapter) {
+        throw new Error("EarnAdapter unavailable");
       }
 
-      const walletClient = await getWagmiWalletClient(wagmiConfig, {
-        chainId: fromChainForQuote,
-      });
+      // Chain-switching is handled inside adapter.submitTx.
+      const chainDescriptor = {
+        chainFamily: "evm" as const,
+        key: `evm:${fromChainForQuote}` as const,
+        chainId: parseEvmChainId(fromChainForQuote),
+        name:
+          SUPPORTED_CHAINS.find((c) => c.id === fromChainForQuote)?.name ??
+          "Unknown",
+      } satisfies EvmChainDescriptor;
 
-      if (!walletClient) {
-        throw new Error("No wallet client available. Please connect your wallet.");
-      }
-
-      const hash = await walletClient.sendTransaction({
-        to: q.transactionRequest.to as `0x${string}`,
-        data: q.transactionRequest.data as `0x${string}`,
+      const envelope: PreparedTxEnvelope<EvmChainDescriptor> = {
+        family: "evm",
+        chainId: parseEvmChainId(fromChainForQuote),
+        to: parseAddress(q.transactionRequest.to),
+        data: parseCalldata(q.transactionRequest.data),
         value: q.transactionRequest.value
           ? BigInt(q.transactionRequest.value)
           : undefined,
-        gas: q.transactionRequest.gasLimit
+        gasLimit: q.transactionRequest.gasLimit
           ? BigInt(q.transactionRequest.gasLimit)
           : undefined,
-        chain: { id: fromChainForQuote } as any,
+      };
+
+      const tx: PreparedTx<EvmChainDescriptor> = {
+        id: "deposit",
+        chain: chainDescriptor,
+        kind: "deposit",
+        title: "LI.FI Composer deposit",
+        request: envelope,
+      };
+
+      const submitted = await evmAdapter.submitTx(tx);
+
+      setTxHash(submitted.txId);
+      onBroadcast?.(submitted.txId);
+
+      const confirmed = await evmAdapter.waitForTx(submitted, {
+        timeoutMs: 120_000,
       });
 
-      setTxHash(hash);
-      onBroadcast?.(hash);
-
-      const receipt = await wagmiWaitForReceipt(wagmiConfig, {
-        hash,
-        chainId: fromChainForQuote,
-        timeout: 120_000,
-      });
-
-      if (receipt.status === "reverted") {
+      if (confirmed.status !== "confirmed") {
         throw new Error("Deposit transaction reverted onchain");
       }
 

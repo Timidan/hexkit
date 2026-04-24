@@ -27,6 +27,7 @@ import { type ExtendedChain, EXTENDED_NETWORKS } from '../shared/NetworkSelector
 import ContractAddressInput from '../contract/ContractAddressInput';
 import type { Chain } from '../../types';
 import { getChainById } from '../../utils/chains';
+import { toEvmChainKey } from '../../chains/types/evm';
 import { ETHERSCAN_INSTANCES, BLOCKSCOUT_INSTANCES, type ContractConfirmationState } from './types';
 import '../../styles/SignatureDatabase.css';
 
@@ -36,6 +37,8 @@ const extendedToChain = (ext: ExtendedChain): Chain => {
   if (registry) return registry;
   return {
     id: ext.id,
+    chainFamily: 'evm',
+    chainKey: toEvmChainKey(ext.id),
     name: ext.name,
     rpcUrl: ext.rpcUrl ?? '',
     explorerUrl: ext.blockExplorer,
