@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CaretDown, CaretRight, Sparkle } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Check, LinkSimple, Sparkle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -170,6 +170,7 @@ export function CallTreeTab({
       <div className="lg:col-span-5 space-y-4">
         <FrameDetailPane
           frame={selectedFrame}
+          frames={frames}
           stripSys={stripSys}
           onExplain={onExplainFrame}
         />
@@ -394,10 +395,14 @@ function CallNode(props: NodeProps) {
 
 function FrameDetailPane({
   frame,
+  frames,
   stripSys,
   onExplain,
 }: {
   frame: FunctionInvocation | null;
+  /** Walk-order frame array, used to compute the index for the
+   *  shareable #frame=N deep-link copy button. */
+  frames: FunctionInvocation[];
   stripSys: boolean;
   onExplain?: (f: FunctionInvocation) => void;
 }) {
@@ -416,18 +421,21 @@ function FrameDetailPane({
   const calldata = stripSys ? stripSystemArgs(frame.calldata) : frame.calldata;
   return (
     <Card className="p-4 gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="text-xs uppercase text-muted-foreground">Selected frame</div>
-        {onExplain && (
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Sparkle size={14} />}
-            onClick={() => onExplain(frame)}
-          >
-            Explain
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <CopyFrameLinkButton frame={frame} frames={frames} />
+          {onExplain && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Sparkle size={14} />}
+              onClick={() => onExplain(frame)}
+            >
+              Explain
+            </Button>
+          )}
+        </div>
       </div>
       <div className="text-sm space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
@@ -542,5 +550,46 @@ function SourcePane({ frame }: { frame: FunctionInvocation | null }) {
         )}
       </div>
     </Card>
+  );
+}
+
+/** Copies the current page URL with `#frame=N` set to the selected
+ *  frame's walk-order index. Pairs with the existing read side
+ *  (StarknetSimulationResults' useEffect that restores #frame=N on
+ *  mount) so a shared link drops the recipient straight onto the same
+ *  selected frame. */
+function CopyFrameLinkButton({
+  frame,
+  frames,
+}: {
+  frame: FunctionInvocation;
+  frames: FunctionInvocation[];
+}) {
+  const [copied, setCopied] = useState(false);
+  const idx = frames.indexOf(frame);
+  const onClick = async () => {
+    if (idx < 0 || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.hash = `frame=${idx}`;
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this link", url.toString());
+    }
+  };
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      icon={copied ? <Check size={14} /> : <LinkSimple size={14} />}
+      onClick={onClick}
+      disabled={idx < 0}
+      data-testid="copy-frame-link"
+    >
+      {copied ? "Copied" : "Copy link"}
+    </Button>
   );
 }
