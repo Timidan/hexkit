@@ -17,6 +17,8 @@
     "simulator:server": "node scripts/simulator-bridge.mjs",
     "starknet-sim:build": "cargo build --release --manifest-path starknet-sim/Cargo.toml",
     "starknet-sim:server": "./starknet-sim/target/release/starknet-sim-bridge",
+    "starknet-sim:dev": "BIND_ADDR=127.0.0.1:5790 REQUIRE_API_KEY=false LOG_LEVEL=info ./starknet-sim/target/release/starknet-sim-bridge",
+    "dev:full": "bash scripts/dev-full.sh",
     "preview": "vite preview",
     "check:inline-copy": "node scripts/check-inline-copy.mjs",
     "check:family-imports": "node scripts/check-family-imports.mjs"
