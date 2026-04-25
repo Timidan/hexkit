@@ -407,14 +407,22 @@ function CallNode(props: NodeProps) {
           <div className="pl-2 mt-1 space-y-1 text-xs text-muted-foreground">
             <div>
               <span>calldata:</span>{" "}
-              <span className="font-mono">
-                [
-                {calldata.slice(0, 4).map((f) => shortHex(f)).join(", ")}
-                {calldata.length > 4 && (
-                  <span className="text-muted-foreground/70">, …+{calldata.length - 4}</span>
-                )}
-                ]
-              </span>
+              {ci.decodedFunctionAbi && ci.decodedFunctionAbi.inputs.length > 0 ? (
+                <span className="font-mono text-foreground">
+                  ({ci.decodedFunctionAbi.inputs
+                    .map((p) => `${p.name}: ${lastTypeSeg(p.type)}`)
+                    .join(", ")})
+                </span>
+              ) : (
+                <span className="font-mono">
+                  [
+                  {calldata.slice(0, 4).map((f) => shortHex(f)).join(", ")}
+                  {calldata.length > 4 && (
+                    <span className="text-muted-foreground/70">, …+{calldata.length - 4}</span>
+                  )}
+                  ]
+                </span>
+              )}
             </div>
             <div>
               <span>retdata:</span>{" "}
@@ -963,6 +971,21 @@ function consumeForType(
     raw: v,
     next: i + 1,
   };
+}
+
+/** Last `::`-separated segment of a Cairo type, with generics
+ *  collapsed to a short form — useful for one-line previews. */
+function lastTypeSeg(ty: string): string {
+  const stripped = ty.replace(/\s+/g, "");
+  // Special-case Array<T> / Span<T> → keep the wrapper to convey
+  // "this is a list" without dragging the inner generic.
+  const arr = stripped.match(/Array::<(.+)>$|Span::<(.+)>$/);
+  if (arr) {
+    const inner = arr[1] ?? arr[2] ?? "felt";
+    const innerSeg = inner.split("::").slice(-1)[0] ?? inner;
+    return `Array<${innerSeg.replace(/[<>]/g, "")}>`;
+  }
+  return stripped.split("::").slice(-1)[0] ?? stripped;
 }
 
 /** Split a Cairo tuple's inner args by top-level commas, respecting
