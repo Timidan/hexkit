@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowsClockwise,
+  ArrowSquareOut,
   Sparkle,
   TreeStructure,
   CurrencyCircleDollar,
@@ -28,6 +29,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CopyButton } from "@/components/ui/copy-button";
+import {
+  explorerLinks,
+  networkLabel,
+} from "@/components/starknet/explorerLinks";
 import type {
   FunctionInvocation,
   SimulateResponse,
@@ -76,6 +81,9 @@ export interface StarknetSimulationResultsProps {
    *  a copy button. The /trace flow knows the hash; /simulate flows that
    *  haven't landed do not. */
   txHash?: string;
+  /** Bridge-reported chain ID. Decides whether the Voyager / Starkscan
+   *  links resolve to mainnet or sepolia hosts. */
+  chainId?: string | null;
 }
 
 export function StarknetSimulationResults({
@@ -87,6 +95,7 @@ export function StarknetSimulationResults({
   isResimulating,
   source,
   txHash,
+  chainId,
 }: StarknetSimulationResultsProps) {
   const result = response.results?.[resultIndex];
   const [tab, setTab] = useState<TabKey>("trace");
@@ -198,10 +207,41 @@ export function StarknetSimulationResults({
                 <span className="font-mono">{response.simId}</span>
               </div>
               {txHash && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                   <span>tx hash</span>
                   <span className="font-mono text-foreground">{shortHex(txHash, 16, 8)}</span>
                   <CopyButton value={txHash} className="h-4 w-4" iconSize={10} />
+                  {(() => {
+                    const links = explorerLinks(txHash, chainId);
+                    return (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <a
+                          href={links.voyager}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="inline-flex items-center gap-0.5 text-foreground hover:underline"
+                          data-testid="explorer-link-voyager"
+                        >
+                          Voyager
+                          <ArrowSquareOut size={11} />
+                        </a>
+                        <a
+                          href={links.starkscan}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="inline-flex items-center gap-0.5 text-foreground hover:underline"
+                          data-testid="explorer-link-starkscan"
+                        >
+                          Starkscan
+                          <ArrowSquareOut size={11} />
+                        </a>
+                        <span className="text-[10px] text-muted-foreground">
+                          {networkLabel(chainId)}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
               <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">

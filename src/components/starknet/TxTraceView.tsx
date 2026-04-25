@@ -35,7 +35,29 @@ const TxTraceView: React.FC<Props> = ({
   // BridgeErrorAlert do its remapping pass on async failures.
   const [error, setError] = useState<string | Error | null>(null);
   const [response, setResponse] = useState<SimulateResponse | null>(null);
+  const [chainId, setChainId] = useState<string | null>(null);
   const hasAutoTracedRef = useRef(false);
+
+  // One-shot /health fetch on mount — chain_id is needed to build
+  // network-correct Voyager / Starkscan deep-links on the result card.
+  // The page-level banner already polls /health on its own schedule;
+  // this read is just enough to learn the bridge's network.
+  useEffect(() => {
+    if (!simulator.isConfigured) return;
+    let cancelled = false;
+    simulator
+      .health()
+      .then((h) => {
+        if (!cancelled) setChainId(h.chain_id ?? null);
+      })
+      .catch(() => {
+        // Banner already surfaces bridge health to the user; silently
+        // fall back to mainnet links here.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [simulator]);
 
   const parsed = extractTxHash(hash);
   const valid = parsed !== null;
@@ -139,6 +161,7 @@ const TxTraceView: React.FC<Props> = ({
           response={response}
           source="trace endpoint"
           txHash={hash.trim()}
+          chainId={chainId}
           isResimulating={pending}
           onResimulate={() => void runTrace()}
           onExplainTransaction={() =>
