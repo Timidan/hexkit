@@ -1,6 +1,7 @@
 import { getBridgeHeaders, getStarknetSimBridgeUrl } from "@/utils/env";
 import type {
   BridgeErrorEnvelope,
+  EstimateFeeResponse,
   HealthResponse,
   SimulateRequest,
   SimulateResponse,
@@ -51,7 +52,12 @@ export class StarknetSimulator {
     req: SimulateRequest,
     opts?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<SimulateResponse> {
-    return this.request<SimulateResponse>("POST", "/simulate", req, opts);
+    return this.request<SimulateResponse>(
+      "POST",
+      "/simulate",
+      transformRequestForBridge(req),
+      opts,
+    );
   }
 
   async trace(
@@ -69,8 +75,13 @@ export class StarknetSimulator {
   async estimateFee(
     req: SimulateRequest,
     opts?: { signal?: AbortSignal; timeoutMs?: number },
-  ): Promise<SimulateResponse> {
-    return this.request<SimulateResponse>("POST", "/estimate-fee", req, opts);
+  ): Promise<EstimateFeeResponse> {
+    return this.request<EstimateFeeResponse>(
+      "POST",
+      "/estimate-fee",
+      transformRequestForBridge(req),
+      opts,
+    );
   }
 
   private async request<T>(
@@ -139,6 +150,59 @@ export class StarknetSimulator {
       clearTimeout(timer);
     }
   }
+}
+
+/** Converts a SimulateRequest from camelCase TS shape to the snake_case
+ *  Starknet RPC v0.10 wire format the bridge's tx_parse expects. The
+ *  outer envelope (`blockId`, `simulationFlags`) is renamed by serde
+ *  attributes on the bridge's SimulateRequest struct; only the inner
+ *  transaction bodies need translation. */
+function transformRequestForBridge(req: SimulateRequest): SimulateRequest {
+  return {
+    ...req,
+    transactions: req.transactions.map((tx) => transformTxForBridge(tx)),
+  } as SimulateRequest;
+}
+
+function transformTxForBridge(tx: SimulateRequest["transactions"][number]): SimulateRequest["transactions"][number] {
+  // Cast through unknown — serialization lives at this boundary so accept
+  // the loss of TypeScript shape narrowing for the snake_case object.
+  const t = tx as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {
+    type: t.type,
+    version: t.version,
+    sender_address: t.senderAddress,
+    calldata: t.calldata,
+    signature: t.signature,
+    nonce: t.nonce,
+    resource_bounds: transformResourceBounds(t.resourceBounds),
+    tip: t.tip,
+    paymaster_data: t.paymasterData ?? [],
+    nonce_data_availability_mode: t.nonceDataAvailabilityMode ?? "L1",
+    fee_data_availability_mode: t.feeDataAvailabilityMode ?? "L1",
+  };
+  return out as unknown as SimulateRequest["transactions"][number];
+}
+
+function transformResourceBounds(rb: unknown): unknown {
+  type Pair = { maxAmount?: unknown; maxPricePerUnit?: unknown };
+  const bounds = rb as
+    | { l1Gas?: Pair; l1DataGas?: Pair; l2Gas?: Pair }
+    | undefined;
+  return {
+    l1_gas: {
+      max_amount: bounds?.l1Gas?.maxAmount ?? "0x0",
+      max_price_per_unit: bounds?.l1Gas?.maxPricePerUnit ?? "0x0",
+    },
+    l1_data_gas: {
+      max_amount: bounds?.l1DataGas?.maxAmount ?? "0x0",
+      max_price_per_unit: bounds?.l1DataGas?.maxPricePerUnit ?? "0x0",
+    },
+    l2_gas: {
+      max_amount: bounds?.l2Gas?.maxAmount ?? "0x0",
+      max_price_per_unit: bounds?.l2Gas?.maxPricePerUnit ?? "0x0",
+    },
+  };
 }
 
 function tryParseJson(text: string): unknown {

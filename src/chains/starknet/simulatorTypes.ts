@@ -26,6 +26,7 @@ export interface InvokeV3 {
   nonce: string;
   resourceBounds: {
     l1Gas: ResourceBounds;
+    l1DataGas: ResourceBounds;
     l2Gas: ResourceBounds;
   };
   tip?: string;
@@ -147,6 +148,19 @@ export interface SimulateResponse {
   simId: string;
   blockContext: BlockContext;
   results: SimulationResult[];
+}
+
+/** `/estimate-fee` envelope. The bridge runs simulate with
+ *  SKIP_FEE_CHARGE and emits only the fee + execution-resources
+ *  block per tx (no call tree, no events) — see
+ *  starknet-sim/crates/bridge/src/http/estimate_fee.rs and
+ *  trace_map::map_fee_only. */
+export interface EstimateFeeResponse {
+  blockContext: BlockContext;
+  estimates: Array<{
+    feeEstimate: FeeEstimate;
+    executionResources: ExecutionResources;
+  }>;
 }
 
 export interface HealthResponse {

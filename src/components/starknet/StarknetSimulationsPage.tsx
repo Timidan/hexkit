@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import TxTraceView from "./TxTraceView";
 import SyntheticSimView from "./SyntheticSimView";
+import EstimateFeeView from "./EstimateFeeView";
 
-type TabId = "trace" | "synthetic";
+type TabId = "trace" | "synthetic" | "estimate";
 
 const StarknetSimulationsPage: React.FC = () => {
   const [tab, setTab] = useState<TabId>("trace");
@@ -13,7 +14,7 @@ const StarknetSimulationsPage: React.FC = () => {
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">Starknet simulations</h1>
         <p className="text-sm text-muted-foreground">
-          Trace landed transactions or simulate speculative ones via the
+          Trace landed transactions, simulate speculative ones, or estimate fees via the
           <span className="font-mono mx-1">starknet-sim</span>
           bridge.
         </p>
@@ -27,6 +28,9 @@ const StarknetSimulationsPage: React.FC = () => {
           <TabsTrigger value="synthetic" className="flex-1">
             Speculative simulate
           </TabsTrigger>
+          <TabsTrigger value="estimate" className="flex-1">
+            Estimate fee
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="trace" className="mt-3">
@@ -35,6 +39,10 @@ const StarknetSimulationsPage: React.FC = () => {
 
         <TabsContent value="synthetic" className="mt-3">
           <SyntheticSimView />
+        </TabsContent>
+
+        <TabsContent value="estimate" className="mt-3">
+          <EstimateFeeView />
         </TabsContent>
       </Tabs>
     </div>

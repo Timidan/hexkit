@@ -1,35 +1,35 @@
-// Speculative INVOKE v3 simulation form. Builds a minimal request body,
-// POSTs to /simulate via the bridge, and renders the rich result panel.
-// Use case: previewing a tx the user is about to sign, without
-// broadcasting. The UI accepts raw calldata felts; calldata builders
-// (selector + decoded args) are a follow-up.
+// Estimate-fee form. Builds the same INVOKE v3 body SyntheticSimView
+// uses (via buildInvokeRequest) but POSTs to /estimate-fee, which runs
+// blockifier with SKIP_FEE_CHARGE and returns just the fee + execution
+// resources block. No call tree, no events — much faster, used for
+// "what's the fee on this tx" preflights before signing.
 
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Checkbox } from "../ui/checkbox";
+import { CopyButton } from "../ui/copy-button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { Checkbox } from "../ui/checkbox";
 import {
   StarknetSimulator,
   StarknetSimulatorBridgeError,
 } from "@/chains/starknet/simulatorClient";
-import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
-import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
+import type { EstimateFeeResponse } from "@/chains/starknet/simulatorTypes";
 import {
   buildInvokeRequest,
   DEFAULT_INVOKE_FORM,
   type InvokeFormState,
 } from "./invokeRequestBuilder";
 
-const SyntheticSimView: React.FC = () => {
+const EstimateFeeView: React.FC = () => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
   const [form, setForm] = useState<InvokeFormState>(DEFAULT_INVOKE_FORM);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [response, setResponse] = useState<SimulateResponse | null>(null);
+  const [response, setResponse] = useState<EstimateFeeResponse | null>(null);
 
   const update = <K extends keyof InvokeFormState>(k: K, v: InvokeFormState[K]) =>
     setForm((s) => ({ ...s, [k]: v }));
@@ -44,7 +44,7 @@ const SyntheticSimView: React.FC = () => {
     }
     setPending(true);
     try {
-      const res = await simulator.simulate(built.request);
+      const res = await simulator.estimateFee(built.request);
       setResponse(res);
     } catch (err) {
       if (err instanceof StarknetSimulatorBridgeError) {
@@ -61,20 +61,20 @@ const SyntheticSimView: React.FC = () => {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Simulate a speculative INVOKE v3</CardTitle>
+          <CardTitle className="text-sm">Estimate fee for an INVOKE v3</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Builds a request body and POSTs to{" "}
-            <span className="font-mono">/simulate</span>. The bridge runs the tx against the
-            current fork-head (or a pinned block) without broadcasting. Drop your raw
-            calldata felts in below; one per line, or comma-separated.
+            <span className="font-mono">/estimate-fee</span>. Blockifier runs the tx with
+            SKIP_FEE_CHARGE so the response is just the fee + execution resources — much
+            cheaper than a full simulate.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Sender address" htmlFor="sender">
+            <Field label="Sender address" htmlFor="ef-sender">
               <Input
-                id="sender"
+                id="ef-sender"
                 placeholder="0x…"
                 spellCheck={false}
                 className="font-mono text-xs"
@@ -82,9 +82,9 @@ const SyntheticSimView: React.FC = () => {
                 onChange={(e) => update("senderAddress", e.target.value)}
               />
             </Field>
-            <Field label="Nonce" htmlFor="nonce">
+            <Field label="Nonce" htmlFor="ef-nonce">
               <Input
-                id="nonce"
+                id="ef-nonce"
                 placeholder="0x… or decimal"
                 spellCheck={false}
                 className="font-mono text-xs"
@@ -94,9 +94,9 @@ const SyntheticSimView: React.FC = () => {
             </Field>
           </div>
 
-          <Field label="Calldata felts" htmlFor="calldata">
+          <Field label="Calldata felts" htmlFor="ef-calldata">
             <Textarea
-              id="calldata"
+              id="ef-calldata"
               placeholder="0x1&#10;0x5d07d9f6…&#10;0xf82886c4…"
               spellCheck={false}
               className="font-mono text-xs h-32"
@@ -105,9 +105,9 @@ const SyntheticSimView: React.FC = () => {
             />
           </Field>
 
-          <Field label="Signature felts (optional)" htmlFor="signature">
+          <Field label="Signature felts (optional)" htmlFor="ef-signature">
             <Textarea
-              id="signature"
+              id="ef-signature"
               placeholder="0xabc… 0xdef…"
               spellCheck={false}
               className="font-mono text-xs h-16"
@@ -117,33 +117,33 @@ const SyntheticSimView: React.FC = () => {
           </Field>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Field label="L1 max amount" htmlFor="l1max">
+            <Field label="L1 max amount" htmlFor="ef-l1max">
               <Input
-                id="l1max"
+                id="ef-l1max"
                 className="font-mono text-xs"
                 value={form.l1MaxAmount}
                 onChange={(e) => update("l1MaxAmount", e.target.value)}
               />
             </Field>
-            <Field label="L1 max price" htmlFor="l1price">
+            <Field label="L1 max price" htmlFor="ef-l1price">
               <Input
-                id="l1price"
+                id="ef-l1price"
                 className="font-mono text-xs"
                 value={form.l1MaxPrice}
                 onChange={(e) => update("l1MaxPrice", e.target.value)}
               />
             </Field>
-            <Field label="L2 max amount" htmlFor="l2max">
+            <Field label="L2 max amount" htmlFor="ef-l2max">
               <Input
-                id="l2max"
+                id="ef-l2max"
                 className="font-mono text-xs"
                 value={form.l2MaxAmount}
                 onChange={(e) => update("l2MaxAmount", e.target.value)}
               />
             </Field>
-            <Field label="L2 max price" htmlFor="l2price">
+            <Field label="L2 max price" htmlFor="ef-l2price">
               <Input
-                id="l2price"
+                id="ef-l2price"
                 className="font-mono text-xs"
                 value={form.l2MaxPrice}
                 onChange={(e) => update("l2MaxPrice", e.target.value)}
@@ -154,22 +154,12 @@ const SyntheticSimView: React.FC = () => {
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <Checkbox
-                id="skip-validate"
+                id="ef-skip-validate"
                 checked={form.skipValidate}
                 onCheckedChange={(v) => update("skipValidate", Boolean(v))}
               />
-              <Label htmlFor="skip-validate" className="text-xs cursor-pointer">
+              <Label htmlFor="ef-skip-validate" className="text-xs cursor-pointer">
                 SKIP_VALIDATE
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="skip-fee"
-                checked={form.skipFeeCharge}
-                onCheckedChange={(v) => update("skipFeeCharge", Boolean(v))}
-              />
-              <Label htmlFor="skip-fee" className="text-xs cursor-pointer">
-                SKIP_FEE_CHARGE
               </Label>
             </div>
             <div className="ml-auto">
@@ -179,7 +169,7 @@ const SyntheticSimView: React.FC = () => {
                 disabled={!form.senderAddress.trim() || pending}
                 loading={pending}
               >
-                Simulate
+                Estimate fee
               </Button>
             </div>
           </div>
@@ -189,34 +179,71 @@ const SyntheticSimView: React.FC = () => {
               <AlertTitle className="text-warning">Bridge disabled</AlertTitle>
               <AlertDescription>
                 Set <span className="font-mono">VITE_STARKNET_SIM_BRIDGE_URL</span> in{" "}
-                <span className="font-mono">.env</span> to enable simulation.
+                <span className="font-mono">.env</span> to enable fee estimation.
               </AlertDescription>
             </Alert>
           )}
           {error && (
             <Alert variant="destructive">
-              <AlertTitle>Simulation failed</AlertTitle>
+              <AlertTitle>Estimate failed</AlertTitle>
               <AlertDescription className="font-mono text-[11px]">{error}</AlertDescription>
             </Alert>
           )}
         </CardContent>
       </Card>
 
-      {response && (
-        <StarknetSimulationResults
-          response={response}
-          source="speculative simulate"
-          isResimulating={pending}
-          onResimulate={() => void submit()}
-          onExplainTransaction={() =>
-            alert("LLM whole-tx summary affordance — wire to your endpoint.")
-          }
-          onExplainFrame={(f) =>
-            alert(
-              `LLM per-frame explainer for ${f.contractAddress} → ${f.entryPointSelector}`,
-            )
-          }
-        />
+      {response && response.estimates.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">Estimate</CardTitle>
+            <span className="text-[10px] text-muted-foreground">
+              block {response.blockContext.blockNumber.toLocaleString()} ·{" "}
+              {response.blockContext.starknetVersion}
+            </span>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {response.estimates.map((est, i) => (
+              <div key={i} className="space-y-2">
+                {response.estimates.length > 1 && (
+                  <div className="text-[10px] uppercase text-muted-foreground">
+                    tx #{i}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                  <FeeStat
+                    label="Overall fee"
+                    value={est.feeEstimate.overallFee}
+                    unit={est.feeEstimate.unit}
+                    copyable
+                  />
+                  <FeeStat
+                    label="L1 gas consumed"
+                    value={est.feeEstimate.l1GasConsumed}
+                    copyable
+                  />
+                  <FeeStat
+                    label="L1 data gas consumed"
+                    value={est.feeEstimate.l1DataGasConsumed}
+                    copyable
+                  />
+                  <FeeStat
+                    label="L2 gas consumed"
+                    value={est.feeEstimate.l2GasConsumed}
+                    copyable
+                  />
+                  <FeeStat
+                    label="VM steps"
+                    value={est.executionResources.steps.toLocaleString()}
+                  />
+                  <FeeStat
+                    label="L2 gas (raw)"
+                    value={est.executionResources.l2Gas.toLocaleString()}
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
@@ -241,4 +268,27 @@ function Field({
   );
 }
 
-export default SyntheticSimView;
+function FeeStat({
+  label,
+  value,
+  unit,
+  copyable,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  copyable?: boolean;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card p-2">
+      <div className="uppercase text-muted-foreground text-[10px]">{label}</div>
+      <div className="mt-0.5 text-foreground font-mono flex items-center gap-1">
+        <span className="truncate">{value}</span>
+        {unit && <span className="text-muted-foreground text-[10px]">{unit}</span>}
+        {copyable && <CopyButton value={value} className="h-5 w-5" iconSize={12} />}
+      </div>
+    </div>
+  );
+}
+
+export default EstimateFeeView;
