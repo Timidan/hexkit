@@ -17,11 +17,17 @@ import { shortHex } from "./decoders";
 export function StateDiffTab({
   result,
   addressLabels = {},
+  blockNumber,
+  blockTimestamp,
 }: {
   result: SimulationResult;
   /** Built once at the response root and shared with this and other
    *  tabs so labels stay consistent (Account / ETH / STRK / etc). */
   addressLabels?: Record<string, string>;
+  /** Mirror Voyager's storage diff table — every row gets the block
+   *  number + relative timestamp so the writes are self-describing. */
+  blockNumber?: number;
+  blockTimestamp?: number;
 }) {
   const sd = result.stateDiff;
   if (!sd) {
@@ -140,6 +146,8 @@ export function StateDiffTab({
                 <TableHead>Storage key</TableHead>
                 <TableHead>Before</TableHead>
                 <TableHead>After</TableHead>
+                {blockNumber !== undefined && <TableHead className="w-20">Block</TableHead>}
+                {blockTimestamp !== undefined && <TableHead className="w-24">Age</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -185,6 +193,16 @@ export function StateDiffTab({
                       <TableCell className="font-mono text-[11px] text-warning">
                         {shortHex(e.value)}
                       </TableCell>
+                      {blockNumber !== undefined && (
+                        <TableCell className="font-mono text-[10px] text-muted-foreground">
+                          {blockNumber.toLocaleString()}
+                        </TableCell>
+                      )}
+                      {blockTimestamp !== undefined && (
+                        <TableCell className="text-[10px] text-muted-foreground">
+                          {humanRelativeTs(blockTimestamp)}
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 });
@@ -264,6 +282,17 @@ export function StateDiffTab({
 /** Slot was zero (or unset) before the tx — i.e. this is the first
  *  write to that key. Treat null/undefined the same as 0x0; cairo
  *  storage's default value is 0. */
+/** Coarse `Nm ago` / `Nh ago` / `Nd ago` for the storage-diff row's
+ *  Age column. Voyager renders the same form. */
+function humanRelativeTs(ts: number): string {
+  const delta = Date.now() - ts * 1000;
+  if (delta < 0) return "in the future";
+  if (delta < 60_000) return "just now";
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
+  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`;
+  return `${Math.floor(delta / 86_400_000)}d ago`;
+}
+
 function isZeroFelt(value: string | null | undefined): boolean {
   if (value == null || value === "") return true;
   try {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,6 +65,21 @@ export function EventsTab({
   }
 
   const [filter, setFilter] = useState("");
+  // Same Hex / Dec / Text toggle the call tree uses, persisted under
+  // the same key so toggling once flips both surfaces in lockstep.
+  const [valueFormat, setValueFormat] = useState<"hex" | "dec" | "text">(() => {
+    if (typeof window === "undefined") return "hex";
+    try {
+      const raw = window.localStorage.getItem("hexkit:starknet-sim:valueFormat");
+      if (raw === "dec" || raw === "text") return raw;
+    } catch {/* fall through */}
+    return "hex";
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("hexkit:starknet-sim:valueFormat", valueFormat);
+    } catch {/* quota */}
+  }, [valueFormat]);
   // Pre-resolve decoded names + labels once so filtering doesn't have
   // to recompute on every keystroke.
   const annotated = useMemo(
@@ -108,6 +123,24 @@ export function EventsTab({
               {filtered.length} of {rows.length} matched
             </span>
           )}
+        </div>
+        <div className="inline-flex rounded-md border border-border overflow-hidden">
+          {(["hex", "dec", "text"] as const).map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setValueFormat(o)}
+              aria-pressed={valueFormat === o}
+              data-testid={`events-format-${o}`}
+              className={`px-1.5 py-0.5 text-[9px] uppercase ${
+                valueFormat === o
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              } ${o === "dec" || o === "text" ? "border-l border-border" : ""}`}
+            >
+              {o}
+            </button>
+          ))}
         </div>
       </div>
       {rows.length === 0 ? (
@@ -219,6 +252,7 @@ export function EventsTab({
                             keys={r.keys}
                             data={r.data}
                             types={types}
+                            valueFormat={valueFormat}
                           />
                         ) : r.summary ? (
                           <div className="flex items-center gap-1.5">
@@ -307,11 +341,14 @@ function DecodedEventFields({
   keys,
   data,
   types,
+  valueFormat = "hex",
 }: {
   fields: import("@/chains/starknet/simulatorTypes").AbiParam[];
   keys: string[];
   data: string[];
   types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
+  /** Hex / Dec / Text — same toggle the FrameDetailPane uses. */
+  valueFormat?: "hex" | "dec" | "text";
 }) {
   // keys[0] is the selector itself.
   const indexedFelts = keys.slice(1);
@@ -339,7 +376,12 @@ function DecodedEventFields({
       consumed.push({ name: f.name, type: f.type, raw: `${lo}|${hi}`, rendered: value });
     } else {
       const [v] = take(1);
-      consumed.push({ name: f.name, type: f.type, raw: v, rendered: v });
+      consumed.push({
+        name: f.name,
+        type: f.type,
+        raw: v,
+        rendered: formatFeltValue(v, valueFormat),
+      });
     }
   }
   return (
@@ -355,6 +397,28 @@ function DecodedEventFields({
       ))}
     </div>
   );
+}
+
+function formatFeltValue(hex: string, fmt: "hex" | "dec" | "text"): string {
+  if (fmt === "hex") return hex;
+  let n: bigint;
+  try {
+    n = BigInt(hex);
+  } catch {
+    return hex;
+  }
+  if (fmt === "dec") return n.toString();
+  if (n === 0n) return "''";
+  let bytes: number[] = [];
+  let v = n;
+  while (v > 0n) {
+    bytes.unshift(Number(v & 0xffn));
+    v >>= 8n;
+  }
+  if (bytes.every((b) => b >= 0x20 && b < 0x7f)) {
+    return `'${String.fromCharCode(...bytes)}'`;
+  }
+  return hex;
 }
 
 function lastSeg(ty: string): string {

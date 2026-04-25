@@ -533,7 +533,12 @@ export function StarknetSimulationResults({
             />
           </TabsContent>
           <TabsContent value="state">
-            <StateDiffTab result={result} addressLabels={addressLabels} />
+            <StateDiffTab
+              result={result}
+              addressLabels={addressLabels}
+              blockNumber={response.blockContext.blockNumber}
+              blockTimestamp={response.blockContext.timestamp}
+            />
           </TabsContent>
           <TabsContent value="resources">
             <ResourcesTab

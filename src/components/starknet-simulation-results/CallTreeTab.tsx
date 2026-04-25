@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { contractExplorerLinks } from "@/components/starknet/explorerLinks";
 import type { FunctionInvocation, SimulationResult } from "@/chains/starknet/simulatorTypes";
 import {
+  classLabel,
   contractLabel,
   frameLabel,
   countSubtree,
@@ -554,6 +555,12 @@ function FrameDetailPane({
           </div>
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-muted-foreground">classHash:</span>{" "}
+            {(() => {
+              const cls = classLabel(frame.classHash);
+              return cls ? (
+                <span className="font-mono text-success">{cls}</span>
+              ) : null;
+            })()}
             <span className="font-mono text-foreground break-all">{frame.classHash || "—"}</span>
             {frame.classHash && (
               <CopyButton value={frame.classHash} className="h-4 w-4" iconSize={10} />
