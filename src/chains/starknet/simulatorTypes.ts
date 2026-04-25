@@ -84,7 +84,7 @@ export interface BlockContext {
 export interface StateDiff {
   storageDiffs: Array<{
     address: string;
-    storageEntries: Array<{ key: string; value: string }>;
+    storageEntries: Array<{ key: string; before: string; value: string }>;
   }>;
   nonceUpdates: Array<{ contractAddress: string; nonce: string }>;
   classHashUpdates: Array<{ contractAddress: string; classHash: string }>;

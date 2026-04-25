@@ -49,7 +49,8 @@ export function StateDiffTab({ result }: { result: SimulationResult }) {
               <TableRow>
                 <TableHead>Contract</TableHead>
                 <TableHead>Storage key</TableHead>
-                <TableHead>→ New value</TableHead>
+                <TableHead>Before</TableHead>
+                <TableHead>After</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -74,6 +75,9 @@ export function StateDiffTab({ result }: { result: SimulationResult }) {
                     ) : null}
                     <TableCell className="font-mono text-[11px] text-foreground">
                       {shortHex(e.key)}
+                    </TableCell>
+                    <TableCell className="font-mono text-[11px] text-muted-foreground">
+                      {shortHex(e.before ?? "0x0")}
                     </TableCell>
                     <TableCell className="font-mono text-[11px] text-warning">
                       {shortHex(e.value)}
