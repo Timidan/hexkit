@@ -9,8 +9,7 @@ import {
 } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
-
-const FELT_HEX = /^0x[0-9a-fA-F]{1,64}$/;
+import { extractTxHash } from "./txHashParse";
 
 interface Props {
   /** Pre-populate the hash input from the URL (?txHash=…) and auto-trace
@@ -29,17 +28,24 @@ const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
   const [response, setResponse] = useState<SimulateResponse | null>(null);
   const hasAutoTracedRef = useRef(false);
 
-  const valid = FELT_HEX.test(hash.trim());
+  const parsed = extractTxHash(hash);
+  const valid = parsed !== null;
 
   const runTrace = useCallback(
     async (nextHash?: string) => {
-      const target = (nextHash ?? hash).trim();
+      const target = extractTxHash(nextHash ?? hash);
       setError(null);
       setResponse(null);
-      if (!FELT_HEX.test(target)) {
-        setError("Transaction hash must be 0x-prefixed hex, ≤ 64 nibbles.");
+      if (!target) {
+        setError(
+          "Paste a 0x-prefixed hash or a Voyager / Starkscan transaction URL.",
+        );
         return;
       }
+      // Canonicalize — if the user pasted a URL, snap the input back to
+      // the bare hash so the field, the URL bar, and the trace request
+      // all agree.
+      if (target !== hash.trim()) setHash(target);
       setPending(true);
       try {
         const res = await simulator.trace(target);
@@ -62,10 +68,10 @@ const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
   // so an HMR / route re-render doesn't fire duplicate bridge calls.
   useEffect(() => {
     if (hasAutoTracedRef.current) return;
-    if (!initialTxHash) return;
-    if (!FELT_HEX.test(initialTxHash)) return;
+    const canonical = extractTxHash(initialTxHash);
+    if (!canonical) return;
     hasAutoTracedRef.current = true;
-    void runTrace(initialTxHash);
+    void runTrace(canonical);
   }, [initialTxHash, runTrace]);
 
   return (
@@ -83,7 +89,7 @@ const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
                 setHash(next);
                 if (next.trim() === "") onTxHashCommit?.(null);
               }}
-              placeholder="0x... transaction hash"
+              placeholder="0x… hash or Voyager / Starkscan tx URL"
               spellCheck={false}
               className="font-mono text-xs"
               disabled={pending}

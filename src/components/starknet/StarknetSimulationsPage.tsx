@@ -5,17 +5,16 @@ import TxTraceView from "./TxTraceView";
 import SyntheticSimView from "./SyntheticSimView";
 import EstimateFeeView from "./EstimateFeeView";
 import StarknetBridgeBanner from "./StarknetBridgeBanner";
+import { extractTxHash } from "./txHashParse";
 
 type TabId = "trace" | "synthetic" | "estimate";
 const VALID_TABS: TabId[] = ["trace", "synthetic", "estimate"];
-const TX_HASH = /^0x[0-9a-fA-F]{1,64}$/;
 
 function parseTabParam(value: string | null | undefined): TabId {
   return VALID_TABS.includes(value as TabId) ? (value as TabId) : "trace";
 }
 function parseTxHashParam(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return TX_HASH.test(value.trim()) ? value.trim() : null;
+  return extractTxHash(value);
 }
 
 const StarknetSimulationsPage: React.FC = () => {
