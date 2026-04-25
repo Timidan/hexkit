@@ -7,6 +7,7 @@ import { StarknetSimulator } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
 import BridgeErrorAlert from "./BridgeErrorAlert";
+import CopyCurlButton from "./CopyCurlButton";
 import { extractTxHash } from "./txHashParse";
 
 interface Props {
@@ -133,6 +134,14 @@ const TxTraceView: React.FC<Props> = ({
             >
               Trace
             </Button>
+          </div>
+          <div className="flex justify-end">
+            <CopyCurlButton
+              method="POST"
+              path={`/trace/${parsed ?? ""}`}
+              body={{}}
+              disabled={!valid}
+            />
           </div>
           {!simulator.isConfigured && (
             <Alert>

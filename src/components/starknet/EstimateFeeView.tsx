@@ -22,9 +22,11 @@ import {
 import BridgeErrorAlert from "./BridgeErrorAlert";
 import {
   buildInvokeRequest,
+  buildInvokeWireRequest,
   DEFAULT_INVOKE_FORM,
   type InvokeFormState,
 } from "./invokeRequestBuilder";
+import CopyCurlButton from "./CopyCurlButton";
 
 const EstimateFeeView: React.FC = () => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
@@ -161,7 +163,13 @@ const EstimateFeeView: React.FC = () => {
                 SKIP_VALIDATE
               </Label>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <CopyCurlButton
+                method="POST"
+                path="/estimate-fee"
+                body={buildInvokeWireRequest(form).body}
+                disabled={!form.senderAddress.trim()}
+              />
               <Button
                 variant="outline"
                 onClick={submit}

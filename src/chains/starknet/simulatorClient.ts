@@ -157,7 +157,7 @@ export class StarknetSimulator {
  *  outer envelope (`blockId`, `simulationFlags`) is renamed by serde
  *  attributes on the bridge's SimulateRequest struct; only the inner
  *  transaction bodies need translation. */
-function transformRequestForBridge(req: SimulateRequest): SimulateRequest {
+export function transformRequestForBridge(req: SimulateRequest): SimulateRequest {
   return {
     ...req,
     transactions: req.transactions.map((tx) => transformTxForBridge(tx)),

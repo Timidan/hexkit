@@ -16,8 +16,10 @@ import { StarknetSimulator } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
 import BridgeErrorAlert from "./BridgeErrorAlert";
+import CopyCurlButton from "./CopyCurlButton";
 import {
   buildInvokeRequest,
+  buildInvokeWireRequest,
   DEFAULT_INVOKE_FORM,
   type InvokeFormState,
 } from "./invokeRequestBuilder";
@@ -227,7 +229,16 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
                 SKIP_FEE_CHARGE
               </Label>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <CopyCurlButton
+                method="POST"
+                path="/simulate"
+                body={buildInvokeWireRequest(form).body}
+                disabled={
+                  !form.senderAddress.trim() ||
+                  (form.blockId === "number" && !form.blockNumber.trim())
+                }
+              />
               <Button
                 variant="outline"
                 onClick={submit}

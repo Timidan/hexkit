@@ -8,6 +8,7 @@ import type {
   SimulateRequest,
   SimulationFlag,
 } from "@/chains/starknet/simulatorTypes";
+import { transformRequestForBridge } from "@/chains/starknet/simulatorClient";
 
 const FELT_HEX = /^0x[0-9a-fA-F]{1,64}$/;
 const HEX_OR_DEC = /^(0x[0-9a-fA-F]+|\d+)$/;
@@ -117,4 +118,15 @@ export function buildInvokeRequest(form: InvokeFormState): InvokeRequestResult {
       simulationFlags: flags,
     },
   };
+}
+
+/** Validates the form and returns the same snake_case body the client
+ *  posts to the bridge — used by the Copy-as-cURL button so the
+ *  reproduced request matches what the UI actually sends. */
+export function buildInvokeWireRequest(
+  form: InvokeFormState,
+): { ok: boolean; body?: unknown; error?: string } {
+  const built = buildInvokeRequest(form);
+  if (!built.ok || !built.request) return { ok: false, error: built.error };
+  return { ok: true, body: transformRequestForBridge(built.request) };
 }
