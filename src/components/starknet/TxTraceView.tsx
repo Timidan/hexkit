@@ -3,12 +3,10 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import {
-  StarknetSimulator,
-  StarknetSimulatorBridgeError,
-} from "@/chains/starknet/simulatorClient";
+import { StarknetSimulator } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
+import BridgeErrorAlert from "./BridgeErrorAlert";
 import { extractTxHash } from "./txHashParse";
 
 interface Props {
@@ -31,7 +29,11 @@ const TxTraceView: React.FC<Props> = ({
   const simulator = useMemo(() => new StarknetSimulator(), []);
   const [hash, setHash] = useState(initialTxHash ?? "");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Either a validation message (string — local input parsing) or the
+  // raw error thrown by the bridge client (Error — handed to the alert
+  // mapper). Two shapes lets the validation flow stay synchronous and
+  // BridgeErrorAlert do its remapping pass on async failures.
+  const [error, setError] = useState<string | Error | null>(null);
   const [response, setResponse] = useState<SimulateResponse | null>(null);
   const hasAutoTracedRef = useRef(false);
 
@@ -60,11 +62,7 @@ const TxTraceView: React.FC<Props> = ({
         onTxHashCommit?.(target);
         onTraceSucceeded?.(target);
       } catch (err) {
-        if (err instanceof StarknetSimulatorBridgeError) {
-          setError(`${err.code}: ${err.message}`);
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-        }
+        setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setPending(false);
       }
@@ -124,10 +122,14 @@ const TxTraceView: React.FC<Props> = ({
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Trace failed</AlertTitle>
-              <AlertDescription className="font-mono text-[11px]">{error}</AlertDescription>
-            </Alert>
+            typeof error === "string" ? (
+              <Alert variant="destructive">
+                <AlertTitle>Check the input</AlertTitle>
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
+            ) : (
+              <BridgeErrorAlert error={error} context="Trace" />
+            )
           )}
         </CardContent>
       </Card>

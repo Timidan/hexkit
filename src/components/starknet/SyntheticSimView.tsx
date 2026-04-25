@@ -12,12 +12,10 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Checkbox } from "../ui/checkbox";
-import {
-  StarknetSimulator,
-  StarknetSimulatorBridgeError,
-} from "@/chains/starknet/simulatorClient";
+import { StarknetSimulator } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
+import BridgeErrorAlert from "./BridgeErrorAlert";
 import {
   buildInvokeRequest,
   DEFAULT_INVOKE_FORM,
@@ -39,7 +37,8 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
     initialForm ?? DEFAULT_INVOKE_FORM,
   );
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // string for local validation issues, Error for bridge throws.
+  const [error, setError] = useState<string | Error | null>(null);
   const [response, setResponse] = useState<SimulateResponse | null>(null);
 
   const update = <K extends keyof InvokeFormState>(k: K, v: InvokeFormState[K]) =>
@@ -59,11 +58,7 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
       setResponse(res);
       onSimSucceeded?.(form);
     } catch (err) {
-      if (err instanceof StarknetSimulatorBridgeError) {
-        setError(`${err.code}: ${err.message}`);
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setPending(false);
     }
@@ -258,10 +253,14 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Simulation failed</AlertTitle>
-              <AlertDescription className="font-mono text-[11px]">{error}</AlertDescription>
-            </Alert>
+            typeof error === "string" ? (
+              <Alert variant="destructive">
+                <AlertTitle>Check the form</AlertTitle>
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
+            ) : (
+              <BridgeErrorAlert error={error} context="Simulation" />
+            )
           )}
         </CardContent>
       </Card>

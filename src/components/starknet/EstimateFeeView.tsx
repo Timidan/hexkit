@@ -13,15 +13,13 @@ import { CopyButton } from "../ui/copy-button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import {
-  StarknetSimulator,
-  StarknetSimulatorBridgeError,
-} from "@/chains/starknet/simulatorClient";
+import { StarknetSimulator } from "@/chains/starknet/simulatorClient";
 import type { EstimateFeeResponse } from "@/chains/starknet/simulatorTypes";
 import {
   formatFriAmount,
   formatHexGasAmount,
 } from "@/components/starknet-simulation-results/decoders";
+import BridgeErrorAlert from "./BridgeErrorAlert";
 import {
   buildInvokeRequest,
   DEFAULT_INVOKE_FORM,
@@ -32,7 +30,8 @@ const EstimateFeeView: React.FC = () => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
   const [form, setForm] = useState<InvokeFormState>(DEFAULT_INVOKE_FORM);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // string = local validation, Error = bridge throw — see BridgeErrorAlert.
+  const [error, setError] = useState<string | Error | null>(null);
   const [response, setResponse] = useState<EstimateFeeResponse | null>(null);
 
   const update = <K extends keyof InvokeFormState>(k: K, v: InvokeFormState[K]) =>
@@ -51,11 +50,7 @@ const EstimateFeeView: React.FC = () => {
       const res = await simulator.estimateFee(built.request);
       setResponse(res);
     } catch (err) {
-      if (err instanceof StarknetSimulatorBridgeError) {
-        setError(`${err.code}: ${err.message}`);
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setPending(false);
     }
@@ -188,10 +183,14 @@ const EstimateFeeView: React.FC = () => {
             </Alert>
           )}
           {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Estimate failed</AlertTitle>
-              <AlertDescription className="font-mono text-[11px]">{error}</AlertDescription>
-            </Alert>
+            typeof error === "string" ? (
+              <Alert variant="destructive">
+                <AlertTitle>Check the form</AlertTitle>
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
+            ) : (
+              <BridgeErrorAlert error={error} context="Estimate" />
+            )
           )}
         </CardContent>
       </Card>
