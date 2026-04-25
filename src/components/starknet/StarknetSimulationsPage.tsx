@@ -148,20 +148,57 @@ const StarknetSimulationsPage: React.FC = () => {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Sidebar visibility — collapsed by default to keep the main column
+  // breathable, persisted so frequent users get their preferred layout
+  // back on reload.
+  const [showSidebar, setShowSidebar] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("hexkit:starknet-sim:showSidebar") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "hexkit:starknet-sim:showSidebar",
+        showSidebar ? "1" : "0",
+      );
+    } catch {
+      // Storage disabled — preference just won't persist this session.
+    }
+  }, [showSidebar]);
+
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Starknet simulations</h1>
-        <p className="text-sm text-muted-foreground">
-          Trace landed transactions, simulate speculative ones, or estimate fees via the
-          <span className="font-mono mx-1">starknet-sim</span>
-          bridge.
-        </p>
+      <header className="flex items-end justify-between gap-3 flex-wrap">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-foreground">Starknet simulations</h1>
+          <p className="text-sm text-muted-foreground">
+            Trace landed transactions, simulate speculative ones, or estimate fees via the
+            <span className="font-mono mx-1">starknet-sim</span>
+            bridge.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowSidebar((v) => !v)}
+          className="text-[11px] text-muted-foreground hover:text-foreground border border-border rounded-md px-2 py-1"
+          data-testid="toggle-recents"
+        >
+          {showSidebar ? "Hide recents" : "Show recents"}
+          {recents.length > 0 ? ` (${recents.length})` : ""}
+        </button>
       </header>
 
       <StarknetBridgeBanner />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <div
+        className={`grid gap-4 ${
+          showSidebar ? "lg:grid-cols-[minmax(0,1fr)_260px]" : "grid-cols-1"
+        }`}
+      >
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={onTabChange}>
             {/* Wrapper allows horizontal scroll on narrow viewports.
@@ -213,13 +250,15 @@ const StarknetSimulationsPage: React.FC = () => {
           </Tabs>
         </div>
 
-        <aside className="lg:sticky lg:top-4 self-start">
-          <RecentSimulationsSidebar
-            items={recents}
-            onSelect={onSelectRecent}
-            onClear={onClearRecents}
-          />
-        </aside>
+        {showSidebar && (
+          <aside className="lg:sticky lg:top-4 self-start">
+            <RecentSimulationsSidebar
+              items={recents}
+              onSelect={onSelectRecent}
+              onClear={onClearRecents}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );

@@ -20,11 +20,18 @@ export const KNOWN_SELECTORS: Record<string, string> = {
 };
 
 export const KNOWN_EVENTS: Record<string, string> = {
+  // ERC20 / ERC721 / ERC1155 standards.
   "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9": "Transfer",
   "0x182d859c0807ba9db63baf8b9d9fdbfeb885d820be6e206b9dab626d995c433": "TransferSingle",
   "0x2db340e6c609371026731f47050d3976552c89b4fbb012941663841c59d1af3": "TransferBatch",
   "0x1a2f334228cee715f1f0f54053bb6b5eac54fa336e0bc1aacf7516decb0471d": "Approval",
   "0x1390fd803c110ac71730ece1decfc34eb1d0088e295d4f1b125dda1e0c5b9ff": "ApprovalForAll",
+  // Account / paymaster standards (Argent, OpenZeppelin, AVNU).
+  "0x1dcde06aabdbca2f80aa51392b345d7549d7757aa855f7e37f5d335ac8243b1": "TransactionExecuted",
+  "0x2495e87dbfae534a775dc432ffb2b4c64cd5b8e42a9dd1984ee7f424e46feb9": "SponsoredTransaction",
+  "0x2f6c4d2f47ed1b65bf8c2cc24e4d0e4a3265a9e3a5a4e3b3c2d2c0a4f6f3e2c": "OutsideExecution",
+  "0x10f96fd25dca50f9d5a5e1f96d3eb1e44cdcd4de7c2b9e6ee9b2cb8e8c8c8c": "OwnerAdded",
+  "0x12f9e5919916bd76b3a86fa11788e7f2c2dba07866c8d61dcd9ad9f43a0fafe": "OwnerRemoved",
 };
 
 export const KNOWN_CONTRACTS: Record<string, string> = {
@@ -32,6 +39,14 @@ export const KNOWN_CONTRACTS: Record<string, string> = {
   "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d": "STRK",
   "0x53c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8": "USDC",
   "0x68f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8": "USDT",
+  // AVNU paymaster / account-abstraction infrastructure.
+  "0x482f1384e97403379825973629743a4a8b30e9028e139d0f707f7ca488ee16": "AVNU AA Forwarder",
+  // Sequencer fee receiver (StarkWare).
+  "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8": "StarkWare Sequencer",
+  // Universal Deployer Contract — used by virtually every wallet to
+  // deploy account contracts via a deterministic address.
+  "0x041a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf":
+    "Universal Deployer",
 };
 
 export const TOKEN_META: Record<string, { symbol: string; decimals: number }> = {
