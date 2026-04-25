@@ -99,7 +99,18 @@ export function StarknetSimulationResults({
   chainId,
 }: StarknetSimulationResultsProps) {
   const result = response.results?.[resultIndex];
-  const [tab, setTab] = useState<TabKey>("trace");
+  const [tab, setTab] = useState<TabKey>(loadStoredTab);
+  // Persist on every change so a reload lands the user back where they
+  // were last looking (Call tree / State diff / Events / …). Outer
+  // ?tab=… still owns the trace vs synthetic vs estimate page split.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(RESULT_TAB_KEY, tab);
+    } catch {
+      // Quota / private mode — preference just won't carry forward.
+    }
+  }, [tab]);
   const [selectedFrame, setSelectedFrame] = useState<FunctionInvocation | null>(null);
 
   // Frame walk-order index — shared between Call tree, Resources heatmap,
@@ -572,6 +583,29 @@ function RawTab({ response }: { response: SimulateResponse }) {
       </pre>
     </Card>
   );
+}
+
+const RESULT_TAB_KEY = "hexkit:starknet-sim:resultTab";
+const VALID_RESULT_TABS: readonly TabKey[] = [
+  "trace",
+  "flow",
+  "events",
+  "state",
+  "resources",
+  "messages",
+  "dev",
+  "raw",
+] as const;
+
+function loadStoredTab(): TabKey {
+  if (typeof window === "undefined") return "trace";
+  try {
+    const raw = window.localStorage.getItem(RESULT_TAB_KEY);
+    if (raw && VALID_RESULT_TABS.includes(raw as TabKey)) return raw as TabKey;
+  } catch {
+    // Fall through to default.
+  }
+  return "trace";
 }
 
 /** Triggers a browser download of the raw bridge response. Filename
