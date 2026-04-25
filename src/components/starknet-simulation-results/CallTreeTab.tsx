@@ -320,7 +320,10 @@ function CallNode(props: NodeProps) {
     sharePct > 50 ? "bg-destructive" : sharePct > 20 ? "bg-warning" : "bg-success";
 
   return (
-    <div className={"rounded " + (depth ? "ml-3 border-l border-border pl-2" : "")}>
+    <div
+      className={"rounded " + (depth ? "ml-3 border-l border-border pl-2" : "")}
+      data-frame-row={fnum >= 0 ? fnum : "?"}
+    >
       <button
         type="button"
         onClick={() => {

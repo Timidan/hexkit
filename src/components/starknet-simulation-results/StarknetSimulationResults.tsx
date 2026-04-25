@@ -629,8 +629,15 @@ function SummaryRow({
   label: string;
   children: React.ReactNode;
 }) {
+  // Stable kebab-cased id used by tooling (voyager-parity harness, e2e
+  // tests). Must NOT depend on the visible label string changing —
+  // that's why we slug the label once and stash it as a data attr.
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return (
-    <div className="flex items-center gap-2 py-1 border-b border-border/30 last:border-b-0">
+    <div
+      className="flex items-center gap-2 py-1 border-b border-border/30 last:border-b-0"
+      data-summary-row={id}
+    >
       <span className="text-muted-foreground w-24 shrink-0">{label}</span>
       <div className="flex items-center gap-1.5 flex-wrap min-w-0">{children}</div>
     </div>
@@ -645,7 +652,12 @@ function StatusBadge({ status }: { status: string }) {
       ? "warning"
       : "destructive";
   return (
-    <Badge variant={variant} size="md" className="font-bold">
+    <Badge
+      variant={variant}
+      size="md"
+      className="font-bold"
+      data-status={status}
+    >
       {status}
     </Badge>
   );

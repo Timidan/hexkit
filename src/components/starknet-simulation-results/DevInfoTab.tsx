@@ -189,8 +189,10 @@ function DevRow({
   copyValue?: string;
 }) {
   if (value === undefined || value === null || value === "") return null;
+  // Stable id for the parity harness / e2e tests; slugged from label.
+  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return (
-    <TableRow>
+    <TableRow data-dev-row={id}>
       <TableCell className="text-muted-foreground w-44 align-top">{label}</TableCell>
       <TableCell
         className={`${mono ? "font-mono" : ""} text-foreground ${
