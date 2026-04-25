@@ -1,7 +1,15 @@
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import type { SimulateResponse, SimulationResult } from "@/chains/starknet/simulatorTypes";
 import { shortHex } from "./decoders";
 
-export function DevInfoTab({ response, result }: { response: SimulateResponse; result: SimulationResult }) {
+export function DevInfoTab({
+  response,
+  result,
+}: {
+  response: SimulateResponse;
+  result: SimulationResult;
+}) {
   const ctx = response.blockContext;
   const blockRows: Array<[string, string]> = [
     ["Block number", ctx.blockNumber.toLocaleString()],
@@ -29,7 +37,12 @@ export function DevInfoTab({ response, result }: { response: SimulateResponse; r
     ["L1 gas", res.l1Gas?.toLocaleString() ?? "—"],
     ["L1 data gas", res.l1DataGas?.toLocaleString() ?? "—"],
     ["L2 gas", res.l2Gas?.toLocaleString() ?? "—"],
-    ["Builtins", Object.entries(res.builtinInstanceCounter || {}).map(([k, v]) => `${k}=${v}`).join(" · ")],
+    [
+      "Builtins",
+      Object.entries(res.builtinInstanceCounter || {})
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" · "),
+    ],
   ];
 
   return (
@@ -43,18 +56,18 @@ export function DevInfoTab({ response, result }: { response: SimulateResponse; r
 
 function Section({ title, rows }: { title: string; rows: Array<[string, string]> }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 space-y-3">
-      <div className="text-xs uppercase text-zinc-500">{title}</div>
-      <table className="w-full text-xs">
-        <tbody>
+    <Card className="p-4 gap-3">
+      <div className="text-xs uppercase text-muted-foreground">{title}</div>
+      <Table>
+        <TableBody>
           {rows.map(([k, v]) => (
-            <tr key={k} className="border-b border-zinc-800/50">
-              <td className="py-1.5 px-2 text-zinc-500 w-44">{k}</td>
-              <td className="py-1.5 px-2 font-mono text-zinc-200 break-all">{v || "—"}</td>
-            </tr>
+            <TableRow key={k}>
+              <TableCell className="text-muted-foreground w-44">{k}</TableCell>
+              <TableCell className="font-mono text-foreground break-all">{v || "—"}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

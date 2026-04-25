@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -61,18 +62,24 @@ const TxTraceView: React.FC = () => {
                 if (e.key === "Enter" && valid && !pending) void runTrace();
               }}
             />
-            <Button onClick={runTrace} disabled={!valid || pending}>
-              {pending ? "Tracing…" : "Trace"}
+            <Button variant="outline" onClick={runTrace} disabled={!valid} loading={pending}>
+              Trace
             </Button>
           </div>
           {!simulator.isConfigured && (
-            <p className="text-xs text-amber-500">
-              Starknet sim bridge is disabled (VITE_STARKNET_SIM_BRIDGE_URL).
-              Set it in <code>.env</code> to enable tracing.
-            </p>
+            <Alert>
+              <AlertTitle className="text-warning">Bridge disabled</AlertTitle>
+              <AlertDescription>
+                Set <span className="font-mono">VITE_STARKNET_SIM_BRIDGE_URL</span> in{" "}
+                <span className="font-mono">.env</span> to enable tracing.
+              </AlertDescription>
+            </Alert>
           )}
           {error && (
-            <p className="text-xs text-destructive font-mono">{error}</p>
+            <Alert variant="destructive">
+              <AlertTitle>Trace failed</AlertTitle>
+              <AlertDescription className="font-mono text-[11px]">{error}</AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>
@@ -80,7 +87,9 @@ const TxTraceView: React.FC = () => {
       {response && (
         <StarknetSimulationResults
           response={response}
-          source={`tx ${hash.trim()}`}
+          source="trace endpoint"
+          txHash={hash.trim()}
+          isResimulating={pending}
           onResimulate={() => void runTrace()}
           onExplainTransaction={() =>
             alert(

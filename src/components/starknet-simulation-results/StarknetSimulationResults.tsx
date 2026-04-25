@@ -1,32 +1,65 @@
 // Top-level Starknet sim results panel. Mirrors the EVM
 // `simulation-results/` shell but adapted for the Starknet wire format
 // (validate / execute / fee_transfer invocations + canonical stateDiff +
-// per-CallInfo decodedSelector).
+// per-CallInfo decodedSelector). Uses HexKit's shadcn-derived primitives
+// + CSS vars so it themes correctly in both light and dark modes.
 
-import { useMemo, useState, useCallback, useEffect } from "react";
-import type { SimulateResponse, SimulationResult, FunctionInvocation } from "@/chains/starknet/simulatorTypes";
-import { walkInvocations, contractLabel, shortHex, selectorName } from "./decoders";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ArrowsClockwise,
+  Sparkle,
+  TreeStructure,
+  CurrencyCircleDollar,
+  RadioButton,
+  Stack,
+  GearSix,
+  Wrench,
+  Code,
+} from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CopyButton } from "@/components/ui/copy-button";
+import type {
+  FunctionInvocation,
+  SimulateResponse,
+  SimulationResult,
+} from "@/chains/starknet/simulatorTypes";
 import { CallTreeTab } from "./CallTreeTab";
 import { TokenFlowTab } from "./TokenFlowTab";
 import { EventsTab } from "./EventsTab";
 import { StateDiffTab } from "./StateDiffTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { DevInfoTab } from "./DevInfoTab";
+import { contractLabel, selectorName, shortHex, walkInvocations } from "./decoders";
 
-export type TabKey = "trace" | "flow" | "events" | "state" | "resources" | "messages" | "dev" | "raw";
+export type TabKey = "trace" | "flow" | "events" | "state" | "resources" | "dev" | "raw";
 
 export interface StarknetSimulationResultsProps {
   /** Canonical /simulate response from the bridge. */
   response: SimulateResponse;
   /** Optional override — by default we pick `results[0]`. */
   resultIndex?: number;
-  /** Hook for the LLM "Explain this …" affordance. The component renders
-   *  the pill; consumers wire it to whatever LLM endpoint they have. */
+  /** Hook for the LLM "Explain this …" affordance. */
   onExplainTransaction?: (result: SimulationResult) => void;
   onExplainFrame?: (frame: FunctionInvocation) => void;
-  onResimulate?: () => void;
+  /** Async hook so the button can show a spinner. Treat omission as "no
+   *  re-simulate available" and hide the button. */
+  onResimulate?: () => void | Promise<void>;
+  isResimulating?: boolean;
   /** Fixture / tx label rendered in the footer. */
   source?: string;
+  /** Optional tx hash to display in the header. Shown above the title with
+   *  a copy button. The /trace flow knows the hash; /simulate flows that
+   *  haven't landed do not. */
+  txHash?: string;
 }
 
 export function StarknetSimulationResults({
@@ -35,7 +68,9 @@ export function StarknetSimulationResults({
   onExplainTransaction,
   onExplainFrame,
   onResimulate,
+  isResimulating,
   source,
+  txHash,
 }: StarknetSimulationResultsProps) {
   const result = response.results[resultIndex];
   const [tab, setTab] = useState<TabKey>("trace");
@@ -43,26 +78,31 @@ export function StarknetSimulationResults({
 
   // Frame walk-order index — shared between Call tree, Resources heatmap,
   // and the step debugger so "frame #17" means the same thing everywhere.
-  const frames = useMemo(() => {
-    if (!result) return [];
-    return Array.from(walkInvocations(result));
-  }, [result]);
+  const frames = useMemo(
+    () => (result ? Array.from(walkInvocations(result)) : []),
+    [result],
+  );
 
   // Auto-select the first event-emitting frame so the right pane has
   // something interesting on first render.
   useEffect(() => {
     if (!result || selectedFrame) return;
-    const candidate = frames.find((f) => (f.events || []).length > 0) || result.executeInvocation;
+    const candidate =
+      frames.find((f) => (f.events || []).length > 0) || result.executeInvocation;
     if (candidate) setSelectedFrame(candidate);
   }, [result, frames, selectedFrame]);
 
   // URL hash deep-link `#frame=N` — Phalcon-style shareable selection.
   useEffect(() => {
-    const m = window.location.hash.match(/frame=(\d+)/);
-    if (m) {
+    const sync = () => {
+      const m = window.location.hash.match(/frame=(\d+)/);
+      if (!m) return;
       const idx = parseInt(m[1], 10);
       if (frames[idx]) setSelectedFrame(frames[idx]);
-    }
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
   }, [frames]);
 
   const setSelectedFrameWithHash = useCallback(
@@ -70,9 +110,7 @@ export function StarknetSimulationResults({
       setSelectedFrame(f);
       if (f) {
         const idx = frames.indexOf(f);
-        if (idx >= 0) {
-          window.history.replaceState(null, "", `#frame=${idx}`);
-        }
+        if (idx >= 0) window.history.replaceState(null, "", `#frame=${idx}`);
       }
     },
     [frames],
@@ -92,20 +130,14 @@ export function StarknetSimulationResults({
       } else if (e.key === " " || e.key === "ArrowRight" || e.key === "j") {
         e.preventDefault();
         if (frames[wrap(idx + 1)]) setSelectedFrameWithHash(frames[wrap(idx + 1)]);
-      } else if (e.key === "n") {
+      } else if (e.key === "n" && selectedFrame?.calls?.[0]) {
+        e.preventDefault();
+        setSelectedFrameWithHash(selectedFrame.calls[0]);
+      } else if (e.key === "o" && selectedFrame) {
         e.preventDefault();
         const me = selectedFrame;
-        if (me && me.calls && me.calls.length) {
-          const child = me.calls[0];
-          if (child) setSelectedFrameWithHash(child);
-        }
-      } else if (e.key === "o") {
-        e.preventDefault();
-        const me = selectedFrame;
-        if (me) {
-          const parent = frames.find((c) => (c.calls || []).includes(me));
-          if (parent) setSelectedFrameWithHash(parent);
-        }
+        const parent = frames.find((c) => (c.calls || []).includes(me));
+        if (parent) setSelectedFrameWithHash(parent);
       }
     };
     window.addEventListener("keydown", handler);
@@ -114,142 +146,223 @@ export function StarknetSimulationResults({
 
   if (!result) {
     return (
-      <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-6 text-zinc-400">
+      <Card className="p-6 text-muted-foreground">
         No simulation result at index {resultIndex}.
-      </div>
+      </Card>
     );
   }
 
   const sender = (result.executeInvocation || result.validateInvocation)?.contractAddress;
   const ts = new Date(response.blockContext.timestamp * 1000);
-  const totalFrames = frames.length;
 
   return (
-    <div className="text-zinc-100">
-      {/* ================ Header ================ */}
-      <header className="border-b border-zinc-800 pb-4 space-y-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <span className="rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-                simulation
-              </span>
-              <span className="font-mono">{response.simId}</span>
-            </div>
-            <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-              <StatusPill status={result.status} />
-              Starknet Transaction
-              <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">INVOKE v3</span>
-            </h2>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
-              {onResimulate && (
-                <button
-                  className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm hover:bg-zinc-800"
-                  onClick={onResimulate}
-                >
-                  ↻ Re-simulate
-                </button>
+    <TooltipProvider delayDuration={200}>
+      <div className="text-foreground">
+        <header className="border-b border-border pb-4 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline" size="sm">
+                  simulation
+                </Badge>
+                <span className="font-mono">{response.simId}</span>
+              </div>
+              {txHash && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>tx hash</span>
+                  <span className="font-mono text-foreground">{shortHex(txHash, 16, 8)}</span>
+                  <CopyButton value={txHash} className="h-4 w-4" iconSize={10} />
+                </div>
               )}
-              {onExplainTransaction && (
-                <button
-                  className="rounded-md border border-blue-700 bg-blue-900/40 hover:bg-blue-900/60 px-3 py-1.5 text-sm text-blue-200"
-                  onClick={() => onExplainTransaction(result)}
-                >
-                  ✦ Explain transaction →
-                </button>
-              )}
+              <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+                <StatusBadge status={result.status} />
+                Starknet Transaction
+                <Badge variant="outline" size="sm">
+                  INVOKE v3
+                </Badge>
+              </h2>
             </div>
-            <div className="text-xs text-zinc-500">
-              <span>block {response.blockContext.blockNumber.toLocaleString()}</span>
-              <span className="mx-1">·</span>
-              <span>starknet {response.blockContext.starknetVersion}</span>
-              <span className="mx-1">·</span>
-              <span>{ts.toUTCString()}</span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex gap-2">
+                {onResimulate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<ArrowsClockwise size={14} />}
+                    loading={isResimulating}
+                    onClick={() => void onResimulate()}
+                  >
+                    Re-simulate
+                  </Button>
+                )}
+                {onExplainTransaction && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Sparkle size={14} />}
+                    onClick={() => onExplainTransaction(result)}
+                  >
+                    Explain transaction
+                  </Button>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <span>block {response.blockContext.blockNumber.toLocaleString()}</span>
+                <span className="mx-1">·</span>
+                <span>starknet {response.blockContext.starknetVersion}</span>
+                <span className="mx-1">·</span>
+                <span>{ts.toUTCString()}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 3-step status timeline */}
-        <div className="flex items-center gap-2 text-xs">
-          <TimelineStep label="Simulated" active />
-          <div className="h-px flex-1 bg-zinc-800" />
-          <TimelineStep label="Pinned to parent (L2)" />
-          <div className="h-px flex-1 bg-zinc-800" />
-          <TimelineStep label="Would settle on L1" muted />
-        </div>
+          {/* 3-step status timeline (Voyager parity) */}
+          <div className="flex items-center gap-2 text-xs">
+            <TimelineStep label="Simulated" active />
+            <div className="h-px flex-1 bg-border" />
+            <TimelineStep label="Pinned to parent (L2)" />
+            <div className="h-px flex-1 bg-border" />
+            <TimelineStep label="Would settle on L1" muted />
+          </div>
 
-        {/* Compact stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-          <Stat label="Sender" value={sender ? shortHex(sender) : "—"} mono />
-          <Stat label="Fee (FRI)" value={result.feeEstimate.overallFee} mono />
-          <Stat label="VM steps" value={result.executionResources.steps.toLocaleString()} mono />
-          <Stat label="L2 gas" value={result.executionResources.l2Gas.toLocaleString()} mono />
-          <Stat label="Frames" value={totalFrames.toLocaleString()} mono />
-        </div>
-      </header>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+            <Stat
+              label="Sender"
+              value={sender ? shortHex(sender) : "—"}
+              copyValue={sender ?? undefined}
+              tooltip="Account that authored this transaction"
+            />
+            <Stat
+              label="Fee (FRI)"
+              value={result.feeEstimate.overallFee}
+              copyValue={result.feeEstimate.overallFee}
+              tooltip="Overall fee in fri (10⁻¹⁸ STRK)"
+            />
+            <Stat
+              label="VM steps"
+              value={result.executionResources.steps.toLocaleString()}
+              tooltip="Cairo VM step count"
+            />
+            <Stat
+              label="L2 gas"
+              value={result.executionResources.l2Gas.toLocaleString()}
+              tooltip="Sierra L2-gas units consumed"
+            />
+            <Stat
+              label="Frames"
+              value={frames.length.toLocaleString()}
+              tooltip="Distinct call frames in the execution tree"
+            />
+          </div>
+        </header>
 
-      {/* ================ Tabs ================ */}
-      <nav className="flex gap-1 border-b border-zinc-800 text-sm overflow-x-auto mt-4">
-        <TabBtn k="trace"     cur={tab} set={setTab}>🌳 Call tree</TabBtn>
-        <TabBtn k="flow"      cur={tab} set={setTab}>💸 Token flow</TabBtn>
-        <TabBtn k="events"    cur={tab} set={setTab}>📡 Events</TabBtn>
-        <TabBtn k="state"     cur={tab} set={setTab}>📦 State diff</TabBtn>
-        <TabBtn k="resources" cur={tab} set={setTab}>⚙ Resources</TabBtn>
-        <TabBtn k="dev"       cur={tab} set={setTab}>🧪 Developer info</TabBtn>
-        <TabBtn k="raw"       cur={tab} set={setTab}>{`{ } Raw JSON`}</TabBtn>
-      </nav>
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as TabKey)}
+          className="mt-4 gap-4"
+        >
+          <TabsList className="w-full justify-start overflow-x-auto bg-transparent p-0 border-b border-border rounded-none h-auto">
+            <TabTrigger value="trace" icon={<TreeStructure size={14} />}>
+              Call tree
+            </TabTrigger>
+            <TabTrigger value="flow" icon={<CurrencyCircleDollar size={14} />}>
+              Token flow
+            </TabTrigger>
+            <TabTrigger value="events" icon={<RadioButton size={14} />}>
+              Events
+            </TabTrigger>
+            <TabTrigger value="state" icon={<Stack size={14} />}>
+              State diff
+            </TabTrigger>
+            <TabTrigger value="resources" icon={<GearSix size={14} />}>
+              Resources
+            </TabTrigger>
+            <TabTrigger value="dev" icon={<Wrench size={14} />}>
+              Developer info
+            </TabTrigger>
+            <TabTrigger value="raw" icon={<Code size={14} />}>
+              Raw JSON
+            </TabTrigger>
+          </TabsList>
 
-      <div className="mt-4">
-        {tab === "trace" && (
-          <CallTreeTab
-            result={result}
-            frames={frames}
-            selectedFrame={selectedFrame}
-            setSelectedFrame={setSelectedFrameWithHash}
-            onExplainFrame={onExplainFrame}
-          />
-        )}
-        {tab === "flow" && <TokenFlowTab result={result} />}
-        {tab === "events" && <EventsTab result={result} />}
-        {tab === "state" && <StateDiffTab result={result} />}
-        {tab === "resources" && (
-          <ResourcesTab
-            result={result}
-            frames={frames}
-            onJumpToFrame={(f) => {
-              setTab("trace");
-              setSelectedFrameWithHash(f);
-            }}
-          />
-        )}
-        {tab === "dev" && <DevInfoTab response={response} result={result} />}
-        {tab === "raw" && <RawTab response={response} />}
-      </div>
+          <TabsContent value="trace">
+            <CallTreeTab
+              result={result}
+              frames={frames}
+              selectedFrame={selectedFrame}
+              setSelectedFrame={setSelectedFrameWithHash}
+              onExplainFrame={onExplainFrame}
+            />
+          </TabsContent>
+          <TabsContent value="flow">
+            <TokenFlowTab result={result} />
+          </TabsContent>
+          <TabsContent value="events">
+            <EventsTab result={result} />
+          </TabsContent>
+          <TabsContent value="state">
+            <StateDiffTab result={result} />
+          </TabsContent>
+          <TabsContent value="resources">
+            <ResourcesTab
+              result={result}
+              frames={frames}
+              onJumpToFrame={(f) => {
+                setTab("trace");
+                setSelectedFrameWithHash(f);
+              }}
+            />
+          </TabsContent>
+          <TabsContent value="dev">
+            <DevInfoTab response={response} result={result} />
+          </TabsContent>
+          <TabsContent value="raw">
+            <RawTab response={response} />
+          </TabsContent>
+        </Tabs>
 
-      {source && (
-        <footer className="mt-6 border-t border-zinc-800 pt-3 text-[11px] text-zinc-500">
-          Real <span className="font-mono">/simulate</span> response from{" "}
-          <span className="font-mono">starknet-sim-bridge</span>
+        <footer className="mt-6 border-t border-border pt-3 text-[11px] text-muted-foreground">
+          Bridge: <span className="font-mono">starknet-sim-bridge</span>
           {source && <> — {source}</>}.
+          <span className="mx-2">·</span>
+          <span className="font-mono">b</span>/<span className="font-mono">k</span> ← prev ·{" "}
+          <span className="font-mono">space</span>/<span className="font-mono">j</span> → next ·{" "}
+          <span className="font-mono">n</span> step in · <span className="font-mono">o</span> step out
         </footer>
-      )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  const c =
+function StatusBadge({ status }: { status: string }) {
+  const variant: React.ComponentProps<typeof Badge>["variant"] =
     status === "SUCCEEDED"
-      ? "bg-emerald-900/40 text-emerald-300 border border-emerald-700"
-      : "bg-red-900/40 text-red-300 border border-red-700";
-  return <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${c}`}>{status}</span>;
+      ? "success"
+      : status === "REVERTED"
+      ? "warning"
+      : "destructive";
+  return (
+    <Badge variant={variant} size="md" className="font-bold">
+      {status}
+    </Badge>
+  );
 }
 
-function TimelineStep({ label, active, muted }: { label: string; active?: boolean; muted?: boolean }) {
-  const dot = active ? "bg-emerald-500" : muted ? "bg-zinc-700" : "bg-zinc-600";
-  const text = active ? "text-zinc-200" : "text-zinc-500";
+function TimelineStep({
+  label,
+  active,
+  muted,
+}: {
+  label: string;
+  active?: boolean;
+  muted?: boolean;
+}) {
+  const dot = active
+    ? "bg-success"
+    : muted
+    ? "bg-muted-foreground/40"
+    : "bg-muted-foreground/70";
+  const text = active ? "text-foreground" : "text-muted-foreground";
   return (
     <div className="flex items-center gap-2">
       <span className={`inline-block w-3 h-3 rounded-full ${dot}`} />
@@ -258,58 +371,72 @@ function TimelineStep({ label, active, muted }: { label: string; active?: boolea
   );
 }
 
-function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="rounded-md border border-zinc-800 bg-zinc-900 p-2">
-      <div className="uppercase text-zinc-500 text-[10px]">{label}</div>
-      <div className={`mt-0.5 text-zinc-200 ${mono ? "font-mono" : ""}`}>{value}</div>
-    </div>
+function Stat({
+  label,
+  value,
+  tooltip,
+  copyValue,
+}: {
+  label: string;
+  value: string;
+  tooltip?: string;
+  copyValue?: string;
+}) {
+  const inner = (
+    <Card className="p-2 gap-0">
+      <div className="uppercase text-muted-foreground text-[10px]">{label}</div>
+      <div className="mt-0.5 text-foreground font-mono flex items-center gap-1">
+        <span className="truncate">{value}</span>
+        {copyValue && <CopyButton value={copyValue} className="h-5 w-5" />}
+      </div>
+    </Card>
+  );
+  return tooltip ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div>{inner}</div>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
+  ) : (
+    inner
   );
 }
 
-function TabBtn({
-  k,
-  cur,
-  set,
+function TabTrigger({
+  value,
+  icon,
   children,
 }: {
-  k: TabKey;
-  cur: TabKey;
-  set: (k: TabKey) => void;
+  value: string;
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const active = k === cur;
   return (
-    <button
-      type="button"
-      className={`px-3 py-2 border-b-2 ${active ? "border-zinc-100 text-white" : "border-transparent hover:text-white"}`}
-      onClick={() => set(k)}
+    <TabsTrigger
+      value={value}
+      className="data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-foreground border-b-2 border-transparent rounded-none px-3 py-2 text-sm gap-1.5"
     >
+      {icon}
       {children}
-    </button>
+    </TabsTrigger>
   );
 }
 
 function RawTab({ response }: { response: SimulateResponse }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs uppercase text-zinc-500">
-          Raw <span className="font-mono text-zinc-200">/simulate</span> response
+    <Card className="p-4 gap-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase text-muted-foreground">
+          Raw <span className="font-mono text-foreground">/simulate</span> response
         </div>
-        <button
-          className="rounded-sm bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 text-[10px]"
-          onClick={() => navigator.clipboard.writeText(JSON.stringify(response, null, 2))}
-        >
-          copy JSON
-        </button>
+        <CopyButton value={JSON.stringify(response, null, 2)} className="h-6 px-2" />
       </div>
-      <pre className="text-xs leading-relaxed overflow-auto max-h-[70vh]">
+      <pre className="text-xs leading-relaxed overflow-auto max-h-[70vh] font-mono">
         {JSON.stringify(response, null, 2)}
       </pre>
-    </div>
+    </Card>
   );
 }
 
-// Re-export the contract-label helper for consumer convenience.
 export { contractLabel, selectorName };

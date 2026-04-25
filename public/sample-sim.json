@@ -1,0 +1,3119 @@
+{
+  "blockContext": {
+    "blockHash": "0x15fb05912727bffbcca21cc45644089efe2b963fe434aecf382415f74bbe03f",
+    "blockNumber": 9100000,
+    "l1DataGasPrice": {
+      "priceInFri": "0x2af1ba8616",
+      "priceInWei": "0x335b06"
+    },
+    "l1GasPrice": {
+      "priceInFri": "0x48d40d3f4bb7",
+      "priceInWei": "0x5717c866"
+    },
+    "sequencerAddress": "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8",
+    "starknetVersion": "0.14.2",
+    "timestamp": 1776996665
+  },
+  "fixture": {
+    "blockNumber": 9100000,
+    "name": "block-9100000-tx0",
+    "txHash": "0x39d1f6065d1ac4398d3b4d1390aa5bf0da6b09831cb878c948374392bf9af8f"
+  },
+  "results": [
+    {
+      "executeInvocation": {
+        "callType": "Call",
+        "calldata": [
+          "0x3",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x32d688805385a47f61c040502e37cfe653e66ff4cb9faf5a0a7b447527a9f01",
+          "0x6",
+          "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79",
+          "0x6a1b4faa73433579053622023bd453c63549072f05ae1b84c10bd065b30a70",
+          "0x710aebca0d8e6b59afefcf6f8472be263d9bb8176958ab449421b46da704ba6",
+          "0x6806ebd64707f27cd49ed878af36385b4ef1de306bef9441b605a94c58a324f",
+          "0x1115a80c8b1c2428a0596f7c219d036b58263ae0b181866a1cb8cf4926805b7",
+          "0x64fa9b24f98783efdbf51b40cd5e0ee2690b9b4f0c5cb3c7925e4dbb7a5213f",
+          "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+          "0x3dbc508ba4afd040c8dc4ff8a61113a7bcaf5eae88a6ba27b3c50578b3587e3",
+          "0x2b",
+          "0x414e595f43414c4c4552",
+          "0x4c3ec0f607dc945409ac67fff87aae65d6b45abfe2699d2ef6ef915b802603e",
+          "0x400000000000000",
+          "0x0",
+          "0x69ead38f",
+          "0x2",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x12a5a2e008479001f8f1a5f6c61ab6536d5ce46571fcdc0c9300dca0a9e532f",
+          "0x3",
+          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+          "0x1",
+          "0x70502504abd303d00ee9f89f0d52ef52aacf7c5d8651f1dddea00e1c5c8c9db",
+          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+          "0x2d1af4265f4530c75b41282ed3b71617d3d435e96fe13b08848482173692f4f",
+          "0x2",
+          "0x3c1b7",
+          "0x1",
+          "0x19",
+          "0x73657373696f6e2d746f6b656e",
+          "0x69ed32e1",
+          "0x77696c64636172642d706f6c696379",
+          "0x0",
+          "0x14ff4897fab50cb0ed1d6a3fb7c9f4854f0bc8881f6402ac49d8a226fbf6124",
+          "0x0",
+          "0x1",
+          "0x8",
+          "0x1",
+          "0x3",
+          "0xc77860a53d5e1e59e04f8975c4bf28f410f15bf9",
+          "0xd9a7c557a033bf89269ec33cc75765f7",
+          "0xca2b20ab52ba9bb5577e2c75d11f75a0",
+          "0x84f8f73b6e6d557a0d5f14db1656ea4b",
+          "0x47a01e7beed6f360551f44cbc2437b33",
+          "0x1",
+          "0x0",
+          "0x67a8ae3fa00915fc4ef92d43f0b5a8ee55326284f1050d8e4fae3dd9c9a15ee",
+          "0x168a1107d97da7d1446f9e8bfdc59ccdb24cf548bc2654d920064832df2e8d6",
+          "0x484003e4c073849c90bbbfac13d17458469bc05b142f4c4858771d131b4deaa",
+          "0x0",
+          "0x1e6a6f52e47fe42e024287b729bc47e58019fcc7e1cc8b141bb8d669b779b49",
+          "0x2c8e22b809d47bd32828aa4cb5030e7a614dd756f7fe7ddf2e001ce82929408",
+          "0x65bfc876cc5851e7db3acc1556fcd2cbbd6c556b7bb070578d1eec576dd4e2f",
+          "0x0",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x112b534028a89c7062d4f90ab082e3bb5a7c63c1af793c03bd040a66dc50839",
+          "0x1",
+          "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79"
+        ],
+        "callerAddress": "0x0",
+        "calls": [
+          {
+            "callType": "Call",
+            "calldata": [
+              "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79",
+              "0x6a1b4faa73433579053622023bd453c63549072f05ae1b84c10bd065b30a70",
+              "0x710aebca0d8e6b59afefcf6f8472be263d9bb8176958ab449421b46da704ba6",
+              "0x6806ebd64707f27cd49ed878af36385b4ef1de306bef9441b605a94c58a324f",
+              "0x1115a80c8b1c2428a0596f7c219d036b58263ae0b181866a1cb8cf4926805b7",
+              "0x64fa9b24f98783efdbf51b40cd5e0ee2690b9b4f0c5cb3c7925e4dbb7a5213f"
+            ],
+            "callerAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+            "calls": [],
+            "classHash": "0x6982d79b2c1da29974bb766df7e642960ce61de0c4d6211adf1aa8a16ae32b6",
+            "contractAddress": "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+            "decodedSelector": "submit_random",
+            "entryPointSelector": "0x32d688805385a47f61c040502e37cfe653e66ff4cb9faf5a0a7b447527a9f01",
+            "entryPointType": "External",
+            "events": [
+              {
+                "data": [
+                  "0x6a1b4faa73433579053622023bd453c63549072f05ae1b84c10bd065b30a70",
+                  "0x710aebca0d8e6b59afefcf6f8472be263d9bb8176958ab449421b46da704ba6",
+                  "0x6806ebd64707f27cd49ed878af36385b4ef1de306bef9441b605a94c58a324f",
+                  "0x1115a80c8b1c2428a0596f7c219d036b58263ae0b181866a1cb8cf4926805b7",
+                  "0x64fa9b24f98783efdbf51b40cd5e0ee2690b9b4f0c5cb3c7925e4dbb7a5213f"
+                ],
+                "fromAddress": "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+                "keys": [
+                  "0x178cb81b0d146e06862f5058263b5f4aabc132c03456a207484c6d425282af8",
+                  "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79"
+                ]
+              }
+            ],
+            "messages": [],
+            "result": []
+          },
+          {
+            "callType": "Call",
+            "calldata": [
+              "0x414e595f43414c4c4552",
+              "0x4c3ec0f607dc945409ac67fff87aae65d6b45abfe2699d2ef6ef915b802603e",
+              "0x400000000000000",
+              "0x0",
+              "0x69ead38f",
+              "0x2",
+              "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+              "0x12a5a2e008479001f8f1a5f6c61ab6536d5ce46571fcdc0c9300dca0a9e532f",
+              "0x3",
+              "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+              "0x1",
+              "0x70502504abd303d00ee9f89f0d52ef52aacf7c5d8651f1dddea00e1c5c8c9db",
+              "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+              "0x2d1af4265f4530c75b41282ed3b71617d3d435e96fe13b08848482173692f4f",
+              "0x2",
+              "0x3c1b7",
+              "0x1",
+              "0x19",
+              "0x73657373696f6e2d746f6b656e",
+              "0x69ed32e1",
+              "0x77696c64636172642d706f6c696379",
+              "0x0",
+              "0x14ff4897fab50cb0ed1d6a3fb7c9f4854f0bc8881f6402ac49d8a226fbf6124",
+              "0x0",
+              "0x1",
+              "0x8",
+              "0x1",
+              "0x3",
+              "0xc77860a53d5e1e59e04f8975c4bf28f410f15bf9",
+              "0xd9a7c557a033bf89269ec33cc75765f7",
+              "0xca2b20ab52ba9bb5577e2c75d11f75a0",
+              "0x84f8f73b6e6d557a0d5f14db1656ea4b",
+              "0x47a01e7beed6f360551f44cbc2437b33",
+              "0x1",
+              "0x0",
+              "0x67a8ae3fa00915fc4ef92d43f0b5a8ee55326284f1050d8e4fae3dd9c9a15ee",
+              "0x168a1107d97da7d1446f9e8bfdc59ccdb24cf548bc2654d920064832df2e8d6",
+              "0x484003e4c073849c90bbbfac13d17458469bc05b142f4c4858771d131b4deaa",
+              "0x0",
+              "0x1e6a6f52e47fe42e024287b729bc47e58019fcc7e1cc8b141bb8d669b779b49",
+              "0x2c8e22b809d47bd32828aa4cb5030e7a614dd756f7fe7ddf2e001ce82929408",
+              "0x65bfc876cc5851e7db3acc1556fcd2cbbd6c556b7bb070578d1eec576dd4e2f",
+              "0x0"
+            ],
+            "callerAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+            "calls": [
+              {
+                "callType": "Call",
+                "calldata": [
+                  "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                  "0x1",
+                  "0x70502504abd303d00ee9f89f0d52ef52aacf7c5d8651f1dddea00e1c5c8c9db"
+                ],
+                "callerAddress": "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+                "calls": [],
+                "classHash": "0x6982d79b2c1da29974bb766df7e642960ce61de0c4d6211adf1aa8a16ae32b6",
+                "contractAddress": "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+                "decodedSelector": "request_random",
+                "entryPointSelector": "0x12a5a2e008479001f8f1a5f6c61ab6536d5ce46571fcdc0c9300dca0a9e532f",
+                "entryPointType": "External",
+                "events": [],
+                "messages": [],
+                "result": []
+              },
+              {
+                "callType": "Call",
+                "calldata": [
+                  "0x3c1b7",
+                  "0x1"
+                ],
+                "callerAddress": "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+                "calls": [
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x7a58cf209d3d5c8b63e7fd6a6179538fa6817a7900b8b2c8603f08f442fd1f2"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x150ac3fa7ca6b87f9c9032ca891465b455c5254f287e3c1ad7c067301ba49d",
+                    "contractAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                    "decodedSelector": "token_address",
+                    "entryPointSelector": "0xb59f37c0f9d09ea41ec01867728e0af61d0339b945f7d193fd07f4f96cfee8",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x3c1b7",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x429606f5203e9e5f43cfc2fb28023fafed24da6468ff7cf7b0d40b84c3db0bb",
+                    "contractAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                    "decodedSelector": "owner_of",
+                    "entryPointSelector": "0x3552df12bdc6089cf963c40c4cf56fbfd4bd14680c244d1c5494c2790f1ea5c",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x3c1b7"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x429606f5203e9e5f43cfc2fb28023fafed24da6468ff7cf7b0d40b84c3db0bb",
+                    "contractAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                    "decodedSelector": "is_playable",
+                    "entryPointSelector": "0x2174732d111544fa318b2b0351771486d77989c78489895a56ac22576c85307",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x32c1fb3f8d587abe79d35005b1dd0080277ce59593caabce98d3c9c3f433fa3"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x61f3fa630385e9122ea3076e112b27c6d99106a369d68f40fa3feb209fd92d7"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x6135cd4ee82eb5e7652a636a952c893315914f0655a3cc834ce8b6b1e5ff1cb",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0xf40a6ae372ddec2b4fd49153cbec6dd4cfff24d4b634e36e425fc30739a0de"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x70cdc7dc7462a133efe4a3d308875f9ec35c5c87bc0791237adc57f56751909"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x74abc15c0ddef39bdf1ede2a643c07968d3ed5bacb0123db2d5b7154fbb35c7",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x3c1b7"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x48f9eedcda02e2ed3ebc286dab3e38e7129b444bdef510b0ebbeecdfc547be0",
+                          "0x1",
+                          "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779",
+                          "0x0",
+                          "0x1",
+                          "0xfb"
+                        ],
+                        "callerAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                        "calls": [],
+                        "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                        "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "decodedSelector": "entity",
+                        "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x1",
+                          "0xfc00013c207c0954a5a891907d54698855a824c1294a1026072027ca6"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x50b3c0e8095b6ffe5d01fe6ce9ac3e5828be4f99ff7166fb9e4dabf8ec4fa6d",
+                          "0x1",
+                          "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779",
+                          "0x0",
+                          "0x1",
+                          "0xfb"
+                        ],
+                        "callerAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                        "calls": [],
+                        "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                        "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "decodedSelector": "entity",
+                        "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x1",
+                          "0x3d00330042002d00600f47005b0055025115380065040c"
+                        ]
+                      }
+                    ],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "load_assets",
+                    "entryPointSelector": "0x26f44ef7459c56b4f89ce027528afd605332b95a2875631deb3d1be2cbafea5",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0xa6",
+                      "0x9f",
+                      "0x39",
+                      "0x98",
+                      "0x0",
+                      "0x1",
+                      "0x5",
+                      "0x5",
+                      "0x5",
+                      "0x1",
+                      "0x6",
+                      "0x13",
+                      "0x9",
+                      "0xd4",
+                      "0x15",
+                      "0xc4",
+                      "0x1a",
+                      "0xaa",
+                      "0x1f",
+                      "0xc8",
+                      "0x24",
+                      "0xd4",
+                      "0x29",
+                      "0xaa",
+                      "0x2",
+                      "0x3e",
+                      "0x8",
+                      "0x9e",
+                      "0x0",
+                      "0x3f",
+                      "0xc",
+                      "0x8",
+                      "0x65",
+                      "0x0",
+                      "0x38",
+                      "0x2a",
+                      "0x51",
+                      "0x4",
+                      "0x55",
+                      "0x0",
+                      "0x5b",
+                      "0x0",
+                      "0x47",
+                      "0x1e",
+                      "0x60",
+                      "0x0",
+                      "0x2d",
+                      "0x0",
+                      "0x42",
+                      "0x0",
+                      "0x33",
+                      "0x0",
+                      "0x3d",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9",
+                      "0xe",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_specials",
+                    "entryPointSelector": "0x18d0cad94c9f970fe59687cc18ecc0618a2a006295d3bbd4f5dab43cc340183",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x16425c58250bac2f1452cdd531149b5fcbbe39f923cf52a53fb27274902186",
+                      "0x1",
+                      "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779",
+                      "0x0",
+                      "0x2",
+                      "0x40",
+                      "0x40"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "entity",
+                    "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0xb82d0bf68fcc8ce5",
+                      "0xd60f5549f40b8948"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0xd60f5549f40b8948"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_randomness",
+                    "entryPointSelector": "0x2be8122af2de61b879a9a6b1cc8b56201d4157d9317b7ca55098aac877aee56",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0xe2a7df21",
+                      "0xef8e1eb9",
+                      "0x3f5d",
+                      "0x82b5",
+                      "0x3b",
+                      "0xf0",
+                      "0x31",
+                      "0x8a"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_type",
+                    "entryPointSelector": "0x7a97684e10a1173961ebc788b12a5e94fbf06cc7f36c60e0275dc7be05e53e",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0xc",
+                      "0x1",
+                      "0xe2a7df21",
+                      "0x3f5d",
+                      "0x82b5",
+                      "0x3b",
+                      "0xf0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x1f52166c3ca5a46526327e66337f1b54bde2ae960948fd0f2be15037a8cdd0a",
+                    "contractAddress": "0x74abc15c0ddef39bdf1ede2a643c07968d3ed5bacb0123db2d5b7154fbb35c7",
+                    "decodedSelector": "get_beast",
+                    "entryPointSelector": "0x385b69551f247794fe651459651cdabc76b6cdf4abacafb5b28ceb3b1ac2e98",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x32",
+                      "0x98",
+                      "0x5",
+                      "0x2",
+                      "0x12",
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_item",
+                    "entryPointSelector": "0x2f2552ae4298071e46d0829a4d7125a444945e4f4fe2c820f96a3f0d06d32e3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x9",
+                      "0x1",
+                      "0x1",
+                      "0x1"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1cff0b40540c4ed4504ca534e4bd3fe1bde98176ef7d7d91c24c7ff2ba593c2"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "resource",
+                    "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2",
+                      "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                      "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x3c1b7"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x7a58cf209d3d5c8b63e7fd6a6179538fa6817a7900b8b2c8603f08f442fd1f2"
+                        ],
+                        "callerAddress": "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                        "calls": [],
+                        "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                        "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "decodedSelector": "resource",
+                        "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x2",
+                          "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                          "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [],
+                        "callerAddress": "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                        "calls": [],
+                        "classHash": "0x150ac3fa7ca6b87f9c9032ca891465b455c5254f287e3c1ad7c067301ba49d",
+                        "contractAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                        "decodedSelector": "token_address",
+                        "entryPointSelector": "0xb59f37c0f9d09ea41ec01867728e0af61d0339b945f7d193fd07f4f96cfee8",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x3c1b7"
+                        ],
+                        "callerAddress": "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                        "calls": [],
+                        "classHash": "0x429606f5203e9e5f43cfc2fb28023fafed24da6468ff7cf7b0d40b84c3db0bb",
+                        "contractAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "decodedSelector": "settings_id",
+                        "entryPointSelector": "0x2887b93e0b0e5c7ed5eacfea90bc7345e38772a9ef6c27dba3b1ced487a1b27",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x1"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x88b786d8ae08a835fe46bda0e6b0d4557eeed81bbaa862e85f84d7a22dd18a",
+                          "0x1",
+                          "0x579e8877c7755365d5ec1ec7d3a94a457eff5d1f40482bbe9729c064cdead2",
+                          "0x1",
+                          "0x9",
+                          "0x5a4822efe75d6c59f0f2ba75d62b77802417dfff083f8bafa8888be7c1fa88",
+                          "0x0",
+                          "0x1",
+                          "0xfb",
+                          "0x1a82266d2da31bf0340cc21e4ed21b2b94e4e461e52519e39146953d9d63ca0",
+                          "0x1",
+                          "0x9",
+                          "0x5b4bf3e8c5705ff2b172ed7c0ff76f0096efed0943457e640b66da01b97d2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x27b848d338b362a9edc3f5d9143a504828207dd0d1d6515b2b3968154d59b0",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x23d0b291dbb3a565f79b66272189244484470b65e6f308a95d7c344d16fbfef",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x28a80c470656f4d90e08e4eda6bc512463a52eb7de490863013697225d5a400",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x171da1a501db4dfb9a53fbeb3d4dc8b8f0879ab738914bf6345a84772667d54",
+                          "0x1",
+                          "0x7",
+                          "0x3655133442e898fe76d8e9a919de4cf831884e4553d7cef18dfffc3723037a4",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25ff6548ffe57b3b42905614999cc4d8065d333b89891b0ca9a72a0005f3c47",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x234c462fd02415f92e5beebc428fb46c6e96fd5bbfd2da1430ea9a12310b06",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0xeb5e1eeec83e708c8498cdb48e4376c65b201e9d1928b2b588dec49f8c89ae",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x3483fbe65d9df2381a81772ecbc69cec2e8b69ffe4f81932d6ed4efba4de055",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x3bf859a181cd497d2f510506852ac1ab513d235fc5bf1633c80af6e14664857",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x1cb4257efe68578a1d99c317471258329374a4a01725588dd2c55709014067b",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0xbba8234599abf796399d317abec093aeb0a9dfd217bd73e8e36946b5d598fa",
+                          "0x1",
+                          "0x8",
+                          "0xb3e263ce3e60d2890dc7cb824c91035f8c8629f16c974f8668287fbf1b859d",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x21226d74cf05301c8448a9778872da6699d05cfea041ecdf4d123b86c42af12",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1ddd711764f374af026b66ad9ae88a648267af49f32f226868b582df8d8d310",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2995beed4027c14fb744e7896f101e3522fecbbad0f0c92a2b3c1a00207e5e9",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0xbe932595d88e8e8d618d8010d4a9499569dcf0385efe49a9ea99564fb4fc29",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x163f8f16e36bbef5c60545f91098f3ec033ba5e2f0036bd3e8d3cbb0524d51c",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2decab1b79899fecc66f8b0762ddb59e69493831136998b72fc540dcdb7ab48",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x3746dc287c96eb9abd008d3a0349b2a3e958886e9d47b71bd81a0826cf465c8",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x199653ae7252bd64f8776c087656fbee4d5e661d109281bd07060edcd4be945",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x735e2eeb9f0376956df3d16dc3d30d5b25610706ceec26cbb4ac83c77e045c",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x134c2892cf795cdde71acb178208e17557d668f3fa6b4e0cc5bcb97d26b4f7b",
+                          "0x1",
+                          "0x10",
+                          "0x3f970fa52a4f0fe7e7988bfc999a724d921a5311e964a31bde5380f00a9e694",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2a9c9a931b6f159e59ef33cf7ec3609e0fbcbcfd9211725f0e8bdbe578bb76c",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x22bf32af8a5141c097a4589e5c0edab3a087d823b7ce30bcefa875fd99e6b0c",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1915bcb788c086260ab42e6f824ec92eeb75c7dab670077d449a703c7b9447f",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2c23fac5b03bbc0e1a70e2101f116dd25681f46ccfcf97a97ed9f29133d449b",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1b7b757bb305e6f78f56dad8cbeec1b676ce4a8b5968797dcf7f3f36ef255ec",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2fc5f2eab6f8494f86de33b5b1f9949b04f1bc8a4d96850112ab71dbf66879a",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x81d3fb009429ee8bfffa799bc14d526c3e0baff9a4e8a187881f394aaf52e9",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x3b875917f27602420a8e3b3f7fa021a0a50526a1050d82e4278a634a84b988c",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1ec2113aca04862eb16d869555c82d87d410aad775ca6e7cc219c446a71b9b0",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x2b4c5264b8a46c2ec7469ebc8fecb2b97911d130048268bb389b576dafec150",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1ccd2622b3fd2d8bb78c75f2df0ac6fcff3f5a7efa3ab08a7b1faee2574afd1",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x28daf9870db2398e5ce6d56b6ad51120dbb84c0714f4c59acc3b5f39735864",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x74b3876ed5bbb62a510688d8cebde2d1339b7dc6d74268b213efea5b23d510",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x3183e94b1dcc26362a3a420dea8602b521bfa2e2ec1826f3657e5b15e7846d2",
+                          "0x1",
+                          "0x2",
+                          "0x309fd3aa96d9faf770e44a5aef2f4808a6fe3a5ddf546568f36ad3a3873f31d",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x25a60ee2cdd0bd880036f73117291fbab668d4b0c8dab5defb5be1b3c1784e2",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x3aa448b861273064b4f61386d427cff42aa9a2d0d48213ba761d5b961de2e97",
+                          "0x0",
+                          "0x1",
+                          "0x1",
+                          "0x32d55eb0f5cc4d4b9d923d93ac18783ea895d9a9a452653087b353e391542b1",
+                          "0x0",
+                          "0x1",
+                          "0x40",
+                          "0x1d0a508233726665189fd16df08e4d55d263aadbf5fea8aead70a7a86942fe1",
+                          "0x0",
+                          "0x1",
+                          "0x10",
+                          "0x1e0b92a3295680ccb241aad301493d74c8c01b46497556d936abd42cdd05ae4",
+                          "0x0",
+                          "0x1",
+                          "0x1",
+                          "0x1b230723038b2c4a4137a572a2a3980e4fe644d588e34320bfeee5e46d6de5b",
+                          "0x5",
+                          "0x2",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x1",
+                          "0x0",
+                          "0x0",
+                          "0x3e713747b162b9239547fdc90e53d2b06d6ef0a3ca1fdb48112b0fe96b0075c",
+                          "0x0",
+                          "0x1",
+                          "0x8",
+                          "0x16ac3f8b0262ede9e314aecd0c33bb1d9c4c2abeeeabc7c3eb4f664db18e902",
+                          "0x0",
+                          "0x1",
+                          "0x8"
+                        ],
+                        "callerAddress": "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                        "calls": [],
+                        "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                        "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "decodedSelector": "entity",
+                        "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x44",
+                          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+                          "0x64",
+                          "0x0",
+                          "0x28",
+                          "0x3",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x0",
+                          "0x23",
+                          "0x19"
+                        ]
+                      }
+                    ],
+                    "classHash": "0x3aa5922571e6a9fabb254c2278cbe114cd6fbbfde711d70dcc109ea0b6f3df9",
+                    "contractAddress": "0x3caf941b916a83550d8f6325802e0cb686c9a0c8b30a23fb9df531ae24d12d0",
+                    "decodedSelector": "game_settings",
+                    "entryPointSelector": "0x28e5e34a402c81c3c147a1cab2b73a28c51f31f05c7011f8c33668fa1dc69d9",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1",
+                      "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+                      "0x64",
+                      "0x0",
+                      "0x28",
+                      "0x3",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x23",
+                      "0x19"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1",
+                      "0x70502504abd303d00ee9f89f0d52ef52aacf7c5d8651f1dddea00e1c5c8c9db"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x6982d79b2c1da29974bb766df7e642960ce61de0c4d6211adf1aa8a16ae32b6",
+                    "contractAddress": "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+                    "decodedSelector": "consume_random",
+                    "entryPointSelector": "0x101614949a268e58d95c8e36dac2771e0edeaba9788e74c62d4f263007ab3e2",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2d936664974a1d094cdcd98c0ed37b66077d8ef12f1981c404b4955cd5b959d"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0x41",
+                      "0x6077d8ef12f1981c"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_battle_randomness",
+                    "entryPointSelector": "0x2b0dec1f067f90caefdc5bbf1f35056703fa75a41c282b02e06704437835417",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x4a",
+                      "0x15",
+                      "0x23",
+                      "0x44"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x24",
+                      "0xe",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_specials",
+                    "entryPointSelector": "0x18d0cad94c9f970fe59687cc18ecc0618a2a006295d3bbd4f5dab43cc340183",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x24"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_item",
+                    "entryPointSelector": "0x2f2552ae4298071e46d0829a4d7125a444945e4f4fe2c820f96a3f0d06d32e3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x24",
+                      "0x5",
+                      "0x1",
+                      "0x5"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0x42",
+                      "0x6077d8ef12f1981c"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_battle_randomness",
+                    "entryPointSelector": "0x2b0dec1f067f90caefdc5bbf1f35056703fa75a41c282b02e06704437835417",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x8b",
+                      "0x17",
+                      "0x9d",
+                      "0xe8"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1f",
+                      "0xe",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_specials",
+                    "entryPointSelector": "0x18d0cad94c9f970fe59687cc18ecc0618a2a006295d3bbd4f5dab43cc340183",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1f"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_item",
+                    "entryPointSelector": "0x2f2552ae4298071e46d0829a4d7125a444945e4f4fe2c820f96a3f0d06d32e3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1f",
+                      "0x5",
+                      "0x1",
+                      "0x4"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0x43",
+                      "0x6077d8ef12f1981c"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_battle_randomness",
+                    "entryPointSelector": "0x2b0dec1f067f90caefdc5bbf1f35056703fa75a41c282b02e06704437835417",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0xb3",
+                      "0x62",
+                      "0xb0",
+                      "0x6e"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x15",
+                      "0xe",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_specials",
+                    "entryPointSelector": "0x18d0cad94c9f970fe59687cc18ecc0618a2a006295d3bbd4f5dab43cc340183",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x15"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_item",
+                    "entryPointSelector": "0x2f2552ae4298071e46d0829a4d7125a444945e4f4fe2c820f96a3f0d06d32e3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x15",
+                      "0x5",
+                      "0x1",
+                      "0x2"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0x44",
+                      "0x6077d8ef12f1981c"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_battle_randomness",
+                    "entryPointSelector": "0x2b0dec1f067f90caefdc5bbf1f35056703fa75a41c282b02e06704437835417",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x76",
+                      "0xca",
+                      "0x1b",
+                      "0x1a"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1a",
+                      "0xd",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_specials",
+                    "entryPointSelector": "0x18d0cad94c9f970fe59687cc18ecc0618a2a006295d3bbd4f5dab43cc340183",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1a"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_item",
+                    "entryPointSelector": "0x2f2552ae4298071e46d0829a4d7125a444945e4f4fe2c820f96a3f0d06d32e3",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1a",
+                      "0x5",
+                      "0x1",
+                      "0x3"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9f",
+                      "0x45",
+                      "0x6077d8ef12f1981c"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "get_battle_randomness",
+                    "entryPointSelector": "0x2b0dec1f067f90caefdc5bbf1f35056703fa75a41c282b02e06704437835417",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x28",
+                      "0xfc",
+                      "0xa8",
+                      "0xaf"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x9"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x15"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x2"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1a"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x3"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x1f"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x4"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x24"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x5"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x29"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x6"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x2"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x7"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x8"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x23cdb494302994de197966707c72df5708f2516f5205ed398dacb4c16fc4bcc",
+                    "contractAddress": "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                    "decodedSelector": "get_slot",
+                    "entryPointSelector": "0x114e93eb40ffe7d58f1486efe6e559a3db5b339b5024b727e000c9611abb3fc",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x8"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xe",
+                      "0x37",
+                      "0x0",
+                      "0x1"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xe",
+                          "0x37",
+                          "0x0",
+                          "0x1"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xf",
+                      "0xd",
+                      "0x5",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xf",
+                          "0xd",
+                          "0x5",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xe",
+                      "0x37",
+                      "0x0",
+                      "0x1"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xe",
+                          "0x37",
+                          "0x0",
+                          "0x1"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xf",
+                      "0xd",
+                      "0x4",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xf",
+                          "0xd",
+                          "0x4",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xe",
+                      "0x14",
+                      "0x0",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xe",
+                          "0x14",
+                          "0x0",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xf",
+                      "0xd",
+                      "0x2",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xf",
+                          "0xd",
+                          "0x2",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xe",
+                      "0x14",
+                      "0x0",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xe",
+                          "0x14",
+                          "0x0",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xf",
+                      "0x29",
+                      "0x3",
+                      "0x1"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xf",
+                          "0x29",
+                          "0x3",
+                          "0x1"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0xe",
+                      "0x14",
+                      "0x0",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0xe",
+                          "0x14",
+                          "0x0",
+                          "0x0"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x5",
+                      "0x40",
+                      "0x5",
+                      "0x32",
+                      "0xc",
+                      "0x6"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x5",
+                          "0x40",
+                          "0x5",
+                          "0x32",
+                          "0xc",
+                          "0x6"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x20",
+                      "0x40",
+                      "0x0",
+                      "0x56",
+                      "0xa5",
+                      "0x45",
+                      "0x0",
+                      "0x0",
+                      "0x1",
+                      "0x5",
+                      "0x5",
+                      "0x5",
+                      "0x1",
+                      "0x6",
+                      "0x13",
+                      "0x9",
+                      "0xe0",
+                      "0x15",
+                      "0xd0",
+                      "0x1a",
+                      "0xb6",
+                      "0x1f",
+                      "0xd4",
+                      "0x24",
+                      "0xe0",
+                      "0x29",
+                      "0xb6",
+                      "0x2",
+                      "0x4a",
+                      "0x8",
+                      "0xaa",
+                      "0x0",
+                      "0x40"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "emit_event",
+                    "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x20",
+                          "0x40",
+                          "0x0",
+                          "0x56",
+                          "0xa5",
+                          "0x45",
+                          "0x0",
+                          "0x0",
+                          "0x1",
+                          "0x5",
+                          "0x5",
+                          "0x5",
+                          "0x1",
+                          "0x6",
+                          "0x13",
+                          "0x9",
+                          "0xe0",
+                          "0x15",
+                          "0xd0",
+                          "0x1a",
+                          "0xb6",
+                          "0x1f",
+                          "0xd4",
+                          "0x24",
+                          "0xe0",
+                          "0x29",
+                          "0xb6",
+                          "0x2",
+                          "0x4a",
+                          "0x8",
+                          "0xaa",
+                          "0x0",
+                          "0x40"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                          "0x53f716bb3e8a7730e612809aa0416ce2cbf4aff462e4784d5f2f29d5e96605c",
+                          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x56",
+                      "0xa5",
+                      "0x45",
+                      "0x0",
+                      "0x0",
+                      "0x1",
+                      "0x5",
+                      "0x5",
+                      "0x5",
+                      "0x1",
+                      "0x6",
+                      "0x13",
+                      "0x9",
+                      "0xe0",
+                      "0x15",
+                      "0xd0",
+                      "0x1a",
+                      "0xb6",
+                      "0x1f",
+                      "0xd4",
+                      "0x24",
+                      "0xe0",
+                      "0x29",
+                      "0xb6",
+                      "0x2",
+                      "0x4a",
+                      "0x8",
+                      "0xaa",
+                      "0x0",
+                      "0x40",
+                      "0xc",
+                      "0x8",
+                      "0x65",
+                      "0x0",
+                      "0x38",
+                      "0x2a",
+                      "0x51",
+                      "0x4",
+                      "0x55",
+                      "0x0",
+                      "0x5b",
+                      "0x0",
+                      "0x47",
+                      "0x1e",
+                      "0x60",
+                      "0x0",
+                      "0x2d",
+                      "0x0",
+                      "0x42",
+                      "0x0",
+                      "0x33",
+                      "0x0",
+                      "0x3d",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0",
+                      "0x0"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "remove_stat_boosts",
+                    "entryPointSelector": "0x456f31a7a765cec977861e3e3839cec4406e7241033134706016fe82465468",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x56",
+                      "0xa5",
+                      "0x45",
+                      "0x0",
+                      "0x0",
+                      "0x1",
+                      "0x5",
+                      "0x5",
+                      "0x5",
+                      "0x1",
+                      "0x6",
+                      "0x13",
+                      "0x9",
+                      "0xe0",
+                      "0x15",
+                      "0xd0",
+                      "0x1a",
+                      "0xb6",
+                      "0x1f",
+                      "0xd4",
+                      "0x24",
+                      "0xe0",
+                      "0x29",
+                      "0xb6",
+                      "0x2",
+                      "0x4a",
+                      "0x8",
+                      "0xaa",
+                      "0x0",
+                      "0x40"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x56",
+                      "0xa5",
+                      "0x45",
+                      "0x0",
+                      "0x0",
+                      "0x1",
+                      "0x5",
+                      "0x5",
+                      "0x5",
+                      "0x1",
+                      "0x6",
+                      "0x13",
+                      "0x9",
+                      "0xe0",
+                      "0x15",
+                      "0xd0",
+                      "0x1a",
+                      "0xb6",
+                      "0x1f",
+                      "0xd4",
+                      "0x24",
+                      "0xe0",
+                      "0x29",
+                      "0xb6",
+                      "0x2",
+                      "0x4a",
+                      "0x8",
+                      "0xaa",
+                      "0x0",
+                      "0x40"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                    "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                    "decodedSelector": "pack_adventurer",
+                    "entryPointSelector": "0x255430d4de39504f17b735e3429a1fdb698a0502b71a6973dcc30240d3db845",
+                    "entryPointType": "External",
+                    "events": [],
+                    "messages": [],
+                    "result": [
+                      "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456"
+                    ]
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x48f9eedcda02e2ed3ebc286dab3e38e7129b444bdef510b0ebbeecdfc547be0",
+                      "0x0",
+                      "0x1",
+                      "0x3c1b7",
+                      "0x1",
+                      "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456",
+                      "0x0",
+                      "0x1",
+                      "0xfb"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [],
+                    "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                    "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                    "decodedSelector": "set_entity",
+                    "entryPointSelector": "0xd065c837ba98927ca43d2e15d8e840ca8e67646b8e00108f1b55d18a75d80f",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [
+                          "0x1",
+                          "0x3c1b7",
+                          "0x1",
+                          "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456"
+                        ],
+                        "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                        "keys": [
+                          "0x1a2f334228cee715f1f0f54053bb6b5eac54fa336e0bc1aacf7516decb0471d",
+                          "0x48f9eedcda02e2ed3ebc286dab3e38e7129b444bdef510b0ebbeecdfc547be0",
+                          "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  },
+                  {
+                    "callType": "Call",
+                    "calldata": [
+                      "0x3c1b7"
+                    ],
+                    "callerAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                    "calls": [
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x2"
+                        ],
+                        "callerAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "calls": [],
+                        "classHash": "0x47e4da4c099d959acbdae9dc8c92481a18756b8cb6e816b3c659c40bf4dce1a",
+                        "contractAddress": "0x6e9c39be20dee2800407fe6cb22214a96a71d339940d6f21fcb354604b6cc7e",
+                        "decodedSelector": "game_address_from_id",
+                        "entryPointSelector": "0xeae82002af973fe1002a0542447f64187a47c4a4922ffe234ffe9ceb213bca",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x2c0f9265d397c10970f24822e4b57cac7d8895f8c449b7c9caaa26910499704"
+                        ],
+                        "callerAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "calls": [],
+                        "classHash": "0x150ac3fa7ca6b87f9c9032ca891465b455c5254f287e3c1ad7c067301ba49d",
+                        "contractAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                        "decodedSelector": "supports_interface",
+                        "entryPointSelector": "0xfe80f537b66d12a00b6d3c072b44afbb716e78dde5c3f0ef116ee93d3e3283",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x1"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x3c1b7"
+                        ],
+                        "callerAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "calls": [
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x32c1fb3f8d587abe79d35005b1dd0080277ce59593caabce98d3c9c3f433fa3"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x61f3fa630385e9122ea3076e112b27c6d99106a369d68f40fa3feb209fd92d7"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x6135cd4ee82eb5e7652a636a952c893315914f0655a3cc834ce8b6b1e5ff1cb",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0xf40a6ae372ddec2b4fd49153cbec6dd4cfff24d4b634e36e425fc30739a0de"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x70cdc7dc7462a133efe4a3d308875f9ec35c5c87bc0791237adc57f56751909"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x74abc15c0ddef39bdf1ede2a643c07968d3ed5bacb0123db2d5b7154fbb35c7",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x3c1b7"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [
+                              {
+                                "callType": "Call",
+                                "calldata": [
+                                  "0x48f9eedcda02e2ed3ebc286dab3e38e7129b444bdef510b0ebbeecdfc547be0",
+                                  "0x1",
+                                  "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779",
+                                  "0x0",
+                                  "0x1",
+                                  "0xfb"
+                                ],
+                                "callerAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                                "calls": [],
+                                "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                                "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                                "decodedSelector": "entity",
+                                "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                                "entryPointType": "External",
+                                "events": [],
+                                "messages": [],
+                                "result": [
+                                  "0x1",
+                                  "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456"
+                                ]
+                              }
+                            ],
+                            "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                            "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                            "decodedSelector": "get_adventurer",
+                            "entryPointSelector": "0x3d3148be1dfdfcfcd22f79afe7aee5a3147ef412bfb2ea27949e7f8c8937a7",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x56",
+                              "0xa5",
+                              "0x45",
+                              "0x0",
+                              "0x0",
+                              "0x1",
+                              "0x5",
+                              "0x5",
+                              "0x5",
+                              "0x1",
+                              "0x6",
+                              "0x0",
+                              "0x9",
+                              "0xe0",
+                              "0x15",
+                              "0xd0",
+                              "0x1a",
+                              "0xb6",
+                              "0x1f",
+                              "0xd4",
+                              "0x24",
+                              "0xe0",
+                              "0x29",
+                              "0xb6",
+                              "0x2",
+                              "0x4a",
+                              "0x8",
+                              "0xaa",
+                              "0x0",
+                              "0x40"
+                            ]
+                          }
+                        ],
+                        "classHash": "0x150ac3fa7ca6b87f9c9032ca891465b455c5254f287e3c1ad7c067301ba49d",
+                        "contractAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                        "decodedSelector": "game_over",
+                        "entryPointSelector": "0xdabba9ce03ade36611d5d401193a84cd9e1d9ee37a87ce9bbab55690fcfae0",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0x0"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x3c1b7"
+                        ],
+                        "callerAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "calls": [
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x32c1fb3f8d587abe79d35005b1dd0080277ce59593caabce98d3c9c3f433fa3"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x4c386505ce1cc0be91e7ae8727c9feec66692a92c851b01e7f764ea0143dbe4",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x61f3fa630385e9122ea3076e112b27c6d99106a369d68f40fa3feb209fd92d7"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x6135cd4ee82eb5e7652a636a952c893315914f0655a3cc834ce8b6b1e5ff1cb",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0xf40a6ae372ddec2b4fd49153cbec6dd4cfff24d4b634e36e425fc30739a0de"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x70cdc7dc7462a133efe4a3d308875f9ec35c5c87bc0791237adc57f56751909"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "resource",
+                            "entryPointSelector": "0x21e407d61f27eefb9ebf3cf25f5c7560bafafe518410eb7c781777da1102bd3",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x2",
+                              "0x74abc15c0ddef39bdf1ede2a643c07968d3ed5bacb0123db2d5b7154fbb35c7",
+                              "0x2a857110cef182f6ffe43600eda69d5b9b7497d209eecdc9a538710ed78d6ac"
+                            ]
+                          },
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x3c1b7"
+                            ],
+                            "callerAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                            "calls": [
+                              {
+                                "callType": "Call",
+                                "calldata": [
+                                  "0x48f9eedcda02e2ed3ebc286dab3e38e7129b444bdef510b0ebbeecdfc547be0",
+                                  "0x1",
+                                  "0x3b200dc051a20106b29034b3a2327d24e9bd06136e71a1ddf2fd372e3684779",
+                                  "0x0",
+                                  "0x1",
+                                  "0xfb"
+                                ],
+                                "callerAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                                "calls": [],
+                                "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                                "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                                "decodedSelector": "entity",
+                                "entryPointSelector": "0x326593e1b7478914a9c4ff6d556d1561d942e60fae7253b1eb00c19702dbf1f",
+                                "entryPointType": "External",
+                                "events": [],
+                                "messages": [],
+                                "result": [
+                                  "0x1",
+                                  "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456"
+                                ]
+                              }
+                            ],
+                            "classHash": "0x5c990a68675a41ca800bdfe410a116fbe500d1ad040faa571ca8e6cd9729be8",
+                            "contractAddress": "0x3fc7ecd6d577daa1ee855a9fa13a914d01acda06715c9fc74f1ee1a5e346a01",
+                            "decodedSelector": "get_adventurer",
+                            "entryPointSelector": "0x3d3148be1dfdfcfcd22f79afe7aee5a3147ef412bfb2ea27949e7f8c8937a7",
+                            "entryPointType": "External",
+                            "events": [],
+                            "messages": [],
+                            "result": [
+                              "0x56",
+                              "0xa5",
+                              "0x45",
+                              "0x0",
+                              "0x0",
+                              "0x1",
+                              "0x5",
+                              "0x5",
+                              "0x5",
+                              "0x1",
+                              "0x6",
+                              "0x0",
+                              "0x9",
+                              "0xe0",
+                              "0x15",
+                              "0xd0",
+                              "0x1a",
+                              "0xb6",
+                              "0x1f",
+                              "0xd4",
+                              "0x24",
+                              "0xe0",
+                              "0x29",
+                              "0xb6",
+                              "0x2",
+                              "0x4a",
+                              "0x8",
+                              "0xaa",
+                              "0x0",
+                              "0x40"
+                            ]
+                          }
+                        ],
+                        "classHash": "0x150ac3fa7ca6b87f9c9032ca891465b455c5254f287e3c1ad7c067301ba49d",
+                        "contractAddress": "0x5e2dfbdc3c193de629e5beb116083b06bd944c1608c9c793351d5792ba29863",
+                        "decodedSelector": "score",
+                        "entryPointSelector": "0x93765824cbeef1794ad2abf56eeaec6b82649f55c3773b8022b209982e4720",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": [
+                          "0xa5"
+                        ]
+                      },
+                      {
+                        "callType": "Call",
+                        "calldata": [
+                          "0x3c1b7",
+                          "0xa5"
+                        ],
+                        "callerAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "calls": [
+                          {
+                            "callType": "Call",
+                            "calldata": [
+                              "0x3e509804fbdba096142d78c1563c907a80c266c5dfcbda494d1d4e4d13a2215",
+                              "0x1",
+                              "0x3c1b7",
+                              "0x1",
+                              "0xa5"
+                            ],
+                            "callerAddress": "0x2f1c516fa4d2c41f2021edc3b46f33326e73755e55982374381150e6d8d12df",
+                            "calls": [],
+                            "classHash": "0x613551abceb2b37073b1149bb862ea70cf029981ce1ca47e9dd7c7ab97cb65d",
+                            "contractAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                            "decodedSelector": "emit_event",
+                            "entryPointSelector": "0x966af5d72d3975f70858b044c77785d3710638bbcebbd33cc7001a91025588",
+                            "entryPointType": "External",
+                            "events": [
+                              {
+                                "data": [
+                                  "0x1",
+                                  "0x3c1b7",
+                                  "0x1",
+                                  "0xa5"
+                                ],
+                                "fromAddress": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+                                "keys": [
+                                  "0x1c93f6e4703ae90f75338f29bffbe9c1662200cee981f49afeec26e892debcd",
+                                  "0x3e509804fbdba096142d78c1563c907a80c266c5dfcbda494d1d4e4d13a2215",
+                                  "0x2f1c516fa4d2c41f2021edc3b46f33326e73755e55982374381150e6d8d12df"
+                                ]
+                              }
+                            ],
+                            "messages": [],
+                            "result": []
+                          }
+                        ],
+                        "classHash": "0x7896ae6c54ce43558fb2d9bba62f8a2d1c7bf7786132fa98efbbbce03909a",
+                        "contractAddress": "0x2f1c516fa4d2c41f2021edc3b46f33326e73755e55982374381150e6d8d12df",
+                        "decodedSelector": "emit_token_score_update",
+                        "entryPointSelector": "0x146762d87900e6a2da909d952b108744799668391fc05e5cc0eeaa38d509e9d",
+                        "entryPointType": "External",
+                        "events": [],
+                        "messages": [],
+                        "result": []
+                      }
+                    ],
+                    "classHash": "0x429606f5203e9e5f43cfc2fb28023fafed24da6468ff7cf7b0d40b84c3db0bb",
+                    "contractAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                    "decodedSelector": "update_game",
+                    "entryPointSelector": "0x1c334a7a3e9e77296ae1d1dff962b77a07823c86a0e1de29bd5944f1649c34a",
+                    "entryPointType": "External",
+                    "events": [
+                      {
+                        "data": [],
+                        "fromAddress": "0x36017e69d21d6d8c13e266eabb73ef1f1d02722d86bdcabe5f168f8e549d3cd",
+                        "keys": [
+                          "0x290118457a640990dbcdeb696bd7f53f1d7d71d19b7d566efd42da398c908d3",
+                          "0x3c1b7",
+                          "0x0"
+                        ]
+                      }
+                    ],
+                    "messages": [],
+                    "result": []
+                  }
+                ],
+                "classHash": "0x622e1d5971e4f99f8b3d6c9ed39738deebb61deea94acff22f70ebcc3537ef",
+                "contractAddress": "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+                "decodedSelector": "attack",
+                "entryPointSelector": "0x2d1af4265f4530c75b41282ed3b71617d3d435e96fe13b08848482173692f4f",
+                "entryPointType": "External",
+                "events": [],
+                "messages": [],
+                "result": []
+              }
+            ],
+            "classHash": "0x743c83c41ce99ad470aa308823f417b2141e02e04571f5c0004e743556e7faf",
+            "contractAddress": "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+            "decodedSelector": "execute_from_outside_v3",
+            "entryPointSelector": "0x3dbc508ba4afd040c8dc4ff8a61113a7bcaf5eae88a6ba27b3c50578b3587e3",
+            "entryPointType": "External",
+            "events": [
+              {
+                "data": [
+                  "0x2",
+                  "0x0",
+                  "0x0"
+                ],
+                "fromAddress": "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+                "keys": [
+                  "0x1dcde06aabdbca2f80aa51392b345d7549d7757aa855f7e37f5d335ac8243b1",
+                  "0x5fcabd68137ec8033a6d86a8e274c0bcc09487841c7482305f0d574f03d0891"
+                ]
+              }
+            ],
+            "messages": [],
+            "result": [
+              "0x2",
+              "0x0",
+              "0x0"
+            ]
+          },
+          {
+            "callType": "Call",
+            "calldata": [
+              "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79"
+            ],
+            "callerAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+            "calls": [],
+            "classHash": "0x6982d79b2c1da29974bb766df7e642960ce61de0c4d6211adf1aa8a16ae32b6",
+            "contractAddress": "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+            "decodedSelector": "assert_consumed",
+            "entryPointSelector": "0x112b534028a89c7062d4f90ab082e3bb5a7c63c1af793c03bd040a66dc50839",
+            "entryPointType": "External",
+            "events": [],
+            "messages": [],
+            "result": []
+          }
+        ],
+        "classHash": "0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6",
+        "contractAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+        "decodedSelector": "__execute__",
+        "entryPointSelector": "0x15d40a3d6ca2ac30f4031e42be28da9b056fef9bb7357ac5e85627ee876e5ad",
+        "entryPointType": "External",
+        "events": [],
+        "messages": [],
+        "result": [
+          "0x3",
+          "0x0",
+          "0x3",
+          "0x2",
+          "0x0",
+          "0x0",
+          "0x0"
+        ]
+      },
+      "executionResources": {
+        "builtinInstanceCounter": {
+          "bitwise": 139,
+          "ec_op": 10,
+          "pedersen": 168,
+          "poseidon": 614,
+          "range_check": 12811
+        },
+        "l1DataGas": 384,
+        "l1Gas": 0,
+        "l2Gas": 34179200,
+        "memoryHoles": 24236,
+        "steps": 302939
+      },
+      "feeEstimate": {
+        "l1DataGasConsumed": "0x180",
+        "l1GasConsumed": "0x0",
+        "l2GasConsumed": "0x2098880",
+        "overallFee": "0xb628ba5dacaa980",
+        "unit": "FRI"
+      },
+      "feeTransferInvocation": {
+        "callType": "Call",
+        "calldata": [
+          "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8",
+          "0xb628ba5dacaa980",
+          "0x0"
+        ],
+        "callerAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+        "calls": [],
+        "classHash": "0x2e77ee61d4df3d988ee1f42ea5442e913862cc82c2584d212ecda76666498fc",
+        "contractAddress": "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+        "decodedSelector": "transfer",
+        "entryPointSelector": "0x83afd3f4caedc6eebf44246fe54e38c95e3179a5ec9ea81740eca5b482d12e",
+        "entryPointType": "External",
+        "events": [
+          {
+            "data": [
+              "0xb628ba5dacaa980",
+              "0x0"
+            ],
+            "fromAddress": "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+            "keys": [
+              "0x99cd8bde557814842a3121e8ddfd433a539b8c9f14bf31ebf108d12e6196e9",
+              "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+              "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8"
+            ]
+          }
+        ],
+        "messages": [],
+        "result": [
+          "0x1"
+        ]
+      },
+      "revertReason": null,
+      "revertReasonDecoded": null,
+      "stateDiff": {
+        "classHashUpdates": [],
+        "declaredClasses": [],
+        "nonceUpdates": [
+          {
+            "contractAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+            "nonce": "0x63770"
+          }
+        ],
+        "storageDiffs": [
+          {
+            "address": "0x2ef591697f0fd9adc0ba9dbe0ca04dabad80cf95f08ba02e435d9cb6698a28a",
+            "storageEntries": [
+              {
+                "key": "0x3160d563387bbd3aa03e9ec1ef15e2c225c40d4cab3b9d939ddcc232ecf778d",
+                "value": "0x1000001542094096ca5c091a87d6c69a055c024c1294a100008a029456"
+              }
+            ]
+          },
+          {
+            "address": "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+            "storageEntries": [
+              {
+                "key": "0x1fe8812c7c00360ba56839889948d1dc10f09ff763053702a07e76b0fb6150",
+                "value": "0x7ffffffffffffff"
+              }
+            ]
+          },
+          {
+            "address": "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+            "storageEntries": [
+              {
+                "key": "0x5496768776e3db30053404f18067d81a6e06f5a2b0de326e21298fd9d569a9a",
+                "value": "0x27d0d41f7d198a769f12a"
+              },
+              {
+                "key": "0x3fc285a4cc41e726229c7bac9ac91ef1792982fddf692bf89bd0511ad214fb5",
+                "value": "0x64b2fc0b9fd968de0"
+              }
+            ]
+          }
+        ],
+        "summary": {
+          "classHashUpdates": 0,
+          "contractsTouched": 3,
+          "nonceUpdates": 1,
+          "storageWrites": 4
+        }
+      },
+      "status": "SUCCEEDED",
+      "validateInvocation": {
+        "callType": "Call",
+        "calldata": [
+          "0x3",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x32d688805385a47f61c040502e37cfe653e66ff4cb9faf5a0a7b447527a9f01",
+          "0x6",
+          "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79",
+          "0x6a1b4faa73433579053622023bd453c63549072f05ae1b84c10bd065b30a70",
+          "0x710aebca0d8e6b59afefcf6f8472be263d9bb8176958ab449421b46da704ba6",
+          "0x6806ebd64707f27cd49ed878af36385b4ef1de306bef9441b605a94c58a324f",
+          "0x1115a80c8b1c2428a0596f7c219d036b58263ae0b181866a1cb8cf4926805b7",
+          "0x64fa9b24f98783efdbf51b40cd5e0ee2690b9b4f0c5cb3c7925e4dbb7a5213f",
+          "0x32d5f4ef82c73f535e9797148ebd544e42e5f8d1d3c543d55359a129dd46948",
+          "0x3dbc508ba4afd040c8dc4ff8a61113a7bcaf5eae88a6ba27b3c50578b3587e3",
+          "0x2b",
+          "0x414e595f43414c4c4552",
+          "0x4c3ec0f607dc945409ac67fff87aae65d6b45abfe2699d2ef6ef915b802603e",
+          "0x400000000000000",
+          "0x0",
+          "0x69ead38f",
+          "0x2",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x12a5a2e008479001f8f1a5f6c61ab6536d5ce46571fcdc0c9300dca0a9e532f",
+          "0x3",
+          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+          "0x1",
+          "0x70502504abd303d00ee9f89f0d52ef52aacf7c5d8651f1dddea00e1c5c8c9db",
+          "0x6f7c4350d6d5ee926b3ac4fa0c9c351055456e75c92227468d84232fc493a9c",
+          "0x2d1af4265f4530c75b41282ed3b71617d3d435e96fe13b08848482173692f4f",
+          "0x2",
+          "0x3c1b7",
+          "0x1",
+          "0x19",
+          "0x73657373696f6e2d746f6b656e",
+          "0x69ed32e1",
+          "0x77696c64636172642d706f6c696379",
+          "0x0",
+          "0x14ff4897fab50cb0ed1d6a3fb7c9f4854f0bc8881f6402ac49d8a226fbf6124",
+          "0x0",
+          "0x1",
+          "0x8",
+          "0x1",
+          "0x3",
+          "0xc77860a53d5e1e59e04f8975c4bf28f410f15bf9",
+          "0xd9a7c557a033bf89269ec33cc75765f7",
+          "0xca2b20ab52ba9bb5577e2c75d11f75a0",
+          "0x84f8f73b6e6d557a0d5f14db1656ea4b",
+          "0x47a01e7beed6f360551f44cbc2437b33",
+          "0x1",
+          "0x0",
+          "0x67a8ae3fa00915fc4ef92d43f0b5a8ee55326284f1050d8e4fae3dd9c9a15ee",
+          "0x168a1107d97da7d1446f9e8bfdc59ccdb24cf548bc2654d920064832df2e8d6",
+          "0x484003e4c073849c90bbbfac13d17458469bc05b142f4c4858771d131b4deaa",
+          "0x0",
+          "0x1e6a6f52e47fe42e024287b729bc47e58019fcc7e1cc8b141bb8d669b779b49",
+          "0x2c8e22b809d47bd32828aa4cb5030e7a614dd756f7fe7ddf2e001ce82929408",
+          "0x65bfc876cc5851e7db3acc1556fcd2cbbd6c556b7bb070578d1eec576dd4e2f",
+          "0x0",
+          "0x51fea4450da9d6aee758bdeba88b2f665bcbf549d2c61421aa724e9ac0ced8f",
+          "0x112b534028a89c7062d4f90ab082e3bb5a7c63c1af793c03bd040a66dc50839",
+          "0x1",
+          "0x23d64a98537cc4afad991401a11217c4c1c2c4d7ad6a372ce17729092dd8d79"
+        ],
+        "callerAddress": "0x0",
+        "calls": [],
+        "classHash": "0xe2eb8f5672af4e6a4e8a8f1b44989685e668489b0a25437733756c5a34a1d6",
+        "contractAddress": "0x4a52fb10e451e208af323bb4148be2f2978a748799bd2bc544ecd833e7124e8",
+        "decodedSelector": "__validate__",
+        "entryPointSelector": "0x162da33a4585851fe8d3af3c2a9c60b557814e221e0d4f30ff0b2189d9c7775",
+        "entryPointType": "External",
+        "events": [],
+        "messages": [],
+        "result": [
+          "0x56414c4944"
+        ]
+      }
+    }
+  ],
+  "simId": "01KQ28Q6M1DW3M0FFFP17GQ4VB"
+}
