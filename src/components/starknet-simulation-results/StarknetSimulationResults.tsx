@@ -72,7 +72,7 @@ export function StarknetSimulationResults({
   source,
   txHash,
 }: StarknetSimulationResultsProps) {
-  const result = response.results[resultIndex];
+  const result = response.results?.[resultIndex];
   const [tab, setTab] = useState<TabKey>("trace");
   const [selectedFrame, setSelectedFrame] = useState<FunctionInvocation | null>(null);
 
