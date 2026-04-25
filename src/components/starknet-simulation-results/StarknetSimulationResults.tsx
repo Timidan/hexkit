@@ -15,6 +15,7 @@ import {
   GearSix,
   Wrench,
   Code,
+  PaperPlaneRight,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,19 @@ import { TokenFlowTab } from "./TokenFlowTab";
 import { EventsTab } from "./EventsTab";
 import { StateDiffTab } from "./StateDiffTab";
 import { ResourcesTab } from "./ResourcesTab";
+import { MessagesTab } from "./MessagesTab";
 import { DevInfoTab } from "./DevInfoTab";
 import { contractLabel, selectorName, shortHex, walkInvocations } from "./decoders";
 
-export type TabKey = "trace" | "flow" | "events" | "state" | "resources" | "dev" | "raw";
+export type TabKey =
+  | "trace"
+  | "flow"
+  | "events"
+  | "state"
+  | "resources"
+  | "messages"
+  | "dev"
+  | "raw";
 
 export interface StarknetSimulationResultsProps {
   /** Canonical /simulate response from the bridge. */
@@ -283,6 +293,9 @@ export function StarknetSimulationResults({
             <TabTrigger value="resources" icon={<GearSix size={14} />}>
               Resources
             </TabTrigger>
+            <TabTrigger value="messages" icon={<PaperPlaneRight size={14} />}>
+              L1 messages
+            </TabTrigger>
             <TabTrigger value="dev" icon={<Wrench size={14} />}>
               Developer info
             </TabTrigger>
@@ -318,6 +331,9 @@ export function StarknetSimulationResults({
                 setSelectedFrameWithHash(f);
               }}
             />
+          </TabsContent>
+          <TabsContent value="messages">
+            <MessagesTab result={result} />
           </TabsContent>
           <TabsContent value="dev">
             <DevInfoTab response={response} result={result} />

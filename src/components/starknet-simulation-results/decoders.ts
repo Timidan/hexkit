@@ -82,6 +82,31 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
   return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
+/** All L2→L1 messages emitted across the tx, paired with the frame that
+ *  emitted them so the UI can render `from contract → L1 address`
+ *  with proper labels. */
+export function collectL2ToL1Messages(
+  result: {
+    validateInvocation: FunctionInvocation | null;
+    executeInvocation: FunctionInvocation | null;
+    feeTransferInvocation: FunctionInvocation | null;
+  },
+): Array<{
+  frame: FunctionInvocation;
+  message: { fromAddress: string; toAddress: string; payload: string[] };
+}> {
+  const out: Array<{
+    frame: FunctionInvocation;
+    message: { fromAddress: string; toAddress: string; payload: string[] };
+  }> = [];
+  for (const f of walkInvocations(result)) {
+    for (const m of f.messages || []) {
+      out.push({ frame: f, message: m });
+    }
+  }
+  return out;
+}
+
 /** Walk every invocation tree and yield each frame in walk order. */
 export function* walkInvocations(
   result: {
