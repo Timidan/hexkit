@@ -49,6 +49,7 @@ export function CallTreeTab({
     "showResources",
     true,
   );
+  const [executeOnly, setExecuteOnly] = usePersistedToggle("executeOnly", false);
   const [filter, setFilter] = useState("");
 
   const stats = useMemo(() => {
@@ -81,11 +82,19 @@ export function CallTreeTab({
     };
   }, [result]);
 
-  const sections: Array<[string, FunctionInvocation | null, string]> = [
-    ["__validate__", result.validateInvocation, "border-amber-700/40 bg-amber-500/5"],
-    ["__execute__", result.executeInvocation, "border-emerald-700/40 bg-emerald-500/5"],
-    ["__fee_transfer__", result.feeTransferInvocation, "border-border bg-card"],
-  ];
+  const sections: Array<[string, FunctionInvocation | null, string]> = executeOnly
+    ? [
+        [
+          "__execute__",
+          result.executeInvocation,
+          "border-emerald-700/40 bg-emerald-500/5",
+        ],
+      ]
+    : [
+        ["__validate__", result.validateInvocation, "border-amber-700/40 bg-amber-500/5"],
+        ["__execute__", result.executeInvocation, "border-emerald-700/40 bg-emerald-500/5"],
+        ["__fee_transfer__", result.feeTransferInvocation, "border-border bg-card"],
+      ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -113,6 +122,9 @@ export function CallTreeTab({
             </ToggleLabel>
             <ToggleLabel id="resource-bars" checked={showResources} onChange={setShowResources}>
               resource bars
+            </ToggleLabel>
+            <ToggleLabel id="execute-only" checked={executeOnly} onChange={setExecuteOnly}>
+              execute only
             </ToggleLabel>
           </div>
         </div>
