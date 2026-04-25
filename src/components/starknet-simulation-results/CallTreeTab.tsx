@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { CaretDown, CaretRight, Check, Code, LinkSimple, Sparkle } from "@phosphor-icons/react";
+import {
+  ArrowSquareOut,
+  CaretDown,
+  CaretRight,
+  Check,
+  Code,
+  LinkSimple,
+  Sparkle,
+} from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { contractExplorerLinks } from "@/components/starknet/explorerLinks";
 import type { FunctionInvocation, SimulationResult } from "@/chains/starknet/simulatorTypes";
 import {
   contractLabel,
@@ -26,6 +35,9 @@ interface Props {
    *  transfer) map to null. Used by FrameDetailPane to render the
    *  ancestor breadcrumb. */
   parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
+  /** Bridge chain ID — feeds Voyager / Starkscan contract links beside
+   *  the selected frame's address. */
+  chainId?: string | null;
   selectedFrame: FunctionInvocation | null;
   setSelectedFrame: (f: FunctionInvocation) => void;
   onExplainFrame?: (f: FunctionInvocation) => void;
@@ -35,6 +47,7 @@ export function CallTreeTab({
   result,
   frames,
   parentMap,
+  chainId,
   selectedFrame,
   setSelectedFrame,
   onExplainFrame,
@@ -196,6 +209,7 @@ export function CallTreeTab({
           frame={selectedFrame}
           frames={frames}
           parentMap={parentMap}
+          chainId={chainId}
           onSelect={setSelectedFrame}
           stripSys={stripSys}
           onExplain={onExplainFrame}
@@ -423,6 +437,7 @@ function FrameDetailPane({
   frame,
   frames,
   parentMap,
+  chainId,
   onSelect,
   stripSys,
   onExplain,
@@ -432,6 +447,7 @@ function FrameDetailPane({
    *  shareable #frame=N deep-link copy button. */
   frames: FunctionInvocation[];
   parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
+  chainId?: string | null;
   onSelect: (f: FunctionInvocation) => void;
   stripSys: boolean;
   onExplain?: (f: FunctionInvocation) => void;
@@ -491,6 +507,33 @@ function FrameDetailPane({
             {lbl ? <span className="font-mono text-success">{lbl}</span> : null}{" "}
             <span className="font-mono text-foreground break-all">{frame.contractAddress}</span>
             <CopyButton value={frame.contractAddress} className="h-4 w-4" iconSize={10} />
+            {(() => {
+              const links = contractExplorerLinks(frame.contractAddress, chainId);
+              return (
+                <>
+                  <a
+                    href={links.voyager}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-foreground hover:underline"
+                    data-testid="contract-link-voyager"
+                  >
+                    Voyager
+                    <ArrowSquareOut size={10} />
+                  </a>
+                  <a
+                    href={links.starkscan}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex items-center gap-0.5 text-[10px] text-foreground hover:underline"
+                    data-testid="contract-link-starkscan"
+                  >
+                    Starkscan
+                    <ArrowSquareOut size={10} />
+                  </a>
+                </>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-muted-foreground">classHash:</span>{" "}

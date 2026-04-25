@@ -399,6 +399,7 @@ export function StarknetSimulationResults({
               result={result}
               frames={frames}
               parentMap={parentMap}
+              chainId={chainId ?? null}
               selectedFrame={selectedFrame}
               setSelectedFrame={setSelectedFrameWithHash}
               onExplainFrame={onExplainFrame}

@@ -18,27 +18,34 @@ function networkOf(chainId: string | null | undefined): Network {
   return "mainnet";
 }
 
+function explorerHosts(network: Network): { voyager: string; starkscan: string } {
+  if (network === "mainnet") {
+    return { voyager: "voyager.online", starkscan: "starkscan.co" };
+  }
+  return { voyager: "sepolia.voyager.online", starkscan: "sepolia.starkscan.co" };
+}
+
 export function explorerLinks(
   txHash: string,
   chainId: string | null | undefined,
 ): { voyager: string; starkscan: string; network: Network } {
   const network = networkOf(chainId);
-  const voyagerHost =
-    network === "mainnet"
-      ? "voyager.online"
-      : network === "sepolia"
-        ? "sepolia.voyager.online"
-        : "sepolia.voyager.online";
-  const starkscanHost =
-    network === "mainnet"
-      ? "starkscan.co"
-      : network === "sepolia"
-        ? "sepolia.starkscan.co"
-        : "sepolia.starkscan.co";
+  const { voyager, starkscan } = explorerHosts(network);
   return {
-    voyager: `https://${voyagerHost}/tx/${txHash}`,
-    starkscan: `https://${starkscanHost}/tx/${txHash}`,
+    voyager: `https://${voyager}/tx/${txHash}`,
+    starkscan: `https://${starkscan}/tx/${txHash}`,
     network,
+  };
+}
+
+export function contractExplorerLinks(
+  contractAddress: string,
+  chainId: string | null | undefined,
+): { voyager: string; starkscan: string } {
+  const { voyager, starkscan } = explorerHosts(networkOf(chainId));
+  return {
+    voyager: `https://${voyager}/contract/${contractAddress}`,
+    starkscan: `https://${starkscan}/contract/${contractAddress}`,
   };
 }
 
