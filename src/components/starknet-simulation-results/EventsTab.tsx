@@ -10,7 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { SimulationResult } from "@/chains/starknet/simulatorTypes";
+import type {
+  FunctionInvocation,
+  SimulationResult,
+} from "@/chains/starknet/simulatorTypes";
 import {
   contractLabel,
   decodeU256,
@@ -21,11 +24,26 @@ import {
   walkInvocations,
 } from "./decoders";
 
-export function EventsTab({ result }: { result: SimulationResult }) {
-  const rows: Array<{ from: string; keys: string[]; data: string[] }> = [];
+export function EventsTab({
+  result,
+  frames,
+  onJumpToFrame,
+}: {
+  result: SimulationResult;
+  frames?: FunctionInvocation[];
+  /** Hand back to the page so a click on the frame badge switches to
+   *  the Call tree tab and selects the emitting frame. */
+  onJumpToFrame?: (frame: FunctionInvocation) => void;
+}) {
+  const rows: Array<{
+    from: string;
+    keys: string[];
+    data: string[];
+    frame: FunctionInvocation;
+  }> = [];
   for (const f of walkInvocations(result)) {
     for (const e of f.events || []) {
-      rows.push({ from: e.fromAddress, keys: e.keys, data: e.data });
+      rows.push({ from: e.fromAddress, keys: e.keys, data: e.data, frame: f });
     }
   }
 
@@ -99,6 +117,7 @@ export function EventsTab({ result }: { result: SimulationResult }) {
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Decoded name</TableHead>
                   <TableHead>From</TableHead>
+                  <TableHead className="w-16">Frame</TableHead>
                   <TableHead>Keys</TableHead>
                   <TableHead>Data</TableHead>
                 </TableRow>
@@ -132,6 +151,33 @@ export function EventsTab({ result }: { result: SimulationResult }) {
                         <span className="font-mono text-muted-foreground text-[10px]">
                           {shortHex(r.from)}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const frameIdx = frames ? frames.indexOf(r.frame) : -1;
+                          if (frameIdx < 0) {
+                            return (
+                              <span className="text-muted-foreground text-[10px]">—</span>
+                            );
+                          }
+                          if (!onJumpToFrame) {
+                            return (
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                #{frameIdx}
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => onJumpToFrame(r.frame)}
+                              className="font-mono text-[10px] text-info hover:underline"
+                              data-testid="event-jump-frame"
+                            >
+                              #{frameIdx}
+                            </button>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="font-mono text-[10px] text-foreground">
                         {r.keys.slice(1).map((k) => shortHex(k)).join(" · ") || (
