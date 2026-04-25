@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Trash, ClockClockwise, ArrowsClockwise } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -20,6 +20,12 @@ export const RecentSimulationsSidebar: React.FC<Props> = ({
   // Active row is also styled with a ring so a quick eye can tell
   // which entry Enter would restore.
   const [activeIdx, setActiveIdx] = useState(-1);
+  // The result Card has its own j/k listener for frame stepping. Only
+  // claim the keys when the user has explicitly focused into the
+  // sidebar (clicked a row or tabbed in) so the two scopes don't
+  // collide on the same keystroke.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasFocus, setHasFocus] = useState(false);
 
   useEffect(() => {
     if (items.length === 0) {
@@ -30,11 +36,8 @@ export const RecentSimulationsSidebar: React.FC<Props> = ({
   }, [items, activeIdx]);
 
   useEffect(() => {
-    if (items.length === 0) return;
+    if (items.length === 0 || !hasFocus) return;
     const onKey = (e: KeyboardEvent) => {
-      // Don't fight with form fields — only fire when the user isn't
-      // typing into an input/textarea/contenteditable. Modifier keys
-      // (cmd/ctrl/alt) likewise fall through to the browser.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       if (target) {
@@ -57,9 +60,21 @@ export const RecentSimulationsSidebar: React.FC<Props> = ({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [items, activeIdx, onSelect]);
+  }, [items, activeIdx, onSelect, hasFocus]);
 
   return (
+    <div
+      ref={containerRef}
+      tabIndex={items.length > 0 ? 0 : -1}
+      onFocus={() => setHasFocus(true)}
+      onBlur={(e) => {
+        // Only clear focus when leaving the sidebar entirely; clicks
+        // between rows shuffle focus inside the same container.
+        if (!containerRef.current?.contains(e.relatedTarget as Node | null)) {
+          setHasFocus(false);
+        }
+      }}
+    >
     <Card className="px-3 py-3 gap-2" data-testid="recent-sidebar">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
@@ -127,6 +142,7 @@ export const RecentSimulationsSidebar: React.FC<Props> = ({
         </>
       )}
     </Card>
+    </div>
   );
 };
 
