@@ -38,19 +38,22 @@ const TxTraceView: React.FC<Props> = ({
   const [error, setError] = useState<string | Error | null>(null);
   const [response, setResponse] = useState<SimulateResponse | null>(null);
   const [chainId, setChainId] = useState<string | null>(null);
+  const [bridgeGitSha, setBridgeGitSha] = useState<string | null>(null);
   const hasAutoTracedRef = useRef(false);
 
   // One-shot /health fetch on mount — chain_id is needed to build
-  // network-correct Voyager / Starkscan deep-links on the result card.
-  // The page-level banner already polls /health on its own schedule;
-  // this read is just enough to learn the bridge's network.
+  // network-correct Voyager / Starkscan deep-links on the result card,
+  // and the bridge git SHA gets pinned into the footer so a shared
+  // screenshot is self-describing.
   useEffect(() => {
     if (!simulator.isConfigured) return;
     let cancelled = false;
     simulator
       .health()
       .then((h) => {
-        if (!cancelled) setChainId(h.chain_id ?? null);
+        if (cancelled) return;
+        setChainId(h.chain_id ?? null);
+        setBridgeGitSha(h.git_sha ?? null);
       })
       .catch(() => {
         // Banner already surfaces bridge health to the user; silently
@@ -204,6 +207,7 @@ const TxTraceView: React.FC<Props> = ({
           source="trace endpoint"
           txHash={hash.trim()}
           chainId={chainId}
+          bridgeGitSha={bridgeGitSha}
           isResimulating={pending}
           onResimulate={() => void runTrace()}
           onExplainTransaction={() =>

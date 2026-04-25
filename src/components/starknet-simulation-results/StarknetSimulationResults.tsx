@@ -85,6 +85,9 @@ export interface StarknetSimulationResultsProps {
   /** Bridge-reported chain ID. Decides whether the Voyager / Starkscan
    *  links resolve to mainnet or sepolia hosts. */
   chainId?: string | null;
+  /** Bridge git SHA from /health, rendered in the footer so a shared
+   *  screenshot identifies which bridge build produced this result. */
+  bridgeGitSha?: string | null;
 }
 
 export function StarknetSimulationResults({
@@ -97,6 +100,7 @@ export function StarknetSimulationResults({
   source,
   txHash,
   chainId,
+  bridgeGitSha,
 }: StarknetSimulationResultsProps) {
   const result = response.results?.[resultIndex];
   const [tab, setTab] = useState<TabKey>(loadStoredTab);
@@ -471,6 +475,7 @@ export function StarknetSimulationResults({
 
         <footer className="mt-6 border-t border-border pt-3 text-[11px] text-muted-foreground">
           Bridge: <span className="font-mono">starknet-sim-bridge</span>
+          {bridgeGitSha && <> @ <span className="font-mono">{bridgeGitSha.slice(0, 7)}</span></>}
           {source && <> — {source}</>}.
           <span className="mx-2">·</span>
           <span className="font-mono">b</span>/<span className="font-mono">k</span> ← prev ·{" "}
