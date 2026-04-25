@@ -130,3 +130,47 @@ export function buildInvokeWireRequest(
   if (!built.ok || !built.request) return { ok: false, error: built.error };
   return { ok: true, body: transformRequestForBridge(built.request) };
 }
+
+/** Folds an /estimate-fee result into the existing form, replacing only
+ *  the resource_bounds fields. Sender / nonce / calldata / signature /
+ *  block-pin / flags all stay put, so the user can flip to Speculative
+ *  with the same tx body and re-run with valid bounds. */
+export interface RecommendedBoundsInputs {
+  l1GasConsumed: string;
+  l1DataGasConsumed: string;
+  l2GasConsumed: string;
+  l1GasPrice?: string | null;
+  l1DataGasPrice?: string | null;
+  l2GasPrice?: string | null;
+}
+
+export function applyEstimatedBounds(
+  form: InvokeFormState,
+  est: RecommendedBoundsInputs,
+): InvokeFormState {
+  return {
+    ...form,
+    l1MaxAmount: bumpHex(est.l1GasConsumed),
+    l1MaxPrice: est.l1GasPrice ? bumpHex(est.l1GasPrice) : form.l1MaxPrice,
+    l1DataMaxAmount: bumpHex(est.l1DataGasConsumed),
+    l1DataMaxPrice: est.l1DataGasPrice
+      ? bumpHex(est.l1DataGasPrice)
+      : form.l1DataMaxPrice,
+    l2MaxAmount: bumpHex(est.l2GasConsumed),
+    l2MaxPrice: est.l2GasPrice ? bumpHex(est.l2GasPrice) : form.l2MaxPrice,
+  };
+}
+
+/** 50% safety margin on top of the consumed/observed value, rounded up
+ *  to a few hex digits so the form fields don't look like noise. Matches
+ *  what wallets like ArgentX recommend for their `INVOKE` v3 bounds. */
+function bumpHex(hex: string): string {
+  try {
+    const n = BigInt(hex);
+    if (n === 0n) return "0x0";
+    const bumped = (n * 3n) / 2n + 1n;
+    return `0x${bumped.toString(16)}`;
+  } catch {
+    return hex;
+  }
+}

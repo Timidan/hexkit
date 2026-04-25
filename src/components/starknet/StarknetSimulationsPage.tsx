@@ -119,6 +119,26 @@ const StarknetSimulationsPage: React.FC = () => {
     setRecents(clearRecents());
   }, []);
 
+  // Iter 14 hand-off: EstimateFeeView builds an InvokeFormState with
+  // the just-estimated resource bounds applied; we flip to Speculative
+  // and re-mount SyntheticSimView with that form, mirroring the recent-
+  // restore path so the user can inspect or hit Simulate without having
+  // to copy fields between tabs.
+  const onUseEstimatedBounds = useCallback(
+    (form: InvokeFormState) => {
+      setRestoredForm(form);
+      setRestoreNonce((n) => n + 1);
+      const np = new URLSearchParams(location.search);
+      np.set("tab", "synthetic");
+      np.delete("txHash");
+      navigate(
+        `${location.pathname}?${np.toString()}${location.hash}`,
+        { replace: true },
+      );
+    },
+    [location.pathname, location.search, location.hash, navigate],
+  );
+
   // Cross-tab sync — if another tab updates recents, pick it up here too.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -173,7 +193,7 @@ const StarknetSimulationsPage: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="estimate" className="mt-3">
-              <EstimateFeeView />
+              <EstimateFeeView onUseEstimatedBounds={onUseEstimatedBounds} />
             </TabsContent>
           </Tabs>
         </div>

@@ -21,6 +21,7 @@ import {
 } from "@/components/starknet-simulation-results/decoders";
 import BridgeErrorAlert from "./BridgeErrorAlert";
 import {
+  applyEstimatedBounds,
   buildInvokeRequest,
   buildInvokeWireRequest,
   DEFAULT_INVOKE_FORM,
@@ -28,7 +29,16 @@ import {
 } from "./invokeRequestBuilder";
 import CopyCurlButton from "./CopyCurlButton";
 
-const EstimateFeeView: React.FC = () => {
+interface EstimateFeeViewProps {
+  /** Page-level handler that flips to the Speculative tab and rehydrates
+   *  the form with the just-estimated bounds applied. Wired in iter 14
+   *  so the user can preview, then run, in two clicks. */
+  onUseEstimatedBounds?: (form: InvokeFormState) => void;
+}
+
+const EstimateFeeView: React.FC<EstimateFeeViewProps> = ({
+  onUseEstimatedBounds,
+}) => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
   const [form, setForm] = useState<InvokeFormState>(DEFAULT_INVOKE_FORM);
   const [pending, setPending] = useState(false);
@@ -205,12 +215,43 @@ const EstimateFeeView: React.FC = () => {
 
       {response && response.estimates.length > 0 && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-sm">Estimate</CardTitle>
-            <span className="text-[10px] text-muted-foreground">
-              block {response.blockContext.blockNumber.toLocaleString()} ·{" "}
-              {response.blockContext.starknetVersion}
-            </span>
+            <div className="flex items-center gap-2">
+              {onUseEstimatedBounds && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const est = response.estimates[0]?.feeEstimate;
+                    const bc = response.blockContext;
+                    if (!est) return;
+                    onUseEstimatedBounds(
+                      applyEstimatedBounds(form, {
+                        l1GasConsumed: est.l1GasConsumed,
+                        l1DataGasConsumed: est.l1DataGasConsumed,
+                        l2GasConsumed: est.l2GasConsumed,
+                        l1GasPrice: bc.l1GasPrice?.priceInFri,
+                        l1DataGasPrice: bc.l1DataGasPrice?.priceInFri,
+                        // /estimate-fee blockContext doesn't carry l2 price;
+                        // bumpHex in applyEstimatedBounds keeps the user's
+                        // current l2MaxPrice when the estimate is missing
+                        // it, but we explicitly pass null here so it can
+                        // fall back to the form's existing value.
+                        l2GasPrice: null,
+                      }),
+                    );
+                  }}
+                  data-testid="use-estimated-bounds"
+                >
+                  Use these bounds in Speculative
+                </Button>
+              )}
+              <span className="text-[10px] text-muted-foreground">
+                block {response.blockContext.blockNumber.toLocaleString()} ·{" "}
+                {response.blockContext.starknetVersion}
+              </span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {response.estimates.map((est, i) => (

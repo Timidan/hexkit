@@ -180,6 +180,7 @@ export interface HealthResponse {
     starknet_version: string;
     l1_gas_price?: { price_in_wei: string; price_in_fri: string } | null;
     l1_data_gas_price?: { price_in_wei: string; price_in_fri: string } | null;
+    l2_gas_price?: { price_in_wei: string; price_in_fri: string } | null;
   } | null;
   rpc_latency_ms?: number | null;
   rpc_error?: string | null;
