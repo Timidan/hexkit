@@ -19,6 +19,18 @@ interface DecodedTransfer {
   amount: bigint;
 }
 
+/** Cairo array length felts max out around 2^32 in practice; clamp to
+ *  a sane range so a malformed event can't blow up the loop. */
+function safeFeltLen(felt: string | undefined): number {
+  try {
+    const n = Number(BigInt(felt ?? "0x0"));
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(n, 256);
+  } catch {
+    return 0;
+  }
+}
+
 export function TokenFlowTab({ result }: { result: SimulationResult }) {
   const events: SimulationEvent[] = [];
   for (const f of walkInvocations(result)) for (const e of f.events || []) events.push(e);
@@ -48,6 +60,31 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
         kind: `ERC1155 #${tokenId}`,
         amount: value,
       });
+    } else if (name === "TransferBatch" && ev.keys.length >= 4) {
+      // Cairo array layout: [ids_len, id_low, id_high, …, values_len,
+      // val_low, val_high, …]. Emit one row per (id, value) pair so
+      // batch transfers feel uniform with TransferSingle in the table.
+      const d = ev.data || [];
+      let i = 0;
+      const idsLen = safeFeltLen(d[i++]);
+      const ids: bigint[] = [];
+      for (let j = 0; j < idsLen; j++) {
+        ids.push(decodeU256(d[i++], d[i++]));
+      }
+      const valuesLen = safeFeltLen(d[i++]);
+      const values: bigint[] = [];
+      for (let j = 0; j < valuesLen; j++) {
+        values.push(decodeU256(d[i++], d[i++]));
+      }
+      for (let j = 0; j < ids.length; j++) {
+        transfers.push({
+          token: ev.fromAddress,
+          from: ev.keys[2],
+          to: ev.keys[3],
+          kind: `ERC1155 #${ids[j]} (batch)`,
+          amount: values[j] ?? 0n,
+        });
+      }
     }
   }
 
