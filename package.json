@@ -15,10 +15,16 @@
     "qa:live:matrix": "node scripts/perf/live-qa-matrix.mjs",
     "probe:testnets": "node scripts/testnet-probe.js",
     "simulator:server": "node scripts/simulator-bridge.mjs",
+    "starknet-sim:build": "cargo build --release --manifest-path starknet-sim/Cargo.toml",
+    "starknet-sim:server": "./starknet-sim/target/release/starknet-sim-bridge",
+    "starknet-sim:dev": "BIND_ADDR=127.0.0.1:5790 REQUIRE_API_KEY=false LOG_LEVEL=info ./starknet-sim/target/release/starknet-sim-bridge",
+    "dev:full": "bash scripts/dev-full.sh",
     "preview": "vite preview",
-    "check:inline-copy": "node scripts/check-inline-copy.mjs"
+    "check:inline-copy": "node scripts/check-inline-copy.mjs",
+    "check:family-imports": "node scripts/check-family-imports.mjs"
   },
   "dependencies": {
+    "@cartridge/controller": "^0.13.12",
     "@monaco-editor/react": "^4.7.0",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -35,6 +41,11 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@rainbow-me/rainbowkit": "^2.2.8",
     "@shazow/whatsabi": "^0.22.2",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-react-ui": "^0.9.39",
+    "@solana/wallet-adapter-wallets": "^0.19.38",
+    "@solana/web3.js": "^1.98.4",
     "@solidity-parser/parser": "^0.20.2",
     "@tanstack/react-query": "^5.87.4",
     "@wagmi/core": "^2.20.3",
@@ -46,6 +57,7 @@
     "cmdk": "^1.1.1",
     "dompurify": "^3.3.1",
     "ethers": "^5.7.2",
+    "ethers-v6": "npm:ethers@^6.16.0",
     "framer-motion": "^12.38.0",
     "monaco-editor": "^0.55.1",
     "radix-ui": "^1.4.3",
@@ -56,6 +68,8 @@
     "react-router-dom": "^6.28.1",
     "react-window": "^2.2.3",
     "sonner": "^2.0.7",
+    "starknet": "^9.4.2",
+    "starkzap": "^2.0.0",
     "tailwind-merge": "^3.4.0",
     "viem": "^2.37.3",
     "wagmi": "^2.16.9",
@@ -83,6 +97,9 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",
     "vite": "^5.4.19",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
     "vitest": "^1.6.1"
-  }
+  },
+  "overrides": {}
 }

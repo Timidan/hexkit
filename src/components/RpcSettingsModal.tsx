@@ -22,6 +22,9 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Checkbox } from "./ui/checkbox";
 import { Eye, EyeSlash, CheckCircle, WarningCircle, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { RpcSettingsStarknetPanel } from "./RpcSettingsStarknetPanel";
+import { RpcSettingsSolanaPanel } from "./RpcSettingsSolanaPanel";
+import type { ChainFamily } from "@/chains/types";
 
 interface RpcSettingsModalProps {
   isOpen: boolean;
@@ -59,6 +62,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
   });
   const [errors, setErrors] = useState<Partial<Record<ErrorKey, string>>>({});
   const [autoSaveState, setAutoSaveState] = useState<AutoSaveState>("idle");
+  const [family, setFamily] = useState<ChainFamily>("evm");
   const [showAlchemyKey, setShowAlchemyKey] = useState(false);
   const [showInfuraKey, setShowInfuraKey] = useState(false);
   const [showEtherscanKey, setShowEtherscanKey] = useState(false);
@@ -178,11 +182,43 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
         <DialogHeader>
           <DialogTitle>RPC Provider Settings</DialogTitle>
           <DialogDescription>
-            Configure your RPC provider. Personal settings stay in your browser;
-            the app default explorer key stays server-side.
+            Configure your RPC provider per chain family. Personal settings
+            stay in your browser; the app default explorer key stays
+            server-side.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Family tabs: EVM / Starknet / Solana. Only the EVM pane inherits
+            the original auto-save pipeline; non-EVM panes persist inline. */}
+        <Tabs value={family} onValueChange={(v) => setFamily(v as ChainFamily)}>
+          <TabsList className="w-full">
+            <TabsTrigger
+              value="evm"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Ethereum
+            </TabsTrigger>
+            <TabsTrigger
+              value="starknet"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Starknet
+            </TabsTrigger>
+            <TabsTrigger
+              value="svm"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              Solana
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {family === "starknet" && (
+          <RpcSettingsStarknetPanel isOpen={isOpen} />
+        )}
+        {family === "svm" && <RpcSettingsSolanaPanel isOpen={isOpen} />}
+
+        {family === "evm" && (
         <div className="space-y-3">
           <Tabs
             value={formState.mode}
@@ -435,26 +471,32 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
             )}
           </div>
         </div>
+        )}
 
         <div className="flex items-center justify-between pt-3 border-t">
           <div className="flex items-center gap-1.5 text-xs">
-            {autoSaveState === "saving" && (
+            {family === "evm" && autoSaveState === "saving" && (
               <>
                 <CircleNotch className="h-3 w-3 animate-spin text-muted-foreground" />
                 <span className="text-muted-foreground">Saving...</span>
               </>
             )}
-            {autoSaveState === "saved" && (
+            {family === "evm" && autoSaveState === "saved" && (
               <>
                 <CheckCircle className="h-3 w-3 text-emerald-500" />
                 <span className="text-emerald-500">Saved</span>
               </>
             )}
-            {autoSaveState === "error" && (
+            {family === "evm" && autoSaveState === "error" && (
               <>
                 <WarningCircle className="h-3 w-3 text-destructive" />
                 <span className="text-destructive">Check fields</span>
               </>
+            )}
+            {family !== "evm" && (
+              <span className="text-muted-foreground">
+                Changes save automatically
+              </span>
             )}
           </div>
           <Button variant="outline" size="sm" onClick={onClose}>

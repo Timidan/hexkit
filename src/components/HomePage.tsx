@@ -1,12 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Database, Wrench, Code, Command as CommandIcon, MagnifyingGlass, Stack } from "@phosphor-icons/react";
+import { buildFamilyPath } from "../routes/familyRoutes";
 
 const QUICK_ACTIONS = [
-  { label: "Signature Database", icon: Database, route: "/database" },
-  { label: "Transaction Utils", icon: Wrench, route: "/builder" },
-  { label: "Source Tools", icon: Code, route: "/explorer" },
-  { label: "Integrations", icon: Stack, route: "/integrations" },
+  { label: "Signature Database", icon: Database, route: buildFamilyPath("evm", "/database") },
+  { label: "Transaction Utils", icon: Wrench, route: buildFamilyPath("evm", "/builder") },
+  { label: "Source Tools", icon: Code, route: buildFamilyPath("evm", "/explorer") },
+  { label: "Integrations", icon: Stack, route: buildFamilyPath("evm", "/integrations") },
 ] as const;
 
 const HomePage: React.FC = () => {

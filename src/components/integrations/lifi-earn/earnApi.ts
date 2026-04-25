@@ -8,6 +8,7 @@ import type {
   EarnProtocolInfo,
   LifiStatusResponse,
 } from "./types";
+import { normalizeEarnVaults } from "../../../features/earn/shared/normalizeEarnVault";
 
 const EARN_PROXY = "/api/lifi-earn";
 const COMPOSER_PROXY = "/api/lifi-composer";
@@ -45,7 +46,8 @@ export async function fetchEarnVaults(params?: {
     throw new Error(`Earn API error: ${res.status} ${res.statusText}`);
   }
 
-  return res.json();
+  const body = (await res.json()) as EarnVaultsResponse;
+  return { ...body, data: normalizeEarnVaults(body.data) };
 }
 
 // Authoritative list of chains Earn indexes. Used to gate the chain filter so

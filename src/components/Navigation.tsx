@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -10,6 +10,10 @@ import {
   FileTextIcon,
   ZapIcon,
 } from "./icons/IconLibrary";
+import { useActiveChainFamily } from "../hooks/useActiveChainFamily";
+import { buildFamilyPath, stripFamilyPrefix } from "../routes/familyRoutes";
+import { DEFAULT_FAMILY_CAPABILITIES } from "../chains/capabilities";
+import type { ChainCapability } from "../chains/capabilities";
 
 interface SubTab {
   id: string;
@@ -24,6 +28,8 @@ interface ToolDef {
   route: string;
   label: string;
   shortLabel: string;
+  /** Capability required to show this tool. Families missing this capability hide it. */
+  capability: ChainCapability;
   subTabs: SubTab[] | null;
 }
 
@@ -33,6 +39,7 @@ const TOOLS: ToolDef[] = [
     route: "/database",
     label: "Signature Database",
     shortLabel: "Signatures",
+    capability: "signature-tools",
     subTabs: [
       { id: "lookup", label: "Lookup", shortLabel: "Lookup", paramKey: "tab", icon: <HashtagIcon width={12} height={12} /> },
       { id: "search", label: "Search", shortLabel: "Search", paramKey: "tab", icon: <SearchIcon width={12} height={12} /> },
@@ -46,6 +53,7 @@ const TOOLS: ToolDef[] = [
     route: "/builder",
     label: "Transaction Utils",
     shortLabel: "Tx Utils",
+    capability: "simulation",
     subTabs: [
       { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
       { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
@@ -56,6 +64,7 @@ const TOOLS: ToolDef[] = [
     route: "/explorer",
     label: "Source Tools",
     shortLabel: "Source",
+    capability: "source-lookup",
     subTabs: [
       { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code width={12} height={12} /> },
       { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitDiff width={12} height={12} /> },
@@ -67,18 +76,19 @@ const TOOLS: ToolDef[] = [
     route: "/integrations",
     label: "Integrations",
     shortLabel: "Integrate",
+    capability: "earn",
     subTabs: [
       { id: "lifi-earn", label: "LI.FI Earn", shortLabel: "LI.FI", paramKey: "route", icon: <img src="/logos/lifi.png" alt="" width={14} height={14} className="opacity-80" /> },
     ],
   },
 ];
 
-function getActiveToolId(pathname: string): string {
-  if (pathname.startsWith("/builder")) return "builder";
-  if (pathname.startsWith("/simulations")) return "builder";
-  if (pathname.startsWith("/database")) return "database";
-  if (pathname.startsWith("/explorer")) return "explorer";
-  if (pathname.startsWith("/integrations")) return "integrations";
+function getActiveToolId(strippedPath: string): string {
+  if (strippedPath.startsWith("/builder")) return "builder";
+  if (strippedPath.startsWith("/simulations")) return "builder";
+  if (strippedPath.startsWith("/database")) return "database";
+  if (strippedPath.startsWith("/explorer")) return "explorer";
+  if (strippedPath.startsWith("/integrations")) return "integrations";
   return "database";
 }
 
@@ -139,11 +149,24 @@ const SUB_ITEM: Variants = {
 const Navigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const family = useActiveChainFamily();
+  const strippedPath = useMemo(() => stripFamilyPrefix(location.pathname), [location.pathname]);
 
-  const activeToolId = getActiveToolId(location.pathname);
-  const activeTool = TOOLS.find((t) => t.id === activeToolId) ?? TOOLS[0];
-  const activeSubId = getActiveSubTabId(activeTool, location.search, location.pathname);
+  const familyCapabilities = DEFAULT_FAMILY_CAPABILITIES[family];
+  const visibleTools = useMemo(
+    () => TOOLS.filter((tool) => familyCapabilities.has(tool.capability)),
+    [familyCapabilities],
+  );
+
+  const activeToolId = getActiveToolId(strippedPath);
+  const activeTool =
+    visibleTools.find((t) => t.id === activeToolId) ?? visibleTools[0] ?? TOOLS[0];
+  const activeSubId = getActiveSubTabId(activeTool, location.search, strippedPath);
   const hasSubTabs = activeTool.subTabs != null && activeTool.subTabs.length > 0;
+  // Non-EVM families in Phase 2 have zero visible tools. The early-return
+  // that hides the bar must happen AFTER all hook calls below so that the
+  // hook count stays constant across family switches (React rules of hooks).
+  const shouldRender = visibleTools.length > 0;
 
   // Refs
   const capsuleRef = useRef<HTMLDivElement>(null);
@@ -262,15 +285,17 @@ const Navigation: React.FC = () => {
 
   const handleToolClick = (tool: ToolDef) => {
     if (tool.id === activeToolId) return;
-    navigate(tool.route);
+    navigate(buildFamilyPath(family, tool.route));
   };
 
   const handleSubTabClick = (sub: SubTab) => {
     if (sub.id === activeSubId) return;
 
+    const familyToolRoute = buildFamilyPath(family, activeTool.route);
+
     // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
     if (sub.paramKey === "route") {
-      navigate(`${activeTool.route}/${sub.id}`);
+      navigate(`${familyToolRoute}/${sub.id}`);
       return;
     }
 
@@ -278,14 +303,16 @@ const Navigation: React.FC = () => {
     params.set(sub.paramKey, sub.id);
     // Use the tool's canonical route when the current path doesn't match
     // (e.g. navigating from /simulations back to /builder?mode=live)
-    const basePath = location.pathname.startsWith(activeTool.route)
+    const basePath = location.pathname.startsWith(familyToolRoute)
       ? location.pathname
-      : activeTool.route;
+      : familyToolRoute;
     navigate(
       { pathname: basePath, search: `?${params.toString()}` },
       { replace: true },
     );
   };
+
+  if (!shouldRender) return null;
 
   return (
     <div className="flex justify-center px-1 pt-3 sm:px-0">
@@ -324,7 +351,7 @@ const Navigation: React.FC = () => {
             className="capsule-indicator"
             style={{ left: mainLeft, width: mainWidth }}
           />
-          {TOOLS.map((tool) => (
+          {visibleTools.map((tool) => (
             <motion.button
               key={tool.id}
               type="button"

@@ -114,6 +114,11 @@ export interface StoredSimulation {
   id: string;
   timestamp: number;
   status: 'success' | 'failed' | 'reverted';
+  // v3+ fields. Rows without these are treated as v1 EVM and backfilled
+  // on migration (see onupgradeneeded below).
+  schemaVersion?: number;
+  chainFamily?: 'evm' | 'starknet' | 'svm';
+  chainKey?: string;
   // Transaction details
   from: string;
   to: string;
@@ -209,7 +214,8 @@ function shouldKeepExistingTraceRows(
 }
 
 const DB_NAME = 'web3-toolkit-simulations';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
+const ROW_SCHEMA_VERSION = 3;
 const STORE_NAME = 'simulations';
 const META_STORE_NAME = 'simulations-meta';
 const MAX_SIMULATIONS = 100; // Keep last 100 simulations
@@ -273,6 +279,49 @@ class SimulationHistoryService {
           metaStore.createIndex('from', 'from', { unique: false });
           metaStore.createIndex('to', 'to', { unique: false });
           metaStore.createIndex('functionName', 'functionName', { unique: false });
+        }
+
+        // V3: Add chainFamily/chainKey indexes and backfill legacy rows as EVM.
+        // Backfill runs here (inside onupgradeneeded's versionchange transaction)
+        // so the write is atomic with the schema bump.
+        if (oldVersion < 3) {
+          const tx = (event.target as IDBOpenDBRequest).transaction;
+          if (tx) {
+            const simStore = tx.objectStore(STORE_NAME);
+            if (!simStore.indexNames.contains('chainFamily')) {
+              simStore.createIndex('chainFamily', 'chainFamily', { unique: false });
+            }
+            if (!simStore.indexNames.contains('chainKey')) {
+              simStore.createIndex('chainKey', 'chainKey', { unique: false });
+            }
+            const metaStore = tx.objectStore(META_STORE_NAME);
+            if (!metaStore.indexNames.contains('chainFamily')) {
+              metaStore.createIndex('chainFamily', 'chainFamily', { unique: false });
+            }
+            if (!metaStore.indexNames.contains('chainKey')) {
+              metaStore.createIndex('chainKey', 'chainKey', { unique: false });
+            }
+
+            // Backfill: every pre-v3 row is EVM. Stamp chainFamily/chainKey/schemaVersion
+            // so consumers can route by family without a null check.
+            const backfill = (store: IDBObjectStore) => {
+              const cursorReq = store.openCursor();
+              cursorReq.onsuccess = (ev) => {
+                const cursor = (ev.target as IDBRequest<IDBCursorWithValue>).result;
+                if (!cursor) return;
+                const row = cursor.value;
+                if (!row.chainFamily) {
+                  row.chainFamily = 'evm';
+                  row.chainKey = `evm:${row.networkId ?? 1}`;
+                  row.schemaVersion = ROW_SCHEMA_VERSION;
+                  cursor.update(row);
+                }
+                cursor.continue();
+              };
+            };
+            backfill(simStore);
+            backfill(metaStore);
+          }
         }
       };
     }).then(() => this.migrateMetaStore());
@@ -394,10 +443,16 @@ class SimulationHistoryService {
     const networkId = contractContext?.networkId || result.chainId || 1;
     const networkName = contractContext?.networkName || result.networkName || 'Unknown';
 
+    const chainFamily: 'evm' | 'starknet' | 'svm' = contractContext?.chainFamily ?? 'evm';
+    const chainKey: string = contractContext?.chainKey ?? `evm:${networkId}`;
+
     const simulation: StoredSimulation = {
       id,
       timestamp: Date.now(),
       status,
+      schemaVersion: ROW_SCHEMA_VERSION,
+      chainFamily,
+      chainKey,
       from: contractContext?.fromAddress || result.from || '0x0000000000000000000000000000000000000000',
       to: contractContext?.address || result.to || '',
       functionName,

@@ -31,6 +31,24 @@ export const getSimulatorBridgeUrl = () => {
   return value;
 };
 
+export const getStarknetSimBridgeUrl = () => {
+  const value = readEnv(
+    ["VITE_STARKNET_SIM_BRIDGE_URL"],
+    "/api/starknet-sim"
+  );
+
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["disabled", "disable", "off", "false", "none"].includes(normalized)) {
+    return "";
+  }
+
+  return value;
+};
+
 /** Returns default headers for bridge requests. API key is injected server-side by the proxy. */
 export const getBridgeHeaders = (extra?: Record<string, string>): Record<string, string> => {
   return { 'Content-Type': 'application/json', ...extra };

@@ -17,6 +17,39 @@ export type ExplorerKeyMode = 'default' | 'personal';
 
 export type AbiSourceType = 'sourcify' | 'etherscan' | 'blockscout';
 
+// ── Non-EVM families ──────────────────────────────────────────────────────
+
+export type StarknetNetwork = 'mainnet' | 'sepolia';
+export type SolanaCluster = 'mainnet-beta' | 'devnet';
+
+export type StarknetRpcMode =
+  | 'CARTRIDGE_DEFAULT'
+  | 'ALCHEMY_KEY'
+  | 'INFURA_KEY'
+  | 'CUSTOM_URL';
+
+export type SolanaRpcMode =
+  | 'PUBLIC_DEFAULT'
+  | 'HELIUS_KEY'
+  | 'TRITON_URL'
+  | 'ALCHEMY_KEY'
+  | 'CUSTOM_URL';
+
+export interface StarknetRpcConfig {
+  mode: StarknetRpcMode;
+  alchemyKey?: string;
+  infuraProjectId?: string;
+  customUrls?: Partial<Record<StarknetNetwork, string>>;
+}
+
+export interface SolanaRpcConfig {
+  mode: SolanaRpcMode;
+  heliusKey?: string;
+  alchemyKey?: string;
+  tritonUrls?: Partial<Record<SolanaCluster, string>>;
+  customUrls?: Partial<Record<SolanaCluster, string>>;
+}
+
 interface ChainOverride {
   customRpcUrl?: string;
   etherscanApiKey?: string;
@@ -44,6 +77,10 @@ export interface NetworkConfig {
   // Per-chain overrides (optional)
   chainOverrides?: Record<number, ChainOverride>;
 
+  // Non-EVM RPC config
+  starknet?: StarknetRpcConfig;
+  solana?: SolanaRpcConfig;
+
   // Version for future migrations
   version: number;
 }
@@ -55,13 +92,30 @@ export interface RpcResolution {
   note?: string;
 }
 
+export interface StarknetRpcResolution {
+  url: string;
+  source: 'cartridge' | 'alchemy' | 'infura' | 'custom';
+  isDefault: boolean;
+  note?: string;
+}
+
+export interface SolanaRpcResolution {
+  url: string;
+  source: 'public' | 'helius' | 'triton' | 'alchemy' | 'custom';
+  isDefault: boolean;
+  note?: string;
+}
+
 const STORAGE_KEY = 'web3-toolkit:network-config';
 const LOCAL_SECRETS_KEY = 'web3-toolkit:secrets';
 const SESSION_SECRETS_KEY = 'web3-toolkit:session-secrets';
 const LEGACY_SESSION_SECRETS_KEY = 'web3-toolkit:secrets';
-const CONFIG_VERSION = 3;
+const CONFIG_VERSION = 4;
 const DEFAULT_SOURCE_PRIORITY: AbiSourceType[] = ['etherscan', 'sourcify', 'blockscout'];
 const LEGACY_SOURCE_PRIORITY: AbiSourceType[] = ['sourcify', 'etherscan', 'blockscout'];
+
+const DEFAULT_STARKNET_RPC: StarknetRpcConfig = { mode: 'CARTRIDGE_DEFAULT' };
+const DEFAULT_SOLANA_RPC: SolanaRpcConfig = { mode: 'PUBLIC_DEFAULT' };
 
 // Old storage keys for migration
 const OLD_RPC_SETTINGS_KEY = 'web3-toolkit:user-rpc-settings';
@@ -76,12 +130,21 @@ const SECRET_FIELDS = [
 ] as const;
 type SecretField = (typeof SECRET_FIELDS)[number];
 
+// Nested secret paths for non-EVM family RPC configs — kept separate from
+// SECRET_FIELDS because the shape is a subtree, not a flat field.
+interface NestedSecrets {
+  starknet?: Partial<Pick<StarknetRpcConfig, 'alchemyKey' | 'infuraProjectId'>>;
+  solana?: Partial<Pick<SolanaRpcConfig, 'heliusKey' | 'alchemyKey'>>;
+}
+
 const DEFAULT_CONFIG: NetworkConfig = {
   rpcMode: 'DEFAULT',
   etherscanKeyMode: 'default',
   rememberPersonalEtherscanKey: false,
   sourcePriority: DEFAULT_SOURCE_PRIORITY,
   allowPublicRpcFallback: false,
+  starknet: { ...DEFAULT_STARKNET_RPC },
+  solana: { ...DEFAULT_SOLANA_RPC },
   version: CONFIG_VERSION,
 };
 
@@ -104,22 +167,28 @@ function migrateConfigShape(config: NetworkConfig): NetworkConfig {
   if (!config.sourcePriority || matchesSourcePriority(config.sourcePriority, LEGACY_SOURCE_PRIORITY)) {
     migrated.sourcePriority = [...DEFAULT_SOURCE_PRIORITY];
   }
+  if (!migrated.starknet) {
+    migrated.starknet = { ...DEFAULT_STARKNET_RPC };
+  }
+  if (!migrated.solana) {
+    migrated.solana = { ...DEFAULT_SOLANA_RPC };
+  }
   return migrated;
 }
 
-function parseStoredSecrets(
-  raw: string | null
-): Partial<Pick<NetworkConfig, SecretField>> {
+type StoredSecrets = Partial<Pick<NetworkConfig, SecretField>> & NestedSecrets;
+
+function parseStoredSecrets(raw: string | null): StoredSecrets {
   if (!raw) {
     return {};
   }
 
   try {
-    return JSON.parse(raw) as Partial<Pick<NetworkConfig, SecretField>>;
+    return JSON.parse(raw) as StoredSecrets;
   } catch {
     try {
       const decoded = decodeURIComponent(escape(atob(raw)));
-      return JSON.parse(decoded) as Partial<Pick<NetworkConfig, SecretField>>;
+      return JSON.parse(decoded) as StoredSecrets;
     } catch {
       return {};
     }
@@ -129,7 +198,7 @@ function parseStoredSecrets(
 function readSecretsFromStorage(
   storage: Storage | undefined,
   storageKey: string
-): Partial<Pick<NetworkConfig, SecretField>> {
+): StoredSecrets {
   if (!storage) {
     return {};
   }
@@ -144,7 +213,7 @@ function readSecretsFromStorage(
 function writeSecretsToStorage(
   storage: Storage | undefined,
   storageKey: string,
-  secrets: Partial<Pick<NetworkConfig, SecretField>>
+  secrets: StoredSecrets
 ): void {
   if (!storage) {
     return;
@@ -163,14 +232,14 @@ function writeSecretsToStorage(
 }
 
 function splitSecretsByStorage(
-  secrets: Partial<Pick<NetworkConfig, SecretField>>,
+  secrets: StoredSecrets,
   config: Pick<NetworkConfig, 'rememberPersonalEtherscanKey'>
 ): {
-  localSecrets: Partial<Pick<NetworkConfig, SecretField>>;
-  sessionSecrets: Partial<Pick<NetworkConfig, SecretField>>;
+  localSecrets: StoredSecrets;
+  sessionSecrets: StoredSecrets;
 } {
-  const localSecrets: Partial<Pick<NetworkConfig, SecretField>> = {};
-  const sessionSecrets: Partial<Pick<NetworkConfig, SecretField>> = {};
+  const localSecrets: StoredSecrets = {};
+  const sessionSecrets: StoredSecrets = {};
 
   for (const field of SECRET_FIELDS) {
     const value = secrets[field]?.trim();
@@ -186,14 +255,41 @@ function splitSecretsByStorage(
     localSecrets[field] = value;
   }
 
+  // Non-EVM family keys always live in localStorage (BYOK, device-local).
+  if (secrets.starknet && Object.values(secrets.starknet).some(v => v)) {
+    localSecrets.starknet = { ...secrets.starknet };
+  }
+  if (secrets.solana && Object.values(secrets.solana).some(v => v)) {
+    localSecrets.solana = { ...secrets.solana };
+  }
+
   return { localSecrets, sessionSecrets };
 }
 
 /** Extract secret fields from a config object */
-function extractSecrets(config: NetworkConfig): Partial<Pick<NetworkConfig, SecretField>> {
-  const secrets: Partial<Pick<NetworkConfig, SecretField>> = {};
+function extractSecrets(
+  config: NetworkConfig
+): Partial<Pick<NetworkConfig, SecretField>> & NestedSecrets {
+  const secrets: Partial<Pick<NetworkConfig, SecretField>> & NestedSecrets = {};
   for (const field of SECRET_FIELDS) {
     if (config[field]) secrets[field] = config[field];
+  }
+  // Nested: starknet/solana per-provider keys.
+  const starknetKey = config.starknet?.alchemyKey?.trim();
+  const starknetInfura = config.starknet?.infuraProjectId?.trim();
+  if (starknetKey || starknetInfura) {
+    secrets.starknet = {
+      ...(starknetKey ? { alchemyKey: starknetKey } : {}),
+      ...(starknetInfura ? { infuraProjectId: starknetInfura } : {}),
+    };
+  }
+  const heliusKey = config.solana?.heliusKey?.trim();
+  const solanaAlchemy = config.solana?.alchemyKey?.trim();
+  if (heliusKey || solanaAlchemy) {
+    secrets.solana = {
+      ...(heliusKey ? { heliusKey } : {}),
+      ...(solanaAlchemy ? { alchemyKey: solanaAlchemy } : {}),
+    };
   }
   return secrets;
 }
@@ -215,22 +311,39 @@ function stripSecrets(config: NetworkConfig): NetworkConfig {
     }
     clean.chainOverrides = Object.keys(cleanOverrides).length > 0 ? cleanOverrides : undefined;
   }
+  // Strip nested Starknet/Solana provider keys from the persisted blob.
+  if (clean.starknet) {
+    const { alchemyKey: _sk, infuraProjectId: _si, ...restStarknet } = clean.starknet;
+    clean.starknet = restStarknet;
+  }
+  if (clean.solana) {
+    const { heliusKey: _sh, alchemyKey: _sa, ...restSolana } = clean.solana;
+    clean.solana = restSolana;
+  }
   return clean;
 }
 
-function readSecrets(): Partial<Pick<NetworkConfig, SecretField>> {
+function readSecrets(): StoredSecrets {
   if (typeof window === 'undefined') {
     return {};
   }
 
+  const local = readSecretsFromStorage(window.localStorage, LOCAL_SECRETS_KEY);
+  const session = readSecretsFromStorage(window.sessionStorage, SESSION_SECRETS_KEY);
   return {
-    ...readSecretsFromStorage(window.localStorage, LOCAL_SECRETS_KEY),
-    ...readSecretsFromStorage(window.sessionStorage, SESSION_SECRETS_KEY),
+    ...local,
+    ...session,
+    ...(local.starknet || session.starknet
+      ? { starknet: { ...local.starknet, ...session.starknet } }
+      : {}),
+    ...(local.solana || session.solana
+      ? { solana: { ...local.solana, ...session.solana } }
+      : {}),
   };
 }
 
 function writeSecrets(
-  secrets: Partial<Pick<NetworkConfig, SecretField>>,
+  secrets: StoredSecrets,
   config: Pick<NetworkConfig, 'rememberPersonalEtherscanKey'>
 ): void {
   if (typeof window === 'undefined') {
@@ -261,8 +374,8 @@ function migrateSecretsToMemory(): void {
     LEGACY_SESSION_SECRETS_KEY
   );
   const localSecrets = readSecretsFromStorage(window.localStorage, LOCAL_SECRETS_KEY);
-  const embeddedSecrets = parsedConfig ? extractSecrets(parsedConfig) : {};
-  const mergedSecrets = {
+  const embeddedSecrets: StoredSecrets = parsedConfig ? extractSecrets(parsedConfig) : {};
+  const mergedSecrets: StoredSecrets = {
     ...localSecrets,
     ...legacySessionSecrets,
     ...embeddedSecrets,
@@ -284,9 +397,10 @@ function migrateSecretsToMemory(): void {
   }
 
   if (parsedConfig) {
+    const reassembled = mergeNestedSecrets(effectiveConfig, mergedSecrets);
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(stripSecrets({ ...effectiveConfig, ...mergedSecrets }))
+      JSON.stringify(stripSecrets(reassembled))
     );
   }
 }
@@ -395,6 +509,21 @@ function migrateFromOldSettings(): NetworkConfig | null {
   return migrated;
 }
 
+function mergeNestedSecrets(
+  config: NetworkConfig,
+  secrets: StoredSecrets
+): NetworkConfig {
+  const { starknet: starknetSecrets, solana: solanaSecrets, ...flat } = secrets;
+  const next: NetworkConfig = { ...config, ...flat };
+  if (starknetSecrets && Object.values(starknetSecrets).some(v => v)) {
+    next.starknet = { ...(next.starknet ?? DEFAULT_STARKNET_RPC), ...starknetSecrets };
+  }
+  if (solanaSecrets && Object.values(solanaSecrets).some(v => v)) {
+    next.solana = { ...(next.solana ?? DEFAULT_SOLANA_RPC), ...solanaSecrets };
+  }
+  return next;
+}
+
 function readConfig(): NetworkConfig {
   if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
 
@@ -407,26 +536,23 @@ function readConfig(): NetworkConfig {
     // Even with no config blob, persisted secrets may exist
     const secrets = readSecrets();
     return {
-      ...DEFAULT_CONFIG,
-      ...secrets,
+      ...mergeNestedSecrets(DEFAULT_CONFIG, secrets),
       ...(secrets.etherscanApiKey ? { etherscanKeyMode: 'personal' as const } : {}),
     };
   }
 
   try {
     const parsed = migrateConfigShape(JSON.parse(raw) as NetworkConfig);
-    // Merge persisted secrets on top
     const secrets = readSecrets();
+    const merged = mergeNestedSecrets({ ...DEFAULT_CONFIG, ...parsed }, secrets);
     return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      ...secrets,
+      ...merged,
       ...(!parsed.etherscanKeyMode && secrets.etherscanApiKey
         ? { etherscanKeyMode: 'personal' as const }
         : {}),
     };
   } catch {
-    return { ...DEFAULT_CONFIG, ...readSecrets() };
+    return mergeNestedSecrets(DEFAULT_CONFIG, readSecrets());
   }
 }
 
@@ -528,6 +654,39 @@ export const networkConfigManager = {
       ...current,
       ...config,
     });
+  },
+
+  /**
+   * Merge-update the Starknet subtree without clobbering other fields.
+   * Use this instead of `saveConfig({ starknet })` when writing partial
+   * Starknet config — the top-level shallow-merge in `saveConfig` would
+   * otherwise replace the whole subtree.
+   */
+  saveStarknetConfig(patch: Partial<StarknetRpcConfig>): void {
+    const current = readConfig();
+    const merged: StarknetRpcConfig = {
+      ...(current.starknet ?? DEFAULT_STARKNET_RPC),
+      ...patch,
+      ...(patch.customUrls
+        ? { customUrls: { ...current.starknet?.customUrls, ...patch.customUrls } }
+        : {}),
+    };
+    writeConfig({ ...current, starknet: merged });
+  },
+
+  saveSolanaConfig(patch: Partial<SolanaRpcConfig>): void {
+    const current = readConfig();
+    const merged: SolanaRpcConfig = {
+      ...(current.solana ?? DEFAULT_SOLANA_RPC),
+      ...patch,
+      ...(patch.customUrls
+        ? { customUrls: { ...current.solana?.customUrls, ...patch.customUrls } }
+        : {}),
+      ...(patch.tritonUrls
+        ? { tritonUrls: { ...current.solana?.tritonUrls, ...patch.tritonUrls } }
+        : {}),
+    };
+    writeConfig({ ...current, solana: merged });
   },
 
   resolveRpcUrl(chainId: number, defaultUrl?: string): RpcResolution {
@@ -655,6 +814,135 @@ export const networkConfigManager = {
       mode: 'DEFAULT',
       isFallback: false,
     };
+  },
+
+  resolveStarknetRpc(network: StarknetNetwork): StarknetRpcResolution {
+    const { starknet = DEFAULT_STARKNET_RPC } = readConfig();
+    const cartridgeUrl = `https://api.cartridge.gg/x/starknet/${network}`;
+
+    switch (starknet.mode) {
+      case 'ALCHEMY_KEY': {
+        const key = starknet.alchemyKey?.trim();
+        if (key) {
+          // v0_9 pinned; bump if Alchemy deprecates.
+          const segment = network === 'mainnet' ? 'starknet-mainnet' : 'starknet-sepolia';
+          return {
+            url: `https://${segment}.g.alchemy.com/starknet/version/rpc/v0_9/${key}`,
+            source: 'alchemy',
+            isDefault: false,
+          };
+        }
+        return {
+          url: cartridgeUrl,
+          source: 'cartridge',
+          isDefault: true,
+          note: 'Alchemy selected but no API key. Falling back to Cartridge default.',
+        };
+      }
+      case 'INFURA_KEY': {
+        const projectId = starknet.infuraProjectId?.trim();
+        if (projectId) {
+          const segment = network === 'mainnet' ? 'starknet-mainnet' : 'starknet-sepolia';
+          return {
+            url: `https://${segment}.infura.io/v3/${projectId}`,
+            source: 'infura',
+            isDefault: false,
+          };
+        }
+        return {
+          url: cartridgeUrl,
+          source: 'cartridge',
+          isDefault: true,
+          note: 'Infura selected but no Project ID. Falling back to Cartridge default.',
+        };
+      }
+      case 'CUSTOM_URL': {
+        const custom = starknet.customUrls?.[network]?.trim();
+        if (custom) {
+          return { url: normalizeUrl(custom), source: 'custom', isDefault: false };
+        }
+        return {
+          url: cartridgeUrl,
+          source: 'cartridge',
+          isDefault: true,
+          note: 'Custom URL selected but not configured. Falling back to Cartridge default.',
+        };
+      }
+      case 'CARTRIDGE_DEFAULT':
+      default:
+        return { url: cartridgeUrl, source: 'cartridge', isDefault: true };
+    }
+  },
+
+  resolveSolanaRpc(cluster: SolanaCluster): SolanaRpcResolution {
+    const { solana = DEFAULT_SOLANA_RPC } = readConfig();
+    const publicUrl = cluster === 'mainnet-beta'
+      ? 'https://api.mainnet-beta.solana.com'
+      : 'https://api.devnet.solana.com';
+
+    switch (solana.mode) {
+      case 'HELIUS_KEY': {
+        const key = solana.heliusKey?.trim();
+        if (key) {
+          const host = cluster === 'mainnet-beta' ? 'mainnet' : 'devnet';
+          return {
+            url: `https://${host}.helius-rpc.com/?api-key=${key}`,
+            source: 'helius',
+            isDefault: false,
+          };
+        }
+        return {
+          url: publicUrl,
+          source: 'public',
+          isDefault: true,
+          note: 'Helius selected but no API key. Falling back to public RPC.',
+        };
+      }
+      case 'ALCHEMY_KEY': {
+        const key = solana.alchemyKey?.trim();
+        if (key) {
+          const host = cluster === 'mainnet-beta' ? 'solana-mainnet' : 'solana-devnet';
+          return {
+            url: `https://${host}.g.alchemy.com/v2/${key}`,
+            source: 'alchemy',
+            isDefault: false,
+          };
+        }
+        return {
+          url: publicUrl,
+          source: 'public',
+          isDefault: true,
+          note: 'Alchemy selected but no API key. Falling back to public RPC.',
+        };
+      }
+      case 'TRITON_URL': {
+        const url = solana.tritonUrls?.[cluster]?.trim();
+        if (url) {
+          return { url: normalizeUrl(url), source: 'triton', isDefault: false };
+        }
+        return {
+          url: publicUrl,
+          source: 'public',
+          isDefault: true,
+          note: 'Triton selected but no URL. Falling back to public RPC.',
+        };
+      }
+      case 'CUSTOM_URL': {
+        const url = solana.customUrls?.[cluster]?.trim();
+        if (url) {
+          return { url: normalizeUrl(url), source: 'custom', isDefault: false };
+        }
+        return {
+          url: publicUrl,
+          source: 'public',
+          isDefault: true,
+          note: 'Custom URL selected but not configured. Falling back to public RPC.',
+        };
+      }
+      case 'PUBLIC_DEFAULT':
+      default:
+        return { url: publicUrl, source: 'public', isDefault: true };
+    }
   },
 
   getEtherscanApiKey(chainId?: number): string | undefined {

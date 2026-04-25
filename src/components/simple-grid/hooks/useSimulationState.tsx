@@ -172,12 +172,15 @@ export function useSimulationState(deps: UseSimulationStateDeps) {
         else if (isERC777) detectedTokenType = "ERC777";
         else if (isERC4626) detectedTokenType = "ERC4626";
 
+        const networkIdForCtx = selectedNetwork?.id || 1;
         const contractContextToSave = {
+          chainFamily: 'evm' as const,
+          chainKey: `evm:${networkIdForCtx}` as const,
           address: contractAddress || transaction.to || "",
           name: contractInfo?.name || contractName || undefined,
           abi: parsedAbi,
           abiSource: abiSource || undefined,
-          networkId: selectedNetwork?.id || 1,
+          networkId: networkIdForCtx,
           networkName: selectedNetwork?.name || "Ethereum",
           simulationOrigin: 'manual' as const,
           selectedFunction: selectedFunctionObj?.name || undefined,
