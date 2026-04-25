@@ -31,7 +31,7 @@ const InvocationTree: React.FC<Props> = ({ node, depth = 0 }) => {
 
   const hasChildren = node.calls.length > 0;
   const label =
-    node.decodedEntryPoint?.name ?? shortSelector(node.entryPointSelector);
+    node.decodedSelector ?? shortSelector(node.entryPointSelector);
 
   return (
     <div className="pl-3 border-l border-border/40">

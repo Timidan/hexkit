@@ -143,7 +143,11 @@ const TxTraceView: React.FC = () => {
               <CardTitle className="text-sm">State diff</CardTitle>
             </CardHeader>
             <CardContent>
-              <StateDiffTabs diff={result.stateDiff} />
+              {result.stateDiff ? (
+                <StateDiffTabs diff={result.stateDiff} />
+              ) : (
+                <div className="text-xs text-zinc-500">No state diff in this response.</div>
+              )}
             </CardContent>
           </Card>
         </>

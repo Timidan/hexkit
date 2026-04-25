@@ -22,6 +22,11 @@ import EdbBridgeStatus from "./components/EdbBridgeStatus";
 import StarknetSimBridgeStatus from "./components/StarknetSimBridgeStatus";
 import ConstellationBackground from "./components/ConstellationBackground";
 import HomePage from "./components/HomePage";
+const StarknetSimDemoPage = React.lazy(() =>
+  import("./components/starknet-simulation-results/StarknetSimDemoPage").then((m) => ({
+    default: m.StarknetSimDemoPage,
+  })),
+);
 import MobileDrawer from "./components/MobileDrawer";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 import { FAMILY_PREFIXES, parseFamilyFromPath, resolveLegacyRedirect } from "./routes/familyRoutes";
@@ -239,6 +244,7 @@ function AppInner() {
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
+  const isStarknetSimDemo = location.pathname.startsWith("/starknet-sim-demo");
   const legacyRedirectTarget = resolveLegacyRedirect({
     pathname: location.pathname,
     search: location.search,
@@ -284,6 +290,12 @@ function AppInner() {
           <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
             <Routes>
               <Route path="/simulation/:id" element={<SimulationResultsPage />} />
+            </Routes>
+          </Suspense>
+        ) : isStarknetSimDemo ? (
+          <Suspense fallback={<LoadingSpinner text="Loading Starknet sim demo" fullPage />}>
+            <Routes>
+              <Route path="/starknet-sim-demo" element={<StarknetSimDemoPage />} />
             </Routes>
           </Suspense>
         ) : isHomePage ? (

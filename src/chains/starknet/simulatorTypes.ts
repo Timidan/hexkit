@@ -86,10 +86,15 @@ export interface StateDiff {
     address: string;
     storageEntries: Array<{ key: string; value: string }>;
   }>;
-  nonces: Array<{ contractAddress: string; nonce: string }>;
-  deployedContracts: Array<{ address: string; classHash: string }>;
+  nonceUpdates: Array<{ contractAddress: string; nonce: string }>;
+  classHashUpdates: Array<{ contractAddress: string; classHash: string }>;
   declaredClasses: Array<{ classHash: string; compiledClassHash: string }>;
-  replacedClasses: Array<{ contractAddress: string; classHash: string }>;
+  summary: {
+    contractsTouched: number;
+    storageWrites: number;
+    nonceUpdates: number;
+    classHashUpdates: number;
+  };
 }
 
 export interface SimulationEvent {
@@ -108,32 +113,32 @@ export interface L2ToL1Message {
 export interface FunctionInvocation {
   contractAddress: string;
   entryPointSelector: string;
+  /** Sprint 4 ABI decoder — bridge resolves selector → function name from
+   *  the loaded class's ABI (covers contract-specific entrypoints, not just
+   *  the std-lib KNOWN_SELECTORS table). Null when the class wasn't loaded
+   *  during execution (revert paths, predecessor frames). */
+  decodedSelector?: string | null;
   calldata: string[];
   callerAddress: string;
-  classHash: string;
-  entryPointType: "EXTERNAL" | "L1_HANDLER" | "CONSTRUCTOR";
-  callType: "CALL" | "DELEGATE" | "LIBRARY_CALL";
+  classHash: string | null;
+  entryPointType: string;
+  callType: string;
   result: string[];
   calls: FunctionInvocation[];
   events: SimulationEvent[];
   messages: L2ToL1Message[];
-  executionResources: ExecutionResources;
-  decodedEntryPoint?: { name: string };
 }
 
 export type SimulationStatus = "SUCCEEDED" | "REVERTED";
 
 export interface SimulationResult {
   status: SimulationStatus;
-  transactionHash: string;
   executionResources: ExecutionResources;
   feeEstimate: FeeEstimate;
   validateInvocation: FunctionInvocation | null;
   executeInvocation: FunctionInvocation | null;
   feeTransferInvocation: FunctionInvocation | null;
-  stateDiff: StateDiff;
-  events: SimulationEvent[];
-  messagesToL1: L2ToL1Message[];
+  stateDiff: StateDiff | null;
   revertReason: string | null;
   revertReasonDecoded: string | null;
 }

@@ -15,8 +15,8 @@ const StateDiffTabs: React.FC<Props> = ({ diff }) => {
     (acc, d) => acc + d.storageEntries.length,
     0,
   );
-  const nonceCount = diff.nonces.length;
-  const classCount = diff.declaredClasses.length + diff.replacedClasses.length;
+  const nonceCount = diff.nonceUpdates.length;
+  const classCount = diff.declaredClasses.length + diff.classHashUpdates.length;
 
   return (
     <Tabs defaultValue="storage">
@@ -57,7 +57,7 @@ const StateDiffTabs: React.FC<Props> = ({ diff }) => {
         {nonceCount === 0 && <EmptyHint label="nonces" />}
         <table className="w-full text-[11px] font-mono">
           <tbody>
-            {diff.nonces.map((n) => (
+            {diff.nonceUpdates.map((n) => (
               <tr key={n.contractAddress} className="border-t border-border/20">
                 <td className="py-1 pr-2 text-muted-foreground break-all">
                   {n.contractAddress}
@@ -86,11 +86,11 @@ const StateDiffTabs: React.FC<Props> = ({ diff }) => {
             </ul>
           </div>
         )}
-        {diff.replacedClasses.length > 0 && (
+        {diff.classHashUpdates.length > 0 && (
           <div>
             <div className="text-[11px] text-muted-foreground mb-1">Replaced</div>
             <ul className="space-y-1">
-              {diff.replacedClasses.map((c) => (
+              {diff.classHashUpdates.map((c) => (
                 <li
                   key={c.contractAddress}
                   className="font-mono text-[11px] break-all"
