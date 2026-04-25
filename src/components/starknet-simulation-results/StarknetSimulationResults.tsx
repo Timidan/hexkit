@@ -431,7 +431,14 @@ export function StarknetSimulationResults({
             />
           </TabsContent>
           <TabsContent value="messages">
-            <MessagesTab result={result} />
+            <MessagesTab
+              result={result}
+              frames={frames}
+              onJumpToFrame={(f) => {
+                setTab("trace");
+                setSelectedFrameWithHash(f);
+              }}
+            />
           </TabsContent>
           <TabsContent value="dev">
             <DevInfoTab response={response} result={result} />

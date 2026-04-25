@@ -6,10 +6,21 @@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
-import type { SimulationResult } from "@/chains/starknet/simulatorTypes";
+import type {
+  FunctionInvocation,
+  SimulationResult,
+} from "@/chains/starknet/simulatorTypes";
 import { collectL2ToL1Messages, frameLabel, selectorName, shortHex } from "./decoders";
 
-export function MessagesTab({ result }: { result: SimulationResult }) {
+export function MessagesTab({
+  result,
+  frames,
+  onJumpToFrame,
+}: {
+  result: SimulationResult;
+  frames?: FunctionInvocation[];
+  onJumpToFrame?: (frame: FunctionInvocation) => void;
+}) {
   const items = collectL2ToL1Messages(result);
 
   if (items.length === 0) {
@@ -38,12 +49,23 @@ export function MessagesTab({ result }: { result: SimulationResult }) {
           const fromLbl = frameLabel(frame);
           const sel = selectorName(frame);
           const payload = message.payload || [];
+          const frameIdx = frames ? frames.indexOf(frame) : -1;
           return (
             <Card key={i} className="p-3 gap-2 bg-background">
               <div className="flex items-center gap-2 flex-wrap text-xs">
                 <Badge variant="outline" size="sm">
                   msg #{i}
                 </Badge>
+                {frameIdx >= 0 && onJumpToFrame && (
+                  <button
+                    type="button"
+                    onClick={() => onJumpToFrame(frame)}
+                    className="font-mono text-[10px] text-info hover:underline"
+                    data-testid="msg-jump-frame"
+                  >
+                    frame #{frameIdx}
+                  </button>
+                )}
                 <span className="text-muted-foreground">from</span>
                 {fromLbl ? (
                   <span className="font-mono text-success">{fromLbl}</span>
