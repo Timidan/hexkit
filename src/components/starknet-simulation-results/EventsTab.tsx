@@ -11,7 +11,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { SimulationResult } from "@/chains/starknet/simulatorTypes";
-import { contractLabel, eventName, shortHex, walkInvocations } from "./decoders";
+import {
+  contractLabel,
+  decodeU256,
+  eventName,
+  formatTokenAmount,
+  shortHex,
+  TOKEN_META,
+  walkInvocations,
+} from "./decoders";
 
 export function EventsTab({ result }: { result: SimulationResult }) {
   const rows: Array<{ from: string; keys: string[]; data: string[] }> = [];
@@ -26,15 +34,19 @@ export function EventsTab({ result }: { result: SimulationResult }) {
   // to recompute on every keystroke.
   const annotated = useMemo(
     () =>
-      rows.map((r) => ({
-        ...r,
-        decodedName: eventName({
+      rows.map((r) => {
+        const decodedName = eventName({
           fromAddress: r.from,
           keys: r.keys,
           data: r.data,
-        }),
-        fromLabel: contractLabel(r.from),
-      })),
+        });
+        return {
+          ...r,
+          decodedName,
+          fromLabel: contractLabel(r.from),
+          summary: summarizeEventData(decodedName, r.from, r.data),
+        };
+      }),
     [rows],
   );
   const filtered = useMemo(() => {
@@ -127,7 +139,18 @@ export function EventsTab({ result }: { result: SimulationResult }) {
                         )}
                       </TableCell>
                       <TableCell className="font-mono text-[10px] text-foreground">
-                        [{r.data.length} felt{r.data.length === 1 ? "" : "s"}]
+                        {r.summary ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-foreground">{r.summary}</span>
+                            <span className="text-muted-foreground/70">
+                              [{r.data.length}]
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            [{r.data.length} felt{r.data.length === 1 ? "" : "s"}]
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -139,4 +162,53 @@ export function EventsTab({ result }: { result: SimulationResult }) {
       )}
     </Card>
   );
+}
+
+/** Translate the data felts of a few well-known event shapes into a
+ *  one-line summary (token amount, NFT id, batch count). Falls back to
+ *  null so the renderer keeps the existing "[N felts]" form for
+ *  events we don't have a decoder for. */
+function summarizeEventData(
+  name: string | null,
+  fromAddress: string,
+  data: string[],
+): string | null {
+  if (!name || !data || data.length === 0) return null;
+  const meta = TOKEN_META[fromAddress];
+  if (name === "Transfer") {
+    if (data.length === 1) {
+      // ERC-721 — single felt id.
+      return `tokenId=${data[0]}`;
+    }
+    if (data.length >= 2) {
+      // ERC-20 — u256 (low, high).
+      const amount = decodeU256(data[0], data[1]);
+      const symbol = meta?.symbol ?? "tokens";
+      const decimals = meta?.decimals ?? 18;
+      return `${formatTokenAmount(amount, decimals)} ${symbol}`;
+    }
+  }
+  if (name === "Approval" && data.length >= 2) {
+    const amount = decodeU256(data[0], data[1]);
+    const symbol = meta?.symbol ?? "tokens";
+    const decimals = meta?.decimals ?? 18;
+    return `approve ${formatTokenAmount(amount, decimals)} ${symbol}`;
+  }
+  if (name === "TransferSingle" && data.length >= 4) {
+    const id = decodeU256(data[0], data[1]);
+    const value = decodeU256(data[2], data[3]);
+    return `id ${id}, value ${value}`;
+  }
+  if (name === "TransferBatch" && data.length >= 1) {
+    try {
+      const idsLen = Number(BigInt(data[0]));
+      return `${idsLen} batched id${idsLen === 1 ? "" : "s"}`;
+    } catch {
+      return null;
+    }
+  }
+  if (name === "ApprovalForAll" && data.length >= 1) {
+    return data[0] === "0x0" || data[0] === "0x" ? "revoked" : "granted";
+  }
+  return null;
 }
