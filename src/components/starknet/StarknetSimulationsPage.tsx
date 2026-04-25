@@ -164,17 +164,32 @@ const StarknetSimulationsPage: React.FC = () => {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={onTabChange}>
-            <TabsList className="w-full">
-              <TabsTrigger value="trace" className="flex-1">
-                By transaction hash
-              </TabsTrigger>
-              <TabsTrigger value="synthetic" className="flex-1">
-                Speculative simulate
-              </TabsTrigger>
-              <TabsTrigger value="estimate" className="flex-1">
-                Estimate fee
-              </TabsTrigger>
-            </TabsList>
+            {/* Wrapper allows horizontal scroll on narrow viewports.
+                On sm+ the triggers grow to fill the row (flex-1); below
+                that they fall back to content-width with shrink-0 so
+                long labels stay readable instead of getting squashed. */}
+            <div className="-mx-2 px-2 overflow-x-auto sm:mx-0 sm:px-0">
+              <TabsList className="w-full min-w-max sm:min-w-0">
+                <TabsTrigger
+                  value="trace"
+                  className="shrink-0 sm:flex-1 whitespace-nowrap"
+                >
+                  By transaction hash
+                </TabsTrigger>
+                <TabsTrigger
+                  value="synthetic"
+                  className="shrink-0 sm:flex-1 whitespace-nowrap"
+                >
+                  Speculative simulate
+                </TabsTrigger>
+                <TabsTrigger
+                  value="estimate"
+                  className="shrink-0 sm:flex-1 whitespace-nowrap"
+                >
+                  Estimate fee
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="trace" className="mt-3">
               <TxTraceView
