@@ -1,13 +1,40 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import TxTraceView from "./TxTraceView";
 import SyntheticSimView from "./SyntheticSimView";
 import EstimateFeeView from "./EstimateFeeView";
 
 type TabId = "trace" | "synthetic" | "estimate";
+const VALID_TABS: TabId[] = ["trace", "synthetic", "estimate"];
+
+function parseTabParam(value: string | null | undefined): TabId {
+  return VALID_TABS.includes(value as TabId) ? (value as TabId) : "trace";
+}
 
 const StarknetSimulationsPage: React.FC = () => {
-  const [tab, setTab] = useState<TabId>("trace");
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const tab = useMemo(
+    () => parseTabParam(new URLSearchParams(location.search).get("tab")),
+    [location.search],
+  );
+
+  const onTabChange = useCallback(
+    (next: string) => {
+      const id = parseTabParam(next);
+      const params = new URLSearchParams(location.search);
+      params.set("tab", id);
+      // Preserve the #frame=N deep-link so jumping between tabs and back
+      // to Call tree restores the previously selected frame.
+      navigate(
+        `${location.pathname}?${params.toString()}${location.hash}`,
+        { replace: true },
+      );
+    },
+    [location.pathname, location.search, location.hash, navigate],
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6 space-y-4">
@@ -20,7 +47,7 @@ const StarknetSimulationsPage: React.FC = () => {
         </p>
       </header>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)}>
+      <Tabs value={tab} onValueChange={onTabChange}>
         <TabsList className="w-full">
           <TabsTrigger value="trace" className="flex-1">
             By transaction hash

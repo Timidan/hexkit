@@ -110,7 +110,13 @@ export function StarknetSimulationResults({
       setSelectedFrame(f);
       if (f) {
         const idx = frames.indexOf(f);
-        if (idx >= 0) window.history.replaceState(null, "", `#frame=${idx}`);
+        if (idx >= 0) {
+          // Preserve any existing ?tab= query so jumping between frames
+          // doesn't clobber the URL the parent route is maintaining.
+          const url = new URL(window.location.href);
+          url.hash = `frame=${idx}`;
+          window.history.replaceState(null, "", url.toString());
+        }
       }
     },
     [frames],
