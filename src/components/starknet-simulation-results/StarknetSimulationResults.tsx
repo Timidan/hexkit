@@ -285,24 +285,37 @@ export function StarknetSimulationResults({
               </Badge>
             )}
             {/* Compact 3-step lifecycle pill — Voyager parity. The
-                bridge runs against blockifier so the tx is "Simulated"
-                and (when txHash is set) "Accepted on L2"; L1
-                settlement isn't observed by the bridge so we leave it
-                muted as a hint. */}
-            <span className="hidden md:inline-flex items-center gap-1 ml-2 text-[10px] text-muted-foreground">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-success" />
-              <span>Simulated</span>
-              <span className="text-muted-foreground/60">›</span>
-              <span
-                className={`inline-block w-1.5 h-1.5 rounded-full ${
-                  txHash ? "bg-success" : "bg-muted-foreground/40"
-                }`}
-              />
-              <span>{txHash ? "Accepted on L2" : "Speculative"}</span>
-              <span className="text-muted-foreground/60">›</span>
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
-              <span>L1 settle (off-bridge)</span>
-            </span>
+                bridge runs against blockifier so the tx is always
+                "Simulated"; L2 / L1 acceptance comes from the
+                receipt's finality_status when present. */}
+            {(() => {
+              const finality = response.txReceipt?.finality_status ?? null;
+              const onL2 =
+                finality === "ACCEPTED_ON_L2" || finality === "ACCEPTED_ON_L1";
+              const onL1 = finality === "ACCEPTED_ON_L1";
+              return (
+                <span className="hidden md:inline-flex items-center gap-1 ml-2 text-[10px] text-muted-foreground">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-success" />
+                  <span>Simulated</span>
+                  <span className="text-muted-foreground/60">›</span>
+                  <span
+                    className={`inline-block w-1.5 h-1.5 rounded-full ${
+                      onL2 ? "bg-success" : "bg-muted-foreground/40"
+                    }`}
+                  />
+                  <span>{onL2 ? "Accepted on L2" : "Speculative"}</span>
+                  <span className="text-muted-foreground/60">›</span>
+                  <span
+                    className={`inline-block w-1.5 h-1.5 rounded-full ${
+                      onL1 ? "bg-success" : "bg-muted-foreground/30"
+                    }`}
+                  />
+                  <span>
+                    {onL1 ? "Settled on L1" : "Pending L1 settlement"}
+                  </span>
+                </span>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-1.5">
             {onResimulate && (
