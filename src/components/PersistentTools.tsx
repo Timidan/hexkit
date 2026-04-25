@@ -14,6 +14,9 @@ const SignatureDatabase = React.lazy(() => import("./SignatureDatabase"));
 const SimulationHistoryPage = React.lazy(() => import("./SimulationHistoryPage"));
 const SourceTools = React.lazy(() => import("./explorer/SourceTools"));
 const IntegrationsHub = React.lazy(() => import("./integrations/IntegrationsHub"));
+const DelegationInspectorPage = React.lazy(() => import("./eip7702/DelegationInspectorPage"));
+const SignaturePreviewerPage = React.lazy(() => import("./signature/SignaturePreviewerPage"));
+const SafeVerifierPage = React.lazy(() => import("./safe/SafeVerifierPage"));
 
 const TOOL_ROUTES: ToolRoute[] = [
   { path: "/database", render: () => <SignatureDatabase /> },
@@ -21,6 +24,9 @@ const TOOL_ROUTES: ToolRoute[] = [
   { path: "/simulations", render: () => <SimulationHistoryPage /> },
   { path: "/explorer", render: () => <SourceTools /> },
   { path: "/integrations", render: () => <IntegrationsHub />, prefix: true },
+  { path: "/explorer/7702", render: () => <DelegationInspectorPage /> },
+  { path: "/database/preview", render: () => <SignaturePreviewerPage /> },
+  { path: "/builder/safe-verify", render: () => <SafeVerifierPage /> },
 ];
 
 function routeMatches(route: ToolRoute, pathname: string): boolean {
@@ -117,11 +123,34 @@ const PersistentTools: React.FC = () => {
   useEffect(() => {
     const targetPath = activeRouteKey;
     if (targetPath === visiblePath && !animatingRef.current) return;
-    if (targetPath === visiblePath) return;
 
     // Abort any in-flight animation
     clearTimeout(cleanupTimerRef.current);
     if (enterRafRef.current) cancelAnimationFrame(enterRafRef.current);
+
+    // User navigated back to the same panel mid-exit. Restore its inline
+    // styles so it doesn't get stuck faded-out with pointer-events: none.
+    if (targetPath === visiblePath) {
+      const panel = panelRefs.current[visiblePath];
+      if (panel) {
+        panel.style.transition = `opacity ${ENTER_MS}ms ${ENTER_EASE}, transform ${ENTER_MS}ms ${ENTER_EASE}`;
+        panel.style.opacity = "1";
+        panel.style.transform = "scale(1) translateY(0)";
+        panel.style.pointerEvents = "";
+      }
+      cleanupTimerRef.current = setTimeout(() => {
+        const p = panelRefs.current[visiblePath];
+        if (p) {
+          p.style.transition = "";
+          p.style.opacity = "";
+          p.style.transform = "";
+        }
+        animatingRef.current = false;
+      }, ENTER_MS + 50);
+      return () => {
+        clearTimeout(cleanupTimerRef.current);
+      };
+    }
 
     const oldPanel = panelRefs.current[visiblePath];
     const oldPath = visiblePath;

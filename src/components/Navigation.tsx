@@ -31,7 +31,7 @@ const TOOLS: ToolDef[] = [
   {
     id: "database",
     route: "/database",
-    label: "Signature Database",
+    label: "Signatures",
     shortLabel: "Signatures",
     subTabs: [
       { id: "lookup", label: "Lookup", shortLabel: "Lookup", paramKey: "tab", icon: <HashtagIcon width={12} height={12} /> },
@@ -39,6 +39,7 @@ const TOOLS: ToolDef[] = [
       { id: "tools", label: "Tools", shortLabel: "Tools", paramKey: "tab", icon: <ToolIcon width={12} height={12} /> },
       { id: "custom", label: "Custom", shortLabel: "Custom", paramKey: "tab", icon: <FileTextIcon width={12} height={12} /> },
       { id: "cache", label: "Cache", shortLabel: "Cache", paramKey: "tab", icon: <ZapIcon width={12} height={12} /> },
+      { id: "preview", label: "Previewer", shortLabel: "Preview", paramKey: "route" },
     ],
   },
   {
@@ -49,6 +50,7 @@ const TOOLS: ToolDef[] = [
     subTabs: [
       { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
       { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
+      { id: "safe-verify", label: "Safe Verify", shortLabel: "Safe", paramKey: "route" },
     ],
   },
   {
@@ -60,6 +62,7 @@ const TOOLS: ToolDef[] = [
       { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code width={12} height={12} /> },
       { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitDiff width={12} height={12} /> },
       { id: "storage", label: "Storage", shortLabel: "Storage", paramKey: "tool", icon: <Database width={12} height={12} /> },
+      { id: "7702", label: "7702 Delegation", shortLabel: "7702", paramKey: "route" },
     ],
   },
   {
@@ -94,16 +97,17 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   ) {
     return "simulation";
   }
-  // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn)
-  if (tool.subTabs[0]?.paramKey === "route") {
-    const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+  // Route-based sub-tabs are checked first so tools mixing route and query
+  // patterns resolve to the nested route when one is active.
+  const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+  if (segment) {
     for (const sub of tool.subTabs) {
-      if (sub.id === segment) return sub.id;
+      if (sub.paramKey === "route" && sub.id === segment) return sub.id;
     }
-    return tool.subTabs[0].id;
   }
 
   for (const sub of tool.subTabs) {
+    if (sub.paramKey === "route") continue;
     const val = params.get(sub.paramKey);
     if (val === sub.id) return sub.id;
   }
@@ -276,13 +280,11 @@ const Navigation: React.FC = () => {
 
     const params = new URLSearchParams(location.search);
     params.set(sub.paramKey, sub.id);
-    // Use the tool's canonical route when the current path doesn't match
-    // (e.g. navigating from /simulations back to /builder?mode=live)
-    const basePath = location.pathname.startsWith(activeTool.route)
-      ? location.pathname
-      : activeTool.route;
+    // Reset pathname to the tool's canonical route so switching from a
+    // route-based sub-tab to a query-based one doesn't leave the nested
+    // route rendered underneath.
     navigate(
-      { pathname: basePath, search: `?${params.toString()}` },
+      { pathname: activeTool.route, search: `?${params.toString()}` },
       { replace: true },
     );
   };

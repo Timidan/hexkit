@@ -1,0 +1,23 @@
+{
+  "_provenance": "Synthetic Safe v1.3.0 execTransaction fixture. Shape mirrors the safe-transaction-service /api/v1/multisig-transactions response; hash is verified by recomputing through viem hashTypedData in tests (not pinned to a real on-chain hash because we don't hit the network).",
+  "chainId": 1,
+  "safe": "0x1234567890123456789012345678901234567890",
+  "ownersAtExec": [
+    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+  ],
+  "txService": {
+    "safe": "0x1234567890123456789012345678901234567890",
+    "to": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+    "value": "0",
+    "data": "0x",
+    "operation": 0,
+    "safeTxGas": "0",
+    "baseGas": "0",
+    "gasPrice": "0",
+    "gasToken": "0x0000000000000000000000000000000000000000",
+    "refundReceiver": "0x0000000000000000000000000000000000000000",
+    "nonce": "42",
+    "confirmations": []
+  }
+}

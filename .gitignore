@@ -61,11 +61,25 @@ edb
 
 # Misc
 *.pdf
-*test*
-*Test*
-*TEST*
 /tmp
 video/out
 .superpowers
 /docs
 @docs
+
+# Tests — run via vitest locally, never committed.
+# Idiomatic patterns scoped to filename suffixes + dedicated folders so
+# we don't accidentally exclude unrelated files (e.g. attestation.ts).
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+**/__tests__/
+**/__mocks__/
+**/test-fixtures/
+/tests/
+/test-results/

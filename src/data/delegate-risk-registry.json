@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-22",
+  "entries": [
+    {
+      "address": "0x89383882Fc2D0Cd4D7952a3267A3b6DaE967e704",
+      "name": "CrimeEnjoyor",
+      "category": "drainer",
+      "verified": false,
+      "notes": "Most widespread malicious 7702 delegate in the wild; sweeps ETH and ERC-20 on receipt."
+    }
+  ]
+}
