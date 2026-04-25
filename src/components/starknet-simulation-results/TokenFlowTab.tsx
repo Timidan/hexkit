@@ -26,6 +26,22 @@ interface DecodedTransfer {
   frame: FunctionInvocation;
 }
 
+/** Mint / burn / transfer classification from the participants' addresses.
+ *  ERC20 / ERC721 contracts emit a Transfer with from = 0x0 on mint and
+ *  to = 0x0 on burn; everything else is a regular transfer. */
+function transferKind(from: string, to: string): "MINT" | "BURN" | null {
+  const isZero = (a: string) => {
+    try {
+      return BigInt(a) === 0n;
+    } catch {
+      return false;
+    }
+  };
+  if (isZero(from) && !isZero(to)) return "MINT";
+  if (!isZero(from) && isZero(to)) return "BURN";
+  return null;
+}
+
 /** Cairo array length felts max out around 2^32 in practice; clamp to
  *  a sane range so a malformed event can't blow up the loop. */
 function safeFeltLen(felt: string | undefined): number {
@@ -173,6 +189,7 @@ export function TokenFlowTab({
               const fromLbl = contractLabel(t.from);
               const toLbl = contractLabel(t.to);
               const frameIdx = frames ? frames.indexOf(t.frame) : -1;
+              const flowKind = transferKind(t.from, t.to);
               return (
                 <Card key={i} className="p-3 gap-1.5">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -182,6 +199,15 @@ export function TokenFlowTab({
                     <span className="text-[10px] text-muted-foreground uppercase">
                       {t.kind}
                     </span>
+                    {flowKind && (
+                      <Badge
+                        variant={flowKind === "MINT" ? "info" : "warning"}
+                        size="sm"
+                        data-testid="flow-kind-pill"
+                      >
+                        {flowKind}
+                      </Badge>
+                    )}
                     {frameIdx >= 0 && onJumpToFrame && (
                       <button
                         type="button"

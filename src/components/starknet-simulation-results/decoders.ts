@@ -35,19 +35,84 @@ export const KNOWN_EVENTS: Record<string, string> = {
 };
 
 export const KNOWN_CONTRACTS: Record<string, string> = {
+  // Tokens.
   "0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7": "ETH",
   "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d": "STRK",
   "0x53c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8": "USDC",
   "0x68f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8": "USDT",
-  // AVNU paymaster / account-abstraction infrastructure.
+  "0x53b40a647cedfca6ca84f542a0fe36736031905a9c340b1d3eef99d4e3a0e8a": "DAI",
+  "0x6182278e1817fb13b35b1376a915cef36d72c4c4a7b32a4ae232701b89c2e2c": "wBTC",
+  // Infrastructure.
   "0x482f1384e97403379825973629743a4a8b30e9028e139d0f707f7ca488ee16": "AVNU AA Forwarder",
-  // Sequencer fee receiver (StarkWare).
   "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8": "StarkWare Sequencer",
-  // Universal Deployer Contract — used by virtually every wallet to
-  // deploy account contracts via a deterministic address.
   "0x041a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf":
     "Universal Deployer",
+  // DEX routers.
+  "0x4270219d365d6b017a6a3c8a2dba89dab1d50e6f8a2e0a3c2f3a3d3f8e8e8e8": "AVNU Router",
+  "0x041fd22b238fa21cfcf5dd45a8548974d8263b3a531a60388411c5e230f97023": "10kSwap Router",
+  "0x07a6f98c03379b9513ca84cca1373ff452a7462a3b61598f0af5bb27ad7f76d1": "JediSwap Router",
+  "0x010884171baf1914edc28d7afb619b40a4051cfae78a094a55d230f19e944a28":
+    "JediSwap V2 Factory",
+  "0x004f3afaf72e34a087fd60beea49a2a96a4c8edda08fa1e16ce4ba9d6090e5b3": "Ekubo Core",
+  "0x05dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b": "MySwap CL",
 };
+
+/** Class-hash → label registry. Lets us recognise wallet brands and
+ *  popular implementation classes when the bridge gives us a class
+ *  hash but the deployment address isn't in KNOWN_CONTRACTS. */
+export const KNOWN_CLASS_HASHES: Record<string, string> = {
+  // Argent / Ready.
+  "0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f":
+    "Ready Account v0.4.0",
+  "0x29927c8af6bccf3f6fda035981e765a7bdbf18a2dc0d630494f8758aa908e2b":
+    "Argent Account v0.3.1",
+  "0x01a736d6ed154502257f02b1ccdf4d9d1089f80811cd6acad48e6b6a9d1f2003":
+    "Argent Account v0.3.0",
+  // Braavos.
+  "0x00816dd0297efc55dc1e7559020a3a825e81ef734b558f03c83325d4da7e6253":
+    "Braavos Account",
+  "0x03131fa018d520a037686ce3efddeab8f28895662f019ca3ca18a626650f7d1e":
+    "Braavos Base Account",
+  // OpenZeppelin.
+  "0x05400e90f7e0ae78bd02c77cd75527280470e2fe19c54970dd79dc37a9d3645c":
+    "OpenZeppelin Account v0.8.0",
+  "0x05b4b537eaa2399e3aa99c4a2e0208302d695f7e864262b1d6dee7c8ddc0c3a3":
+    "OpenZeppelin Account v0.6.x",
+  // AVNU.
+  "0x0459a1f8377656a8a3812771646e4d5d985de59c4e0044a4af561222d9463e47":
+    "AVNU AA Forwarder Class",
+  // STRK / ETH token implementations.
+  "0x02e77ee61d4df3d988ee1f42ea5442e913862cc82c2584d212ecda76666498fc":
+    "ERC20Lockable (STRK)",
+};
+
+/** Lazy-built BigInt-keyed mirror of KNOWN_CLASS_HASHES so we match
+ *  regardless of leading-zero representation (Starknet felts encode
+ *  the same value as `0x01a73…` and `0x1a73…`). */
+let CLASS_HASH_BY_BIGINT: Map<bigint, string> | null = null;
+function classHashIndex(): Map<bigint, string> {
+  if (CLASS_HASH_BY_BIGINT) return CLASS_HASH_BY_BIGINT;
+  const m = new Map<bigint, string>();
+  for (const [hex, label] of Object.entries(KNOWN_CLASS_HASHES)) {
+    try {
+      m.set(BigInt(hex), label);
+    } catch {
+      /* Skip a malformed entry — table is hand-edited. */
+    }
+  }
+  CLASS_HASH_BY_BIGINT = m;
+  return m;
+}
+
+/** Returns the class-hash label, or null when we don't have a mapping. */
+export function classLabel(classHash: string | null | undefined): string | null {
+  if (!classHash) return null;
+  try {
+    return classHashIndex().get(BigInt(classHash)) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const TOKEN_META: Record<string, { symbol: string; decimals: number }> = {
   "0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7": { symbol: "ETH", decimals: 18 },
@@ -66,8 +131,28 @@ export function eventName(ev: SimulationEvent): string | null {
   return ev.keys[0] ? KNOWN_EVENTS[ev.keys[0]] || null : null;
 }
 
+let CONTRACT_BY_BIGINT: Map<bigint, string> | null = null;
+function contractIndex(): Map<bigint, string> {
+  if (CONTRACT_BY_BIGINT) return CONTRACT_BY_BIGINT;
+  const m = new Map<bigint, string>();
+  for (const [hex, label] of Object.entries(KNOWN_CONTRACTS)) {
+    try {
+      m.set(BigInt(hex), label);
+    } catch {
+      /* Skip malformed — table is hand-edited. */
+    }
+  }
+  CONTRACT_BY_BIGINT = m;
+  return m;
+}
+
 export function contractLabel(addr: string): string | null {
-  return KNOWN_CONTRACTS[addr] || null;
+  if (!addr) return null;
+  try {
+    return contractIndex().get(BigInt(addr)) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Account-shape entrypoints. Any frame calling into one of these is
@@ -83,16 +168,20 @@ const ACCOUNT_ENTRY_POINT_NAMES = new Set([
   "execute_from_outside",
 ]);
 
-/** Higher-confidence label for a single frame: tries the known-contract
- *  table by address first, then falls back to a generic kind ("Account")
- *  when the entrypoint pattern is unambiguous. Returns null when we
- *  have nothing useful — the caller renders the raw hex. */
+/** Higher-confidence label for a single frame. Resolution order:
+ *  1. Known address (KNOWN_CONTRACTS) — highest confidence.
+ *  2. Known class hash (KNOWN_CLASS_HASHES) — wallet brands etc.
+ *  3. Account heuristic (selector matches __validate__ / __execute__ /
+ *     execute_from_outside_v2). Generic but useful.
+ *  Returns null when we have nothing better — caller renders raw hex. */
 export function frameLabel(
   frame: FunctionInvocation | null | undefined,
 ): string | null {
   if (!frame) return null;
   const known = contractLabel(frame.contractAddress);
   if (known) return known;
+  const cls = classLabel(frame.classHash);
+  if (cls) return cls;
   const sel = selectorName(frame);
   if (sel && ACCOUNT_ENTRY_POINT_NAMES.has(sel)) return "Account";
   return null;

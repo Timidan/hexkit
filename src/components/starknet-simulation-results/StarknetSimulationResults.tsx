@@ -232,6 +232,20 @@ export function StarknetSimulationResults({
 
   const explorers = txHash ? explorerLinks(txHash, chainId) : null;
   const senderLabel = sender ? contractLabel(sender) : null;
+  // Meta-tx heuristic: if any frame in the trace dispatches via the
+  // Argent / AVNU paymaster patterns, the user-visible call is being
+  // sponsored. Voyager surfaces this as a META-TRANSACTION tag on the
+  // header — useful signal for "the sender isn't the payer".
+  const isMetaTx = useMemo(() => {
+    return frames.some((f) => {
+      const sel = selectorName(f);
+      return (
+        sel === "execute_from_outside_v2" ||
+        sel === "execute_from_outside" ||
+        sel === "execute_sponsored"
+      );
+    });
+  }, [frames]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -240,9 +254,14 @@ export function StarknetSimulationResults({
             the two surfaces feel like one app. Status pill on the left,
             action icons on the right, summary grid below. */}
         <header className="flex items-center justify-between gap-3 pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-semibold">Starknet simulation</span>
             <StatusBadge status={result.status} />
+            {isMetaTx && (
+              <Badge variant="info" size="sm" data-testid="meta-tx-badge">
+                META-TX
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             {onResimulate && (

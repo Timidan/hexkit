@@ -62,7 +62,10 @@ export function CallTreeTab({
     "showResources",
     true,
   );
-  const [executeOnly, setExecuteOnly] = usePersistedToggle("executeOnly", false);
+  // Voyager hides validate / fee_transfer by default and shows only the
+  // user-facing execute body; matching that since 99% of the time
+  // that's what the user is here to look at.
+  const [executeOnly, setExecuteOnly] = usePersistedToggle("executeOnly", true);
   const [filter, setFilter] = useState("");
 
   const stats = useMemo(() => {
@@ -95,7 +98,14 @@ export function CallTreeTab({
     };
   }, [result]);
 
-  const sections: Array<[string, FunctionInvocation | null, string]> = executeOnly
+  // executeOnly hides validate / fee_transfer when there's an execute
+  // body to look at. Reverted txs can leave executeInvocation null
+  // (fault during validate); fall through to the full set so we don't
+  // render an empty tree.
+  const hasExecute = result.executeInvocation !== null;
+  const sections: Array<[string, FunctionInvocation | null, string]> = (
+    executeOnly && hasExecute
+  )
     ? [
         [
           "__execute__",
