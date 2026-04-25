@@ -328,7 +328,9 @@ export function StarknetSimulationResults({
                 <span className="mx-1">·</span>
                 <span>starknet {response.blockContext.starknetVersion}</span>
                 <span className="mx-1">·</span>
-                <span>{ts.toUTCString()}</span>
+                <span title={ts.toUTCString()}>
+                  {humanRelative(ts)} ({ts.toUTCString()})
+                </span>
               </div>
             </div>
           </div>
@@ -583,6 +585,17 @@ function RawTab({ response }: { response: SimulateResponse }) {
       </pre>
     </Card>
   );
+}
+
+/** "5m ago" / "2h ago" / "3d ago" — coarse buckets, only useful as a
+ *  glance metric. The absolute UTC timestamp is right next to it. */
+function humanRelative(ts: Date): string {
+  const delta = Date.now() - ts.getTime();
+  if (delta < 0) return "in the future";
+  if (delta < 60_000) return "just now";
+  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
+  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`;
+  return `${Math.floor(delta / 86_400_000)}d ago`;
 }
 
 const RESULT_TAB_KEY = "hexkit:starknet-sim:resultTab";
