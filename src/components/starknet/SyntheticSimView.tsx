@@ -83,6 +83,54 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
             calldata felts in below; one per line, or comma-separated.
           </p>
 
+          <div className="flex items-center gap-3 flex-wrap text-xs">
+            <span className="text-muted-foreground">Pin to:</span>
+            <div className="inline-flex rounded-md border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => update("blockId", "latest")}
+                aria-pressed={form.blockId === "latest"}
+                data-testid="block-pin-latest"
+                className={`px-2.5 py-1 text-xs ${
+                  form.blockId === "latest"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Fork head
+              </button>
+              <button
+                type="button"
+                onClick={() => update("blockId", "number")}
+                aria-pressed={form.blockId === "number"}
+                data-testid="block-pin-number"
+                className={`px-2.5 py-1 text-xs border-l border-border ${
+                  form.blockId === "number"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Block #
+              </button>
+            </div>
+            <Input
+              id="block-number"
+              placeholder="9 151 000"
+              spellCheck={false}
+              disabled={form.blockId !== "number"}
+              className="font-mono text-xs h-7 w-32"
+              value={form.blockNumber}
+              onChange={(e) =>
+                update("blockNumber", e.target.value.replace(/[^\d]/g, ""))
+              }
+            />
+            <span className="text-[10px] text-muted-foreground ml-auto">
+              {form.blockId === "latest"
+                ? "moves with the chain"
+                : "frozen — same state every replay"}
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Sender address" htmlFor="sender">
               <Input
@@ -188,7 +236,11 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
               <Button
                 variant="outline"
                 onClick={submit}
-                disabled={!form.senderAddress.trim() || pending}
+                disabled={
+                  !form.senderAddress.trim() ||
+                  pending ||
+                  (form.blockId === "number" && !form.blockNumber.trim())
+                }
                 loading={pending}
               >
                 Simulate
