@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CaretDown, CaretRight, Check, LinkSimple, Sparkle } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Check, Code, LinkSimple, Sparkle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -455,6 +455,7 @@ function FrameDetailPane({
         <div className="text-xs uppercase text-muted-foreground">Selected frame</div>
         <div className="flex items-center gap-2">
           <CopyFrameLinkButton frame={frame} frames={frames} />
+          <CopyFrameJsonButton frame={frame} />
           {onExplain && (
             <Button
               variant="outline"
@@ -621,6 +622,32 @@ function CopyFrameLinkButton({
       data-testid="copy-frame-link"
     >
       {copied ? "Copied" : "Copy link"}
+    </Button>
+  );
+}
+
+function CopyFrameJsonButton({ frame }: { frame: FunctionInvocation }) {
+  const [copied, setCopied] = useState(false);
+  const onClick = async () => {
+    const json = JSON.stringify(frame, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      window.prompt("Copy this frame JSON", json);
+    }
+  };
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      icon={copied ? <Check size={14} /> : <Code size={14} />}
+      onClick={onClick}
+      data-testid="copy-frame-json"
+    >
+      {copied ? "Copied" : "Copy JSON"}
     </Button>
   );
 }
