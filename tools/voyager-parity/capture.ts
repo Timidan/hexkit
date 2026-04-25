@@ -59,20 +59,31 @@ export function buildWaitPayload(a: Args): string {
   // differs. The "ours" probes deliberately require *data* not chrome
   // — e.g. checking that an actual hash felt or a contract-named row
   // has rendered, not just that the result Card is on screen.
-  const oursByTab: Record<string, string> = {
-    overview: "/0x[0-9a-f]{40,}/i", // tx hash printed in the summary card
-    events: "/EMITTED EVENTS \\([1-9]/", // at least one event row
-    internalCalls: "/__execute__|__validate__|update_oracle|MINT|transfer/", // at least one frame
-    storage: "/STORAGE WRITES.*[1-9]/s", // first-touch summary + at least one write
-  };
+  // Per-tab readiness probe. Voyager probes by visible text. Our side
+  // probes via the same data-* anchors the extract phase relies on
+  // (count > 0), so an "OK" wait means the schema's locators will find
+  // the right elements — no race where text appears via tooltips /
+  // localStorage hints before the data-mounted DOM lands.
+  if (a.side === "ours") {
+    const probe: Record<string, string> = {
+      overview: "[data-summary-row=hash]",
+      events: "table tbody tr",
+      internalCalls: "[data-frame-row]",
+      storage: "table tbody tr",
+    };
+    const sel = probe[a.tab] || "[data-summary-row=hash]";
+    return `
+const cnt = await state.page.locator(${JSON.stringify(sel)}).count().catch(() => 0);
+console.log("__WAIT__" + (cnt > 0 ? "READY" : "WAIT") + "__END__");
+`;
+  }
   const theirsByTab: Record<string, string> = {
     overview: "/Sender Address[\\s\\S]*0x|Actual Fee/",
-    events: "/9\\d{6,}_\\d_\\d/", // event ID
+    events: "/9\\d{6,}_\\d_\\d/",
     internalCalls: "/More Details/",
     storage: "/CONTRACT ADDRESS|0x[0-9a-f]{6,}…/",
   };
-  const re = (a.side === "theirs" ? theirsByTab : oursByTab)[a.tab] ||
-    "/STARKNET|Starknet/";
+  const re = theirsByTab[a.tab] || "/STARKNET|Starknet/";
   return `
 const body = await state.page.locator("body").innerText().catch(() => "");
 const ok = ${re}.test(body);

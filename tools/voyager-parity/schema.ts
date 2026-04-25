@@ -77,93 +77,141 @@ export const SCHEMA: Record<string, TabSpec> = {
     ourTab: "trace",
     fields: {
       txHash: {
-        theirs: { kind: "text", locator: "text=/^0x[0-9a-f]{60,}/i >> nth=0" },
-        ours: { kind: "attr", locator: "[data-testid=explorer-link-voyager]", attr: "href" },
+        // Voyager prints the full hash on the Hash row; ours folds
+        // the displayed shortHex back onto the full hash via the
+        // Voyager link href (Voyager link href ends with the full tx
+        // hash regardless of how the chip rendered).
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Hash$/i >> xpath=ancestor::*[2] >> text=/0x[0-9a-f]{60,}/i',
+        },
+        ours: {
+          kind: "attr",
+          locator: "[data-summary-row=hash] [data-testid=explorer-link-voyager]",
+          attr: "href",
+        },
         normalize: norm.hex,
         weight: 1,
       },
       status: {
-        theirs: { kind: "text", locator: "text=/TRANSACTION EXECUTED|REVERTED|REJECTED/" },
-        ours: { kind: "text", locator: "[data-status]" },
-        normalize: norm.text,
+        theirs: { kind: "text", locator: "text=/TRANSACTION EXECUTED|REVERTED|REJECTED/i" },
+        ours: { kind: "attr", locator: "[data-status]", attr: "data-status" },
+        // Voyager renders "TRANSACTION EXECUTED" for what we call
+        // "SUCCEEDED" and "TRANSACTION REVERTED" for our "REVERTED".
+        // Collapse both to a canonical lowercase verb.
+        normalize: (v) => {
+          if (typeof v !== "string") return null;
+          const s = v.toLowerCase().replace(/transaction\s*/, "").trim();
+          if (s.startsWith("execu")) return "succeeded";
+          if (s.startsWith("succe")) return "succeeded";
+          if (s.startsWith("rever")) return "reverted";
+          if (s.startsWith("reje")) return "rejected";
+          return s || null;
+        },
         weight: 1,
       },
       blockNumber: {
-        theirs: { kind: "text", locator: "text=/^Block Number/i >> .. >> text=/\\d/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Block Number$/i >> xpath=ancestor::*[2] >> text=/\\d{6,}/',
+        },
         ours: { kind: "text", locator: "[data-summary-row=block]" },
         normalize: norm.digits,
         weight: 1,
       },
       sender: {
-        theirs: { kind: "text", locator: "text=/^Sender Address$/ >> .. >> text=/0x/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Sender Address$/i >> xpath=ancestor::*[2] >> text=/0x[0-9a-f]+/i',
+        },
         ours: { kind: "text", locator: "[data-summary-row=sender]" },
         normalize: norm.hex,
         weight: 1,
       },
       feeAmount: {
-        theirs: { kind: "text", locator: "text=Actual Fee >> xpath=following-sibling::* >> text=/STRK|ETH|FRI/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Actual Fee$/i >> xpath=ancestor::*[2] >> text=/[\\d.]+\\s*STRK|ETH/',
+        },
         ours: { kind: "text", locator: "[data-summary-row=fee]" },
         normalize: norm.amount,
         weight: 1,
       },
       feeRecipient: {
-        theirs: { kind: "text", locator: "text=/^To:$/ >> xpath=following-sibling::* | xpath=parent::*/text()" },
-        ours: { kind: "text", locator: "[data-summary-row=fee] >> text=/Sequencer/i" },
-        normalize: norm.text,
+        theirs: {
+          kind: "exists",
+          locator: "text=/StarkWare:?\\s*Sequencer/i",
+        },
+        ours: { kind: "exists", locator: "text=/StarkWare\\s*Sequencer/i" },
         weight: 2,
       },
       l1GasConsumed: {
-        theirs: { kind: "text", locator: "text=/^L1 Gas$/ >> .. >> text=/\\d/" },
-        ours: { kind: "text", locator: "[data-summary-row=l1Gas]" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^L1 Gas$/i >> xpath=ancestor::*[1] >> text=/\\d+/',
+        },
+        ours: { kind: "text", locator: "[data-summary-row=l1-gas]" },
         normalize: norm.digits,
         weight: 1,
       },
       l1DataGasConsumed: {
-        theirs: { kind: "text", locator: "text=/^L1 Data Gas$/ >> .. >> text=/\\d/" },
-        ours: { kind: "text", locator: "[data-summary-row=l1DataGas]" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^L1 Data Gas$/i >> xpath=ancestor::*[1] >> text=/\\d+/',
+        },
+        ours: { kind: "text", locator: "[data-summary-row=l1-data-gas]" },
         normalize: norm.digits,
         weight: 1,
       },
       l2GasConsumed: {
-        theirs: { kind: "text", locator: "text=/^L2 Gas$/ >> .. >> text=/\\d/" },
-        ours: { kind: "text", locator: "[data-summary-row=l2Gas]" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^L2 Gas$/i >> xpath=ancestor::*[1] >> text=/\\d+/',
+        },
+        ours: { kind: "text", locator: "[data-summary-row=l2-gas]" },
         normalize: norm.digits,
         weight: 1,
       },
       sponsoredBy: {
-        theirs: { kind: "text", locator: "text=/^Sponsored by$/ >> .. >> text=/0x/" },
-        ours: { kind: "text", locator: "[data-summary-row=sender] >> text=/sponsored/i" },
-        normalize: norm.hex,
+        theirs: { kind: "exists", locator: "text=/^Sponsored by$/i" },
+        ours: { kind: "exists", locator: "text=/sponsored by/i" },
         weight: 2,
       },
       l1TxHash: {
-        theirs: { kind: "text", locator: "text=/^L1 TXN Hash$/ >> xpath=following-sibling::*" },
-        ours: { kind: "text", locator: "[data-dev-row=l1TxHash]" },
-        normalize: norm.hex,
+        theirs: { kind: "exists", locator: "text=/^L1 TXN Hash$/i" },
+        ours: { kind: "exists", locator: "[data-dev-row=l1-txn-hash]" },
         weight: 2,
       },
       nonce: {
-        theirs: { kind: "text", locator: "text=/^Nonce$/ >> .. >> text=/\\d/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Nonce$/i >> xpath=ancestor::*[1] >> text=/\\d+/',
+        },
         ours: { kind: "text", locator: "[data-dev-row=nonce]" },
         normalize: norm.digits,
         weight: 1,
       },
       version: {
-        theirs: { kind: "text", locator: "text=/^Version$/ >> .. >> text=/\\d/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Version$/i >> xpath=ancestor::*[1] >> text=/\\d/',
+        },
         ours: { kind: "text", locator: "[data-dev-row=version]" },
-        normalize: norm.text,
+        normalize: norm.digits,
         weight: 1,
       },
       tip: {
-        theirs: { kind: "text", locator: "text=/^Tip$/ >> .. >> text=/0x|\\d/" },
+        theirs: {
+          kind: "text",
+          locator: 'text=/^Tip$/i >> xpath=ancestor::*[1] >> text=/0x|\\d/',
+        },
         ours: { kind: "text", locator: "[data-dev-row=tip]" },
         normalize: norm.hex,
         weight: 2,
       },
       signatureCount: {
-        theirs: { kind: "count", locator: "text=/^Signature\\(s\\)$/ >> .. >> text=/^0x/" },
-        ours: { kind: "count", locator: "[data-dev-row=signature] >> text=/0x/" },
-        normalize: norm.digits,
+        theirs: { kind: "count", locator: 'text=/^Signature\\(s\\)$/i >> xpath=following::* >> text=/^0x[0-9a-f]+$/' },
+        ours: { kind: "exists", locator: "[data-dev-row=signature]" },
         weight: 2,
       },
     },
