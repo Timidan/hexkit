@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import {
@@ -31,6 +32,11 @@ export function StateDiffTab({
     );
   }
 
+  const firstTouchCount = sd.storageDiffs.reduce(
+    (n, grp) => n + grp.storageEntries.filter((e) => isZeroFelt(e.before)).length,
+    0,
+  );
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -41,8 +47,15 @@ export function StateDiffTab({
       </div>
 
       <Card className="p-4 gap-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs uppercase text-muted-foreground">Storage writes</div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="text-xs uppercase text-muted-foreground">Storage writes</div>
+            {firstTouchCount > 0 && (
+              <Badge variant="info" size="sm" data-testid="first-touch-summary">
+                {firstTouchCount} first-touch
+              </Badge>
+            )}
+          </div>
           <span className="text-[10px] text-muted-foreground">
             canonical — emitted by trace_map.rs
           </span>
@@ -64,34 +77,49 @@ export function StateDiffTab({
             <TableBody>
               {sd.storageDiffs.flatMap((grp) => {
                 const lbl = addressLabels[grp.address];
-                return grp.storageEntries.map((e, i) => (
-                  <TableRow key={`${grp.address}-${i}`}>
-                    {i === 0 ? (
-                      <TableCell rowSpan={grp.storageEntries.length} className="align-top">
-                        {lbl ? (
-                          <div className="text-success text-xs">{lbl}</div>
-                        ) : null}
-                        <div className="font-mono text-muted-foreground text-[10px] flex items-center gap-1">
-                          {shortHex(grp.address)}
-                          <CopyButton value={grp.address} className="h-4 w-4" iconSize={10} />
-                        </div>
-                        <div className="text-[9px] text-muted-foreground mt-0.5">
-                          {grp.storageEntries.length} write
-                          {grp.storageEntries.length === 1 ? "" : "s"}
+                return grp.storageEntries.map((e, i) => {
+                  const isFirstWrite = isZeroFelt(e.before);
+                  return (
+                    <TableRow key={`${grp.address}-${i}`}>
+                      {i === 0 ? (
+                        <TableCell rowSpan={grp.storageEntries.length} className="align-top">
+                          {lbl ? (
+                            <div className="text-success text-xs">{lbl}</div>
+                          ) : null}
+                          <div className="font-mono text-muted-foreground text-[10px] flex items-center gap-1">
+                            {shortHex(grp.address)}
+                            <CopyButton value={grp.address} className="h-4 w-4" iconSize={10} />
+                          </div>
+                          <div className="text-[9px] text-muted-foreground mt-0.5">
+                            {grp.storageEntries.length} write
+                            {grp.storageEntries.length === 1 ? "" : "s"}
+                          </div>
+                        </TableCell>
+                      ) : null}
+                      <TableCell className="font-mono text-[11px] text-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <span>{shortHex(e.key)}</span>
+                          {isFirstWrite && (
+                            <Badge
+                              variant="info"
+                              size="sm"
+                              data-testid="first-touch-pill"
+                              title="Slot was zero before this transaction"
+                            >
+                              new
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
-                    ) : null}
-                    <TableCell className="font-mono text-[11px] text-foreground">
-                      {shortHex(e.key)}
-                    </TableCell>
-                    <TableCell className="font-mono text-[11px] text-muted-foreground">
-                      {shortHex(e.before ?? "0x0")}
-                    </TableCell>
-                    <TableCell className="font-mono text-[11px] text-warning">
-                      {shortHex(e.value)}
-                    </TableCell>
-                  </TableRow>
-                ));
+                      <TableCell className="font-mono text-[11px] text-muted-foreground">
+                        {shortHex(e.before ?? "0x0")}
+                      </TableCell>
+                      <TableCell className="font-mono text-[11px] text-warning">
+                        {shortHex(e.value)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
               })}
             </TableBody>
           </Table>
@@ -163,6 +191,18 @@ export function StateDiffTab({
       ) : null}
     </div>
   );
+}
+
+/** Slot was zero (or unset) before the tx — i.e. this is the first
+ *  write to that key. Treat null/undefined the same as 0x0; cairo
+ *  storage's default value is 0. */
+function isZeroFelt(value: string | null | undefined): boolean {
+  if (value == null || value === "") return true;
+  try {
+    return BigInt(value) === 0n;
+  } catch {
+    return false;
+  }
 }
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
