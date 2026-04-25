@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CaretDown, CaretRight, Check, LinkSimple, Sparkle } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,16 @@ export function CallTreeTab({
   setSelectedFrame,
   onExplainFrame,
 }: Props) {
-  const [stripSys, setStripSys] = useState(true);
-  const [onlyEvents, setOnlyEvents] = useState(false);
-  const [showResources, setShowResources] = useState(true);
+  // Toggle preferences persist across reloads — users settle into a
+  // mode (strip syscall args, hide silent frames, etc) and rebuilding
+  // that on every page load is needless friction. Filter stays local
+  // because per-tx queries don't carry between traces.
+  const [stripSys, setStripSys] = usePersistedToggle("stripSys", true);
+  const [onlyEvents, setOnlyEvents] = usePersistedToggle("onlyEvents", false);
+  const [showResources, setShowResources] = usePersistedToggle(
+    "showResources",
+    true,
+  );
   const [filter, setFilter] = useState("");
 
   const stats = useMemo(() => {
@@ -592,4 +599,35 @@ function CopyFrameLinkButton({
       {copied ? "Copied" : "Copy link"}
     </Button>
   );
+}
+
+const TOGGLE_STORAGE_PREFIX = "hexkit:starknet-sim:calltree:";
+
+/** localStorage-backed boolean toggle. Reads once on mount, writes on
+ *  change. Falls back to `defaultValue` on parse failure or when the
+ *  key is unset. Quota / disabled-storage failures are swallowed. */
+function usePersistedToggle(
+  key: string,
+  defaultValue: boolean,
+): [boolean, (next: boolean) => void] {
+  const storageKey = `${TOGGLE_STORAGE_PREFIX}${key}`;
+  const [value, setValue] = useState<boolean>(() => {
+    if (typeof window === "undefined") return defaultValue;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw === null) return defaultValue;
+      return raw === "1";
+    } catch {
+      return defaultValue;
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(storageKey, value ? "1" : "0");
+    } catch {
+      // Quota / private mode — preference just won't persist this session.
+    }
+  }, [storageKey, value]);
+  return [value, setValue];
 }
