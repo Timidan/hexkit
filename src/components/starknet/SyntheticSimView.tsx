@@ -11,6 +11,7 @@ import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
 import BridgeErrorAlert from "./BridgeErrorAlert";
 import CopyCurlButton from "./CopyCurlButton";
+import PendingElapsed from "./PendingElapsed";
 import {
   buildInvokeRequest,
   buildInvokeWireRequest,
@@ -224,6 +225,9 @@ const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
               </Label>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {pending && (
+                <PendingElapsed label="Simulating" testId="sim-elapsed" />
+              )}
               <CopyCurlButton
                 method="POST"
                 path="/simulate"

@@ -8,6 +8,7 @@ import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
 import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
 import BridgeErrorAlert from "./BridgeErrorAlert";
 import CopyCurlButton from "./CopyCurlButton";
+import PendingElapsed from "./PendingElapsed";
 import { extractTxHash } from "./txHashParse";
 
 interface Props {
@@ -163,7 +164,11 @@ const TxTraceView: React.FC<Props> = ({
             </Button>
           </div>
           <div className="flex justify-between items-center gap-2">
-            {pending ? <PendingElapsed /> : <span />}
+            {pending ? (
+              <PendingElapsed label="Tracing" testId="trace-elapsed" />
+            ) : (
+              <span />
+            )}
             <CopyCurlButton
               method="POST"
               path={`/trace/${parsed ?? ""}`}
@@ -216,27 +221,5 @@ const TxTraceView: React.FC<Props> = ({
     </div>
   );
 };
-
-/** Tiny "Tracing… 8s" pill for in-flight traces. The bridge can take
- *  30s+ replaying a busy block; without the elapsed counter it's
- *  unclear whether the request is alive or hung. */
-function PendingElapsed() {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const start = Date.now();
-    const handle = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 500);
-    return () => window.clearInterval(handle);
-  }, []);
-  return (
-    <span
-      className="text-[10px] text-muted-foreground font-mono"
-      data-testid="trace-elapsed"
-    >
-      Tracing… {elapsed}s elapsed
-    </span>
-  );
-}
 
 export default TxTraceView;

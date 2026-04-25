@@ -22,6 +22,7 @@ import {
   type InvokeFormState,
 } from "./invokeRequestBuilder";
 import CopyCurlButton from "./CopyCurlButton";
+import PendingElapsed from "./PendingElapsed";
 
 interface EstimateFeeViewProps {
   /** Page-level handler that flips to the Speculative tab and rehydrates
@@ -168,6 +169,9 @@ const EstimateFeeView: React.FC<EstimateFeeViewProps> = ({
               </Label>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {pending && (
+                <PendingElapsed label="Estimating" testId="estimate-elapsed" />
+              )}
               <CopyCurlButton
                 method="POST"
                 path="/estimate-fee"
