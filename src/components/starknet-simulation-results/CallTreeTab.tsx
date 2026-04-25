@@ -558,14 +558,32 @@ function FrameDetailPane({
           </div>
         </div>
 
-        <DataBlock
-          label={`calldata (${calldata.length} felt${calldata.length === 1 ? "" : "s"})`}
-          items={calldata}
-        />
-        <DataBlock
-          label={`retdata (${(frame.result || []).length} felt${(frame.result || []).length === 1 ? "" : "s"})`}
-          items={frame.result || []}
-        />
+        {/* Voyager-style typed-input block when the bridge sent a
+            decoded ABI; otherwise fall back to the raw felt array. */}
+        {frame.decodedFunctionAbi && frame.decodedFunctionAbi.inputs.length > 0 ? (
+          <TypedParamBlock
+            label="INPUT"
+            params={frame.decodedFunctionAbi.inputs}
+            felts={calldata}
+          />
+        ) : (
+          <DataBlock
+            label={`calldata (${calldata.length} felt${calldata.length === 1 ? "" : "s"})`}
+            items={calldata}
+          />
+        )}
+        {frame.decodedFunctionAbi && frame.decodedFunctionAbi.outputs.length > 0 ? (
+          <TypedParamBlock
+            label="OUTPUT"
+            params={frame.decodedFunctionAbi.outputs}
+            felts={frame.result || []}
+          />
+        ) : (
+          <DataBlock
+            label={`retdata (${(frame.result || []).length} felt${(frame.result || []).length === 1 ? "" : "s"})`}
+            items={frame.result || []}
+          />
+        )}
 
         {frame.events && frame.events.length ? (
           <Card className="p-2 gap-1 bg-background">
@@ -597,6 +615,163 @@ function FrameDetailPane({
       </div>
     </Card>
   );
+}
+
+/** Cairo-aware typed-param renderer. Pairs ABI inputs with their
+ *  consumed slice of the calldata felt array — primitives consume one
+ *  felt each, u256 / pairs of felts collapse to a single decimal value,
+ *  arrays consume `[len, …]` and render as a Span<…> of the next len
+ *  felts. Anything unknown gets shown as an opaque fallback so we
+ *  never hide data. */
+function TypedParamBlock({
+  label,
+  params,
+  felts,
+}: {
+  label: string;
+  params: import("@/chains/starknet/simulatorTypes").AbiParam[];
+  felts: string[];
+}) {
+  const rows: Array<{ name: string; type: string; rendered: React.ReactNode; raw: string }> = [];
+  let i = 0;
+  for (const p of params) {
+    const consumed = consumeForType(p.type, felts, i);
+    rows.push({
+      name: p.name || `arg${rows.length}`,
+      type: p.type,
+      rendered: consumed.rendered,
+      raw: consumed.raw,
+    });
+    i = consumed.next;
+  }
+  // If we consumed less than the felt array (e.g. unknown layout) tail
+  // the rest as "extra" so nothing is hidden.
+  const tail = felts.slice(i);
+  return (
+    <Card className="p-2 gap-1.5 bg-background">
+      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div className="text-xs space-y-1.5">
+        {rows.map((r, idx) => (
+          <div key={idx} className="flex flex-col gap-0.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-foreground">{r.name}</span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {r.type}
+              </span>
+            </div>
+            <div className="font-mono pl-2 break-all">{r.rendered}</div>
+          </div>
+        ))}
+        {tail.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[10px] text-warning uppercase">
+              extra felts (decoder under-consumed)
+            </div>
+            <div className="font-mono pl-2 text-muted-foreground space-y-0.5">
+              {tail.map((f, j) => (
+                <div key={j}>
+                  <span className="text-muted-foreground/60">[{i + j}]</span> {f}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Per-Cairo-type felt consumer. Returns the rendered React node for
+ *  the typed value plus the post-consumption index. Conservative:
+ *  unknown types render as a single felt and advance by 1 — that loses
+ *  alignment for genuinely composite unknown types but never hides
+ *  data (the tail block surfaces the leftovers). */
+function consumeForType(
+  ty: string,
+  felts: string[],
+  i: number,
+): { rendered: React.ReactNode; raw: string; next: number } {
+  const norm = ty.replace(/\s+/g, "");
+  // u256 = (low, high) — render as decimal big-int.
+  if (norm.endsWith("::u256") || norm === "u256") {
+    const low = felts[i] ?? "0x0";
+    const high = felts[i + 1] ?? "0x0";
+    let value = "0";
+    try {
+      const lo = BigInt(low);
+      const hi = BigInt(high);
+      value = ((hi << 128n) | lo).toString();
+    } catch {
+      /* keep "0" */
+    }
+    return {
+      rendered: (
+        <span>
+          <span className="text-foreground">{value}</span>{" "}
+          <span className="text-muted-foreground/60 text-[10px]">
+            (low={low}, high={high})
+          </span>
+        </span>
+      ),
+      raw: `${low}|${high}`,
+      next: i + 2,
+    };
+  }
+  // Array<T> / Span<T> — len felt followed by N items. Items are
+  // rendered as opaque felts since type-aware nested decoding isn't
+  // implemented yet.
+  const arrayMatch = norm.match(/Array::<(.+)>$|Span::<(.+)>$/);
+  if (arrayMatch) {
+    const inner = arrayMatch[1] ?? arrayMatch[2] ?? "felt";
+    const len = (() => {
+      try {
+        return Number(BigInt(felts[i] ?? "0x0"));
+      } catch {
+        return 0;
+      }
+    })();
+    const safeLen = Math.min(len, 64); // clamp before deref
+    const items = felts.slice(i + 1, i + 1 + safeLen);
+    return {
+      rendered: (
+        <span className="space-y-0.5 block">
+          <span className="text-muted-foreground/70 text-[10px]">
+            len={len}, type={inner}
+          </span>
+          {items.map((f, j) => (
+            <span key={j} className="block">
+              <span className="text-muted-foreground/60 text-[10px]">[{j}]</span>{" "}
+              <span className="text-foreground">{f}</span>
+            </span>
+          ))}
+        </span>
+      ),
+      raw: items.join(","),
+      next: i + 1 + safeLen,
+    };
+  }
+  // bool — single felt (0 or 1).
+  if (norm.endsWith("::bool") || norm === "bool") {
+    const v = felts[i] ?? "0x0";
+    let display = v;
+    try {
+      display = BigInt(v) === 0n ? "false" : "true";
+    } catch {
+      /* keep raw */
+    }
+    return {
+      rendered: <span className="text-foreground">{display}</span>,
+      raw: v,
+      next: i + 1,
+    };
+  }
+  // Default: one felt, render as raw hex.
+  const v = felts[i] ?? "—";
+  return {
+    rendered: <span className="text-foreground">{v}</span>,
+    raw: v,
+    next: i + 1,
+  };
 }
 
 function DataBlock({ label, items }: { label: string; items: string[] }) {

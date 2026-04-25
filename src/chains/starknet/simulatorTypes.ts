@@ -103,6 +103,9 @@ export interface SimulationEvent {
   keys: string[];
   data: string[];
   decoded?: { name: string; args: Record<string, string | number | boolean> };
+  /** Bridge-resolved event signature (name + typed fields). Lets the UI
+   *  label `data[0]/data[1]` as `value: u256` etc. instead of "[2 felts]". */
+  decodedEventAbi?: AbiEventDecoded | null;
 }
 
 export interface L2ToL1Message {
@@ -119,6 +122,10 @@ export interface FunctionInvocation {
    *  the std-lib KNOWN_SELECTORS table). Null when the class wasn't loaded
    *  during execution (revert paths, predecessor frames). */
   decodedSelector?: string | null;
+  /** Full function signature (name, kind, inputs, outputs). Same source
+   *  as decodedSelector but exposes parameter names + Cairo types so the
+   *  UI can label calldata felts instead of dumping raw hex. */
+  decodedFunctionAbi?: AbiFunctionDecoded | null;
   calldata: string[];
   callerAddress: string;
   classHash: string | null;
@@ -128,6 +135,26 @@ export interface FunctionInvocation {
   calls: FunctionInvocation[];
   events: SimulationEvent[];
   messages: L2ToL1Message[];
+}
+
+export interface AbiParam {
+  name: string;
+  /** Cairo type string verbatim from the contract ABI, e.g.
+   *  `core::starknet::contract_address::ContractAddress`,
+   *  `core::array::Array::<core::felt252>`. */
+  type: string;
+}
+
+export interface AbiFunctionDecoded {
+  name: string;
+  kind: "Function" | "L1Handler" | "Constructor" | "Event";
+  inputs: AbiParam[];
+  outputs: AbiParam[];
+}
+
+export interface AbiEventDecoded {
+  name: string;
+  fields: AbiParam[];
 }
 
 export type SimulationStatus = "SUCCEEDED" | "REVERTED";
