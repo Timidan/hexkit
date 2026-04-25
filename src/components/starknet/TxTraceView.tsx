@@ -162,7 +162,8 @@ const TxTraceView: React.FC<Props> = ({
               Trace
             </Button>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-between items-center gap-2">
+            {pending ? <PendingElapsed /> : <span />}
             <CopyCurlButton
               method="POST"
               path={`/trace/${parsed ?? ""}`}
@@ -215,5 +216,27 @@ const TxTraceView: React.FC<Props> = ({
     </div>
   );
 };
+
+/** Tiny "Tracing… 8s" pill for in-flight traces. The bridge can take
+ *  30s+ replaying a busy block; without the elapsed counter it's
+ *  unclear whether the request is alive or hung. */
+function PendingElapsed() {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const start = Date.now();
+    const handle = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 500);
+    return () => window.clearInterval(handle);
+  }, []);
+  return (
+    <span
+      className="text-[10px] text-muted-foreground font-mono"
+      data-testid="trace-elapsed"
+    >
+      Tracing… {elapsed}s elapsed
+    </span>
+  );
+}
 
 export default TxTraceView;
