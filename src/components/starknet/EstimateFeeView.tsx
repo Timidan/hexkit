@@ -289,6 +289,11 @@ const EstimateFeeView: React.FC<EstimateFeeViewProps> = ({
                     primary={est.executionResources.l2Gas.toLocaleString()}
                   />
                 </div>
+                <FeeBreakdown
+                  feeEstimate={est.feeEstimate}
+                  l1GasPriceFri={response.blockContext.l1GasPrice?.priceInFri}
+                  l1DataGasPriceFri={response.blockContext.l1DataGasPrice?.priceInFri}
+                />
               </div>
             ))}
           </CardContent>
@@ -348,6 +353,85 @@ function FeeStat({
       )}
     </div>
   );
+}
+
+/** Inline breakdown of overallFee into the three gas tracks. L1 + L1
+ *  data subtotals come straight from gas_consumed * price_in_fri (both
+ *  in the response). L2 has no price field on /estimate-fee's
+ *  blockContext, so we infer L2 = overallFee − L1 − L1Data and let the
+ *  bar fill in the remainder; for txs where L2 dominates this is
+ *  visually obvious. */
+function FeeBreakdown({
+  feeEstimate,
+  l1GasPriceFri,
+  l1DataGasPriceFri,
+}: {
+  feeEstimate: {
+    l1GasConsumed: string;
+    l1DataGasConsumed: string;
+    l2GasConsumed: string;
+    overallFee: string;
+  };
+  l1GasPriceFri?: string;
+  l1DataGasPriceFri?: string;
+}) {
+  const total = safeBigInt(feeEstimate.overallFee);
+  if (total === 0n) return null;
+  const l1Cost =
+    safeBigInt(feeEstimate.l1GasConsumed) * safeBigInt(l1GasPriceFri ?? "0x0");
+  const l1DataCost =
+    safeBigInt(feeEstimate.l1DataGasConsumed) *
+    safeBigInt(l1DataGasPriceFri ?? "0x0");
+  const l2Cost = total > l1Cost + l1DataCost ? total - l1Cost - l1DataCost : 0n;
+  const tracks = [
+    { label: "L1", cost: l1Cost, color: "bg-warning/70" },
+    { label: "L1 data", cost: l1DataCost, color: "bg-info/70" },
+    { label: "L2", cost: l2Cost, color: "bg-success/70" },
+  ];
+  return (
+    <div
+      className="rounded-md border border-border bg-card p-2 space-y-1.5"
+      data-testid="fee-breakdown"
+    >
+      <div className="flex items-center justify-between text-[10px] uppercase text-muted-foreground">
+        <span>Fee breakdown</span>
+        <span className="text-[9px]">% of overall fee in FRI</span>
+      </div>
+      <div className="flex h-1.5 rounded overflow-hidden bg-muted">
+        {tracks.map((t) => {
+          const pct = total === 0n ? 0 : Number((t.cost * 1000n) / total) / 10;
+          if (pct <= 0) return null;
+          return (
+            <span
+              key={t.label}
+              className={t.color}
+              style={{ width: `${Math.max(0.5, pct)}%` }}
+              title={`${t.label}: ${pct.toFixed(1)}%`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground">
+        {tracks.map((t) => {
+          const pct = total === 0n ? 0 : Number((t.cost * 1000n) / total) / 10;
+          return (
+            <span key={t.label} className="font-mono">
+              <span className={`inline-block w-2 h-2 rounded-sm mr-1 ${t.color}`} />
+              {t.label} {pct.toFixed(1)}%
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function safeBigInt(hex: string | null | undefined): bigint {
+  try {
+    return BigInt(hex ?? "0x0");
+  } catch {
+    return 0n;
+  }
 }
 
 export default EstimateFeeView;
