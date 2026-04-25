@@ -246,6 +246,25 @@ export function StarknetSimulationResults({
       );
     });
   }, [frames]);
+  // Voyager labels the meta-tx flow with "Sponsored by 0x…" — pulled
+  // from the AVNU AA Forwarder's caller (the actual paymaster).
+  // Detect by walking down to the execute_from_outside_v2 frame and
+  // taking its `callerAddress`, which by Argent / AVNU convention is
+  // the paymaster account.
+  const sponsorAddress = useMemo(() => {
+    if (!isMetaTx) return null;
+    for (const f of frames) {
+      const sel = selectorName(f);
+      if (
+        sel === "execute_from_outside_v2" ||
+        sel === "execute_from_outside" ||
+        sel === "execute_sponsored"
+      ) {
+        return f.callerAddress || null;
+      }
+    }
+    return null;
+  }, [isMetaTx, frames]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -435,6 +454,14 @@ export function StarknetSimulationResults({
                     {shortHex(sender, 10, 6)}
                   </span>
                   <CopyButton value={sender} className="h-4 w-4" iconSize={10} />
+                  {sponsorAddress && (
+                    <span className="text-[10px] text-muted-foreground">
+                      · sponsored by{" "}
+                      <span className="font-mono text-foreground">
+                        {shortHex(sponsorAddress, 8, 4)}
+                      </span>
+                    </span>
+                  )}
                 </>
               ) : (
                 <span className="text-muted-foreground">—</span>

@@ -674,6 +674,12 @@ function TypedParamBlock({
       window.localStorage.setItem("hexkit:starknet-sim:valueFormat", valueFormat);
     } catch {/* quota — preference just won't persist */}
   }, [valueFormat]);
+  // Voyager has a Decoded / Raw toggle that flips the entire INPUT
+  // block from typed structured rendering to a flat indexed felt
+  // dump. Keep both available — typed is more useful 95% of the
+  // time but Raw is irreplaceable when the ABI decoder is wrong or
+  // missing for a given frame.
+  const [showRaw, setShowRaw] = useState(false);
 
   const rows: Array<{ name: string; type: string; rendered: React.ReactNode; raw: string }> = [];
   let i = 0;
@@ -692,36 +698,83 @@ function TypedParamBlock({
   const tail = felts.slice(i);
   return (
     <Card className="p-2 gap-1.5 bg-background">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
-        <ValueFormatToggle value={valueFormat} onChange={setValueFormat} />
+        <div className="flex items-center gap-1.5">
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowRaw(false)}
+              aria-pressed={!showRaw}
+              data-testid="view-decoded"
+              className={`px-1.5 py-0.5 text-[9px] uppercase ${
+                !showRaw
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Decoded
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRaw(true)}
+              aria-pressed={showRaw}
+              data-testid="view-raw"
+              className={`px-1.5 py-0.5 text-[9px] uppercase border-l border-border ${
+                showRaw
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Raw
+            </button>
+          </div>
+          <ValueFormatToggle value={valueFormat} onChange={setValueFormat} />
+        </div>
       </div>
       <div className="text-xs space-y-1.5">
-        {rows.map((r, idx) => (
-          <div key={idx} className="flex flex-col gap-0.5">
-            <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className="text-foreground">{r.name}</span>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {r.type}
-              </span>
-            </div>
-            <div className="font-mono pl-2 break-all">{r.rendered}</div>
-          </div>
-        ))}
-        {tail.length > 0 && (
-          <div className="flex flex-col gap-0.5">
-            <div className="text-[10px] text-warning uppercase">
-              extra felts (decoder under-consumed)
-            </div>
-            <div className="font-mono pl-2 text-muted-foreground space-y-0.5">
-              {tail.map((f, j) => (
+        {showRaw ? (
+          felts.length === 0 ? (
+            <div className="text-muted-foreground/70">empty</div>
+          ) : (
+            <div className="font-mono space-y-0.5">
+              {felts.map((f, j) => (
                 <div key={j}>
-                  <span className="text-muted-foreground/60">[{i + j}]</span>{" "}
-                  {formatFelt(f, valueFormat)}
+                  <span className="text-muted-foreground/60">[{j}]</span>{" "}
+                  <span className="text-foreground">{formatFelt(f, valueFormat)}</span>
                 </div>
               ))}
             </div>
-          </div>
+          )
+        ) : (
+          <>
+            {rows.map((r, idx) => (
+              <div key={idx} className="flex flex-col gap-0.5">
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-foreground">{r.name}</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {r.type}
+                  </span>
+                </div>
+                <div className="font-mono pl-2 break-all">{r.rendered}</div>
+              </div>
+            ))}
+            {tail.length > 0 && (
+              <div className="flex flex-col gap-0.5">
+                <div className="text-[10px] text-warning uppercase">
+                  extra felts (decoder under-consumed)
+                </div>
+                <div className="font-mono pl-2 text-muted-foreground space-y-0.5">
+                  {tail.map((f, j) => (
+                    <div key={j}>
+                      <span className="text-muted-foreground/60">[{i + j}]</span>{" "}
+                      {formatFelt(f, valueFormat)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </Card>
