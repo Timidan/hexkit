@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import TxTraceView from "./TxTraceView";
 import SyntheticSimView from "./SyntheticSimView";
 import EstimateFeeView from "./EstimateFeeView";
+import StarknetBridgeBanner from "./StarknetBridgeBanner";
 
 type TabId = "trace" | "synthetic" | "estimate";
 const VALID_TABS: TabId[] = ["trace", "synthetic", "estimate"];
@@ -66,6 +67,8 @@ const StarknetSimulationsPage: React.FC = () => {
           bridge.
         </p>
       </header>
+
+      <StarknetBridgeBanner />
 
       <Tabs value={tab} onValueChange={onTabChange}>
         <TabsList className="w-full">

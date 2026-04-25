@@ -168,6 +168,21 @@ export interface HealthResponse {
   bridge_version: string;
   git_sha: string;
   bind_addr: string;
+  rpc_configured?: boolean;
+  chain_id?: string | null;
+  spec_version?: string | null;
+  fork_head?: {
+    block_number: number;
+    block_hash: string;
+    parent_hash: string;
+    timestamp: number;
+    sequencer_address: string;
+    starknet_version: string;
+    l1_gas_price?: { price_in_wei: string; price_in_fri: string } | null;
+    l1_data_gas_price?: { price_in_wei: string; price_in_fri: string } | null;
+  } | null;
+  rpc_latency_ms?: number | null;
+  rpc_error?: string | null;
 }
 
 export interface VersionResponse {
