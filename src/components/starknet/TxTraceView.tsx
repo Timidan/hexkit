@@ -2,14 +2,12 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Badge } from "../ui/badge";
-import InvocationTree from "./InvocationTree";
-import StateDiffTabs from "./StateDiffTabs";
 import {
   StarknetSimulator,
   StarknetSimulatorBridgeError,
 } from "@/chains/starknet/simulatorClient";
 import type { SimulateResponse } from "@/chains/starknet/simulatorTypes";
+import { StarknetSimulationResults } from "@/components/starknet-simulation-results";
 
 const FELT_HEX = /^0x[0-9a-fA-F]{1,64}$/;
 
@@ -43,8 +41,6 @@ const TxTraceView: React.FC = () => {
       setPending(false);
     }
   }, [simulator, hash, valid]);
-
-  const result = response?.results?.[0];
 
   return (
     <div className="space-y-4">
@@ -81,76 +77,22 @@ const TxTraceView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {result && response && (
-        <>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm">Summary</CardTitle>
-              <Badge
-                variant={result.status === "SUCCEEDED" ? "default" : "destructive"}
-              >
-                {result.status}
-              </Badge>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <dl className="grid grid-cols-2 gap-2">
-                <dt className="text-muted-foreground">Block</dt>
-                <dd className="font-mono">
-                  #{response.blockContext.blockNumber}{" "}
-                  <span className="text-muted-foreground">
-                    {response.blockContext.blockHash.slice(0, 12)}…
-                  </span>
-                </dd>
-                <dt className="text-muted-foreground">Starknet version</dt>
-                <dd className="font-mono">
-                  {response.blockContext.starknetVersion}
-                </dd>
-                <dt className="text-muted-foreground">Overall fee</dt>
-                <dd className="font-mono">
-                  {result.feeEstimate.overallFee} {result.feeEstimate.unit}
-                </dd>
-                <dt className="text-muted-foreground">Steps</dt>
-                <dd className="font-mono">
-                  {result.executionResources.steps.toLocaleString()}
-                </dd>
-                <dt className="text-muted-foreground">L1/L2 gas</dt>
-                <dd className="font-mono">
-                  {result.executionResources.l1Gas.toLocaleString()} /{" "}
-                  {result.executionResources.l2Gas.toLocaleString()}
-                </dd>
-              </dl>
-              {result.revertReasonDecoded && (
-                <p className="rounded bg-destructive/10 p-2 text-destructive">
-                  {result.revertReasonDecoded}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {result.executeInvocation && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Invocation tree</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <InvocationTree node={result.executeInvocation} />
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">State diff</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {result.stateDiff ? (
-                <StateDiffTabs diff={result.stateDiff} />
-              ) : (
-                <div className="text-xs text-zinc-500">No state diff in this response.</div>
-              )}
-            </CardContent>
-          </Card>
-        </>
+      {response && (
+        <StarknetSimulationResults
+          response={response}
+          source={`tx ${hash.trim()}`}
+          onResimulate={() => void runTrace()}
+          onExplainTransaction={() =>
+            alert(
+              "LLM whole-tx summary affordance — wire to your endpoint when /explain lands.",
+            )
+          }
+          onExplainFrame={(f) =>
+            alert(
+              `LLM per-frame explainer for ${f.contractAddress} → ${f.entryPointSelector}`,
+            )
+          }
+        />
       )}
     </div>
   );
