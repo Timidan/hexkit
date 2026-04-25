@@ -171,7 +171,7 @@ const StarknetSimulationsPage: React.FC = () => {
   }, [showSidebar]);
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6 space-y-4">
+    <div className="w-full px-[clamp(1rem,3vw,2.5rem)] py-6 space-y-4">
       <header className="flex items-end justify-between gap-3 flex-wrap">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold text-foreground">Starknet simulations</h1>
@@ -194,11 +194,7 @@ const StarknetSimulationsPage: React.FC = () => {
 
       <StarknetBridgeBanner />
 
-      <div
-        className={`grid gap-4 ${
-          showSidebar ? "lg:grid-cols-[minmax(0,1fr)_260px]" : "grid-cols-1"
-        }`}
-      >
+      <div className="relative">
         <div className="min-w-0">
           <Tabs value={tab} onValueChange={onTabChange}>
             {/* Wrapper allows horizontal scroll on narrow viewports.
@@ -251,7 +247,10 @@ const StarknetSimulationsPage: React.FC = () => {
         </div>
 
         {showSidebar && (
-          <aside className="lg:sticky lg:top-4 self-start">
+          <aside
+            className="fixed top-4 right-4 z-30 w-[260px] max-h-[calc(100vh-2rem)] overflow-auto shadow-lg"
+            data-testid="recents-drawer"
+          >
             <RecentSimulationsSidebar
               items={recents}
               onSelect={onSelectRecent}

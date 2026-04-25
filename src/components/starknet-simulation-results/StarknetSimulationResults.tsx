@@ -268,11 +268,13 @@ export function StarknetSimulationResults({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="text-foreground">
-        {/* Compact header — mirror of the EDB simulation results page so
-            the two surfaces feel like one app. Status pill on the left,
-            action icons on the right, summary grid below. */}
-        <header className="flex items-center justify-between gap-3 pb-3">
+      <div className="text-foreground space-y-4">
+        {/* Sticky compact header — mirror of the EDB simulation results
+            page so the two surfaces feel like one app. Status pill on
+            the left, action icons on the right. Each section below
+            lives in its own bordered card so the hierarchy is obvious
+            on a wide layout. */}
+        <header className="sticky top-0 z-10 -mx-[clamp(1rem,3vw,2.5rem)] px-[clamp(1rem,3vw,2.5rem)] py-2 flex items-center justify-between gap-3 border-b border-border bg-background">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-semibold">Starknet simulation</span>
             <StatusBadge status={result.status} />
@@ -355,7 +357,7 @@ export function StarknetSimulationResults({
             Starknet fields. Left column = identity (hash, network,
             block, when, sender). Right column = execution outcome
             (fee, L1 / L1 data / L2 gas, VM steps, frame count). */}
-        <section className="border border-border rounded-md bg-card p-3 mb-4">
+        <section className="border border-border rounded-md bg-card p-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs">
             <SummaryRow label="Hash">
               {txHash ? (
@@ -494,7 +496,7 @@ export function StarknetSimulationResults({
         <Tabs
           value={tab}
           onValueChange={(v) => setTab(v as TabKey)}
-          className="mt-4 gap-4"
+          className="border border-border rounded-md bg-card p-3 gap-3"
         >
           {/* Mirror of the EDB tab strip — 4 textual labels, no icons,
               flat underline. Token flow / Resources / Developer info /
