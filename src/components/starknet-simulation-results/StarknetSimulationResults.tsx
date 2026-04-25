@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowsClockwise,
   ArrowSquareOut,
+  DownloadSimple,
   Sparkle,
   TreeStructure,
   CurrencyCircleDollar,
@@ -265,6 +266,15 @@ export function StarknetSimulationResults({
                     Re-simulate
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<DownloadSimple size={14} />}
+                  onClick={() => downloadResponseJson(response, txHash)}
+                  data-testid="download-json"
+                >
+                  Download JSON
+                </Button>
                 {onExplainTransaction && (
                   <Button
                     variant="outline"
@@ -513,6 +523,31 @@ function RawTab({ response }: { response: SimulateResponse }) {
       </pre>
     </Card>
   );
+}
+
+/** Triggers a browser download of the raw bridge response. Filename
+ *  uses the tx hash when present (trace flow) or the simId (synthetic),
+ *  so an archive of multiple downloads stays self-describing. */
+function downloadResponseJson(response: SimulateResponse, txHash?: string): void {
+  if (typeof window === "undefined") return;
+  const stem = txHash ? txHash.replace(/^0x/, "0x").slice(0, 18) : response.simId;
+  const filename = `starknet-sim-${stem}.json`;
+  try {
+    const blob = new Blob([JSON.stringify(response, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch {
+    // Browsers block this for various reasons (sandbox iframes, etc.) —
+    // worst case the user can still copy from the Raw JSON tab.
+  }
 }
 
 export { contractLabel, selectorName };
