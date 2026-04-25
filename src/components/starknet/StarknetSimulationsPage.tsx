@@ -1,11 +1,19 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import TxTraceView from "./TxTraceView";
 import SyntheticSimView from "./SyntheticSimView";
 import EstimateFeeView from "./EstimateFeeView";
 import StarknetBridgeBanner from "./StarknetBridgeBanner";
+import RecentSimulationsSidebar from "./RecentSimulationsSidebar";
 import { extractTxHash } from "./txHashParse";
+import {
+  clearRecents,
+  loadRecents,
+  pushRecent,
+  type RecentItem,
+} from "./recentSimulations";
+import type { InvokeFormState } from "./invokeRequestBuilder";
 
 type TabId = "trace" | "synthetic" | "estimate";
 const VALID_TABS: TabId[] = ["trace", "synthetic", "estimate"];
@@ -25,13 +33,19 @@ const StarknetSimulationsPage: React.FC = () => {
   const tab = useMemo(() => parseTabParam(params.get("tab")), [params]);
   const initialTxHash = useMemo(() => parseTxHashParam(params.get("txHash")), [params]);
 
+  const [recents, setRecents] = useState<RecentItem[]>(() => loadRecents());
+  // When the user clicks a "synthetic" entry in the sidebar we hand the
+  // form snapshot to SyntheticSimView via this prop. A monotonically
+  // bumped key forces the child to re-mount so it picks up the form
+  // even when the user re-selects the same entry.
+  const [restoredForm, setRestoredForm] = useState<InvokeFormState | null>(null);
+  const [restoreNonce, setRestoreNonce] = useState(0);
+
   const onTabChange = useCallback(
     (next: string) => {
       const id = parseTabParam(next);
       const np = new URLSearchParams(location.search);
       np.set("tab", id);
-      // Preserve the #frame=N deep-link so jumping between tabs and back
-      // to Call tree restores the previously selected frame.
       navigate(
         `${location.pathname}?${np.toString()}${location.hash}`,
         { replace: true },
@@ -40,8 +54,6 @@ const StarknetSimulationsPage: React.FC = () => {
     [location.pathname, location.search, location.hash, navigate],
   );
 
-  // TxTraceView calls back with the tx hash that was just traced (or
-  // null when the input cleared) so the URL stays canonical and shareable.
   const onTxHashCommit = useCallback(
     (next: string | null) => {
       const np = new URLSearchParams(location.search);
@@ -56,8 +68,68 @@ const StarknetSimulationsPage: React.FC = () => {
     [location.pathname, location.search, location.hash, navigate],
   );
 
+  const recordTrace = useCallback((txHash: string) => {
+    const next = pushRecent({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "trace",
+      txHash,
+      ts: Date.now(),
+    });
+    setRecents(next);
+  }, []);
+
+  const recordSynthetic = useCallback((form: InvokeFormState) => {
+    const next = pushRecent({
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: "synthetic",
+      form,
+      ts: Date.now(),
+    });
+    setRecents(next);
+  }, []);
+
+  const onSelectRecent = useCallback(
+    (item: RecentItem) => {
+      if (item.kind === "trace") {
+        const np = new URLSearchParams(location.search);
+        np.set("tab", "trace");
+        np.set("txHash", item.txHash);
+        navigate(
+          `${location.pathname}?${np.toString()}${location.hash}`,
+          { replace: true },
+        );
+        return;
+      }
+      // Synthetic: switch tab + push the form snapshot down. Drop any
+      // lingering ?txHash= so the shared URL reflects the active tab.
+      setRestoredForm(item.form);
+      setRestoreNonce((n) => n + 1);
+      const np = new URLSearchParams(location.search);
+      np.set("tab", "synthetic");
+      np.delete("txHash");
+      navigate(
+        `${location.pathname}?${np.toString()}${location.hash}`,
+        { replace: true },
+      );
+    },
+    [location.pathname, location.search, location.hash, navigate],
+  );
+
+  const onClearRecents = useCallback(() => {
+    setRecents(clearRecents());
+  }, []);
+
+  // Cross-tab sync — if another tab updates recents, pick it up here too.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "hexkit:starknet-sim:recents:v1") setRecents(loadRecents());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 space-y-4">
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 space-y-4">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold text-foreground">Starknet simulations</h1>
         <p className="text-sm text-muted-foreground">
@@ -69,31 +141,51 @@ const StarknetSimulationsPage: React.FC = () => {
 
       <StarknetBridgeBanner />
 
-      <Tabs value={tab} onValueChange={onTabChange}>
-        <TabsList className="w-full">
-          <TabsTrigger value="trace" className="flex-1">
-            By transaction hash
-          </TabsTrigger>
-          <TabsTrigger value="synthetic" className="flex-1">
-            Speculative simulate
-          </TabsTrigger>
-          <TabsTrigger value="estimate" className="flex-1">
-            Estimate fee
-          </TabsTrigger>
-        </TabsList>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="min-w-0">
+          <Tabs value={tab} onValueChange={onTabChange}>
+            <TabsList className="w-full">
+              <TabsTrigger value="trace" className="flex-1">
+                By transaction hash
+              </TabsTrigger>
+              <TabsTrigger value="synthetic" className="flex-1">
+                Speculative simulate
+              </TabsTrigger>
+              <TabsTrigger value="estimate" className="flex-1">
+                Estimate fee
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="trace" className="mt-3">
-          <TxTraceView initialTxHash={initialTxHash} onTxHashCommit={onTxHashCommit} />
-        </TabsContent>
+            <TabsContent value="trace" className="mt-3">
+              <TxTraceView
+                initialTxHash={initialTxHash}
+                onTxHashCommit={onTxHashCommit}
+                onTraceSucceeded={recordTrace}
+              />
+            </TabsContent>
 
-        <TabsContent value="synthetic" className="mt-3">
-          <SyntheticSimView />
-        </TabsContent>
+            <TabsContent value="synthetic" className="mt-3">
+              <SyntheticSimView
+                key={restoreNonce}
+                initialForm={restoredForm}
+                onSimSucceeded={recordSynthetic}
+              />
+            </TabsContent>
 
-        <TabsContent value="estimate" className="mt-3">
-          <EstimateFeeView />
-        </TabsContent>
-      </Tabs>
+            <TabsContent value="estimate" className="mt-3">
+              <EstimateFeeView />
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <aside className="lg:sticky lg:top-4 self-start">
+          <RecentSimulationsSidebar
+            items={recents}
+            onSelect={onSelectRecent}
+            onClear={onClearRecents}
+          />
+        </aside>
+      </div>
     </div>
   );
 };

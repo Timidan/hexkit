@@ -24,9 +24,20 @@ import {
   type InvokeFormState,
 } from "./invokeRequestBuilder";
 
-const SyntheticSimView: React.FC = () => {
+interface Props {
+  /** When the user clicks a synthetic entry in the Recent sidebar the
+   *  page hands the saved form snapshot here; the parent re-mounts the
+   *  view via a key bump so this initial value sticks. */
+  initialForm?: InvokeFormState | null;
+  /** Push the just-submitted form to the Recent sims sidebar. */
+  onSimSucceeded?: (form: InvokeFormState) => void;
+}
+
+const SyntheticSimView: React.FC<Props> = ({ initialForm, onSimSucceeded }) => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
-  const [form, setForm] = useState<InvokeFormState>(DEFAULT_INVOKE_FORM);
+  const [form, setForm] = useState<InvokeFormState>(
+    initialForm ?? DEFAULT_INVOKE_FORM,
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<SimulateResponse | null>(null);
@@ -46,6 +57,7 @@ const SyntheticSimView: React.FC = () => {
     try {
       const res = await simulator.simulate(built.request);
       setResponse(res);
+      onSimSucceeded?.(form);
     } catch (err) {
       if (err instanceof StarknetSimulatorBridgeError) {
         setError(`${err.code}: ${err.message}`);
@@ -55,7 +67,7 @@ const SyntheticSimView: React.FC = () => {
     } finally {
       setPending(false);
     }
-  }, [simulator, form]);
+  }, [simulator, form, onSimSucceeded]);
 
   return (
     <div className="space-y-4">

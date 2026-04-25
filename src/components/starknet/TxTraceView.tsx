@@ -18,9 +18,16 @@ interface Props {
   /** Sync the active tx hash to the URL after a successful trace, or
    *  clear it when the input goes empty. */
   onTxHashCommit?: (hash: string | null) => void;
+  /** Push to the page-level "Recent simulations" sidebar after each
+   *  successful trace. */
+  onTraceSucceeded?: (txHash: string) => void;
 }
 
-const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
+const TxTraceView: React.FC<Props> = ({
+  initialTxHash,
+  onTxHashCommit,
+  onTraceSucceeded,
+}) => {
   const simulator = useMemo(() => new StarknetSimulator(), []);
   const [hash, setHash] = useState(initialTxHash ?? "");
   const [pending, setPending] = useState(false);
@@ -51,6 +58,7 @@ const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
         const res = await simulator.trace(target);
         setResponse(res);
         onTxHashCommit?.(target);
+        onTraceSucceeded?.(target);
       } catch (err) {
         if (err instanceof StarknetSimulatorBridgeError) {
           setError(`${err.code}: ${err.message}`);
@@ -61,7 +69,7 @@ const TxTraceView: React.FC<Props> = ({ initialTxHash, onTxHashCommit }) => {
         setPending(false);
       }
     },
-    [simulator, hash, onTxHashCommit],
+    [simulator, hash, onTxHashCommit, onTraceSucceeded],
   );
 
   // Auto-trace once if the URL handed us a valid tx hash. Guarded by ref
