@@ -1,6 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import type { SimulationEvent, SimulationResult } from "@/chains/starknet/simulatorTypes";
+import type {
+  FunctionInvocation,
+  SimulationEvent,
+  SimulationResult,
+} from "@/chains/starknet/simulatorTypes";
 import {
   TOKEN_META,
   contractLabel,
@@ -17,6 +21,9 @@ interface DecodedTransfer {
   to: string;
   kind: string;
   amount: bigint;
+  /** The frame whose events list contained the source event. Used by
+   *  the per-row jump-to-frame button. */
+  frame: FunctionInvocation;
 }
 
 /** Cairo array length felts max out around 2^32 in practice; clamp to
@@ -31,12 +38,22 @@ function safeFeltLen(felt: string | undefined): number {
   }
 }
 
-export function TokenFlowTab({ result }: { result: SimulationResult }) {
-  const events: SimulationEvent[] = [];
-  for (const f of walkInvocations(result)) for (const e of f.events || []) events.push(e);
+export function TokenFlowTab({
+  result,
+  frames,
+  onJumpToFrame,
+}: {
+  result: SimulationResult;
+  frames?: FunctionInvocation[];
+  onJumpToFrame?: (frame: FunctionInvocation) => void;
+}) {
+  const eventsWithFrame: Array<{ ev: SimulationEvent; frame: FunctionInvocation }> = [];
+  for (const f of walkInvocations(result)) {
+    for (const e of f.events || []) eventsWithFrame.push({ ev: e, frame: f });
+  }
 
   const transfers: DecodedTransfer[] = [];
-  for (const ev of events) {
+  for (const { ev, frame } of eventsWithFrame) {
     const name = eventName(ev);
     if (name === "Transfer" && ev.keys.length >= 3) {
       const data = ev.data || [];
@@ -48,6 +65,7 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
         to: ev.keys[2],
         kind: isErc721 ? "ERC721" : "ERC20",
         amount,
+        frame,
       });
     } else if (name === "TransferSingle" && ev.keys.length >= 4) {
       const d = ev.data || [];
@@ -59,6 +77,7 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
         to: ev.keys[3],
         kind: `ERC1155 #${tokenId}`,
         amount: value,
+        frame,
       });
     } else if (name === "TransferBatch" && ev.keys.length >= 4) {
       // Cairo array layout: [ids_len, id_low, id_high, …, values_len,
@@ -83,6 +102,7 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
           to: ev.keys[3],
           kind: `ERC1155 #${ids[j]} (batch)`,
           amount: values[j] ?? 0n,
+          frame,
         });
       }
     }
@@ -152,6 +172,7 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
               const formatted = formatTokenAmount(t.amount, meta.decimals);
               const fromLbl = contractLabel(t.from);
               const toLbl = contractLabel(t.to);
+              const frameIdx = frames ? frames.indexOf(t.frame) : -1;
               return (
                 <Card key={i} className="p-3 gap-1.5">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -161,6 +182,16 @@ export function TokenFlowTab({ result }: { result: SimulationResult }) {
                     <span className="text-[10px] text-muted-foreground uppercase">
                       {t.kind}
                     </span>
+                    {frameIdx >= 0 && onJumpToFrame && (
+                      <button
+                        type="button"
+                        onClick={() => onJumpToFrame(t.frame)}
+                        className="font-mono text-[10px] text-info hover:underline"
+                        data-testid="flow-jump-frame"
+                      >
+                        frame #{frameIdx}
+                      </button>
+                    )}
                     <span
                       className={`font-mono text-xs ${
                         fromLbl ? "text-success" : "text-foreground"

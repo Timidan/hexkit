@@ -405,7 +405,14 @@ export function StarknetSimulationResults({
             />
           </TabsContent>
           <TabsContent value="flow">
-            <TokenFlowTab result={result} />
+            <TokenFlowTab
+              result={result}
+              frames={frames}
+              onJumpToFrame={(f) => {
+                setTab("trace");
+                setSelectedFrameWithHash(f);
+              }}
+            />
           </TabsContent>
           <TabsContent value="events">
             <EventsTab
