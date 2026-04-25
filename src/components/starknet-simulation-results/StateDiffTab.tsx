@@ -1,6 +1,8 @@
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -37,6 +39,36 @@ export function StateDiffTab({
     0,
   );
 
+  // Free-text filter — matches contract address, contract label
+  // (Account / ETH / STRK / …), or storage key. Empty = pass-through.
+  // First-touch toggle slices to rows where before === 0.
+  const [filter, setFilter] = useState("");
+  const [onlyFirstTouch, setOnlyFirstTouch] = useState(false);
+  const filteredGroups = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return sd.storageDiffs
+      .map((grp) => {
+        const lbl = (addressLabels[grp.address] || "").toLowerCase();
+        const addrMatches = !q || grp.address.toLowerCase().includes(q) || lbl.includes(q);
+        const entries = grp.storageEntries.filter((e) => {
+          if (onlyFirstTouch && !isZeroFelt(e.before)) return false;
+          if (!q) return true;
+          if (addrMatches) return true;
+          return e.key.toLowerCase().includes(q);
+        });
+        return { ...grp, storageEntries: entries };
+      })
+      .filter((grp) => grp.storageEntries.length > 0);
+  }, [sd.storageDiffs, addressLabels, filter, onlyFirstTouch]);
+  const filteredEntryCount = filteredGroups.reduce(
+    (n, g) => n + g.storageEntries.length,
+    0,
+  );
+  const totalEntryCount = sd.storageDiffs.reduce(
+    (n, g) => n + g.storageEntries.length,
+    0,
+  );
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -55,6 +87,11 @@ export function StateDiffTab({
                 {firstTouchCount} first-touch
               </Badge>
             )}
+            {filter.trim() || onlyFirstTouch ? (
+              <span className="text-[10px] text-muted-foreground">
+                {filteredEntryCount} of {totalEntryCount} matched
+              </span>
+            ) : null}
           </div>
           <span className="text-[10px] text-muted-foreground">
             canonical — emitted by trace_map.rs
@@ -65,6 +102,37 @@ export function StateDiffTab({
             No storage writes in this transaction.
           </div>
         ) : (
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="filter by contract label, address, or key prefix"
+                className="font-mono text-xs h-8 max-w-md"
+                data-testid="storage-filter"
+              />
+              <button
+                type="button"
+                onClick={() => setOnlyFirstTouch((v) => !v)}
+                aria-pressed={onlyFirstTouch}
+                data-testid="filter-first-touch"
+                className={`text-[10px] px-2 py-1 rounded-md border ${
+                  onlyFirstTouch
+                    ? "border-info bg-info/10 text-info"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                first-touch only
+              </button>
+              {(filter.trim() || onlyFirstTouch) && filteredEntryCount === 0 ? (
+                <span className="text-[10px] text-muted-foreground">
+                  No rows match.
+                </span>
+              ) : null}
+            </div>
+          </>
+        )}
+        {sd.storageDiffs.length === 0 ? null : filteredGroups.length === 0 ? null : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -75,7 +143,7 @@ export function StateDiffTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sd.storageDiffs.flatMap((grp) => {
+              {filteredGroups.flatMap((grp) => {
                 const lbl = addressLabels[grp.address];
                 return grp.storageEntries.map((e, i) => {
                   const isFirstWrite = isZeroFelt(e.before);
