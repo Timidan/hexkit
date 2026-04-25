@@ -1,9 +1,3 @@
-// Compact health/version banner shown above the simulations tabs. Surfaces
-// the bridge's git SHA, RPC spec version, fork-head block, and latency so
-// users can immediately tell whether the simulator is talking to a fresh
-// fork-head or a stale / disconnected one. Uses theme tokens; the dot
-// color indicates status (success / warning / destructive / muted).
-
 import { ArrowsClockwise } from "@phosphor-icons/react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";

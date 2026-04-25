@@ -1,9 +1,3 @@
-// Speculative INVOKE v3 simulation form. Builds a minimal request body,
-// POSTs to /simulate via the bridge, and renders the rich result panel.
-// Use case: previewing a tx the user is about to sign, without
-// broadcasting. The UI accepts raw calldata felts; calldata builders
-// (selector + decoded args) are a follow-up.
-
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";

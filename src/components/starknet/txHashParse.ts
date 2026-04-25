@@ -1,9 +1,3 @@
-// Accepts a raw `0x…` hash or any block-explorer URL that contains one
-// (Voyager, Starkscan, Viewblock, etc) and returns the canonical
-// 0x-prefixed hex. The trace input, the ?txHash= URL param, and the
-// auto-trace path all run through the same parser so a pasted Voyager
-// link behaves the same as a typed hash.
-
 const FELT_HEX = /^0x[0-9a-fA-F]{1,64}$/;
 const ANY_HASH = /(0x[0-9a-fA-F]{1,64})/;
 

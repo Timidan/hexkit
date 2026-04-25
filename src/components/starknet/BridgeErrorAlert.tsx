@@ -1,8 +1,3 @@
-// Drop-in error renderer for bridge calls. Takes whatever the simulator
-// client throws, runs it through the copy mapper, and renders a clear
-// title + plain-language hint on top of the raw bridge code/message
-// line. Used by Trace, Speculative, and Estimate fee.
-
 import React from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { resolveBridgeError } from "@/chains/starknet/simulatorErrorCopy";

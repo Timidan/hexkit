@@ -1,8 +1,3 @@
-// Tiny ghost button that copies a curl one-liner to the clipboard for
-// the current bridge request. Used by Trace, Speculative, and Estimate
-// fee — anywhere a user might want a reproducible artifact to share or
-// run from a terminal.
-
 import React, { useState } from "react";
 import { Check, Terminal } from "@phosphor-icons/react";
 import { Button } from "../ui/button";

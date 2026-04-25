@@ -1,11 +1,3 @@
-// Newest-first localStorage cache of recently-run sim/trace requests.
-// Keeps the page useful across reloads — paste a hash, run a trace,
-// reload, and your last few runs are still one click away.
-//
-// Trace and synthetic simulate share a single bucket so the sidebar can
-// render them inline-mixed with relative timestamps; the entry's `kind`
-// tells the page which view to restore into.
-
 import type { InvokeFormState } from "./invokeRequestBuilder";
 
 const STORAGE_KEY = "hexkit:starknet-sim:recents:v1";

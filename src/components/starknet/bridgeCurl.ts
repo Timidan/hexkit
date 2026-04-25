@@ -1,9 +1,7 @@
-// Builds a copy-pasteable curl one-liner for a starknet-sim bridge
-// request. Used by the three views' "Copy as cURL" buttons so a user
-// can share / reproduce a request from a terminal without opening
-// devtools. The body is formatted as a single-quoted shell string with
-// any embedded apostrophes escaped — no JSON unicode tricks needed
-// because the bridge request bodies are pure ASCII felt arrays.
+// Body is formatted as a single-quoted shell string with embedded
+// apostrophes escaped via the close-escape-reopen trick — no JSON
+// unicode tricks needed because bridge request bodies are pure ASCII
+// felt arrays.
 
 import { getStarknetSimBridgeUrl } from "@/utils/env";
 

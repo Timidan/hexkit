@@ -1,8 +1,3 @@
-// Plain-English mappings for the bridge error codes the simulator
-// client surfaces. The raw `CODE: message` string remains useful for
-// power users / bug reports, so the BridgeErrorAlert component renders
-// the friendly copy on top and keeps the raw line muted underneath.
-
 import { StarknetSimulatorBridgeError } from "./simulatorClient";
 
 export interface BridgeErrorCopy {

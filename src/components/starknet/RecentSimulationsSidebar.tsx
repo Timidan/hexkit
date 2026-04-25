@@ -1,7 +1,3 @@
-// Sidebar listing newest-first sim/trace runs, persisted via
-// recentSimulations.ts. Click an item to restore: the page selects the
-// right tab and asks the matching view to rehydrate inputs + re-run.
-
 import React, { useEffect, useState } from "react";
 import { Trash, ClockClockwise, ArrowsClockwise } from "@phosphor-icons/react";
 import { Button } from "../ui/button";

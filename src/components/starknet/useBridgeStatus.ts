@@ -1,7 +1,4 @@
-// Page-level hook that polls the starknet-sim bridge's /health + /version
-// endpoints and returns a unified status object for the
-// StarknetBridgeBanner. The footer-level StarknetSimBridgeStatus already
-// runs its own health-check loop; we keep this hook independent so a
+// Independent of the footer-level StarknetSimBridgeStatus poller so a
 // page-level retry doesn't fight with the global indicator.
 
 import { useCallback, useEffect, useMemo, useState } from "react";

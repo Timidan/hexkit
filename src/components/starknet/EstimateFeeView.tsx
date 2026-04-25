@@ -1,9 +1,3 @@
-// Estimate-fee form. Builds the same INVOKE v3 body SyntheticSimView
-// uses (via buildInvokeRequest) but POSTs to /estimate-fee, which runs
-// blockifier with SKIP_FEE_CHARGE and returns just the fee + execution
-// resources block. No call tree, no events — much faster, used for
-// "what's the fee on this tx" preflights before signing.
-
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";

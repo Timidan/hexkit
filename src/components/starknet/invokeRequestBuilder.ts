@@ -1,8 +1,3 @@
-// Shared INVOKE v3 request builder. Used by SyntheticSimView (full
-// /simulate flow with rich result rendering) and EstimateFeeView (just
-// /estimate-fee, returns the small fee envelope). Validates felt
-// formats and parses calldata / signature into typed felt arrays.
-
 import type {
   InvokeV3,
   SimulateRequest,

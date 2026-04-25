@@ -1,8 +1,5 @@
-// Builds Voyager / Starkscan deep-links for a tx hash, picking the
-// right host (mainnet, sepolia, sepolia-integration) based on the
-// bridge's reported chain ID. Anything unrecognized falls back to
-// mainnet — same behavior as pasting an unknown hash into either
-// explorer's search box, which redirects to mainnet by default.
+// Unknown chain IDs fall back to mainnet — same behavior as pasting
+// an unknown hash into either explorer's search box.
 
 const CHAIN_IDS = {
   // ASCII-encoded chain identifiers Starknet uses on /health.
