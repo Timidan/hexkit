@@ -28,10 +28,12 @@ import {
 export function EventsTab({
   result,
   frames,
+  types,
   onJumpToFrame,
 }: {
   result: SimulationResult;
   frames?: FunctionInvocation[];
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
   /** Hand back to the page so a click on the frame badge switches to
    *  the Call tree tab and selects the emitting frame. */
   onJumpToFrame?: (frame: FunctionInvocation) => void;
@@ -198,6 +200,7 @@ export function EventsTab({
                             fields={r.decodedEventAbi.fields}
                             keys={r.keys}
                             data={r.data}
+                            types={types}
                           />
                         ) : r.summary ? (
                           <div className="flex items-center gap-1.5">
@@ -285,10 +288,12 @@ function DecodedEventFields({
   fields,
   keys,
   data,
+  types,
 }: {
   fields: import("@/chains/starknet/simulatorTypes").AbiParam[];
   keys: string[];
   data: string[];
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
 }) {
   // keys[0] is the selector itself.
   const indexedFelts = keys.slice(1);

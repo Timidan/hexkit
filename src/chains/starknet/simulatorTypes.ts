@@ -175,7 +175,16 @@ export interface SimulateResponse {
   simId: string;
   blockContext: BlockContext;
   results: SimulationResult[];
+  /** Bridge-emitted Cairo struct / enum registry, keyed by fully
+   *  qualified type name (e.g. `core::starknet::account::Call`). The
+   *  UI walks this when recursively decoding composite calldata
+   *  (arrays of structs, structs that nest other structs, etc). */
+  types?: Record<string, AbiTypeDef>;
 }
+
+export type AbiTypeDef =
+  | { kind: "struct"; fields: AbiParam[] }
+  | { kind: "enum"; variants: AbiParam[] };
 
 /** `/estimate-fee` envelope. The bridge runs simulate with
  *  SKIP_FEE_CHARGE and emits only the fee + execution-resources

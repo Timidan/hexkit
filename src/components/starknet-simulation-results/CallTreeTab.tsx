@@ -38,6 +38,9 @@ interface Props {
   /** Bridge chain ID — feeds Voyager / Starkscan contract links beside
    *  the selected frame's address. */
   chainId?: string | null;
+  /** Cairo struct / enum registry — used by the typed calldata
+   *  decoder to recursively expand composite parameter types. */
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
   selectedFrame: FunctionInvocation | null;
   setSelectedFrame: (f: FunctionInvocation) => void;
   onExplainFrame?: (f: FunctionInvocation) => void;
@@ -48,6 +51,7 @@ export function CallTreeTab({
   frames,
   parentMap,
   chainId,
+  types,
   selectedFrame,
   setSelectedFrame,
   onExplainFrame,
@@ -220,6 +224,7 @@ export function CallTreeTab({
           frames={frames}
           parentMap={parentMap}
           chainId={chainId}
+          types={types}
           onSelect={setSelectedFrame}
           stripSys={stripSys}
           onExplain={onExplainFrame}
@@ -448,6 +453,7 @@ function FrameDetailPane({
   frames,
   parentMap,
   chainId,
+  types,
   onSelect,
   stripSys,
   onExplain,
@@ -458,6 +464,7 @@ function FrameDetailPane({
   frames: FunctionInvocation[];
   parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
   chainId?: string | null;
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
   onSelect: (f: FunctionInvocation) => void;
   stripSys: boolean;
   onExplain?: (f: FunctionInvocation) => void;
@@ -565,6 +572,7 @@ function FrameDetailPane({
             label="INPUT"
             params={frame.decodedFunctionAbi.inputs}
             felts={calldata}
+            types={types}
           />
         ) : (
           <DataBlock
@@ -577,6 +585,7 @@ function FrameDetailPane({
             label="OUTPUT"
             params={frame.decodedFunctionAbi.outputs}
             felts={frame.result || []}
+            types={types}
           />
         ) : (
           <DataBlock
@@ -627,15 +636,17 @@ function TypedParamBlock({
   label,
   params,
   felts,
+  types,
 }: {
   label: string;
   params: import("@/chains/starknet/simulatorTypes").AbiParam[];
   felts: string[];
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
 }) {
   const rows: Array<{ name: string; type: string; rendered: React.ReactNode; raw: string }> = [];
   let i = 0;
   for (const p of params) {
-    const consumed = consumeForType(p.type, felts, i);
+    const consumed = consumeForType(p.type, felts, i, types ?? {}, 0);
     rows.push({
       name: p.name || `arg${rows.length}`,
       type: p.type,
@@ -681,16 +692,26 @@ function TypedParamBlock({
   );
 }
 
-/** Per-Cairo-type felt consumer. Returns the rendered React node for
- *  the typed value plus the post-consumption index. Conservative:
- *  unknown types render as a single felt and advance by 1 — that loses
- *  alignment for genuinely composite unknown types but never hides
- *  data (the tail block surfaces the leftovers). */
+/** Per-Cairo-type recursive felt consumer. Walks the bridge's type
+ *  registry so structs, enums, and arrays of any depth get their
+ *  proper field/variant breakdown rendered as nested rows. Recursion
+ *  capped at depth 8 + array length 64 to keep accidental
+ *  self-referential type loops from blowing the stack or the DOM. */
 function consumeForType(
   ty: string,
   felts: string[],
   i: number,
+  types: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>,
+  depth: number,
 ): { rendered: React.ReactNode; raw: string; next: number } {
+  if (depth > 8) {
+    const v = felts[i] ?? "—";
+    return {
+      rendered: <span className="text-muted-foreground">…(depth cap)</span>,
+      raw: v,
+      next: i + 1,
+    };
+  }
   const norm = ty.replace(/\s+/g, "");
   // u256 = (low, high) — render as decimal big-int.
   if (norm.endsWith("::u256") || norm === "u256") {
@@ -698,11 +719,9 @@ function consumeForType(
     const high = felts[i + 1] ?? "0x0";
     let value = "0";
     try {
-      const lo = BigInt(low);
-      const hi = BigInt(high);
-      value = ((hi << 128n) | lo).toString();
+      value = ((BigInt(high) << 128n) | BigInt(low)).toString();
     } catch {
-      /* keep "0" */
+      /* keep 0 */
     }
     return {
       rendered: (
@@ -715,39 +734,6 @@ function consumeForType(
       ),
       raw: `${low}|${high}`,
       next: i + 2,
-    };
-  }
-  // Array<T> / Span<T> — len felt followed by N items. Items are
-  // rendered as opaque felts since type-aware nested decoding isn't
-  // implemented yet.
-  const arrayMatch = norm.match(/Array::<(.+)>$|Span::<(.+)>$/);
-  if (arrayMatch) {
-    const inner = arrayMatch[1] ?? arrayMatch[2] ?? "felt";
-    const len = (() => {
-      try {
-        return Number(BigInt(felts[i] ?? "0x0"));
-      } catch {
-        return 0;
-      }
-    })();
-    const safeLen = Math.min(len, 64); // clamp before deref
-    const items = felts.slice(i + 1, i + 1 + safeLen);
-    return {
-      rendered: (
-        <span className="space-y-0.5 block">
-          <span className="text-muted-foreground/70 text-[10px]">
-            len={len}, type={inner}
-          </span>
-          {items.map((f, j) => (
-            <span key={j} className="block">
-              <span className="text-muted-foreground/60 text-[10px]">[{j}]</span>{" "}
-              <span className="text-foreground">{f}</span>
-            </span>
-          ))}
-        </span>
-      ),
-      raw: items.join(","),
-      next: i + 1 + safeLen,
     };
   }
   // bool — single felt (0 or 1).
@@ -765,6 +751,119 @@ function consumeForType(
       next: i + 1,
     };
   }
+  // Array<T> / Span<T> — len felt followed by N items. Recurse into
+  // the inner type so an array of structs renders as N expanded
+  // structs rather than a flat felt list.
+  const arrayMatch = norm.match(/Array::<(.+)>$|Span::<(.+)>$/);
+  if (arrayMatch) {
+    const inner = arrayMatch[1] ?? arrayMatch[2] ?? "felt";
+    const len = (() => {
+      try {
+        return Number(BigInt(felts[i] ?? "0x0"));
+      } catch {
+        return 0;
+      }
+    })();
+    const safeLen = Math.min(len, 64);
+    const items: React.ReactNode[] = [];
+    let pos = i + 1;
+    for (let j = 0; j < safeLen; j++) {
+      const r = consumeForType(inner, felts, pos, types, depth + 1);
+      items.push(
+        <div key={j} className="border-l border-border/40 pl-2 ml-1 mt-1">
+          <div className="text-muted-foreground/60 text-[10px]">[{j}]</div>
+          <div>{r.rendered}</div>
+        </div>,
+      );
+      pos = r.next;
+    }
+    return {
+      rendered: (
+        <div className="space-y-0.5">
+          <div className="text-muted-foreground/70 text-[10px]">
+            len={len}
+            {len > safeLen ? ` (decoder clipped to ${safeLen})` : ""}
+          </div>
+          {items}
+        </div>
+      ),
+      raw: `[…${len}]`,
+      next: pos,
+    };
+  }
+  // Tuple — `(T, U, …)` — consume each component sequentially.
+  if (norm.startsWith("(") && norm.endsWith(")")) {
+    const inner = splitTupleArgs(norm.slice(1, -1));
+    const rendered: React.ReactNode[] = [];
+    let pos = i;
+    for (let k = 0; k < inner.length; k++) {
+      const r = consumeForType(inner[k], felts, pos, types, depth + 1);
+      rendered.push(
+        <div key={k} className="border-l border-border/40 pl-2 ml-1">
+          <div className="text-muted-foreground/60 text-[10px]">.{k}</div>
+          <div>{r.rendered}</div>
+        </div>,
+      );
+      pos = r.next;
+    }
+    return {
+      rendered: <div className="space-y-0.5">{rendered}</div>,
+      raw: "(…)",
+      next: pos,
+    };
+  }
+  // Struct from the bridge's type registry — recurse into each field.
+  const structDef = types[ty] ?? types[norm];
+  if (structDef && structDef.kind === "struct") {
+    const rows: React.ReactNode[] = [];
+    let pos = i;
+    for (const f of structDef.fields) {
+      const r = consumeForType(f.type, felts, pos, types, depth + 1);
+      rows.push(
+        <div key={f.name} className="flex flex-col gap-0.5">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-foreground">{f.name}</span>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {f.type}
+            </span>
+          </div>
+          <div className="font-mono pl-2 break-all">{r.rendered}</div>
+        </div>,
+      );
+      pos = r.next;
+    }
+    return {
+      rendered: <div className="space-y-1 border-l border-border/40 pl-2 ml-1">{rows}</div>,
+      raw: "{…}",
+      next: pos,
+    };
+  }
+  // Enum — Cairo enums are emitted as (variant_index, payload_felts).
+  // The actual layout depends on the variant; we conservatively show
+  // the discriminator and one felt of payload. Without the variant
+  // type-aware payload size, deeper expansion would mis-align.
+  if (structDef && structDef.kind === "enum") {
+    const disc = felts[i] ?? "0x0";
+    let variantName = `variant ${disc}`;
+    try {
+      const idx = Number(BigInt(disc));
+      if (structDef.variants[idx]) variantName = structDef.variants[idx].name;
+    } catch {
+      /* keep default */
+    }
+    return {
+      rendered: (
+        <span className="text-foreground">
+          {variantName}{" "}
+          <span className="text-muted-foreground/60 text-[10px]">
+            (disc={disc})
+          </span>
+        </span>
+      ),
+      raw: disc,
+      next: i + 1,
+    };
+  }
   // Default: one felt, render as raw hex.
   const v = felts[i] ?? "—";
   return {
@@ -772,6 +871,26 @@ function consumeForType(
     raw: v,
     next: i + 1,
   };
+}
+
+/** Split a Cairo tuple's inner args by top-level commas, respecting
+ *  nested `<...>` / `(...)` so `(felt, Array::<u256>, (a, b))` splits
+ *  into 3 components. */
+function splitTupleArgs(inner: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === "<" || c === "(") depth++;
+    else if (c === ">" || c === ")") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  if (start < inner.length) out.push(inner.slice(start).trim());
+  return out.filter(Boolean);
 }
 
 function DataBlock({ label, items }: { label: string; items: string[] }) {

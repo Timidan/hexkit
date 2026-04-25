@@ -468,6 +468,7 @@ export function StarknetSimulationResults({
               frames={frames}
               parentMap={parentMap}
               chainId={chainId ?? null}
+              types={response.types}
               selectedFrame={selectedFrame}
               setSelectedFrame={setSelectedFrameWithHash}
               onExplainFrame={onExplainFrame}
@@ -487,6 +488,7 @@ export function StarknetSimulationResults({
             <EventsTab
               result={result}
               frames={frames}
+              types={response.types}
               onJumpToFrame={(f) => {
                 setTab("trace");
                 setSelectedFrameWithHash(f);
