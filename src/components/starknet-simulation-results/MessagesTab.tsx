@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
 import type { SimulationResult } from "@/chains/starknet/simulatorTypes";
-import { collectL2ToL1Messages, contractLabel, selectorName, shortHex } from "./decoders";
+import { collectL2ToL1Messages, frameLabel, selectorName, shortHex } from "./decoders";
 
 export function MessagesTab({ result }: { result: SimulationResult }) {
   const items = collectL2ToL1Messages(result);
@@ -35,7 +35,7 @@ export function MessagesTab({ result }: { result: SimulationResult }) {
       </div>
       <div className="space-y-2">
         {items.map(({ frame, message }, i) => {
-          const fromLbl = contractLabel(message.fromAddress);
+          const fromLbl = frameLabel(frame);
           const sel = selectorName(frame);
           const payload = message.payload || [];
           return (

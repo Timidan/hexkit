@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import type { FunctionInvocation, SimulationResult } from "@/chains/starknet/simulatorTypes";
 import {
   contractLabel,
+  frameLabel,
   countSubtree,
   eventName,
   selectorName,
@@ -237,7 +238,7 @@ function CallNode(props: NodeProps) {
   if (filter) {
     const matches = (n: FunctionInvocation): boolean => {
       const sn = (selectorName(n) || "").toLowerCase();
-      const cl = (contractLabel(n.contractAddress) || "").toLowerCase();
+      const cl = (frameLabel(n) || "").toLowerCase();
       if (sn.includes(filter) || cl.includes(filter)) return true;
       if (n.contractAddress.toLowerCase().includes(filter)) return true;
       if (n.entryPointSelector.toLowerCase().includes(filter)) return true;
@@ -247,7 +248,8 @@ function CallNode(props: NodeProps) {
   }
 
   const sel = selectorName(ci);
-  const labelKnown = contractLabel(ci.contractAddress);
+  const labelKnown = frameLabel(ci);
+  const labelIsAccount = labelKnown === "Account";
   const isLib = ci.callType === "Delegate" || ci.callType === "Library";
   const evtCount = subtreeEventCount(ci);
   const calldata = stripSys ? stripSystemArgs(ci.calldata) : ci.calldata;
@@ -304,7 +306,13 @@ function CallNode(props: NodeProps) {
         <span className="text-muted-foreground text-xs">on</span>
         {labelKnown ? (
           <>
-            <span className="font-mono text-success text-xs">{labelKnown}</span>
+            <span
+              className={`font-mono text-xs ${
+                labelIsAccount ? "text-info" : "text-success"
+              }`}
+            >
+              {labelKnown}
+            </span>
             <span className="font-mono text-muted-foreground text-[10px]">
               {shortHex(ci.contractAddress)}
             </span>
@@ -404,7 +412,7 @@ function FrameDetailPane({
     );
   }
   const sel = selectorName(frame);
-  const lbl = contractLabel(frame.contractAddress);
+  const lbl = frameLabel(frame);
   const calldata = stripSys ? stripSystemArgs(frame.calldata) : frame.calldata;
   return (
     <Card className="p-4 gap-3">

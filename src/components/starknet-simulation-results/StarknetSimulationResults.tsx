@@ -40,7 +40,13 @@ import { StateDiffTab } from "./StateDiffTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { MessagesTab } from "./MessagesTab";
 import { DevInfoTab } from "./DevInfoTab";
-import { contractLabel, selectorName, shortHex, walkInvocations } from "./decoders";
+import {
+  buildAddressLabels,
+  contractLabel,
+  selectorName,
+  shortHex,
+  walkInvocations,
+} from "./decoders";
 
 export type TabKey =
   | "trace"
@@ -90,6 +96,14 @@ export function StarknetSimulationResults({
   // and the step debugger so "frame #17" means the same thing everywhere.
   const frames = useMemo(
     () => (result ? Array.from(walkInvocations(result)) : []),
+    [result],
+  );
+
+  // Address → label map built once from the full result. Tabs that
+  // don't have a frame in hand (state diff, nonce updates, class hash
+  // updates) read this to render the same labels the call tree shows.
+  const addressLabels = useMemo(
+    () => (result ? buildAddressLabels(result) : {}),
     [result],
   );
 
@@ -320,7 +334,7 @@ export function StarknetSimulationResults({
             <EventsTab result={result} />
           </TabsContent>
           <TabsContent value="state">
-            <StateDiffTab result={result} />
+            <StateDiffTab result={result} addressLabels={addressLabels} />
           </TabsContent>
           <TabsContent value="resources">
             <ResourcesTab

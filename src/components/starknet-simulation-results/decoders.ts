@@ -55,6 +55,51 @@ export function contractLabel(addr: string): string | null {
   return KNOWN_CONTRACTS[addr] || null;
 }
 
+/** Account-shape entrypoints. Any frame calling into one of these is
+ *  almost certainly an account contract regardless of class hash, so we
+ *  can label the call target generically when the address isn't in
+ *  KNOWN_CONTRACTS. */
+const ACCOUNT_ENTRY_POINT_NAMES = new Set([
+  "__validate__",
+  "__execute__",
+  "__validate_deploy__",
+  "__validate_declare__",
+  "execute_from_outside_v2",
+  "execute_from_outside",
+]);
+
+/** Higher-confidence label for a single frame: tries the known-contract
+ *  table by address first, then falls back to a generic kind ("Account")
+ *  when the entrypoint pattern is unambiguous. Returns null when we
+ *  have nothing useful — the caller renders the raw hex. */
+export function frameLabel(
+  frame: FunctionInvocation | null | undefined,
+): string | null {
+  if (!frame) return null;
+  const known = contractLabel(frame.contractAddress);
+  if (known) return known;
+  const sel = selectorName(frame);
+  if (sel && ACCOUNT_ENTRY_POINT_NAMES.has(sel)) return "Account";
+  return null;
+}
+
+/** Walks every invocation tree once and builds an address → label map
+ *  using frameLabel's heuristics. Useful for tabs that don't have a
+ *  frame in hand (state diff rows, message rows) but want the same
+ *  labels the call tree shows. */
+export function buildAddressLabels(result: {
+  validateInvocation: FunctionInvocation | null;
+  executeInvocation: FunctionInvocation | null;
+  feeTransferInvocation: FunctionInvocation | null;
+}): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const f of walkInvocations(result)) {
+    const lbl = frameLabel(f);
+    if (lbl && !map[f.contractAddress]) map[f.contractAddress] = lbl;
+  }
+  return map;
+}
+
 export function shortHex(h: string | null | undefined, head = 10, tail = 6): string {
   if (!h) return "";
   if (h.length <= head + tail + 1) return h;

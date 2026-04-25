@@ -9,9 +9,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { SimulationResult } from "@/chains/starknet/simulatorTypes";
-import { contractLabel, shortHex } from "./decoders";
+import { shortHex } from "./decoders";
 
-export function StateDiffTab({ result }: { result: SimulationResult }) {
+export function StateDiffTab({
+  result,
+  addressLabels = {},
+}: {
+  result: SimulationResult;
+  /** Built once at the response root and shared with this and other
+   *  tabs so labels stay consistent (Account / ETH / STRK / etc). */
+  addressLabels?: Record<string, string>;
+}) {
   const sd = result.stateDiff;
   if (!sd) {
     return (
@@ -55,7 +63,7 @@ export function StateDiffTab({ result }: { result: SimulationResult }) {
             </TableHeader>
             <TableBody>
               {sd.storageDiffs.flatMap((grp) => {
-                const lbl = contractLabel(grp.address);
+                const lbl = addressLabels[grp.address];
                 return grp.storageEntries.map((e, i) => (
                   <TableRow key={`${grp.address}-${i}`}>
                     {i === 0 ? (
@@ -105,14 +113,22 @@ export function StateDiffTab({ result }: { result: SimulationResult }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sd.nonceUpdates.map((n, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-mono text-[11px] text-foreground">
-                    {shortHex(n.contractAddress)}
-                  </TableCell>
-                  <TableCell className="font-mono text-[11px] text-warning">{n.nonce}</TableCell>
-                </TableRow>
-              ))}
+              {sd.nonceUpdates.map((n, i) => {
+                const lbl = addressLabels[n.contractAddress];
+                return (
+                  <TableRow key={i}>
+                    <TableCell>
+                      {lbl ? (
+                        <div className="text-info text-xs">{lbl}</div>
+                      ) : null}
+                      <div className="font-mono text-[11px] text-foreground">
+                        {shortHex(n.contractAddress)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-[11px] text-warning">{n.nonce}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -123,16 +139,24 @@ export function StateDiffTab({ result }: { result: SimulationResult }) {
           <div className="text-xs uppercase text-muted-foreground">Class hash updates</div>
           <Table>
             <TableBody>
-              {sd.classHashUpdates.map((c, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-mono text-[11px] text-foreground">
-                    {shortHex(c.contractAddress)}
-                  </TableCell>
-                  <TableCell className="font-mono text-[11px] text-warning">
-                    {shortHex(c.classHash)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {sd.classHashUpdates.map((c, i) => {
+                const lbl = addressLabels[c.contractAddress];
+                return (
+                  <TableRow key={i}>
+                    <TableCell>
+                      {lbl ? (
+                        <div className="text-info text-xs">{lbl}</div>
+                      ) : null}
+                      <div className="font-mono text-[11px] text-foreground">
+                        {shortHex(c.contractAddress)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-[11px] text-warning">
+                      {shortHex(c.classHash)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </Card>
