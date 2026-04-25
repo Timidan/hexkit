@@ -127,6 +127,33 @@ const TxTraceView: React.FC<Props> = ({
               }}
             />
             <Button
+              type="button"
+              variant="ghost"
+              size="default"
+              onClick={async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  const canonical = extractTxHash(text);
+                  if (canonical) {
+                    setHash(canonical);
+                    if (!pending) void runTrace(canonical);
+                  } else {
+                    setError(
+                      "Clipboard didn't contain a tx hash or Voyager / Starkscan URL.",
+                    );
+                  }
+                } catch {
+                  setError(
+                    "Browser blocked clipboard read. Paste manually with Ctrl+V.",
+                  );
+                }
+              }}
+              disabled={pending}
+              data-testid="paste-from-clipboard"
+            >
+              Paste
+            </Button>
+            <Button
               variant="outline"
               onClick={() => void runTrace()}
               disabled={!valid}
