@@ -82,6 +82,31 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
   return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
+/** Hex felt → bigint, returning 0n on parse failure. The fee /
+ *  gas fields the bridge emits are always 0x-prefixed hex. */
+export function hexToBigInt(hex: string): bigint {
+  try {
+    return BigInt(hex);
+  } catch {
+    return 0n;
+  }
+}
+
+/** Format a FRI amount (10⁻¹⁸ STRK) into a human-readable STRK display.
+ *  Returns "0 STRK" for empty/zero, otherwise decimal with up to 6 fraction
+ *  digits + STRK suffix. */
+export function formatFriAmount(hexFri: string): string {
+  const fri = hexToBigInt(hexFri);
+  if (fri === 0n) return "0 STRK";
+  return `${formatTokenAmount(fri, 18)} STRK`;
+}
+
+/** Format a hex gas amount as a decimal integer with thousands separators
+ *  (locale "en-US"). */
+export function formatHexGasAmount(hexAmount: string): string {
+  return hexToBigInt(hexAmount).toLocaleString("en-US");
+}
+
 /** All L2→L1 messages emitted across the tx, paired with the frame that
  *  emitted them so the UI can render `from contract → L1 address`
  *  with proper labels. */

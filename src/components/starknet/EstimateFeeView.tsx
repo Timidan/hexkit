@@ -19,6 +19,10 @@ import {
 } from "@/chains/starknet/simulatorClient";
 import type { EstimateFeeResponse } from "@/chains/starknet/simulatorTypes";
 import {
+  formatFriAmount,
+  formatHexGasAmount,
+} from "@/components/starknet-simulation-results/decoders";
+import {
   buildInvokeRequest,
   DEFAULT_INVOKE_FORM,
   type InvokeFormState,
@@ -212,32 +216,35 @@ const EstimateFeeView: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                   <FeeStat
                     label="Overall fee"
-                    value={est.feeEstimate.overallFee}
-                    unit={est.feeEstimate.unit}
-                    copyable
+                    primary={formatFriAmount(est.feeEstimate.overallFee)}
+                    secondary={est.feeEstimate.overallFee}
+                    copyValue={est.feeEstimate.overallFee}
                   />
                   <FeeStat
                     label="L1 gas consumed"
-                    value={est.feeEstimate.l1GasConsumed}
-                    copyable
+                    primary={formatHexGasAmount(est.feeEstimate.l1GasConsumed)}
+                    secondary={est.feeEstimate.l1GasConsumed}
+                    copyValue={est.feeEstimate.l1GasConsumed}
                   />
                   <FeeStat
                     label="L1 data gas consumed"
-                    value={est.feeEstimate.l1DataGasConsumed}
-                    copyable
+                    primary={formatHexGasAmount(est.feeEstimate.l1DataGasConsumed)}
+                    secondary={est.feeEstimate.l1DataGasConsumed}
+                    copyValue={est.feeEstimate.l1DataGasConsumed}
                   />
                   <FeeStat
                     label="L2 gas consumed"
-                    value={est.feeEstimate.l2GasConsumed}
-                    copyable
+                    primary={formatHexGasAmount(est.feeEstimate.l2GasConsumed)}
+                    secondary={est.feeEstimate.l2GasConsumed}
+                    copyValue={est.feeEstimate.l2GasConsumed}
                   />
                   <FeeStat
                     label="VM steps"
-                    value={est.executionResources.steps.toLocaleString()}
+                    primary={est.executionResources.steps.toLocaleString()}
                   />
                   <FeeStat
-                    label="L2 gas (raw)"
-                    value={est.executionResources.l2Gas.toLocaleString()}
+                    label="L2 gas (raw decimal)"
+                    primary={est.executionResources.l2Gas.toLocaleString()}
                   />
                 </div>
               </div>
@@ -270,23 +277,33 @@ function Field({
 
 function FeeStat({
   label,
-  value,
-  unit,
-  copyable,
+  primary,
+  secondary,
+  copyValue,
 }: {
   label: string;
-  value: string;
-  unit?: string;
-  copyable?: boolean;
+  /** Human-readable line — e.g. "0.001234 STRK" or "12,345". */
+  primary: string;
+  /** Optional raw value (typically the bridge's hex), shown muted under
+   *  the primary line so power users can still see the canonical form. */
+  secondary?: string;
+  /** Value the CopyButton hands to the clipboard — defaults to primary
+   *  when omitted, but for hex fields we want the raw bridge value. */
+  copyValue?: string;
 }) {
+  const copy = copyValue ?? secondary ?? primary;
   return (
     <div className="rounded-md border border-border bg-card p-2">
       <div className="uppercase text-muted-foreground text-[10px]">{label}</div>
       <div className="mt-0.5 text-foreground font-mono flex items-center gap-1">
-        <span className="truncate">{value}</span>
-        {unit && <span className="text-muted-foreground text-[10px]">{unit}</span>}
-        {copyable && <CopyButton value={value} className="h-5 w-5" iconSize={12} />}
+        <span className="truncate">{primary}</span>
+        <CopyButton value={copy} className="ml-auto h-5 w-5" iconSize={12} />
       </div>
+      {secondary && secondary !== primary && (
+        <div className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+          {secondary}
+        </div>
+      )}
     </div>
   );
 }
