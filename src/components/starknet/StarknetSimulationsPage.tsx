@@ -7,29 +7,49 @@ import EstimateFeeView from "./EstimateFeeView";
 
 type TabId = "trace" | "synthetic" | "estimate";
 const VALID_TABS: TabId[] = ["trace", "synthetic", "estimate"];
+const TX_HASH = /^0x[0-9a-fA-F]{1,64}$/;
 
 function parseTabParam(value: string | null | undefined): TabId {
   return VALID_TABS.includes(value as TabId) ? (value as TabId) : "trace";
+}
+function parseTxHashParam(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return TX_HASH.test(value.trim()) ? value.trim() : null;
 }
 
 const StarknetSimulationsPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const tab = useMemo(
-    () => parseTabParam(new URLSearchParams(location.search).get("tab")),
-    [location.search],
-  );
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const tab = useMemo(() => parseTabParam(params.get("tab")), [params]);
+  const initialTxHash = useMemo(() => parseTxHashParam(params.get("txHash")), [params]);
 
   const onTabChange = useCallback(
     (next: string) => {
       const id = parseTabParam(next);
-      const params = new URLSearchParams(location.search);
-      params.set("tab", id);
+      const np = new URLSearchParams(location.search);
+      np.set("tab", id);
       // Preserve the #frame=N deep-link so jumping between tabs and back
       // to Call tree restores the previously selected frame.
       navigate(
-        `${location.pathname}?${params.toString()}${location.hash}`,
+        `${location.pathname}?${np.toString()}${location.hash}`,
+        { replace: true },
+      );
+    },
+    [location.pathname, location.search, location.hash, navigate],
+  );
+
+  // TxTraceView calls back with the tx hash that was just traced (or
+  // null when the input cleared) so the URL stays canonical and shareable.
+  const onTxHashCommit = useCallback(
+    (next: string | null) => {
+      const np = new URLSearchParams(location.search);
+      np.set("tab", "trace");
+      if (next) np.set("txHash", next);
+      else np.delete("txHash");
+      navigate(
+        `${location.pathname}?${np.toString()}${location.hash}`,
         { replace: true },
       );
     },
@@ -61,7 +81,7 @@ const StarknetSimulationsPage: React.FC = () => {
         </TabsList>
 
         <TabsContent value="trace" className="mt-3">
-          <TxTraceView />
+          <TxTraceView initialTxHash={initialTxHash} onTxHashCommit={onTxHashCommit} />
         </TabsContent>
 
         <TabsContent value="synthetic" className="mt-3">
