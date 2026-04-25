@@ -643,10 +643,27 @@ function TypedParamBlock({
   felts: string[];
   types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
 }) {
+  // Voyager-style Hex / Dec / Text format toggle. Persists across the
+  // session so a user who prefers decimal once gets it for every
+  // frame.
+  const [valueFormat, setValueFormat] = useState<ValueFormat>(() => {
+    if (typeof window === "undefined") return "hex";
+    try {
+      const raw = window.localStorage.getItem("hexkit:starknet-sim:valueFormat");
+      if (raw === "dec" || raw === "text") return raw;
+    } catch {/* fall through */}
+    return "hex";
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("hexkit:starknet-sim:valueFormat", valueFormat);
+    } catch {/* quota — preference just won't persist */}
+  }, [valueFormat]);
+
   const rows: Array<{ name: string; type: string; rendered: React.ReactNode; raw: string }> = [];
   let i = 0;
   for (const p of params) {
-    const consumed = consumeForType(p.type, felts, i, types ?? {}, 0);
+    const consumed = consumeForType(p.type, felts, i, types ?? {}, 0, valueFormat);
     rows.push({
       name: p.name || `arg${rows.length}`,
       type: p.type,
@@ -660,7 +677,10 @@ function TypedParamBlock({
   const tail = felts.slice(i);
   return (
     <Card className="p-2 gap-1.5 bg-background">
-      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
+        <ValueFormatToggle value={valueFormat} onChange={setValueFormat} />
+      </div>
       <div className="text-xs space-y-1.5">
         {rows.map((r, idx) => (
           <div key={idx} className="flex flex-col gap-0.5">
@@ -681,7 +701,8 @@ function TypedParamBlock({
             <div className="font-mono pl-2 text-muted-foreground space-y-0.5">
               {tail.map((f, j) => (
                 <div key={j}>
-                  <span className="text-muted-foreground/60">[{i + j}]</span> {f}
+                  <span className="text-muted-foreground/60">[{i + j}]</span>{" "}
+                  {formatFelt(f, valueFormat)}
                 </div>
               ))}
             </div>
@@ -690,6 +711,68 @@ function TypedParamBlock({
       </div>
     </Card>
   );
+}
+
+type ValueFormat = "hex" | "dec" | "text";
+
+/** Voyager-style segmented control for the per-block value format. */
+function ValueFormatToggle({
+  value,
+  onChange,
+}: {
+  value: ValueFormat;
+  onChange: (v: ValueFormat) => void;
+}) {
+  const opts: ValueFormat[] = ["hex", "dec", "text"];
+  return (
+    <div className="inline-flex rounded-md border border-border overflow-hidden">
+      {opts.map((o) => (
+        <button
+          key={o}
+          type="button"
+          onClick={() => onChange(o)}
+          aria-pressed={value === o}
+          data-testid={`value-format-${o}`}
+          className={`px-1.5 py-0.5 text-[9px] uppercase ${
+            value === o
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          } ${o === "dec" || o === "text" ? "border-l border-border" : ""}`}
+        >
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Re-render a single felt value in the user-chosen base. Hex stays
+ *  as-is; dec converts via BigInt; text decodes as ASCII when each
+ *  byte is printable (Cairo's `'string'` short-strings are felts of
+ *  ASCII bytes). Falls back to hex for non-printable values. */
+function formatFelt(hex: string, fmt: ValueFormat): string {
+  if (fmt === "hex") return hex;
+  let n: bigint;
+  try {
+    n = BigInt(hex);
+  } catch {
+    return hex;
+  }
+  if (fmt === "dec") return n.toString();
+  // text — only decode when every byte is printable ASCII (>= 0x20,
+  // < 0x7f). Otherwise show hex. Useful for ABI selectors / session-
+  // token bytes / Cairo short strings, noisy for everything else.
+  if (n === 0n) return "''";
+  let bytes: number[] = [];
+  let v = n;
+  while (v > 0n) {
+    bytes.unshift(Number(v & 0xffn));
+    v >>= 8n;
+  }
+  if (bytes.every((b) => b >= 0x20 && b < 0x7f)) {
+    return `'${String.fromCharCode(...bytes)}'`;
+  }
+  return hex;
 }
 
 /** Per-Cairo-type recursive felt consumer. Walks the bridge's type
@@ -703,6 +786,7 @@ function consumeForType(
   i: number,
   types: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>,
   depth: number,
+  fmt: ValueFormat,
 ): { rendered: React.ReactNode; raw: string; next: number } {
   if (depth > 8) {
     const v = felts[i] ?? "—";
@@ -768,7 +852,7 @@ function consumeForType(
     const items: React.ReactNode[] = [];
     let pos = i + 1;
     for (let j = 0; j < safeLen; j++) {
-      const r = consumeForType(inner, felts, pos, types, depth + 1);
+      const r = consumeForType(inner, felts, pos, types, depth + 1, fmt);
       items.push(
         <div key={j} className="border-l border-border/40 pl-2 ml-1 mt-1">
           <div className="text-muted-foreground/60 text-[10px]">[{j}]</div>
@@ -797,7 +881,7 @@ function consumeForType(
     const rendered: React.ReactNode[] = [];
     let pos = i;
     for (let k = 0; k < inner.length; k++) {
-      const r = consumeForType(inner[k], felts, pos, types, depth + 1);
+      const r = consumeForType(inner[k], felts, pos, types, depth + 1, fmt);
       rendered.push(
         <div key={k} className="border-l border-border/40 pl-2 ml-1">
           <div className="text-muted-foreground/60 text-[10px]">.{k}</div>
@@ -818,7 +902,7 @@ function consumeForType(
     const rows: React.ReactNode[] = [];
     let pos = i;
     for (const f of structDef.fields) {
-      const r = consumeForType(f.type, felts, pos, types, depth + 1);
+      const r = consumeForType(f.type, felts, pos, types, depth + 1, fmt);
       rows.push(
         <div key={f.name} className="flex flex-col gap-0.5">
           <div className="flex items-baseline gap-1.5 flex-wrap">
@@ -864,10 +948,11 @@ function consumeForType(
       next: i + 1,
     };
   }
-  // Default: one felt, render as raw hex.
+  // Default: one felt, render with the user's preferred format.
   const v = felts[i] ?? "—";
+  const formatted = v === "—" ? v : formatFelt(v, fmt);
   return {
-    rendered: <span className="text-foreground">{v}</span>,
+    rendered: <span className="text-foreground">{formatted}</span>,
     raw: v,
     next: i + 1,
   };

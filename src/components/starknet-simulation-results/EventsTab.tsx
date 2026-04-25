@@ -29,11 +29,18 @@ export function EventsTab({
   result,
   frames,
   types,
+  blockNumber,
+  txPosition = 0,
   onJumpToFrame,
 }: {
   result: SimulationResult;
   frames?: FunctionInvocation[];
   types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
+  /** Block number for the Voyager-style event ID `<block>_<pos>_<idx>`. */
+  blockNumber?: number;
+  /** Tx position within the block. /trace replays a single tx so this
+   *  defaults to 0 — /simulate consumers can pass the batch index. */
+  txPosition?: number;
   /** Hand back to the page so a click on the frame badge switches to
    *  the Call tree tab and selects the emitting frame. */
   onJumpToFrame?: (frame: FunctionInvocation) => void;
@@ -125,6 +132,7 @@ export function EventsTab({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
+                  <TableHead className="w-32">ID</TableHead>
                   <TableHead>Decoded name</TableHead>
                   <TableHead>From</TableHead>
                   <TableHead className="w-16">Frame</TableHead>
@@ -138,10 +146,20 @@ export function EventsTab({
                   // bridge's emit order even after filtering — handy when
                   // cross-referencing with the call tree.
                   const originalIdx = annotated.indexOf(r);
+                  // Voyager-style ID: `<block>_<txPos>_<eventIdx>`.
+                  // We don't have the on-chain tx position from the
+                  // bridge's response, so substitute the index within
+                  // this trace (always 0 for /trace, the array index
+                  // for /simulate batches). Recipients of a shared
+                  // link can still cross-reference by event index.
+                  const eventId = `${blockNumber}_${txPosition}_${originalIdx}`;
                   return (
                     <TableRow key={i}>
                       <TableCell className="font-mono text-muted-foreground">
                         {originalIdx}
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] text-muted-foreground">
+                        {eventId}
                       </TableCell>
                       <TableCell>
                         {r.decodedName ? (

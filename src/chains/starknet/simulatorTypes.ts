@@ -180,6 +180,43 @@ export interface SimulateResponse {
    *  UI walks this when recursively decoding composite calldata
    *  (arrays of structs, structs that nest other structs, etc). */
   types?: Record<string, AbiTypeDef>;
+  /** Raw RPC tx body (only present on /trace responses). Fields are
+   *  the verbatim Starknet RPC v0.10 layout: nonce, version, tip,
+   *  signature, calldata, resource_bounds, paymaster_data, etc. */
+  txBody?: TxBody;
+  /** Raw RPC receipt (only present on /trace responses). Carries
+   *  finality_status / execution_status, actual_fee, messages_sent,
+   *  block_number, block_hash. */
+  txReceipt?: TxReceipt;
+}
+
+export interface TxBody {
+  type?: string;
+  version?: string;
+  transaction_hash?: string;
+  sender_address?: string;
+  nonce?: string;
+  tip?: string;
+  signature?: string[];
+  calldata?: string[];
+  paymaster_data?: string[];
+  account_deployment_data?: string[];
+  nonce_data_availability_mode?: string;
+  fee_data_availability_mode?: string;
+  resource_bounds?: Record<string, { max_amount: string; max_price_per_unit: string }>;
+}
+
+export interface TxReceipt {
+  type?: string;
+  transaction_hash?: string;
+  block_number?: number;
+  block_hash?: string;
+  execution_status?: string;
+  finality_status?: string;
+  actual_fee?: { amount: string; unit: string };
+  events?: unknown[];
+  messages_sent?: unknown[];
+  execution_resources?: unknown;
 }
 
 export type AbiTypeDef =

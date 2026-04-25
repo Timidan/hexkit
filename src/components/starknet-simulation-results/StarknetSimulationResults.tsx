@@ -257,11 +257,33 @@ export function StarknetSimulationResults({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base font-semibold">Starknet simulation</span>
             <StatusBadge status={result.status} />
+            <Badge variant="outline" size="sm">
+              INVOKE v3
+            </Badge>
             {isMetaTx && (
               <Badge variant="info" size="sm" data-testid="meta-tx-badge">
                 META-TX
               </Badge>
             )}
+            {/* Compact 3-step lifecycle pill — Voyager parity. The
+                bridge runs against blockifier so the tx is "Simulated"
+                and (when txHash is set) "Accepted on L2"; L1
+                settlement isn't observed by the bridge so we leave it
+                muted as a hint. */}
+            <span className="hidden md:inline-flex items-center gap-1 ml-2 text-[10px] text-muted-foreground">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-success" />
+              <span>Simulated</span>
+              <span className="text-muted-foreground/60">›</span>
+              <span
+                className={`inline-block w-1.5 h-1.5 rounded-full ${
+                  txHash ? "bg-success" : "bg-muted-foreground/40"
+                }`}
+              />
+              <span>{txHash ? "Accepted on L2" : "Speculative"}</span>
+              <span className="text-muted-foreground/60">›</span>
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+              <span>L1 settle (off-bridge)</span>
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             {onResimulate && (
@@ -348,6 +370,19 @@ export function StarknetSimulationResults({
               <span className="text-[10px] text-muted-foreground font-mono">
                 {result.feeEstimate.overallFee}
               </span>
+              {(() => {
+                // Voyager parity: surface the fee recipient label
+                // alongside the amount so users see "0.05 STRK → StarkWare
+                // Sequencer" without drilling into the fee_transfer frame.
+                const seq = response.blockContext.sequencerAddress;
+                const seqLbl = seq ? contractLabel(seq) : null;
+                if (!seqLbl) return null;
+                return (
+                  <span className="text-[10px] text-muted-foreground">
+                    → <span className="text-foreground">{seqLbl}</span>
+                  </span>
+                );
+              })()}
             </SummaryRow>
             <SummaryRow label="Network">
               <span className="text-foreground">{networkLabel(chainId)}</span>
@@ -489,6 +524,8 @@ export function StarknetSimulationResults({
               result={result}
               frames={frames}
               types={response.types}
+              blockNumber={response.blockContext.blockNumber}
+              txPosition={resultIndex}
               onJumpToFrame={(f) => {
                 setTab("trace");
                 setSelectedFrameWithHash(f);
