@@ -22,6 +22,10 @@ import {
 interface Props {
   result: SimulationResult;
   frames: FunctionInvocation[];
+  /** Frame → parent map; root-level frames (validate / execute / fee
+   *  transfer) map to null. Used by FrameDetailPane to render the
+   *  ancestor breadcrumb. */
+  parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
   selectedFrame: FunctionInvocation | null;
   setSelectedFrame: (f: FunctionInvocation) => void;
   onExplainFrame?: (f: FunctionInvocation) => void;
@@ -30,6 +34,7 @@ interface Props {
 export function CallTreeTab({
   result,
   frames,
+  parentMap,
   selectedFrame,
   setSelectedFrame,
   onExplainFrame,
@@ -178,6 +183,8 @@ export function CallTreeTab({
         <FrameDetailPane
           frame={selectedFrame}
           frames={frames}
+          parentMap={parentMap}
+          onSelect={setSelectedFrame}
           stripSys={stripSys}
           onExplain={onExplainFrame}
         />
@@ -403,6 +410,8 @@ function CallNode(props: NodeProps) {
 function FrameDetailPane({
   frame,
   frames,
+  parentMap,
+  onSelect,
   stripSys,
   onExplain,
 }: {
@@ -410,6 +419,8 @@ function FrameDetailPane({
   /** Walk-order frame array, used to compute the index for the
    *  shareable #frame=N deep-link copy button. */
   frames: FunctionInvocation[];
+  parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
+  onSelect: (f: FunctionInvocation) => void;
   stripSys: boolean;
   onExplain?: (f: FunctionInvocation) => void;
 }) {
@@ -444,6 +455,7 @@ function FrameDetailPane({
           )}
         </div>
       </div>
+      <FrameBreadcrumb frame={frame} parentMap={parentMap} onSelect={onSelect} />
       <div className="text-sm space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={frame.callType === "Call" ? "success" : "accent"} size="sm">
@@ -598,6 +610,59 @@ function CopyFrameLinkButton({
     >
       {copied ? "Copied" : "Copy link"}
     </Button>
+  );
+}
+
+/** Renders the ancestor chain root → … → selected as clickable
+ *  selectors so a user can hop back up the call stack without
+ *  scrolling the tree. The current frame is rendered last and not
+ *  clickable (it's already selected). */
+function FrameBreadcrumb({
+  frame,
+  parentMap,
+  onSelect,
+}: {
+  frame: FunctionInvocation;
+  parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
+  onSelect: (f: FunctionInvocation) => void;
+}) {
+  const path: FunctionInvocation[] = [];
+  let cur: FunctionInvocation | null | undefined = frame;
+  // Walk parents up the chain. Cap at 32 hops as a safety belt — call
+  // depth in practice rarely exceeds 8, this just guarantees the loop
+  // terminates if the parent map is somehow circular.
+  let safety = 0;
+  while (cur && safety++ < 32) {
+    path.unshift(cur);
+    cur = parentMap.get(cur);
+  }
+  if (path.length <= 1) return null;
+  return (
+    <div
+      className="flex items-center gap-1 flex-wrap text-[11px] text-muted-foreground"
+      data-testid="frame-breadcrumb"
+    >
+      {path.map((f, i) => {
+        const sel = selectorName(f) || shortHex(f.entryPointSelector);
+        const isLast = i === path.length - 1;
+        return (
+          <span key={i} className="flex items-center gap-1">
+            {i > 0 && <span className="text-muted-foreground/60">›</span>}
+            {isLast ? (
+              <span className="font-mono text-foreground">{sel}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSelect(f)}
+                className="font-mono hover:text-foreground hover:underline"
+              >
+                {sel}
+              </button>
+            )}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

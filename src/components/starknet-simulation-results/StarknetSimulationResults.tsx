@@ -117,6 +117,32 @@ export function StarknetSimulationResults({
     [result],
   );
 
+  // Frame → parent frame map (null for the top-level entries). Built
+  // once at the response root so the FrameDetailPane can render a
+  // clickable breadcrumb without having to re-walk the tree on each
+  // selection.
+  const parentMap = useMemo(() => {
+    const map = new Map<FunctionInvocation, FunctionInvocation | null>();
+    if (!result) return map;
+    const tops = [
+      result.validateInvocation,
+      result.executeInvocation,
+      result.feeTransferInvocation,
+    ].filter((f): f is FunctionInvocation => Boolean(f));
+    for (const top of tops) {
+      map.set(top, null);
+      const stack: FunctionInvocation[] = [top];
+      while (stack.length) {
+        const cur = stack.pop()!;
+        for (const child of cur.calls || []) {
+          map.set(child, cur);
+          stack.push(child);
+        }
+      }
+    }
+    return map;
+  }, [result]);
+
   // Auto-select the first event-emitting frame so the right pane has
   // something interesting on first render.
   useEffect(() => {
@@ -372,6 +398,7 @@ export function StarknetSimulationResults({
             <CallTreeTab
               result={result}
               frames={frames}
+              parentMap={parentMap}
               selectedFrame={selectedFrame}
               setSelectedFrame={setSelectedFrameWithHash}
               onExplainFrame={onExplainFrame}
