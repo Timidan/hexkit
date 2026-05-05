@@ -209,6 +209,9 @@ function VaultPill({
   sourceTokenSymbol?: string | null;
   sourceChainId?: number;
 }) {
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const [forecastOpen, setForecastOpen] = useState(false);
+
   if (!pick) {
     return (
       <div className="flex min-h-[52px] items-center justify-center rounded-md border border-dashed border-border/30 bg-background/20 text-[9px] uppercase tracking-wide text-muted-foreground/50">
@@ -225,11 +228,6 @@ function VaultPill({
   const swapRequired = needsSwap(sourceTokenSymbol, pick.vault);
   const bridgeRequired = sourceChainId != null && pick.vault.chainId !== sourceChainId;
   const vaultAccepts = (pick.vault.underlyingTokens ?? []).map((t) => t.symbol).join("/");
-
-  // Keep the HoverCard open while the forecast popover is mounted so Radix
-  // doesn't lose its anchor when the cursor moves into the popover.
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const [forecastOpen, setForecastOpen] = useState(false);
 
   return (
     <HoverCard

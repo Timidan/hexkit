@@ -26,8 +26,7 @@ const SRC = join(ROOT, "src");
 
 /**
  * Directories whose contents are "generic" — must not pull in family-specific
- * SDKs. Everything else is considered family-scoped (by convention today;
- * Phase 4+ will tighten it further).
+ * SDKs. Everything else is considered family-scoped by convention.
  */
 const GENERIC_DIRS = [
   "chains",       // EXCEPT chains/evm/**, chains/adapters/evmAdapter.ts
@@ -81,12 +80,6 @@ const FORBIDDEN_MODULES = [
   "starknet",
   "starkzap",
   "@cartridge/controller",
-  // Solana
-  "@solana/wallet-adapter-base",
-  "@solana/wallet-adapter-react",
-  "@solana/wallet-adapter-react-ui",
-  "@solana/wallet-adapter-wallets",
-  "@solana/web3.js",
 ];
 
 const FORBIDDEN_RE = new RegExp(

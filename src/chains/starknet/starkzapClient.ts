@@ -227,6 +227,19 @@ class StarkzapClient {
     }
   }
 
+  /** Execute a multicall through the connected wallet. Throws if no wallet
+   *  is connected. The Live mode in /starknet/builder calls this after the
+   *  user submits a single Call (contract+entrypoint+calldata). The
+   *  underlying WalletInterface adapter returns `{ transactionHash, wait }`
+   *  for both Cartridge and the injected Argent X / Braavos paths. */
+  async execute(calls: Call[]): Promise<{ transactionHash: string; wait: () => Promise<void> }> {
+    if (!this.wallet) {
+      throw new Error("No Starknet wallet is connected. Open the picker and pick a provider first.");
+    }
+    const result = await this.wallet.execute(calls);
+    return result as unknown as { transactionHash: string; wait: () => Promise<void> };
+  }
+
   async disconnect(): Promise<void> {
     if (this.wallet) {
       try {

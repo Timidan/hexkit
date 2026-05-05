@@ -18,6 +18,9 @@ CURRENT_WORKING.md
 node_modules
 dist
 dist-ssr
+.worktrees/
+edb/target/
+fhe/cache/
 *.local
 .env
 

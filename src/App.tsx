@@ -6,6 +6,7 @@ import LoadingSpinner from "./components/shared/LoadingSpinner";
 import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import { SimulationProvider } from "./contexts/SimulationContext";
+import { StarknetSimulationProvider } from "./contexts/StarknetSimulationContext";
 import { DebugProvider } from "./contexts/DebugContext";
 import {
   WalletManagerProvider,
@@ -22,11 +23,6 @@ import EdbBridgeStatus from "./components/EdbBridgeStatus";
 import StarknetSimBridgeStatus from "./components/StarknetSimBridgeStatus";
 import ConstellationBackground from "./components/ConstellationBackground";
 import HomePage from "./components/HomePage";
-const StarknetSimDemoPage = React.lazy(() =>
-  import("./components/starknet-simulation-results/StarknetSimDemoPage").then((m) => ({
-    default: m.StarknetSimDemoPage,
-  })),
-);
 import MobileDrawer from "./components/MobileDrawer";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 import { FAMILY_PREFIXES, parseFamilyFromPath, resolveLegacyRedirect } from "./routes/familyRoutes";
@@ -39,20 +35,17 @@ const EvmFamilyProviders = React.lazy(
 const StarknetFamilyProviders = React.lazy(
   () => import("./chains/providers/StarknetFamilyProviders"),
 );
-const SolanaFamilyProviders = React.lazy(
-  () => import("./chains/providers/SolanaFamilyProviders"),
-);
 const EvmBridge = React.lazy(
   () => import("./components/wallet/bridges/EvmBridge"),
 );
 const StarknetBridge = React.lazy(
   () => import("./components/wallet/bridges/StarknetBridge"),
 );
-const SolanaBridge = React.lazy(
-  () => import("./components/wallet/bridges/SolanaBridge"),
-);
 
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
+const StarknetSimulationResultsPage = React.lazy(
+  () => import("./components/starknet/StarknetSimulationResultsPage"),
+);
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
 const StorageManagerModal = React.lazy(() => import("./components/StorageManagerModal"));
 
@@ -69,14 +62,6 @@ const FamilyProviderStack: React.FC<{ children: React.ReactNode }> = ({
   if (activeFamilies.size === 0) return <>{children}</>;
 
   let node: React.ReactNode = children;
-  if (activeFamilies.has("svm")) {
-    node = (
-      <SolanaFamilyProviders>
-        <SolanaBridge />
-        {node}
-      </SolanaFamilyProviders>
-    );
-  }
   if (activeFamilies.has("starknet")) {
     node = (
       <StarknetFamilyProviders>
@@ -108,6 +93,17 @@ interface FamilyShellProps {
   onAcknowledgeDefaults: () => void;
 }
 
+type AppPageMode = "evm-simulation" | "starknet-simulation" | "home" | "family";
+
+function getAppPageMode(pathname: string): AppPageMode {
+  if (pathname.startsWith("/simulation/")) return "evm-simulation";
+  if (pathname.startsWith(`${FAMILY_PREFIXES.starknet}/simulation/`)) {
+    return "starknet-simulation";
+  }
+  if (pathname === "/") return "home";
+  return "family";
+}
+
 const FamilyShell: React.FC<FamilyShellProps> = ({
   isMobile,
   showRpcSetupGate,
@@ -123,7 +119,11 @@ const FamilyShell: React.FC<FamilyShellProps> = ({
         (
           location.pathname.startsWith(`${FAMILY_PREFIXES.evm}/explorer`) ||
           location.pathname.startsWith(`${FAMILY_PREFIXES.evm}/builder`) ||
-          location.pathname.startsWith(`${FAMILY_PREFIXES.evm}/integrations`)
+          location.pathname.startsWith(`${FAMILY_PREFIXES.evm}/integrations`) ||
+          location.pathname.startsWith(`${FAMILY_PREFIXES.starknet}/explorer`) ||
+          location.pathname.startsWith(`${FAMILY_PREFIXES.starknet}/builder`) ||
+          location.pathname.startsWith(`${FAMILY_PREFIXES.starknet}/simulation/`) ||
+          location.pathname.startsWith(`${FAMILY_PREFIXES.starknet}/simulations`)
         ) && "app-fullwidth",
       )}
     >
@@ -242,9 +242,7 @@ function AppInner() {
     if (family) activateFamily(family);
   }, [location.pathname, activateFamily]);
 
-  const isSimulationPage = location.pathname.startsWith("/simulation/");
-  const isHomePage = location.pathname === "/";
-  const isStarknetSimDemo = location.pathname.startsWith("/starknet-sim-demo");
+  const pageMode = getAppPageMode(location.pathname);
   const legacyRedirectTarget = resolveLegacyRedirect({
     pathname: location.pathname,
     search: location.search,
@@ -286,19 +284,22 @@ function AppInner() {
       <FamilyProviderStack>
         {legacyRedirectTarget ? (
           <Navigate to={legacyRedirectTarget} replace />
-        ) : isSimulationPage ? (
+        ) : pageMode === "evm-simulation" ? (
           <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
             <Routes>
               <Route path="/simulation/:id" element={<SimulationResultsPage />} />
             </Routes>
           </Suspense>
-        ) : isStarknetSimDemo ? (
-          <Suspense fallback={<LoadingSpinner text="Loading Starknet sim demo" fullPage />}>
+        ) : pageMode === "starknet-simulation" ? (
+          <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
             <Routes>
-              <Route path="/starknet-sim-demo" element={<StarknetSimDemoPage />} />
+              <Route
+                path={`${FAMILY_PREFIXES.starknet}/simulation/:id`}
+                element={<StarknetSimulationResultsPage />}
+              />
             </Routes>
           </Suspense>
-        ) : isHomePage ? (
+        ) : pageMode === "home" ? (
           <Routes>
             <Route path="/" element={<HomePage />} />
           </Routes>
@@ -310,10 +311,6 @@ function AppInner() {
             />
             <Route
               path={`${FAMILY_PREFIXES.starknet}/*`}
-              element={<FamilyShell {...shellProps} />}
-            />
-            <Route
-              path={`${FAMILY_PREFIXES.svm}/*`}
               element={<FamilyShell {...shellProps} />}
             />
             <Route
@@ -355,13 +352,15 @@ function App() {
     <WalletManagerProvider>
       <ToolkitProvider>
         <SimulationProvider>
-          <DebugProvider>
-            <NotificationProvider>
-              <ErrorBoundary>
-                <AppInner />
-              </ErrorBoundary>
-            </NotificationProvider>
-          </DebugProvider>
+          <StarknetSimulationProvider>
+            <DebugProvider>
+              <NotificationProvider>
+                <ErrorBoundary>
+                  <AppInner />
+                </ErrorBoundary>
+              </NotificationProvider>
+            </DebugProvider>
+          </StarknetSimulationProvider>
         </SimulationProvider>
       </ToolkitProvider>
     </WalletManagerProvider>

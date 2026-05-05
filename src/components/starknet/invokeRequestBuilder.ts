@@ -4,9 +4,15 @@ import type {
   SimulationFlag,
 } from "@/chains/starknet/simulatorTypes";
 import { transformRequestForBridge } from "@/chains/starknet/simulatorClient";
+import { hash as starknetHash, num as starknetNum } from "starknet";
 
 const FELT_HEX = /^0x[0-9a-fA-F]{1,64}$/;
 const HEX_OR_DEC = /^(0x[0-9a-fA-F]+|\d+)$/;
+
+/** Neutral-default sender — Starknet's 0x1 is the canonical "system"
+ *  caller used by simulator/blockifier when no real account is needed. */
+export const NEUTRAL_SENDER =
+  "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 export interface InvokeFormState {
   blockId: "latest" | "number";
@@ -25,15 +31,23 @@ export interface InvokeFormState {
   tip: string;
   skipValidate: boolean;
   skipFeeCharge: boolean;
+  debugEnabled: boolean;
 }
 
 export const DEFAULT_INVOKE_FORM: InvokeFormState = {
   blockId: "latest",
   blockNumber: "",
-  senderAddress: "",
+  // Pre-fill the neutral sender so Simulate isn't silently disabled when
+  // the user hasn't filled the FROM (IMPERSONATE) field. The sidebar copy
+  // already says "Defaults to a neutral system address when blank" — this
+  // honors that contract.
+  senderAddress: NEUTRAL_SENDER,
   nonce: "0x0",
   calldata: "",
   signature: "",
+  // L1/L1Data bounds are skipped via flags by default (see below) — keeping
+  // them at 0 is fine when SKIP_FEE_CHARGE is on. If the user toggles real
+  // fee-charging back on, they should run "Estimate fee" to populate these.
   l1MaxAmount: "0x0",
   l1MaxPrice: "0x0",
   l1DataMaxAmount: "0x0",
@@ -41,8 +55,12 @@ export const DEFAULT_INVOKE_FORM: InvokeFormState = {
   l2MaxAmount: "0xffffffff",
   l2MaxPrice: "0xffffffffffff",
   tip: "0x0",
-  skipValidate: false,
-  skipFeeCharge: false,
+  // Default both skip-flags to true so a vanilla Simulate click against any
+  // function works without first running estimate-fee. Users testing real
+  // validate / fee paths can toggle them off in the sidebar.
+  skipValidate: true,
+  skipFeeCharge: true,
+  debugEnabled: false,
 };
 
 export interface InvokeRequestResult {
@@ -51,24 +69,74 @@ export interface InvokeRequestResult {
   error?: string;
 }
 
-export function buildInvokeRequest(form: InvokeFormState): InvokeRequestResult {
-  if (!FELT_HEX.test(form.senderAddress.trim())) {
+export interface InvokeCallContext {
+  /** Deployed contract the user is invoking against. Required. */
+  contractAddress: string;
+  /** Either the function name (we hash → selector) or a 0x-prefixed
+   *  felt that's already a selector. Required for normal-mode submits;
+   *  Raw mode passes whatever the user typed. */
+  entrypoint: string;
+}
+
+export function buildInvokeRequest(
+  form: InvokeFormState,
+  ctx: InvokeCallContext,
+): InvokeRequestResult {
+  const senderRaw = form.senderAddress.trim();
+  const sender = senderRaw === "" ? NEUTRAL_SENDER : senderRaw;
+  if (!FELT_HEX.test(sender)) {
     return { ok: false, error: "senderAddress must be 0x-prefixed hex (≤ 64 nibbles)." };
   }
   if (!HEX_OR_DEC.test(form.nonce.trim())) {
     return { ok: false, error: "nonce must be hex (0x…) or decimal." };
   }
-  const calldata = form.calldata
+  const innerCalldata = form.calldata
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const badCalldata = calldata.filter((c) => !FELT_HEX.test(c));
+  const badCalldata = innerCalldata.filter((c) => !FELT_HEX.test(c));
   if (badCalldata.length > 0) {
     return {
       ok: false,
       error: `calldata felts must be 0x-prefixed hex. Bad: ${badCalldata.slice(0, 3).join(", ")}`,
     };
   }
+
+  // Validate + resolve the call context. The contract address is the
+  // user's ContractColumn input; the selector is either a name we hash
+  // or a pre-hashed 0x felt the user typed in Raw mode.
+  const contractAddress = ctx.contractAddress.trim();
+  if (!FELT_HEX.test(contractAddress)) {
+    return { ok: false, error: "Contract address must be a 0x-prefixed felt." };
+  }
+  const epRaw = ctx.entrypoint.trim();
+  if (!epRaw) {
+    return { ok: false, error: "Entry point name or selector is required." };
+  }
+  let selector: string;
+  if (FELT_HEX.test(epRaw)) {
+    selector = epRaw;
+  } else {
+    try {
+      selector = starknetHash.getSelectorFromName(epRaw);
+    } catch {
+      return { ok: false, error: `Invalid entry-point name "${epRaw}".` };
+    }
+  }
+
+  // Account-contract `__execute__` calldata = encoded `Array<Call>`. For a
+  // single Call (Cairo 1 form): `[1, contract_address, selector,
+  // calldata_len, …calldata]`. Without this prefix the bridge sees an
+  // empty `__execute__` and the contract + selector are dropped on the
+  // floor — which is what the playwriter test surfaced.
+  const txCalldata: string[] = [
+    "0x1",
+    contractAddress,
+    selector,
+    starknetNum.toHex(innerCalldata.length),
+    ...innerCalldata,
+  ];
+
   const signature = form.signature
     .split(/[\s,]+/)
     .map((s) => s.trim())
@@ -80,8 +148,8 @@ export function buildInvokeRequest(form: InvokeFormState): InvokeRequestResult {
   const tx: InvokeV3 = {
     type: "INVOKE",
     version: "0x3",
-    senderAddress: form.senderAddress.trim(),
-    calldata,
+    senderAddress: sender,
+    calldata: txCalldata,
     signature,
     nonce: form.nonce.trim(),
     resourceBounds: {
@@ -120,8 +188,9 @@ export function buildInvokeRequest(form: InvokeFormState): InvokeRequestResult {
  *  reproduced request matches what the UI actually sends. */
 export function buildInvokeWireRequest(
   form: InvokeFormState,
+  ctx: InvokeCallContext,
 ): { ok: boolean; body?: unknown; error?: string } {
-  const built = buildInvokeRequest(form);
+  const built = buildInvokeRequest(form, ctx);
   if (!built.ok || !built.request) return { ok: false, error: built.error };
   return { ok: true, body: transformRequestForBridge(built.request) };
 }

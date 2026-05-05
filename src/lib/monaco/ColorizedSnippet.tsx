@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { loader } from '@monaco-editor/react';
 import { setupSolidityMonaco } from './config';
+import { setupCairoMonaco } from './cairo';
 
 // ── Module-level cache ───────────────────────────────────────────
 // Key = source text of the full snippet block, Value = array of
@@ -27,10 +28,12 @@ export interface ColorizedSnippetProps {
   highlightLine: number;
   /** How many context lines to show above/below the highlight. */
   contextLines?: number;
+  /** Monaco language id to use for tokenization. Defaults to Solidity. */
+  language?: 'solidity' | 'cairo';
 }
 
 export const ColorizedSnippet: React.FC<ColorizedSnippetProps> = React.memo(
-  ({ sourceContent, highlightLine, contextLines = 8 }) => {
+  ({ sourceContent, highlightLine, contextLines = 8, language = 'solidity' }) => {
     const [colorizedLines, setColorizedLines] = useState<string[] | null>(null);
     const cancelledRef = useRef(false);
 
@@ -49,8 +52,8 @@ export const ColorizedSnippet: React.FC<ColorizedSnippetProps> = React.memo(
 
     // Cache key based on the visible slice content
     const cacheKey = useMemo(
-      () => `${start}:${end}:${visibleLines.join('\n')}`,
-      [start, end, visibleLines]
+      () => `${language}:${start}:${end}:${visibleLines.join('\n')}`,
+      [language, start, end, visibleLines]
     );
 
     useEffect(() => {
@@ -66,14 +69,17 @@ export const ColorizedSnippet: React.FC<ColorizedSnippetProps> = React.memo(
       loader.init().then(monaco => {
         if (cancelledRef.current) return;
 
-        // Ensure Solidity language + theme are registered
-        setupSolidityMonaco(monaco);
+        if (language === 'cairo') {
+          setupCairoMonaco(monaco);
+        } else {
+          setupSolidityMonaco(monaco);
+        }
 
         // Colorize each line individually so we can wrap them in our
         // line-number layout without parsing Monaco's HTML structure
         Promise.all(
           visibleLines.map(line =>
-            monaco.editor.colorize(line || ' ', 'solidity', { tabSize: 4 })
+            monaco.editor.colorize(line || ' ', language, { tabSize: 4 })
           )
         ).then(results => {
           if (cancelledRef.current) return;
@@ -92,7 +98,7 @@ export const ColorizedSnippet: React.FC<ColorizedSnippetProps> = React.memo(
       });
 
       return () => { cancelledRef.current = true; };
-    }, [cacheKey, visibleLines]);
+    }, [cacheKey, visibleLines, language]);
 
     return (
       <div className="exec-snippet-box">

@@ -6,7 +6,7 @@ export interface SimulationResultsPageProps {
 }
 
 export type SimulatorTab = "summary" | "contracts" | "events" | "assets" | "state" | "gas" | "debug";
-export type TraceRowType = "call" | "opcode" | "event" | "storage";
+export type TraceRowType = "call" | "opcode" | "event" | "storage" | "message" | "function";
 
 /**
  * Unified TraceRow interface -- single source of truth used by both
@@ -49,6 +49,7 @@ export interface TraceRow {
   input?: string;
   output?: string;
   returnData?: string | null;
+  messagePayload?: string[];
   line?: number;
   sourceFile?: string | null;
   jumpDestFn?: string;
@@ -62,5 +63,24 @@ export interface TraceRow {
   decodedLog?: any;
   contractName?: string;
   contract?: string;
+  chainFamily?: "evm" | "starknet";
   hasNoSourceMaps?: boolean;
+  /** Best-effort failure-line hint for reverted Starknet frames.
+   *  Strictly auxiliary — the renderer shows this as a distinct
+   *  callout below the source snippet, never replacing the
+   *  highlighted `line`. Populated by the Starknet trace adapter
+   *  when the bridge's authentic statement-level mapping is
+   *  unavailable for the class. */
+  failureHint?: {
+    line: number;
+    tag: string;
+    source: "panic-string" | "identifier-shape";
+  } | null;
+  /** Intra-contract function frame fields (Starknet tier-2 trace).
+   *  Only present on rows with type === "function". */
+  frameId?: number;
+  pcStart?: number;
+  pcEnd?: number;
+  stepIndexStart?: number;
+  stepIndexEnd?: number;
 }

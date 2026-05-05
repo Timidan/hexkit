@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import * as crypto from "crypto";
+import {
+  enforcePublicProxyAccess,
+  resolveAllowedProxyOrigin,
+} from "./_utils/publicProxyGuard";
 
 export const config = {
   api: { bodyParser: true },
@@ -10,35 +13,11 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
 const ALLOWED_METHODS = new Set(["POST", "OPTIONS"]);
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
-);
-const PROXY_SECRET = process.env.PROXY_SECRET || "";
-
-function getAllowedOrigin(req: VercelRequest): string | null {
-  const origin = req.headers.origin;
-  if (!origin) return null;
-  if (ALLOWED_ORIGINS.has(origin)) return origin;
-  if (origin.startsWith("http://localhost:")) return origin;
-  const host = req.headers.host;
-  if (host && origin === `https://${host}`) return origin;
-  return null;
-}
-
-function hasValidSecret(req: VercelRequest): boolean {
-  if (!PROXY_SECRET) return false;
-  const header = req.headers["x-proxy-secret"];
-  if (typeof header !== "string") return false;
-  const a = Buffer.from(header);
-  const b = Buffer.from(PROXY_SECRET);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
 
 const MAX_BODY_BYTES = 64 * 1024;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const allowedOrigin = getAllowedOrigin(req);
+  const allowedOrigin = resolveAllowedProxyOrigin(req);
 
   if (req.method === "OPTIONS") {
     if (allowedOrigin) res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
@@ -47,20 +26,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(204).end();
   }
 
-  if (PROXY_SECRET) {
-    if (!hasValidSecret(req)) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-  } else {
-    // No PROXY_SECRET: allow same-origin (no Origin header) and matching origins.
-    const origin = req.headers.origin;
-    if (origin && !allowedOrigin) {
-      return res.status(403).json({ error: "Origin not allowed" });
-    }
-  }
-
   if (!ALLOWED_METHODS.has(req.method || "")) {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (
+    !enforcePublicProxyAccess(req, res, {
+      allowedOrigin,
+      rateLimit: { bucket: "llm-recommend", limit: 12, windowMs: 5 * 60_000 },
+    })
+  ) {
+    return;
   }
 
   const body = req.body;
@@ -68,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Missing JSON body" });
   }
 
-  if (!Array.isArray((body as any).contents)) {
+  if (!Array.isArray((body as Record<string, unknown>).contents)) {
     return res.status(400).json({ error: "Body must include `contents` array" });
   }
 
@@ -104,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("X-Gemini-Model", GEMINI_MODEL);
     return res.status(upstreamRes.status).send(text);
-  } catch (err: any) {
+  } catch (err) {
     console.error("[llm-recommend] upstream error:", err);
     return res.status(502).json({ error: "Upstream request failed" });
   }

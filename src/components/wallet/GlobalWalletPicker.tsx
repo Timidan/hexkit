@@ -22,7 +22,7 @@ const FAMILY_LABELS: Record<ChainFamily, string> = {
   svm: "Solana",
 };
 
-const FAMILY_ORDER: ChainFamily[] = ["evm", "starknet", "svm"];
+const FAMILY_ORDER: ChainFamily[] = ["evm", "starknet"];
 
 function truncate(address: string): string {
   if (address.length <= 12) return address;

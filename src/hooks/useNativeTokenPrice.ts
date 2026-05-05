@@ -23,7 +23,8 @@ const NATIVE_TOKEN_ID: Record<number, string> = {
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const priceCache = new Map<string, { price: number; fetchedAt: number }>();
 
-async function fetchNativePrice(chainId: number): Promise<number | null> {
+async function fetchNativePrice(chainId: number | null): Promise<number | null> {
+  if (chainId === null) return null;
   const coinId = NATIVE_TOKEN_ID[chainId] ?? 'coingecko:ethereum';
 
   const cached = priceCache.get(coinId);
@@ -63,18 +64,25 @@ export interface NativeTokenPrice {
  * Hook to get native token USD price for a given chain.
  * Returns a `formatUsd` helper that converts wei → ~$X.XX
  */
-export function useNativeTokenPrice(chainId: number = 1): NativeTokenPrice {
+export function useNativeTokenPrice(chainId: number | null = 1): NativeTokenPrice {
   const [price, setPrice] = useState<number | null>(() => {
+    if (chainId === null) return null;
     const coinId = NATIVE_TOKEN_ID[chainId] ?? 'coingecko:ethereum';
     const cached = priceCache.get(coinId);
     return cached && Date.now() - cached.fetchedAt < CACHE_TTL ? cached.price : null;
   });
-  const [loading, setLoading] = useState(price === null);
+  const [loading, setLoading] = useState(chainId !== null && price === null);
   const chainRef = useRef(chainId);
   chainRef.current = chainId;
 
   useEffect(() => {
+    if (chainId === null) {
+      setPrice(null);
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
+    setLoading(true);
     fetchNativePrice(chainId).then((p) => {
       if (!cancelled && chainRef.current === chainId) {
         setPrice(p);

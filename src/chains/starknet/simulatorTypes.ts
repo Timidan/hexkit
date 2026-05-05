@@ -2,6 +2,12 @@
 // starknet-sim/crates/bridge/src/http/*.rs for the authoritative shapes and
 // tasks/starknet-research/02-simulator-architecture.md for the rationale.
 
+import type { StarknetDebugTrace } from "./debug/starknetDebugTypes";
+import type {
+  StarknetDebugTraceHandle,
+  StarknetDebugTraceMeta,
+} from "./debug/starknetDebugVault";
+
 export type BlockIdTag = "latest";
 export type BlockId =
   | { tag: BlockIdTag }
@@ -78,8 +84,10 @@ export interface BlockContext {
   timestamp: number;
   sequencerAddress: string;
   starknetVersion: string;
+  chainId?: string | null;
   l1GasPrice: GasPrice;
   l1DataGasPrice: GasPrice;
+  l2GasPrice?: GasPrice | null;
 }
 
 export interface StateDiff {
@@ -95,6 +103,7 @@ export interface StateDiff {
     storageWrites: number;
     nonceUpdates: number;
     classHashUpdates: number;
+    declaredClasses?: number;
   };
 }
 
@@ -114,13 +123,27 @@ export interface L2ToL1Message {
   payload: string[];
 }
 
+export interface InvocationResources {
+  /** Cumulative VM steps for this call's subtree (this frame + all inner calls). */
+  steps: number;
+  memoryHoles: number;
+  builtinInstanceCounter: Record<string, number>;
+  /** Sierra gas consumed by this call's subtree (0 in CairoSteps-tracked calls). */
+  gasConsumed: number;
+}
+
 export interface FunctionInvocation {
   contractAddress: string;
   entryPointSelector: string;
-  /** Sprint 4 ABI decoder — bridge resolves selector → function name from
-   *  the loaded class's ABI (covers contract-specific entrypoints, not just
-   *  the std-lib KNOWN_SELECTORS table). Null when the class wasn't loaded
-   *  during execution (revert paths, predecessor frames). */
+  /** Cumulative execution resources for this call's subtree. Present on
+   *  local-blockifier responses; absent on pure RPC-trace responses. */
+  executionResources?: InvocationResources | null;
+  /** Bridge trace sink call index for this entrypoint when trace_steps was
+   *  enabled. The sink is postorder for nested calls, so consumers should use
+   *  this field over positional pairing when present. */
+  traceCallId?: number;
+  /** Bridge-resolved function name from the loaded class ABI. Covers
+   *  contract-specific entrypoints, not just the std-lib selector table. */
   decodedSelector?: string | null;
   /** Full function signature (name, kind, inputs, outputs). Same source
    *  as decodedSelector but exposes parameter names + Cairo types so the
@@ -131,6 +154,11 @@ export interface FunctionInvocation {
   classHash: string | null;
   entryPointType: string;
   callType: string;
+  /** Present on reverted invocation nodes when the upstream trace can
+   *  attribute the revert to this call frame. Older bridge responses
+   *  only expose `SimulationResult.revertReason`, so consumers must
+   *  treat this as optional and keep a top-level fallback path. */
+  revertReason?: string | null;
   result: string[];
   calls: FunctionInvocation[];
   events: SimulationEvent[];
@@ -159,6 +187,38 @@ export interface AbiEventDecoded {
 
 export type SimulationStatus = "SUCCEEDED" | "REVERTED";
 
+/** Single relocated cairo-vm step captured during execution. One entry per
+ *  CASM instruction. `callId` indexes into the flattened ContractCall
+ *  sequence so the frontend can map each step back to the parent
+ *  FunctionInvocation. */
+export interface TraceStep {
+  pc: number;
+  ap: number;
+  fp: number;
+  callId: number;
+  /** Pre-computed by the bridge for debug-mode traces; maps directly to a
+   *  Sierra statement without needing a separate pcToStatement lookup. */
+  statementIdx?: number | null;
+  /** Class hash of the contract executing this step (debug-mode traces). */
+  classHash?: string | null;
+}
+
+/** Synthesized FUNCTION frame derived from the raw step trace by walking the
+ *  fp ladder. Each frame is a contiguous run of steps with a constant fp,
+ *  parented to the caller frame whose fp is the next-lower value on the stack. */
+export interface FunctionFrame {
+  frameId: number;
+  callId: number;
+  parentFrameId: number | null;
+  fp: number;
+  apIn: number;
+  apOut: number;
+  pcStart: number;
+  pcEnd: number;
+  stepIndexStart: number;
+  stepIndexEnd: number;
+}
+
 export interface SimulationResult {
   status: SimulationStatus;
   executionResources: ExecutionResources;
@@ -169,11 +229,30 @@ export interface SimulationResult {
   stateDiff: StateDiff | null;
   revertReason: string | null;
   revertReasonDecoded: string | null;
+  /** Present when the request used `?trace_steps=1`. The default
+   *  trace path skips this — keeps the upstream `traceTransaction`
+   *  branch (~600 ms) unchanged. */
+  traceSteps?: TraceStep[];
+  /** Present when the request used `?trace_steps=1`. Computed in the
+   *  bridge by walking the per-call fp ladder; see
+   *  `crates/bridge/src/exec/frames.rs::synthesize_function_frames`. */
+  functionFrames?: FunctionFrame[];
+  /** Canonical offline Starknet debugger artifact. Present when Debug was
+   *  enabled for simulation or local replay captured VM trace data. */
+  debugTrace?: StarknetDebugTrace;
+  debugTraceHandle?: StarknetDebugTraceHandle;
+  debugTraceMeta?: StarknetDebugTraceMeta;
+  debugTraceError?: string;
+  stateDiffSource?: "starknet_traceTransaction" | "local_replay" | string;
+  traceStepsSource?: "starknet_traceTransaction" | "local_replay" | string;
+  stateDiffWarning?: string;
+  traceStepsWarning?: string;
 }
 
 export interface SimulateResponse {
   simId: string;
   blockContext: BlockContext;
+  chainId?: string | null;
   results: SimulationResult[];
   /** Bridge-emitted Cairo struct / enum registry, keyed by fully
    *  qualified type name (e.g. `core::starknet::account::Call`). The
@@ -188,6 +267,14 @@ export interface SimulateResponse {
    *  finality_status / execution_status, actual_fee, messages_sent,
    *  block_number, block_hash. */
   txReceipt?: TxReceipt;
+  source?: "starknet_traceTransaction" | "local_replay" | string;
+  warning?: string;
+  /** Source of the state diff currently attached to `results[0]`.
+   *  Landed tx traces usually start from `starknet_traceTransaction`,
+   *  then hydrate state/debug data with a background local replay. */
+  stateDiffSource?: "starknet_traceTransaction" | "local_replay" | string;
+  traceStepsSource?: "starknet_traceTransaction" | "local_replay" | string;
+  stateDiffWarning?: string;
 }
 
 export interface TxBody {
@@ -203,7 +290,10 @@ export interface TxBody {
   account_deployment_data?: string[];
   nonce_data_availability_mode?: string;
   fee_data_availability_mode?: string;
-  resource_bounds?: Record<string, { max_amount: string; max_price_per_unit: string }>;
+  resource_bounds?: Record<
+    string,
+    { max_amount: string; max_price_per_unit: string }
+  >;
 }
 
 export interface TxReceipt {
@@ -222,6 +312,27 @@ export interface TxReceipt {
 export type AbiTypeDef =
   | { kind: "struct"; fields: AbiParam[] }
   | { kind: "enum"; variants: AbiParam[] };
+
+export type SimulatePrepareStatusValue =
+  | "queued"
+  | "preparing"
+  | "ready"
+  | "failed";
+
+export interface SimulatePrepareStartResponse {
+  prepareId: string;
+}
+
+export interface SimulatePrepareStatus {
+  prepareId: string;
+  status: SimulatePrepareStatusValue;
+  stage: string;
+  progressPct: number;
+  message: string;
+  createdAtMs?: number;
+  updatedAtMs?: number;
+  error?: string | null;
+}
 
 /** `/estimate-fee` envelope. The bridge runs simulate with
  *  SKIP_FEE_CHARGE and emits only the fee + execution-resources

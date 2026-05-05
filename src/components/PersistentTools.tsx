@@ -13,38 +13,55 @@ interface ToolRoute extends ToolEntry {
 const TransactionBuilderHub = React.lazy(() => import("./TransactionBuilderHub"));
 const SignatureDatabase = React.lazy(() => import("./SignatureDatabase"));
 const SimulationHistoryPage = React.lazy(() => import("./SimulationHistoryPage"));
-const StarknetSimulationsPage = React.lazy(
-  () => import("./starknet/StarknetSimulationsPage"),
+const StarknetSimulationHistoryPage = React.lazy(
+  () => import("./starknet/StarknetSimulationHistoryPage"),
 );
+const StarknetBuilderHub = React.lazy(() => import("./starknet/StarknetBuilderHub"));
 const SourceTools = React.lazy(() => import("./explorer/SourceTools"));
 const IntegrationsHub = React.lazy(() => import("./integrations/IntegrationsHub"));
+const StarknetContractExplorer = React.lazy(
+  () => import("./starknet-explorer/StarknetContractExplorer"),
+);
 
-// Dispatches the simulations route by family: Starknet gets the trace view
-// backed by the starknet-sim bridge; EVM keeps its history-backed page.
 const SimulationsDispatch: React.FC = () => {
   const family = useActiveChainFamily();
-  if (family === "starknet") return <StarknetSimulationsPage />;
+  if (family === "starknet") return <StarknetSimulationHistoryPage />;
   return <SimulationHistoryPage />;
+};
+
+const ExplorerDispatch: React.FC = () => {
+  const family = useActiveChainFamily();
+  if (family === "starknet") return <StarknetContractExplorer />;
+  return <SourceTools />;
+};
+
+const BuilderDispatch: React.FC = () => {
+  const family = useActiveChainFamily();
+  if (family === "starknet") return <StarknetBuilderHub />;
+  if (family === "evm") return <TransactionBuilderHub />;
+  return (
+    <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 text-center">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        Tool unavailable
+      </p>
+      <h2 className="mt-2 text-xl font-semibold text-foreground">
+        Builder coming soon
+      </h2>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+        The transaction builder for this chain family hasn't shipped yet.
+      </p>
+    </div>
+  );
 };
 
 const TOOL_RENDERERS: Record<string, () => React.ReactElement> = {
   database: () => <SignatureDatabase />,
-  builder: () => <TransactionBuilderHub />,
+  builder: () => <BuilderDispatch />,
   simulations: () => <SimulationsDispatch />,
-  explorer: () => <SourceTools />,
+  explorer: () => <ExplorerDispatch />,
   integrations: () => <IntegrationsHub />,
 };
 
-/**
- * Tool paths come from the shared TOOL_REGISTRY so capability gating stays
- * authoritative here — PersistentTools filters the registry by the active
- * family's capability set BEFORE matching, which means `/starknet/builder`
- * cannot render the EVM TransactionBuilderHub even if the URL is typed by
- * hand.
- *
- * Panel cache keys include the family to prevent one family's tool state
- * being reused under another — per the Phase 2 risk in the plan.
- */
 const ALL_TOOL_ROUTES: ToolRoute[] = TOOL_REGISTRY.map((entry) => ({
   ...entry,
   render: TOOL_RENDERERS[entry.id],
@@ -66,14 +83,10 @@ const PersistentTools: React.FC = () => {
   const family = useActiveChainFamily();
   const strippedPath = useMemo(() => stripFamilyPrefix(location.pathname), [location.pathname]);
   const familyCapabilities = DEFAULT_FAMILY_CAPABILITIES[family];
-  /** Tools available for the active family. Filters by capability BEFORE route
-   *  matching so non-EVM routes can never resolve into EVM tool renderers. */
   const toolRoutes = useMemo<ToolRoute[]>(
     () => ALL_TOOL_ROUTES.filter((route) => isToolAllowed(route, familyCapabilities)),
     [familyCapabilities],
   );
-  /** Cache key used for panel storage — family:toolPath. Prevents state leakage
-   *  between families when Phase 4+ registers the same tool in multiple families. */
   const cacheKey = useCallback((toolPath: string) => `${family}:${toolPath}`, [family]);
   const elementsRef = useRef<Record<string, React.ReactElement>>({});
   const lastVisitRef = useRef<Record<string, number>>({});
@@ -98,9 +111,6 @@ const PersistentTools: React.FC = () => {
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const enterRafRef = useRef<number | undefined>(undefined);
 
-  // Resolve the route key for the current pathname so sub-route changes within
-  // a prefix route (e.g. /integrations/lifi-earn → /integrations/other) don't
-  // trigger a full panel transition — only top-level tool switches do.
   const activeRouteKey = useMemo(() => {
     const r = toolRoutes.find((route) => routeMatches(route, strippedPath));
     return cacheKey(r?.path ?? strippedPath);
@@ -113,9 +123,6 @@ const PersistentTools: React.FC = () => {
       const keysToRemove: string[] = [];
 
       prev.forEach((key) => {
-        // Key the "current" route by the normalized activeRouteKey, not the
-        // raw stripped path — otherwise deep prefix routes like
-        // `/integrations/lifi-earn` never match and get purged while active.
         if (key === activeRouteKey) {
           lastVisitRef.current[key] = now;
           return;
@@ -146,6 +153,30 @@ const PersistentTools: React.FC = () => {
   }, [cleanupInactiveRoutes]);
 
   useEffect(() => {
+    const familyPrefix = `${family}:`;
+    const elementKeys = Object.keys(elementsRef.current);
+    elementKeys.forEach((key) => {
+      if (!key.startsWith(familyPrefix)) {
+        delete elementsRef.current[key];
+        delete lastVisitRef.current[key];
+        delete panelRefs.current[key];
+      }
+    });
+    setVisitedPaths((prev) => {
+      let mutated = false;
+      const next = new Set<string>();
+      prev.forEach((key) => {
+        if (key.startsWith(familyPrefix)) {
+          next.add(key);
+        } else {
+          mutated = true;
+        }
+      });
+      return mutated ? next : prev;
+    });
+  }, [family]);
+
+  useEffect(() => {
     const matched = toolRoutes.find((route) => routeMatches(route, strippedPath));
     if (matched) {
       const key = cacheKey(matched.path);
@@ -165,7 +196,6 @@ const PersistentTools: React.FC = () => {
     if (targetPath === visiblePath && !animatingRef.current) return;
     if (targetPath === visiblePath) return;
 
-    // Abort any in-flight animation
     clearTimeout(cleanupTimerRef.current);
     if (enterRafRef.current) cancelAnimationFrame(enterRafRef.current);
 
@@ -230,7 +260,7 @@ const PersistentTools: React.FC = () => {
       clearTimeout(cleanupTimerRef.current);
       if (enterRafRef.current) cancelAnimationFrame(enterRafRef.current);
     };
-  }, [activeRouteKey]);
+  }, [activeRouteKey, visiblePath]);
 
   const activeRoute = useMemo(
     () => toolRoutes.find((route) => routeMatches(route, strippedPath)),
@@ -238,11 +268,6 @@ const PersistentTools: React.FC = () => {
   );
 
   if (!activeRoute) {
-    // EVM has tools registered → fall back to the default tool. Non-EVM
-    // families have no tools in Phase 2, so render a coming-soon shell
-    // instead of redirecting (the user explicitly navigated to the family).
-    // Hand-typed URLs like /starknet/builder land here because the tool
-    // registry is capability-filtered before this lookup.
     if (family === "evm") {
       return <Navigate to={buildFamilyPath("evm", "/database")} replace />;
     }
@@ -255,9 +280,8 @@ const PersistentTools: React.FC = () => {
           Tools coming soon
         </h2>
         <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          HexKit is multi-chain ready at the architecture layer, but{" "}
-          {family === "starknet" ? "Starknet" : "Solana"} tooling lands in a
-          later phase. Keep using the EVM tools in the meantime.
+          HexKit does not expose tools for this family yet. Keep using the
+          available EVM and Starknet tools in the meantime.
         </p>
       </div>
     );
@@ -271,10 +295,15 @@ const PersistentTools: React.FC = () => {
     return elementsRef.current[key];
   };
 
+  const familyPrefix = `${family}:`;
+
   return (
     <>
       {toolRoutes.map((route) => {
         const key = cacheKey(route.path);
+        if (!key.startsWith(familyPrefix)) {
+          return null;
+        }
         if (!visitedPaths.has(key) && route.path !== activeRoute.path) {
           return null;
         }

@@ -18,3 +18,9 @@ export {
 
 export { ColorizedSnippet } from './ColorizedSnippet';
 export type { ColorizedSnippetProps } from './ColorizedSnippet';
+
+export {
+  registerCairoLanguage,
+  setupCairoMonaco,
+  CAIRO_THEME_NAME,
+} from './cairo';

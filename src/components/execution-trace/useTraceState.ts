@@ -24,6 +24,7 @@ import {
   buildAddressToSymbolMap,
   buildNameToAddressMap,
   extractTxParties,
+  isTraceAddress,
 } from "./traceAddressMaps";
 import {
   buildFrameHierarchy,
@@ -258,7 +259,7 @@ export function useTraceState(props: UseTraceStateProps) {
     (address: string | undefined | null): string | null => {
       if (!address) return null;
       const trimmed = address.trim();
-      if (!trimmed.startsWith("0x") || trimmed.length !== 42) return null;
+      if (!isTraceAddress(trimmed)) return null;
       return addressToName.get(trimmed.toLowerCase()) || null;
     },
     [addressToName]
@@ -287,8 +288,8 @@ export function useTraceState(props: UseTraceStateProps) {
 
   const getRowAddress = useCallback(
     (row: TraceRow): string | null => {
-      if (row.to && row.to.length === 42) return row.to;
-      if (row.entryMeta?.target && row.entryMeta.target.length === 42)
+      if (row.to && isTraceAddress(row.to)) return row.to;
+      if (row.entryMeta?.target && isTraceAddress(row.entryMeta.target))
         return row.entryMeta.target;
       if (row.contractName) {
         const addr = nameToAddress.get(row.contractName.toLowerCase());

@@ -21,16 +21,29 @@ const CHAIN_ICON_KEY_MAP: Record<number, ChainIconKey> = {
   421614: "ARB", 11155420: "OP", 4202: "LISK", 97: "BSC",
 };
 
-// Enhanced chain configuration with testnet support
+export type ExtendedChainFamily = "evm" | "starknet";
+
+// Enhanced chain configuration with testnet support.
+//
+// `id: number` is kept for backwards compat with existing EVM consumers
+// (mapExtendedToChain, EXTENDED_NETWORKS.find(n => n.id === 1), etc.).
+// Starknet networks use synthetic negative ids that never collide with real
+// EVM chain ids; the canonical felt-hex id rides in `starknetChainId`.
 export interface ExtendedChain extends Partial<Chain> {
   id: number;
   name: string;
+  family?: ExtendedChainFamily;
   rpcUrl?: string;
   blockExplorer?: string;
   isTestnet?: boolean;
   category?: "mainnet" | "testnet" | "local";
   color?: string;
   iconKey?: ChainIconKey;
+  /** URL for non-EVM chains that don't have a ChainIcon entry. */
+  iconUrl?: string;
+  /** Felt-hex chain id when family === "starknet"
+   *  (e.g. "0x534e5f4d41494e" for SN_MAIN). */
+  starknetChainId?: string;
 }
 
 // Comprehensive network list derived from the unified chain registry.
@@ -38,11 +51,57 @@ export interface ExtendedChain extends Partial<Chain> {
 // nativeCurrency, explorers, apiUrl, etc.
 export const EXTENDED_NETWORKS: ExtendedChain[] = CHAIN_REGISTRY.map((chain) => ({
   ...chain,
+  family: "evm" as const,
   blockExplorer: chain.blockExplorer || chain.explorerUrl,
   isTestnet: isTestnet(chain.id),
   category: isTestnet(chain.id) ? "testnet" as const : "mainnet" as const,
   iconKey: CHAIN_ICON_KEY_MAP[chain.id],
 }));
+
+// Synthetic IDs for non-EVM ExtendedChain entries.
+// Reserved ranges: Starknet [-100..-199], SVM [-200..-299].
+// Real EVM chain ids are positive, so collisions are impossible.
+export const STARKNET_MAINNET_SYNTHETIC_ID = -101;
+export const STARKNET_SEPOLIA_SYNTHETIC_ID = -102;
+
+export const STARKNET_NETWORKS: ExtendedChain[] = [
+  {
+    id: STARKNET_MAINNET_SYNTHETIC_ID,
+    family: "starknet",
+    name: "Starknet",
+    starknetChainId: "0x534e5f4d41494e",
+    isTestnet: false,
+    category: "mainnet",
+    blockExplorer: "https://voyager.online",
+    iconUrl: "/logos/starknet.png",
+  },
+  {
+    id: STARKNET_SEPOLIA_SYNTHETIC_ID,
+    family: "starknet",
+    name: "Starknet Sepolia",
+    starknetChainId: "0x534e5f5345504f4c4941",
+    isTestnet: true,
+    category: "testnet",
+    blockExplorer: "https://sepolia.voyager.online",
+    iconUrl: "/logos/starknet.png",
+  },
+];
+
+/** Stable Starknet default network — resolved by synthetic id rather than
+ *  array position so reordering `STARKNET_NETWORKS` can't silently change
+ *  the default away from mainnet. */
+export const STARKNET_DEFAULT_NETWORK: ExtendedChain =
+  STARKNET_NETWORKS.find((n) => n.id === STARKNET_MAINNET_SYNTHETIC_ID)!;
+
+export const ALL_NETWORKS: ExtendedChain[] = [...EXTENDED_NETWORKS, ...STARKNET_NETWORKS];
+
+// Per-family localStorage keys for callers that want to remember the user's
+// last-picked network within a family. Picker itself stays stateless; the
+// builder routes own the read/write.
+export const NETWORK_STORAGE_KEYS: Record<ExtendedChainFamily, string> = {
+  evm: "web3-toolkit:network:evm",
+  starknet: "web3-toolkit:network:starknet",
+};
 
 export interface NetworkSelectorProps {
   selectedNetwork: ExtendedChain | null;
@@ -91,6 +150,18 @@ const NetworkSelector: React.FC<NetworkSelectorProps> = ({
   const renderNetworkIcon = (network?: ExtendedChain | null, sz = iconSize) => {
     if (!network) {
       return <Globe size={sz} className="text-muted-foreground" />;
+    }
+    if (network.family === "starknet" && network.iconUrl) {
+      return (
+        <img
+          src={network.iconUrl}
+          alt={network.name}
+          width={sz}
+          height={sz}
+          style={{ borderRadius: sz / 2 }}
+          loading="lazy"
+        />
+      );
     }
     return <ChainIcon chainId={network.id} chain={network.iconKey} size={sz} rounded={sz / 2} />;
   };

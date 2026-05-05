@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
+import "./polyfills";
 import "./index.css";
 import { configureMonacoCdn } from "@/lib/monaco";
 import App from "./App.tsx";

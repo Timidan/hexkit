@@ -4,11 +4,53 @@ import type { SimulationResult } from "../../types/transaction";
 import { shortenAddress } from "../shared/AddressDisplay";
 import { SourceBadge } from "../shared/ContractBadges";
 
-type SourceProvider = 'etherscan' | 'sourcify' | 'blockscout' | null;
+type SourceProvider = 'etherscan' | 'sourcify' | 'blockscout' | 'voyager' | null;
+
+interface ContractRow {
+  address: string;
+  name?: string;
+  verified: boolean;
+  sourceProvider: SourceProvider;
+  fileCount?: number;
+  explorerUrl?: string;
+  explorerName?: string;
+}
+
+interface ContractContext {
+  address?: string;
+  networkId?: number;
+}
+
+type ContractsResult = SimulationResult & {
+  rawTrace?: unknown;
+  contracts?: ContractRow[];
+  chainId?: number;
+};
+
+interface TraceArtifact {
+  sourceProvider?: SourceProvider;
+  meta?: {
+    CompilerVersion?: unknown;
+    SwarmSource?: unknown;
+    compiler_version?: unknown;
+  };
+  sources?: Record<string, unknown>;
+  input?: {
+    sources?: Record<string, unknown>;
+  };
+  output?: {
+    contracts?: Record<string, unknown>;
+  };
+}
+
+interface ParsedRawTrace {
+  artifacts?: Record<string, TraceArtifact>;
+  opcodeLines?: Record<string, unknown>;
+}
 
 interface ContractsTabProps {
   result: SimulationResult;
-  contractContext: any;
+  contractContext: ContractContext | null;
 }
 
 type ExplorerConfig = {
@@ -34,13 +76,22 @@ const explorerBase: Record<number, ExplorerConfig> = {
 
 export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractContext }) => {
   const navigate = useNavigate();
+  const resultData = result as ContractsResult;
 
-  const rawTrace = (result as any)?.rawTrace;
-  let parsedRawTrace: any = null;
+  const rawTrace = resultData.rawTrace;
+  let parsedRawTrace: ParsedRawTrace | null = null;
   try {
-    parsedRawTrace = typeof rawTrace === 'string' ? JSON.parse(rawTrace) : rawTrace;
+    parsedRawTrace =
+      typeof rawTrace === 'string'
+        ? (JSON.parse(rawTrace) as ParsedRawTrace)
+        : rawTrace && typeof rawTrace === 'object'
+        ? (rawTrace as ParsedRawTrace)
+        : null;
   } catch {
-    parsedRawTrace = rawTrace;
+    parsedRawTrace =
+      rawTrace && typeof rawTrace === 'object'
+        ? (rawTrace as ParsedRawTrace)
+        : null;
   }
   const traceArtifacts = parsedRawTrace?.artifacts || {};
   const traceOpcodeLines = parsedRawTrace?.opcodeLines || {};
@@ -99,13 +150,7 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
     return { verified: false, sourceProvider: null };
   };
 
-  const rawSimulationContracts = (result as any)?.contracts as Array<{
-    address: string;
-    name?: string;
-    verified: boolean;
-    sourceProvider: SourceProvider;
-    fileCount?: number;
-  }> || [];
+  const rawSimulationContracts = resultData.contracts || [];
 
   // Patch contracts: re-derive verification from trace artifacts when saved data is stale
   const simulationContracts = rawSimulationContracts.map(c => {
@@ -117,21 +162,29 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
     return c;
   });
 
-  const chainId = (result as any)?.chainId || contractContext?.networkId || 1;
+  const chainId = resultData.chainId || contractContext?.networkId || 1;
   const chainExplorer = explorerBase[chainId] || explorerBase[1];
 
-  const getExplorerDisplayName = (provider: SourceProvider): string | null => {
+  const getExplorerDisplayName = (
+    provider: SourceProvider,
+    contract?: ContractRow,
+  ): string | null => {
     if (provider === 'sourcify') return 'Sourcify';
     if (provider === 'blockscout') return chainExplorer.blockscoutName || 'Blockscout';
     if (provider === 'etherscan') return chainExplorer.etherscanName;
+    if (provider === 'voyager') return contract?.explorerName || 'Voyager';
     return null;
   };
 
-  const getExplorerUrl = (addr: string, provider: SourceProvider): string | null => {
+  const getExplorerUrl = (contract: ContractRow): string | null => {
+    const { address: addr, sourceProvider: provider } = contract;
+    if (contract.explorerUrl) return contract.explorerUrl;
     if (provider === 'sourcify') {
       return `https://repo.sourcify.dev/contracts/full_match/${chainId}/${addr}/`;
     } else if (provider === 'blockscout' && chainExplorer.blockscout) {
       return `${chainExplorer.blockscout}/address/${addr}`;
+    } else if (provider === 'voyager') {
+      return `https://voyager.online/class/${addr}`;
     } else {
       return `${chainExplorer.etherscan}/address/${addr}#code`;
     }
@@ -199,8 +252,8 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
 
           {/* Table Rows */}
           {contracts.map((contract, index) => {
-            const explorerUrl = contract.verified ? getExplorerUrl(contract.address, contract.sourceProvider) : null;
-            const sourceLabel = getExplorerDisplayName(contract.sourceProvider);
+            const explorerUrl = contract.verified ? getExplorerUrl(contract) : null;
+            const sourceLabel = getExplorerDisplayName(contract.sourceProvider, contract);
 
             return (
               <div
@@ -243,6 +296,7 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
                     href={explorerUrl || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label={sourceLabel ? `Open in ${sourceLabel}` : undefined}
                     onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center hover:opacity-80 transition-opacity"
                   >

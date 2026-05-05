@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import type { ChainFamily } from "../../chains/types";
 import { FAMILY_PREFIXES } from "../../routes/familyRoutes";
 import { isFamilySupported } from "../../chains/adapters";
+import { DEFAULT_FAMILY_CAPABILITIES } from "../../chains/capabilities";
 import { useActiveChainFamily } from "../../hooks/useActiveChainFamily";
 import { CHAIN_MARKS, CHAIN_LABELS } from "./ChainMarks";
 import { cn } from "@/lib/utils";
 
-const FAMILY_ORDER: ChainFamily[] = ["evm", "starknet", "svm"];
+const FAMILY_ORDER: ChainFamily[] = ["evm", "starknet"];
 
 export interface FamilySelectorProps {
   className?: string;
@@ -15,9 +16,9 @@ export interface FamilySelectorProps {
 
 /**
  * Minimal family switcher used in the app chrome. Icon-only to keep the
- * top bar compact; hover/title expose the full chain name. Families
- * without a live adapter still route to their shell so the "coming soon"
- * state is reachable.
+ * top bar compact; hover/title expose the full chain name. A family can
+ * be selectable before it has the generic adapter surface, as long as it
+ * exposes first-class tools through the capability registry.
  */
 export const FamilySelector: React.FC<FamilySelectorProps> = ({ className }) => {
   const navigate = useNavigate();
@@ -33,7 +34,9 @@ export const FamilySelector: React.FC<FamilySelectorProps> = ({ className }) => 
     >
       {FAMILY_ORDER.map((family) => {
         const isActive = family === active;
-        const supported = isFamilySupported(family);
+        const supported =
+          isFamilySupported(family) ||
+          DEFAULT_FAMILY_CAPABILITIES[family].size > 0;
         const Icon = CHAIN_MARKS[family];
         const label = CHAIN_LABELS[family];
         return (

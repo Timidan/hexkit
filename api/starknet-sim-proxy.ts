@@ -1,4 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import {
+  applyCorsHeaders,
+  fetchUpstream,
+  handleCorsPreflight,
+  readRawBody,
+  sendBufferedUpstreamResponse,
+  sendProxyError,
+  streamSseResponse,
+} from "./_utils/proxyHelper";
+import { enforceRateLimit } from "./_utils/rateLimit";
+import { validatePublicRpcUrl } from "./_utils/rpcUrlSafety";
 
 export const config = {
   api: { bodyParser: false },
@@ -34,40 +45,42 @@ function resolveAllowedOrigin(
   return null;
 }
 
-function applyCors(req: VercelRequest, res: VercelResponse) {
+function corsOptionsFor(req: VercelRequest) {
   const origin =
     typeof req.headers.origin === "string" ? req.headers.origin : undefined;
   const host =
     typeof req.headers.host === "string" ? req.headers.host : undefined;
   const allowed = resolveAllowedOrigin(origin, host);
-  if (allowed) {
-    res.setHeader("Access-Control-Allow-Origin", allowed);
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
-    res.setHeader("Access-Control-Max-Age", "600");
-  }
+  if (!allowed) return undefined;
+  return {
+    allowedOrigin: allowed,
+    allowMethods: "GET, POST, OPTIONS, HEAD",
+    allowHeaders: "Content-Type, Accept, X-Starknet-Rpc-Url",
+    maxAge: "600",
+    varyOrigin: true,
+  };
 }
 
-function getRawBody(req: VercelRequest): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    req.on("data", (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > MAX_BODY_BYTES) {
-        req.destroy();
-        reject(new Error("body_too_large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
+function applyCors(req: VercelRequest, res: VercelResponse) {
+  const options = corsOptionsFor(req);
+  if (options) applyCorsHeaders(res, options);
+}
+
+function isHeavyBridgePath(subPath: string): boolean {
+  return (
+    subPath === "simulate" ||
+    subPath === "simulate/prepare" ||
+    subPath === "estimate-fee" ||
+    /^trace\/[^/]+$/.test(subPath)
+  );
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "OPTIONS") {
+    handleCorsPreflight(req, res, () => corsOptionsFor(req));
+    return;
+  }
+
   applyCors(req, res);
 
   const bridgeUrl = process.env.STARKNET_SIM_BRIDGE_URL;
@@ -77,17 +90,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({ error: "bridge_not_configured" });
   }
 
-  if (req.method === "OPTIONS") {
-    res.status(204).end();
-    return;
-  }
-
   const reqOrigin =
     typeof req.headers.origin === "string" ? req.headers.origin : undefined;
   const reqHost =
     typeof req.headers.host === "string" ? req.headers.host : undefined;
+
+  // Requests that carry a disallowed Origin are always rejected.
   if (reqOrigin && !resolveAllowedOrigin(reqOrigin, reqHost)) {
-    return res.status(403).json({ error: "origin_required" });
+    return res.status(403).json({ error: "origin_not_allowed" });
+  }
+
+  // If the request carries an RPC override header and no Origin, we cannot
+  // verify it came from an allowed browser context. Reject to close the
+  // SSRF path where a non-browser client bypasses the CORS check by simply
+  // omitting the Origin header and supplies an arbitrary RPC URL.
+  const hasRpcOverride = typeof req.headers["x-starknet-rpc-url"] === "string"
+    || Array.isArray(req.headers["x-starknet-rpc-url"]);
+  if (hasRpcOverride && !reqOrigin) {
+    return res.status(403).json({ error: "origin_required_for_rpc_override" });
   }
 
   if (!ALLOWED_METHODS.has(req.method || "GET")) {
@@ -108,11 +128,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const target = `${bridgeUrl.replace(/\/+$/, "")}/${subPath}`;
+  const isHeavyPath = isHeavyBridgePath(subPath);
+  if (isHeavyPath && !reqOrigin) {
+    return res.status(403).json({ error: "origin_required_for_heavy_route" });
+  }
 
-  const upstreamHeaders: Record<string, string> = {
-    "X-API-Key": apiKey,
-  };
+  const targetUrl = new URL(
+    `${bridgeUrl.replace(/\/+$/, "")}/${subPath}`,
+  );
+  for (const [key, raw] of Object.entries(req.query ?? {})) {
+    if (key === "path") continue;
+    if (Array.isArray(raw)) {
+      for (const value of raw) targetUrl.searchParams.append(key, value);
+    } else if (typeof raw === "string") {
+      targetUrl.searchParams.append(key, raw);
+    }
+  }
+  const target = targetUrl.toString();
+
+  if (
+    !enforceRateLimit(req, res, {
+      bucket: isHeavyPath ? "starknet-sim-heavy" : "starknet-sim",
+      limit: isHeavyPath ? 12 : 120,
+      windowMs: 60_000,
+    })
+  ) {
+    return;
+  }
+
+  const upstreamHeaders: Record<string, string> = {};
+  upstreamHeaders["X-API-Key"] = apiKey;
   const ct = req.headers["content-type"];
   if (ct) upstreamHeaders["Content-Type"] = Array.isArray(ct) ? ct[0] : ct;
   const accept = req.headers["accept"];
@@ -123,78 +168,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? acceptEncoding[0]
       : acceptEncoding;
 
+  // Forward per-request RPC override the frontend resolves from the
+  // user's network config. The bridge's `rpc_override::resolve` reads
+  // it for /simulate, /trace, /estimate-fee and falls back to its
+  // STARKNET_RPC_URL env if the header is missing.
+  const rpcOverride = req.headers["x-starknet-rpc-url"];
+  if (rpcOverride) {
+    const value = Array.isArray(rpcOverride) ? rpcOverride[0] : rpcOverride;
+    if (typeof value === "string") {
+      const validation = validatePublicRpcUrl(value, {
+        allowedHostsEnv: "STARKNET_SIM_RPC_ALLOWED_HOSTS",
+      });
+      if (!validation.ok) {
+        return res.status(400).json({
+          error: "invalid_rpc_override",
+          reason: validation.reason,
+        });
+      }
+      upstreamHeaders["X-Starknet-Rpc-Url"] = value;
+    }
+  }
+
   try {
     const rawBody =
       req.method !== "GET" && req.method !== "HEAD"
-        ? await getRawBody(req)
+        ? await readRawBody(req, MAX_BODY_BYTES)
         : undefined;
 
-    // SSE path (Sprint 3 step-through) — no hard timeout, abort on client disconnect
-    const isSSE = /^step\/[^/]+\/events$/.test(subPath);
-    const controller = new AbortController();
+    // SSE paths — no hard timeout, abort on client disconnect.
+    const isSSE =
+      /^step\/[^/]+\/events$/.test(subPath) ||
+      /^simulate\/prepare\/[^/]+\/events$/.test(subPath);
 
-    if (isSSE) {
-      req.on("close", () => controller.abort());
-    } else {
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      req.on("close", () => clearTimeout(timer));
-    }
+    const upstream = await fetchUpstream(
+      req,
+      target,
+      {
+        method: req.method || "GET",
+        headers: upstreamHeaders,
+        body: rawBody,
+        redirect: "error",
+      },
+      isSSE ? { abortOnClose: true } : { timeoutMs: FETCH_TIMEOUT_MS },
+    );
 
-    const upstream = await fetch(target, {
-      method: req.method || "GET",
-      headers: upstreamHeaders,
-      body: rawBody,
-      signal: controller.signal,
-      redirect: "error",
-    });
-
-    const contentType = upstream.headers.get("content-type") || "";
-    if (contentType.includes("text/event-stream") && upstream.body) {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-
-      const reader = upstream.body.getReader();
-      const decoder = new TextDecoder();
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(decoder.decode(value, { stream: true }));
-        }
-      } catch {
-        // client disconnected or upstream closed
-      } finally {
-        reader.cancel().catch(() => {});
-        res.end();
-      }
+    if (await streamSseResponse(res, upstream)) {
       return;
     }
 
-    res.status(upstream.status);
-
-    const upstreamContentType = upstream.headers.get("content-type");
-    if (upstreamContentType) res.setHeader("content-type", upstreamContentType);
-    const upstreamVary = upstream.headers.get("vary");
-    if (upstreamVary) {
-      const existing = res.getHeader("Vary");
-      res.setHeader(
-        "Vary",
-        existing ? `${existing}, ${upstreamVary}` : upstreamVary,
-      );
-    }
-
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.send(buf);
+    await sendBufferedUpstreamResponse(res, upstream);
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === "body_too_large") {
-      return res.status(413).json({ error: "body_too_large" });
-    }
-    if (err instanceof Error && err.name === "AbortError") {
-      return res.status(504).json({ error: "bridge_timeout" });
-    }
-    console.error("[starknet-sim] upstream error:", err);
-    res.status(502).json({ error: "bridge_unreachable" });
+    return sendProxyError(res, err, {
+      logLabel: "starknet-sim",
+      bodyTooLarge: { status: 413, body: { error: "body_too_large" } },
+      timeout: { status: 504, body: { error: "bridge_timeout" } },
+      upstream: { status: 502, body: { error: "bridge_unreachable" } },
+    });
   }
 }

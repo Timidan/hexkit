@@ -302,6 +302,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
       {/* Filter dropdowns */}
       {processedEvents.length > 0 && (
         <div
+          className="sim-events-filter-row"
           style={{
             display: "flex",
             gap: "12px",
@@ -315,7 +316,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
             onValueChange={(v) => setEventNameFilter(v === "__all__" ? "" : v)}
           >
             <SelectTrigger
-              className="h-auto cursor-pointer"
+              className="h-auto cursor-pointer sim-events-filter-trigger"
               style={{
                 padding: "8px 12px",
                 background: "#16161e",
@@ -348,7 +349,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
             onValueChange={(v) => setEventContractFilter(v === "__all__" ? "" : v)}
           >
             <SelectTrigger
-              className="h-auto cursor-pointer"
+              className="h-auto cursor-pointer sim-events-filter-trigger"
               style={{
                 padding: "8px 12px",
                 background: "#16161e",

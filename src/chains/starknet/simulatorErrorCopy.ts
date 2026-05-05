@@ -37,7 +37,7 @@ const BASE_COPY: Record<string, BridgeErrorCopy> = {
   },
   STATE_UNAVAILABLE: {
     title: "Bridge can't reach the chain",
-    hint: "The upstream Starknet RPC isn't responding. Check your bridge's STARKNET_RPC_URL and the provider's status page.",
+    hint: "The selected Starknet RPC isn't responding. Check RPC Settings and the provider's status page; STARKNET_RPC_URL is only the bridge fallback.",
   },
   RATE_LIMITED: {
     title: "Bridge rate limited",
@@ -65,7 +65,7 @@ const BASE_COPY: Record<string, BridgeErrorCopy> = {
   },
   NOT_IMPLEMENTED: {
     title: "Bridge feature isn't wired up",
-    hint: "This sprint of the bridge doesn't implement the requested feature yet. Check the bridge changelog or run an older feature path.",
+    hint: "This bridge build doesn't implement the requested feature yet. Check the bridge changelog or run a supported feature path.",
   },
   BLOCKIFIER_PANIC: {
     title: "Blockifier crashed during execution",
@@ -82,6 +82,16 @@ const BASE_COPY: Record<string, BridgeErrorCopy> = {
  *  here saves the user from reading blockifier's verbose error. */
 function refineSimulationFailed(message: string): BridgeErrorCopy | null {
   const m = message.toLowerCase();
+  if (
+    m.includes("invalid json") ||
+    m.includes("invalid response") ||
+    m.includes("error decoding response body")
+  ) {
+    return {
+      title: "RPC returned a malformed response",
+      hint: "The Starknet provider replied with a broken JSON body. The bridge retries this now, but if it persists, switch RPC providers or retry after the provider recovers.",
+    };
+  }
   if (m.includes("invalid transaction nonce")) {
     return {
       title: "Nonce mismatch",
@@ -133,7 +143,7 @@ export function resolveBridgeError(err: unknown): ResolvedBridgeError {
     };
 
   let copy = base;
-  if (code === "SIMULATION_FAILED") {
+  if (code === "SIMULATION_FAILED" || code === "STATE_UNAVAILABLE") {
     const refined = refineSimulationFailed(message);
     if (refined) copy = refined;
   }

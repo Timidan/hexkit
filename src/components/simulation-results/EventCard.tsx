@@ -44,6 +44,7 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
 
   const formattedArgs = formatArgs(event.eventArgs);
   const hasContent = formattedArgs && formattedArgs.length > 0;
+  const hasRawContent = rawTopics.length > 0 || Boolean(rawData && rawData !== "0x");
 
   return (
     <div style={{
@@ -54,7 +55,14 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
     }}>
       {/* Event Header - Clickable to expand/collapse */}
       <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsExpanded(!isExpanded)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          setIsExpanded((value) => !value);
+        }}
         style={{
           padding: "12px 16px",
           borderBottom: isExpanded && hasContent ? "1px solid var(--sim-border, #1f2026)" : "none",
@@ -62,6 +70,7 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
           display: "flex",
           alignItems: "center",
           gap: "12px",
+          flexWrap: "wrap",
           userSelect: "none"
         }}
       >
@@ -77,7 +86,10 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
         <span style={{
           fontSize: "1rem",
           fontWeight: 600,
-          color: "#a78bfa"
+          color: "#a78bfa",
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis"
         }}>
           {event.eventName}
         </span>
@@ -90,7 +102,8 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
           border: "1px solid rgba(255, 255, 255, 0.2)",
           borderRadius: "4px",
           color: "#e5e5e5",
-          fontWeight: 500
+          fontWeight: 500,
+          flexShrink: 0
         }}>
           {event.contractName || "Contract"}
         </span>
@@ -100,7 +113,11 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
           color: "var(--sim-text-muted, #9a9aac)",
           fontFamily: "monospace",
           fontSize: "0.75rem",
-          marginLeft: "auto"
+          marginLeft: "auto",
+          maxWidth: "100%",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
         }}>
           {shortAddress(event.address || '')}
         </span>
@@ -153,7 +170,14 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
             <Button
               type="button"
               variant="ghost"
-              onClick={(e) => { e.stopPropagation(); setShowRawData(!showRawData); }}
+              data-testid="event-raw-toggle"
+              aria-expanded={showRawData}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowRawData((value) => !value);
+              }}
               style={{
                 background: "none",
                 border: "none",
@@ -207,6 +231,11 @@ export function EventCard({ event, shortAddress }: { event: any; shortAddress: (
                     }}>
                       {rawData || "0x"}
                     </div>
+                  </div>
+                )}
+                {!hasRawContent && (
+                  <div style={{ color: "var(--sim-text-muted, #9a9aac)" }}>
+                    No raw topics or data were emitted for this event.
                   </div>
                 )}
               </div>

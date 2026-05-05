@@ -71,8 +71,7 @@ export type TxIdFor<T extends ChainDescriptor> =
 /**
  * Serializable transaction envelope. `submitTx` accepts it, so the shell
  * never holds wallet-SDK objects. EVM carries the raw tx fields; SVM
- * carries a base64-serialized transaction + version flag, which is how
- * `@solana/wallet-adapter` accepts pre-signed payloads.
+ * carries a base64-serialized transaction and version flag.
  */
 export type PreparedTxEnvelope<T extends ChainDescriptor> =
   T extends EvmChainDescriptor ? {
@@ -225,7 +224,6 @@ export type AnyEarnAdapter = EarnAdapter<ChainDescriptor>;
 
 /**
  * Registry shape per family. Null = adapter not registered / not supported.
- * Phase 5a exposes only EVM; Phase 5d adds an SVM stub; Phase 5e fills it in.
  */
 export interface EarnAdapterRegistry {
   readonly evm: EarnAdapter<EvmChainDescriptor> | null;

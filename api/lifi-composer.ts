@@ -1,5 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import * as crypto from "crypto";
+import {
+  applyCorsHeaders,
+  fetchUpstream,
+  handleCorsPreflight,
+  sendProxyError,
+  sendTextUpstreamResponse,
+} from "./_utils/proxyHelper";
+import {
+  enforcePublicProxyAccess,
+  resolveAllowedProxyOrigin,
+} from "./_utils/publicProxyGuard";
 
 export const config = {
   api: { bodyParser: false },
@@ -9,66 +19,34 @@ export const config = {
 const LIFI_BASE = "https://li.quest";
 const LIFI_API_KEY = process.env.LIFI_API_KEY || "";
 const ALLOWED_METHODS = new Set(["GET", "OPTIONS", "HEAD"]);
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
-);
-
-// Shared secret the frontend embeds at build time. When set, every request
-// must present it in the x-proxy-secret header — Origin alone is spoofable
-// from non-browser clients and cannot protect a paid API key.
-const PROXY_SECRET = process.env.PROXY_SECRET || "";
-
-function getAllowedOrigin(req: VercelRequest): string | null {
-  const origin = req.headers.origin;
-  if (!origin) return null;
-  if (ALLOWED_ORIGINS.has(origin)) return origin;
-  if (origin.startsWith("http://localhost:")) return origin;
-  const host = req.headers.host;
-  if (host && origin === `https://${host}`) return origin;
-  return null;
-}
-
-function hasValidSecret(req: VercelRequest): boolean {
-  if (!PROXY_SECRET) return false;
-  const header = req.headers["x-proxy-secret"];
-  if (typeof header !== "string") return false;
-  const a = Buffer.from(header);
-  const b = Buffer.from(PROXY_SECRET);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  const allowedOrigin = getAllowedOrigin(req);
+  const allowedOrigin = resolveAllowedProxyOrigin(req);
 
-  if (req.method === "OPTIONS") {
-    if (allowedOrigin) {
-      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-    }
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-proxy-secret");
-    return res.status(204).end();
-  }
-
-  // When PROXY_SECRET is configured, require it on every non-OPTIONS request.
-  if (PROXY_SECRET) {
-    if (!hasValidSecret(req)) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-  } else {
-    // No PROXY_SECRET: allow same-origin requests (browser omits Origin header
-    // for same-origin fetches) and requests with a matching Origin.
-    const origin = req.headers.origin;
-    if (origin && !allowedOrigin) {
-      return res.status(403).json({ error: "Origin not allowed" });
-    }
+  if (
+    handleCorsPreflight(req, res, {
+      allowedOrigin,
+      allowMethods: "GET, OPTIONS",
+      allowHeaders: "Content-Type, x-proxy-secret",
+    })
+  ) {
+    return;
   }
 
   if (!ALLOWED_METHODS.has(req.method || "")) {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (
+    !enforcePublicProxyAccess(req, res, {
+      allowedOrigin,
+      rateLimit: { bucket: "lifi-composer", limit: 90, windowMs: 60_000 },
+    })
+  ) {
+    return;
   }
 
   if (!LIFI_API_KEY) {
@@ -96,24 +74,28 @@ export default async function handler(
   const upstream = `${LIFI_BASE}/${subPath.replace(/^\/+/, "")}${qs ? `?${qs}` : ""}`;
 
   try {
-    const upstreamRes = await fetch(upstream, {
-      method: "GET",
-      headers: {
-        "x-lifi-api-key": LIFI_API_KEY,
-        Accept: "application/json",
+    const upstreamRes = await fetchUpstream(
+      req,
+      upstream,
+      {
+        method: "GET",
+        headers: {
+          "x-lifi-api-key": LIFI_API_KEY,
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(25000),
       },
-      signal: AbortSignal.timeout(25000),
+    );
+
+    applyCorsHeaders(res, { allowedOrigin });
+    await sendTextUpstreamResponse(res, upstreamRes, {
+      "Content-Type": "application/json",
     });
-
-    const body = await upstreamRes.text();
-
-    if (allowedOrigin) {
-      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-    }
-    res.setHeader("Content-Type", "application/json");
-    return res.status(upstreamRes.status).send(body);
-  } catch (err: any) {
-    console.error("[lifi-composer] upstream error:", err);
-    return res.status(502).json({ error: "Upstream request failed" });
+    return;
+  } catch (err) {
+    return sendProxyError(res, err, {
+      logLabel: "lifi-composer",
+      upstream: { status: 502, body: { error: "Upstream request failed" } },
+    });
   }
 }

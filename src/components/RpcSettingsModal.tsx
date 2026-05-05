@@ -23,7 +23,6 @@ import { Checkbox } from "./ui/checkbox";
 import { Eye, EyeSlash, CheckCircle, WarningCircle, CircleNotch } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { RpcSettingsStarknetPanel } from "./RpcSettingsStarknetPanel";
-import { RpcSettingsSolanaPanel } from "./RpcSettingsSolanaPanel";
 import type { ChainFamily } from "@/chains/types";
 
 interface RpcSettingsModalProps {
@@ -204,19 +203,12 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
             >
               Starknet
             </TabsTrigger>
-            <TabsTrigger
-              value="svm"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Solana
-            </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {family === "starknet" && (
           <RpcSettingsStarknetPanel isOpen={isOpen} />
         )}
-        {family === "svm" && <RpcSettingsSolanaPanel isOpen={isOpen} />}
 
         {family === "evm" && (
         <div className="space-y-3">

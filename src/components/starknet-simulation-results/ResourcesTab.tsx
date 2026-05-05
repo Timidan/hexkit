@@ -82,7 +82,7 @@ export function ResourcesTab({
             relative subtree size · click a cell to jump to that frame
           </span>
         </div>
-        <div className="grid grid-cols-12 gap-1 text-[10px]">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(104px,1fr))] gap-1.5 text-[10px]">
           {heatItems.map((h, i) => {
             const pct = Math.round((h.share / heatMax) * 100);
             const sel = selectorName(h.ci) || shortHex(h.ci.entryPointSelector);
@@ -98,12 +98,22 @@ export function ResourcesTab({
               <button
                 key={i}
                 type="button"
-                className={`rounded ${intensity} px-1 py-1 text-foreground truncate text-left flex flex-col transition-colors`}
+                className={`rounded ${intensity} px-1.5 py-1.5 text-foreground text-left flex flex-col transition-colors min-h-[42px] overflow-hidden`}
                 title={`frame #${i} · ${sel} · subtree=${h.share}`}
                 onClick={() => onJumpToFrame(h.ci)}
               >
                 <span className="opacity-70 text-[8px]">#{i}</span>
-                <span className="truncate">{sel.slice(0, 14)}</span>
+                <span
+                  className="leading-tight break-words"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitBoxOrient: "vertical",
+                    WebkitLineClamp: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  {sel}
+                </span>
               </button>
             );
           })}

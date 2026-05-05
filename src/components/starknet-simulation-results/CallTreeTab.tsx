@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowSquareOut,
+  BugBeetle,
   CaretDown,
   CaretRight,
   Check,
@@ -8,18 +9,32 @@ import {
   LinkSimple,
   Sparkle,
 } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CopyButton } from "@/components/ui/copy-button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { contractExplorerLinks } from "@/components/starknet/explorerLinks";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getStarknetSimBridgeUrl, getBridgeHeaders } from "@/utils/env";
+import { copyTextToClipboard } from "@/utils/clipboard";
+import { ColorizedSnippet } from "@/lib/monaco";
+import type { StarknetNetwork } from "@/config/networkConfig";
+import { rpcOverrideHeaderFor } from "@/chains/starknet/simulatorClient";
+import {
+  useCairoSource,
+  type CairoSourceResponse,
+} from "@/chains/starknet/cairoSourceClient";
 import type { FunctionInvocation, SimulationResult } from "@/chains/starknet/simulatorTypes";
+import { useContractName } from "@/chains/starknet/contractNameClient";
 import {
   classLabel,
-  contractLabel,
   frameLabel,
   countSubtree,
   eventName,
@@ -28,23 +43,25 @@ import {
   stripSystemArgs,
   subtreeEventCount,
 } from "./decoders";
+import { CallTypeGutterBadge } from "./SummaryPanel";
+import { CallTreeSearch } from "./CallTreeSearch";
+import {
+  lastTypeSeg,
+  previewForType,
+  splitTupleArgs,
+} from "./decodeFunctionSig";
+import { markClassVerified } from "./starknetClassesAdapter";
 
 interface Props {
   result: SimulationResult;
   frames: FunctionInvocation[];
-  /** Frame → parent map; root-level frames (validate / execute / fee
-   *  transfer) map to null. Used by FrameDetailPane to render the
-   *  ancestor breadcrumb. */
   parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
-  /** Bridge chain ID — feeds Voyager / Starkscan contract links beside
-   *  the selected frame's address. */
   chainId?: string | null;
-  /** Cairo struct / enum registry — used by the typed calldata
-   *  decoder to recursively expand composite parameter types. */
   types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
   selectedFrame: FunctionInvocation | null;
   setSelectedFrame: (f: FunctionInvocation) => void;
   onExplainFrame?: (f: FunctionInvocation) => void;
+  onShowResources?: () => void;
 }
 
 export function CallTreeTab({
@@ -56,21 +73,64 @@ export function CallTreeTab({
   selectedFrame,
   setSelectedFrame,
   onExplainFrame,
+  onShowResources,
 }: Props) {
-  // Toggle preferences persist across reloads — users settle into a
-  // mode (strip syscall args, hide silent frames, etc) and rebuilding
-  // that on every page load is needless friction. Filter stays local
-  // because per-tx queries don't carry between traces.
-  const [stripSys, setStripSys] = usePersistedToggle("stripSys", true);
-  const [onlyEvents, setOnlyEvents] = usePersistedToggle("onlyEvents", false);
-  const [showResources, setShowResources] = usePersistedToggle(
-    "showResources",
-    true,
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="lg:col-span-7">
+        <CallTrace
+          result={result}
+          frames={frames}
+          chainId={chainId}
+          types={types}
+          selectedFrame={selectedFrame}
+          setSelectedFrame={setSelectedFrame}
+          onShowResources={onShowResources}
+        />
+      </div>
+
+      <div className="lg:col-span-5 space-y-4">
+        <FrameDetailPane
+          frame={selectedFrame}
+          frames={frames}
+          parentMap={parentMap}
+          chainId={chainId}
+          types={types}
+          onSelect={setSelectedFrame}
+          stripSys={true}
+          onExplain={onExplainFrame}
+        />
+      </div>
+    </div>
   );
-  // Voyager hides validate / fee_transfer by default and shows only the
-  // user-facing execute body; matching that since 99% of the time
-  // that's what the user is here to look at.
-  const [executeOnly, setExecuteOnly] = usePersistedToggle("executeOnly", true);
+}
+
+interface CallTraceProps {
+  result: SimulationResult;
+  frames: FunctionInvocation[];
+  chainId?: string | null;
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
+  selectedFrame: FunctionInvocation | null;
+  setSelectedFrame: (f: FunctionInvocation) => void;
+  onShowResources?: () => void;
+  compact?: boolean;
+}
+
+export function CallTrace({
+  result,
+  frames,
+  chainId,
+  types,
+  selectedFrame,
+  setSelectedFrame,
+  onShowResources,
+  compact = false,
+}: CallTraceProps) {
+  const [showResources, setShowResources] = usePersistedToggle("showResources", true);
+  const [executeOnly, setExecuteOnly] = usePersistedToggle("executeOnly:v2", false);
+  const [onlyEvents, setOnlyEvents] = usePersistedToggle("onlyEvents", false);
+  const [storageOn, setStorageOn] = usePersistedToggle("storageOn", false);
+  const stripSys = true;
   const [filter, setFilter] = useState("");
 
   const stats = useMemo(() => {
@@ -103,10 +163,6 @@ export function CallTreeTab({
     };
   }, [result]);
 
-  // executeOnly hides validate / fee_transfer when there's an execute
-  // body to look at. Reverted txs can leave executeInvocation null
-  // (fault during validate); fall through to the full set so we don't
-  // render an empty tree.
   const hasExecute = result.executeInvocation !== null;
   const sections: Array<[string, FunctionInvocation | null, string]> = (
     executeOnly && hasExecute
@@ -125,38 +181,62 @@ export function CallTreeTab({
       ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      <Card className="lg:col-span-7 p-4 gap-3">
-        <div className="flex items-start justify-between flex-wrap gap-2">
+    <div className="space-y-3">
+      {!compact && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="text-xs uppercase text-muted-foreground">Call tree</div>
-            <div className="text-xs text-muted-foreground mt-0.5">
+            <h3 className="m-0 text-[0.9125rem] font-semibold uppercase tracking-[0.05em] text-foreground">
+              Full Call Tree
+            </h3>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
               {frames.length} frames · max depth {stats.maxDepth} · {stats.totalEvents} events
             </div>
           </div>
-          <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
-            <Input
-              type="search"
-              placeholder="filter selector / contract…"
-              className="w-44 h-8 text-xs"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value.toLowerCase().trim())}
-            />
-            <ToggleLabel id="strip-sys" checked={stripSys} onChange={setStripSys}>
-              strip sys args
-            </ToggleLabel>
-            <ToggleLabel id="only-events" checked={onlyEvents} onChange={setOnlyEvents}>
-              only w/ events
-            </ToggleLabel>
-            <ToggleLabel id="resource-bars" checked={showResources} onChange={setShowResources}>
-              resource bars
-            </ToggleLabel>
-            <ToggleLabel id="execute-only" checked={executeOnly} onChange={setExecuteOnly}>
-              execute only
-            </ToggleLabel>
-          </div>
         </div>
+      )}
 
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <CallTreeSearch
+          frames={frames}
+          setSelectedFrame={setSelectedFrame}
+          onSearchChange={setFilter}
+        />
+        <div className="flex items-center gap-3 text-xs flex-wrap">
+          <FilterPill
+            id="filter-gas"
+            checked={showResources}
+            onChange={setShowResources}
+            label="Gas"
+          />
+          <FilterPill
+            id="filter-full"
+            checked={!executeOnly}
+            onChange={(v) => setExecuteOnly(!v)}
+            label="Full Trace"
+          />
+          <FilterPill
+            id="filter-storage"
+            checked={storageOn}
+            onChange={setStorageOn}
+            label="Storage"
+          />
+          <FilterPill
+            id="filter-events"
+            checked={onlyEvents}
+            onChange={setOnlyEvents}
+            label="Events"
+          />
+          <FilterPill
+            id="filter-slot-xref"
+            checked={false}
+            onChange={() => {}}
+            label="Slot X-Ref"
+            disabled
+          />
+        </div>
+      </div>
+
+      {!compact && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           <Card className="px-2 py-1.5 gap-0">
             <div className="text-[9px] uppercase text-muted-foreground">unique contracts</div>
@@ -187,75 +267,76 @@ export function CallTreeTab({
             </div>
           </Card>
         </div>
+      )}
 
-        <div className="space-y-2 text-sm">
-          {sections.map(([label, node, cls]) =>
-            node ? (
-              <div key={label} className={`rounded-md border ${cls} p-2`}>
-                <div className="text-[11px] uppercase tracking-wide text-foreground mb-1 flex items-center gap-2">
-                  {label}
-                  {subtreeEventCount(node) ? (
-                    <Badge variant="outline" size="sm">
-                      {subtreeEventCount(node)} events
-                    </Badge>
-                  ) : null}
-                </div>
-                <CallNode
-                  ci={node}
-                  depth={0}
-                  frames={frames}
-                  filter={filter}
-                  onlyEvents={onlyEvents}
-                  stripSys={stripSys}
-                  showResources={showResources}
-                  totalFrames={frames.length}
-                  selectedFrame={selectedFrame}
-                  onSelect={setSelectedFrame}
-                />
+      <div className="space-y-2 text-sm">
+        {sections.map(([label, node, cls]) =>
+          node ? (
+            <div key={label} className={`rounded-md border ${cls} p-2`}>
+              <div className="text-[11px] uppercase tracking-wide text-foreground mb-1 flex items-center gap-2">
+                {label}
+                {subtreeEventCount(node) ? (
+                  <Badge variant="outline" size="sm">
+                    {subtreeEventCount(node)} events
+                  </Badge>
+                ) : null}
               </div>
-            ) : null,
-          )}
-        </div>
-      </Card>
-
-      {/* Right rail: Frame detail + source pane */}
-      <div className="lg:col-span-5 space-y-4">
-        <FrameDetailPane
-          frame={selectedFrame}
-          frames={frames}
-          parentMap={parentMap}
-          chainId={chainId}
-          types={types}
-          onSelect={setSelectedFrame}
-          stripSys={stripSys}
-          onExplain={onExplainFrame}
-        />
-        <SourcePane frame={selectedFrame} />
+              <CallNode
+                ci={node}
+                depth={0}
+                frames={frames}
+                filter={filter}
+                onlyEvents={onlyEvents}
+                stripSys={stripSys}
+                showResources={showResources}
+                totalFrames={frames.length}
+                totalSteps={result.executionResources?.steps ?? 0}
+                selectedFrame={selectedFrame}
+                onSelect={setSelectedFrame}
+                onShowResources={onShowResources}
+                types={types}
+                chainId={chainId}
+              />
+            </div>
+          ) : null,
+        )}
       </div>
     </div>
   );
 }
 
-function ToggleLabel({
+function FilterPill({
   id,
   checked,
   onChange,
-  children,
+  label,
+  disabled = false,
 }: {
   id: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  children: React.ReactNode;
+  label: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div
+      className={`flex items-center gap-1.5 ${
+        disabled ? "opacity-40 cursor-not-allowed" : ""
+      }`}
+    >
       <Checkbox
         id={id}
         checked={checked}
-        onCheckedChange={(v) => onChange(Boolean(v))}
+        disabled={disabled}
+        onCheckedChange={(v) => !disabled && onChange(Boolean(v))}
       />
-      <Label htmlFor={id} className="text-xs text-muted-foreground cursor-pointer">
-        {children}
+      <Label
+        htmlFor={id}
+        className={`text-xs text-muted-foreground ${
+          disabled ? "cursor-not-allowed" : "cursor-pointer"
+        }`}
+      >
+        {label}
       </Label>
     </div>
   );
@@ -270,8 +351,12 @@ interface NodeProps {
   stripSys: boolean;
   showResources: boolean;
   totalFrames: number;
+  totalSteps: number;
   selectedFrame: FunctionInvocation | null;
   onSelect: (f: FunctionInvocation) => void;
+  onShowResources?: () => void;
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
+  chainId?: string | null;
 }
 
 function CallNode(props: NodeProps) {
@@ -284,8 +369,12 @@ function CallNode(props: NodeProps) {
     stripSys,
     showResources,
     totalFrames,
+    totalSteps,
     selectedFrame,
     onSelect,
+    onShowResources,
+    types,
+    chainId,
   } = props;
 
   const [expanded, setExpanded] = useState(depth < 4);
@@ -304,163 +393,583 @@ function CallNode(props: NodeProps) {
     if (!matches(ci)) return null;
   }
 
-  const sel = selectorName(ci);
   const labelKnown = frameLabel(ci);
   const labelIsAccount = labelKnown === "Account";
-  const isLib = ci.callType === "Delegate" || ci.callType === "Library";
+  const network = chainIdToStarknetNetwork(chainId);
   const evtCount = subtreeEventCount(ci);
   const calldata = stripSys ? stripSystemArgs(ci.calldata) : ci.calldata;
   const subtreeSize = countSubtree(ci);
-  const sharePct = Math.min(100, Math.round((subtreeSize / totalFrames) * 100));
   const fnum = frames.indexOf(ci);
   const isSelected = ci === selectedFrame;
   const hasChildren = (ci.calls || []).length > 0;
 
-  const barColor =
-    sharePct > 50 ? "bg-destructive" : sharePct > 20 ? "bg-warning" : "bg-success";
+  // Use exact subtree steps when the bridge emitted per-call resources
+  // (local blockifier path). Fall back to frame-count approximation for
+  // pure RPC-trace responses where executionResources is absent.
+  const exactSteps = ci.executionResources?.steps ?? null;
+  const approxSteps =
+    exactSteps !== null
+      ? exactSteps
+      : totalSteps > 0
+      ? Math.round((subtreeSize / Math.max(1, totalFrames)) * totalSteps)
+      : subtreeSize;
+  const sharePct = Math.min(
+    100,
+    totalSteps > 0
+      ? Math.round((approxSteps / totalSteps) * 100)
+      : Math.round((subtreeSize / Math.max(1, totalFrames)) * 100),
+  );
+
+  const pctClass =
+    sharePct > 50
+      ? "text-destructive"
+      : sharePct > 20
+      ? "text-warning"
+      : "text-muted-foreground";
 
   return (
     <div
-      className={"rounded " + (depth ? "ml-3 border-l border-border pl-2" : "")}
+      className="starknet-sim-call-row-wrap"
       data-frame-row={fnum >= 0 ? fnum : "?"}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
+        data-selected={isSelected ? "true" : "false"}
         onClick={() => {
           if (hasChildren) setExpanded((v) => !v);
           onSelect(ci);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (hasChildren) setExpanded((v) => !v);
+            onSelect(ci);
+          }
+        }}
         className={
-          "w-full flex items-center gap-2 py-1 rounded px-1 text-left transition-colors " +
-          (isSelected
-            ? "bg-accent ring-1 ring-ring"
-            : "hover:bg-muted/40")
+          "starknet-sim-call-row flex items-stretch gap-0 py-1 rounded text-left transition-colors cursor-pointer " +
+          (isSelected ? "bg-accent ring-1 ring-ring" : "hover:bg-muted/40")
         }
         aria-expanded={expanded}
       >
-        <span className="w-3 text-muted-foreground shrink-0">
-          {hasChildren ? (
-            expanded ? (
-              <CaretDown size={12} />
-            ) : (
-              <CaretRight size={12} />
-            )
-          ) : null}
-        </span>
-        <span className="text-muted-foreground text-[10px] font-mono w-7 shrink-0">
-          #{fnum >= 0 ? fnum : "?"}
-        </span>
-        <Badge variant={isLib ? "accent" : "success"} size="sm">
-          {ci.callType}
-        </Badge>
-        {sel ? (
-          <span className="font-mono text-foreground">
-            {sel}
-            <span className="text-muted-foreground text-[10px] ml-0.5">()</span>
-          </span>
-        ) : (
-          <span className="font-mono text-muted-foreground" title={ci.entryPointSelector}>
-            {shortHex(ci.entryPointSelector)}
-          </span>
-        )}
-        <span className="text-muted-foreground text-xs">on</span>
-        {labelKnown ? (
-          <>
+        <div className="starknet-sim-call-gutter shrink-0 flex flex-col items-start gap-0.5">
+          <CallTypeGutterBadge kind={ci.callType} />
+          {showResources && (
             <span
-              className={`font-mono text-xs ${
-                labelIsAccount ? "text-info" : "text-success"
-              }`}
+              role={onShowResources ? "button" : undefined}
+              tabIndex={onShowResources ? 0 : undefined}
+              onClick={(e) => {
+                if (!onShowResources) return;
+                e.stopPropagation();
+                onShowResources();
+              }}
+              onKeyDown={(e) => {
+                if (!onShowResources) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onShowResources();
+                }
+              }}
+              title={
+                exactSteps !== null
+                  ? `${sharePct}% of total · ${approxSteps.toLocaleString()} steps (exact)`
+                  : totalSteps > 0
+                  ? `${sharePct}% of total · ~${approxSteps.toLocaleString()} steps (estimated)`
+                  : `${sharePct}% of total · ${subtreeSize}/${totalFrames} frames`
+              }
+              data-testid={`gas-chip-frame-${fnum >= 0 ? fnum : "x"}`}
+              className={
+                "font-mono text-[10px] tabular-nums " +
+                pctClass +
+                (onShowResources ? " cursor-pointer hover:text-foreground" : "")
+              }
             >
-              {labelKnown}
+              {approxSteps.toLocaleString()}
             </span>
-            <span className="font-mono text-muted-foreground text-[10px]">
-              {shortHex(ci.contractAddress)}
-            </span>
-          </>
-        ) : (
-          <span className="font-mono text-foreground text-xs">
-            {shortHex(ci.contractAddress)}
-          </span>
-        )}
-        {evtCount ? (
-          <Badge variant="info" size="sm">
-            {evtCount} evt
-          </Badge>
-        ) : null}
-        {ci.calls.length ? (
-          <span className="text-muted-foreground text-[10px]">{ci.calls.length}↳</span>
-        ) : null}
-        {showResources ? (
-          <span
-            className="ml-auto flex items-center gap-1 text-[10px] font-mono text-muted-foreground"
-            title={`${subtreeSize} of ${totalFrames} frames`}
-          >
-            <span className="w-16 h-1.5 bg-muted rounded overflow-hidden">
-              <span
-                className={`block h-1.5 ${barColor}`}
-                style={{ width: `${Math.max(2, sharePct)}%` }}
-              />
-            </span>
-            {sharePct}%
-          </span>
-        ) : null}
-      </button>
-      {expanded && (
-        <>
-          <div className="pl-2 mt-1 space-y-1 text-xs text-muted-foreground">
-            <div>
-              <span>calldata:</span>{" "}
-              {ci.decodedFunctionAbi && ci.decodedFunctionAbi.inputs.length > 0 ? (
-                <span className="font-mono text-foreground">
-                  ({ci.decodedFunctionAbi.inputs
-                    .map((p) => `${p.name}: ${lastTypeSeg(p.type)}`)
-                    .join(", ")})
-                </span>
-              ) : (
-                <span className="font-mono">
-                  [
-                  {calldata.slice(0, 4).map((f) => shortHex(f)).join(", ")}
-                  {calldata.length > 4 && (
-                    <span className="text-muted-foreground/70">, …+{calldata.length - 4}</span>
-                  )}
-                  ]
-                </span>
-              )}
-            </div>
-            <div>
-              <span>retdata:</span>{" "}
-              <span className="font-mono">
-                {(ci.result || []).length === 0 ? (
-                  <span className="text-muted-foreground/70">empty</span>
-                ) : (
-                  <>
-                    [
-                    {(ci.result || []).slice(0, 4).map((f) => shortHex(f)).join(", ")}
-                    {(ci.result || []).length > 4 && (
-                      <span className="text-muted-foreground/70">
-                        , …+{(ci.result || []).length - 4}
-                      </span>
-                    )}
-                    ]
-                  </>
-                )}
-              </span>
-            </div>
-          </div>
-          {hasChildren && (
-            <div className="mt-1 space-y-0.5">
-              {ci.calls.map((c, i) => (
-                <CallNode key={i} {...props} ci={c} depth={depth + 1} />
-              ))}
-            </div>
           )}
-        </>
+        </div>
+        <div
+          className="flex items-center gap-1.5 min-w-0 flex-1"
+          style={{ paddingLeft: depth * 16 }}
+        >
+          <span className="w-3 text-muted-foreground shrink-0">
+            {hasChildren ? (
+              expanded ? (
+                <CaretDown size={12} />
+              ) : (
+                <CaretRight size={12} />
+              )
+            ) : null}
+          </span>
+          <span className="text-muted-foreground text-[10px] font-mono w-7 shrink-0">
+            #{fnum >= 0 ? fnum : "?"}
+          </span>
+          <DebugCallButton frame={ci} onSelect={onSelect} />
+          <EdbRowSignature
+            ci={ci}
+            calldata={calldata}
+            labelKnown={labelKnown}
+            labelIsAccount={labelIsAccount}
+            network={network}
+            types={types}
+          />
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <CairoSourceLineBadge
+              frame={ci}
+              chainId={chainId}
+              functionName={selectorName(ci)}
+              onSelectFrame={onSelect}
+            />
+            {evtCount ? (
+              <span
+                className="text-[10px] font-mono text-muted-foreground tabular-nums"
+                title={`${evtCount} event${evtCount === 1 ? "" : "s"} in this subtree`}
+              >
+                {evtCount}
+              </span>
+            ) : null}
+            {showResources && (
+              <span
+                className={`text-[10px] font-mono tabular-nums ${pctClass}`}
+                title={`${subtreeSize} of ${totalFrames} frames`}
+              >
+                {sharePct}%
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      {isSelected && (
+        <InlineCairoSnippet
+          frame={ci}
+          chainId={chainId}
+          functionName={selectorName(ci)}
+          depth={depth}
+        />
+      )}
+      {expanded && hasChildren && (
+        <div className="mt-1 space-y-0.5">
+          {ci.calls.map((c, i) => (
+            <CallNode key={i} {...props} ci={c} depth={depth + 1} />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-function FrameDetailPane({
+function InlineCairoSnippet({
+  frame,
+  chainId,
+  functionName,
+  depth,
+}: {
+  frame: FunctionInvocation;
+  chainId?: string | null;
+  functionName: string | null;
+  depth: number;
+}) {
+  const network = chainIdToStarknetNetwork(chainId);
+  const classHash = frame.classHash || null;
+  const { data, loading } = useCairoSource(classHash, network);
+  if (!classHash || loading || !data?.verified || !functionName) return null;
+  const target = resolveCairoSourceTarget(data, functionName);
+  if (!target.functionFound) return null;
+
+  return (
+    <div
+      className="mt-1 mb-2 ml-0 border border-border/40 rounded bg-background/40"
+      style={{ marginLeft: depth * 16 }}
+      data-testid="inline-cairo-snippet"
+    >
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1 border-b border-border/30 text-[10px]">
+        <div className="flex items-center gap-1.5 min-w-0 truncate text-muted-foreground">
+          <span className="font-mono truncate" title={target.file.path}>
+            {target.file.path}:{target.line}
+          </span>
+          <Badge variant="outline" className="text-[9px] uppercase">
+            Voyager · verified
+          </Badge>
+        </div>
+        <span className="font-mono text-foreground/80 truncate max-w-[220px]">
+          fn {functionName}
+        </span>
+      </div>
+      <div className="max-h-[260px] overflow-auto">
+        <ColorizedSnippet
+          sourceContent={target.file.content}
+          highlightLine={target.line}
+          contextLines={8}
+          language="cairo"
+        />
+      </div>
+    </div>
+  );
+}
+
+function DebugCallButton({
+  frame,
+  onSelect,
+}: {
+  frame: FunctionInvocation;
+  onSelect: (f: FunctionInvocation) => void;
+}) {
+  const disabled = !frame.classHash;
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.stopPropagation();
+    if (disabled) return;
+    onSelect(frame);
+    if (typeof document !== "undefined") {
+      const pane = document.querySelector('[data-testid="source-pane"]');
+      pane?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    toast("Step debugger coming soon", {
+      description: "Frame selected — Cairo source is open in the right rail.",
+    });
+  };
+  const handleKey: React.KeyboardEventHandler<HTMLButtonElement> = (e) => {
+    if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+  };
+  const button = (
+    <button
+      type="button"
+      onClick={handleClick}
+      onKeyDown={handleKey}
+      disabled={disabled}
+      aria-label={disabled ? "Debugger unavailable for this frame" : "Debug this call"}
+      data-testid="debug-call-btn"
+      className={
+        "shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-sm transition-colors " +
+        (disabled
+          ? "text-muted-foreground/40 cursor-not-allowed"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted/40 cursor-pointer")
+      }
+    >
+      <BugBeetle size={12} />
+    </button>
+  );
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="top">
+        {disabled
+          ? "No class hash — debugger unavailable"
+          : "Debug this call (coming soon)"}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+const INLINE_VALUE_MAX = 40;
+const INLINE_ROW_BUDGET = 200;
+
+function selectorShort(hex: string | null | undefined): string {
+  if (!hex) return "0x";
+  if (hex.length <= 10) return hex;
+  return hex.slice(0, 10);
+}
+
+interface EdbRowSignatureProps {
+  ci: FunctionInvocation;
+  calldata: string[];
+  labelKnown: string | null;
+  labelIsAccount: boolean;
+  network: StarknetNetwork;
+  types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
+}
+
+function EdbRowSignature({
+  ci,
+  calldata,
+  labelKnown,
+  labelIsAccount,
+  network,
+  types,
+}: EdbRowSignatureProps) {
+  const sel = selectorName(ci);
+  const dyn = useContractName(labelKnown ? null : ci.contractAddress, network);
+  const contractDisplay = labelKnown ?? dyn.name ?? null;
+  const contractClass = labelKnown
+    ? labelIsAccount
+      ? "text-info"
+      : "text-success"
+    : dyn.name
+    ? "text-success"
+    : "text-foreground";
+
+  const fnAbi = ci.decodedFunctionAbi;
+  const inputs = fnAbi?.inputs ?? [];
+  const outputs = fnAbi?.outputs ?? [];
+
+  const inputPreviews = decodeInlineParams(inputs, calldata, types ?? {});
+  const outputPreviews = decodeInlineParams(outputs, ci.result || [], types ?? {});
+
+  const selectorPreview = selectorShort(ci.entryPointSelector);
+  const isSystemCaller = (() => {
+    const c = ci.callerAddress;
+    if (!c) return true;
+    try {
+      return BigInt(c) === 0n;
+    } catch {
+      return false;
+    }
+  })();
+  const senderShort = isSystemCaller ? "system" : shortHex(ci.callerAddress, 6, 4);
+  const receiverShort = shortHex(ci.contractAddress, 6, 4);
+
+  return (
+    <span className="font-mono text-xs flex items-baseline gap-0 min-w-0 truncate">
+      <span className="text-yellow-400 shrink-0">[</span>
+      <span className="text-muted-foreground shrink-0">Sender</span>
+      <span className="text-yellow-400 shrink-0">]</span>
+      <span
+        className={`ml-1 shrink-0 ${isSystemCaller ? "text-muted-foreground/60 italic" : "text-foreground/80"}`}
+      >
+        {senderShort}
+      </span>
+      <span className="text-muted-foreground mx-1.5">→</span>
+
+      <span className="text-yellow-400 shrink-0">[</span>
+      <span className="text-muted-foreground shrink-0">Receiver</span>
+      <span className="text-yellow-400 shrink-0">]</span>
+      <span className="ml-1 text-foreground/80 shrink-0">{receiverShort}</span>
+      {contractDisplay && (
+        <span className={`${contractClass} ml-1 shrink-0`}>{contractDisplay}</span>
+      )}
+      <span className="text-muted-foreground mx-1.5">→</span>
+
+      <span className="text-muted-foreground/70 shrink-0">{selectorPreview}</span>
+      <span className="ml-1 text-foreground font-medium shrink-0">
+        {sel ?? `unknown(${selectorPreview})`}
+      </span>
+      <span className="text-yellow-400">(</span>
+      <InlineParamList rows={inputPreviews} fallbackFelts={!fnAbi ? calldata : null} />
+      <span className="text-yellow-400">)</span>
+
+      {outputs.length > 0 && (
+        <>
+          <span className="text-muted-foreground mx-1.5">→</span>
+          <span className="text-yellow-400">(</span>
+          <InlineParamList rows={outputPreviews} fallbackFelts={null} />
+          <span className="text-yellow-400">)</span>
+        </>
+      )}
+    </span>
+  );
+}
+
+const SOURCE_PANE_HANDLE: {
+  current: ((target: { classHash: string }) => void) | null;
+} = { current: null };
+
+const PENDING_SOURCE_INTENT: { current: { classHash: string } | null } = {
+  current: null,
+};
+
+function CairoSourceLineBadge({
+  frame,
+  chainId,
+  functionName,
+  onSelectFrame,
+}: {
+  frame: FunctionInvocation;
+  chainId?: string | null;
+  functionName: string | null;
+  onSelectFrame?: (f: FunctionInvocation) => void;
+}) {
+  const network = chainIdToStarknetNetwork(chainId);
+  const classHash = frame.classHash || null;
+  const { data, loading } = useCairoSource(classHash, network);
+  if (!classHash || loading || !data?.verified || !functionName) return null;
+  const target = resolveCairoSourceTarget(data, functionName);
+  if (!target.functionFound) return null;
+
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.stopPropagation();
+    PENDING_SOURCE_INTENT.current = { classHash };
+    if (onSelectFrame) onSelectFrame(frame);
+    SOURCE_PANE_HANDLE.current?.({ classHash });
+    if (typeof document !== "undefined") {
+      const pane = document.querySelector('[data-testid="source-pane"]');
+      pane?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  };
+
+  const handleKey: React.KeyboardEventHandler<HTMLButtonElement> = (e) => {
+    if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={handleClick}
+          onKeyDown={handleKey}
+          className="shrink-0 inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
+          data-testid="cairo-source-line-badge"
+        >
+          <span className="opacity-50">·</span>
+          <span className="block max-w-[180px] truncate">
+            {target.file.path}:{target.line}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-[10px] font-mono">
+        Open Cairo source for{" "}
+        <span className="text-foreground">fn {functionName}</span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface InlineParamRow {
+  name: string;
+  type: string;
+  preview: string;
+  full: string;
+  isAddress: boolean;
+}
+
+function InlineParamList({
+  rows,
+  fallbackFelts,
+}: {
+  rows: InlineParamRow[];
+  fallbackFelts: string[] | null;
+}) {
+  if (rows.length === 0) {
+    if (fallbackFelts && fallbackFelts.length > 0) {
+      const head = fallbackFelts.slice(0, 2).map((f) => shortHex(f, 6, 4)).join(", ");
+      const extra =
+        fallbackFelts.length > 2 ? `, +${fallbackFelts.length - 2}` : "";
+      return (
+        <span className="text-muted-foreground/70 truncate">
+          {head}
+          {extra}
+        </span>
+      );
+    }
+    return null;
+  }
+  let used = 0;
+  const visible: InlineParamRow[] = [];
+  for (const r of rows) {
+    const cost = r.name.length + r.type.length + r.preview.length + 6;
+    if (visible.length > 0 && used + cost > INLINE_ROW_BUDGET) break;
+    visible.push(r);
+    used += cost;
+  }
+  const hidden = rows.length - visible.length;
+  return (
+    <span className="truncate">
+      {visible.map((r, i) => (
+        <span key={i}>
+          {i > 0 && <span className="text-muted-foreground/70">, </span>}
+          <span className="text-pink-300/90">{r.name}</span>
+          <span className="text-muted-foreground/60">: </span>
+          <span className="text-cyan-400/80">{r.type}</span>
+          <span className="text-muted-foreground/60"> = </span>
+          <InlineValue row={r} />
+        </span>
+      ))}
+      {hidden > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-muted-foreground/70 ml-1 cursor-help">
+              , …+{hidden} more
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-md font-mono text-[10px] whitespace-pre-wrap break-all">
+            {rows
+              .slice(visible.length)
+              .map((r) => `${r.name}: ${r.type} = ${r.full}`)
+              .join("\n")}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </span>
+  );
+}
+
+/** Truncate previews without leaving unmatched brackets. */
+function balancedTruncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const head = s.slice(0, max - 1);
+  const stack: string[] = [];
+  const closers: Record<string, string> = { "[": "]", "(": ")", "{": "}", "<": ">" };
+  for (const ch of head) {
+    if (ch === "[" || ch === "(" || ch === "{" || ch === "<") {
+      stack.push(closers[ch]);
+    } else if (ch === "]" || ch === ")" || ch === "}" || ch === ">") {
+      if (stack.length > 0 && stack[stack.length - 1] === ch) stack.pop();
+    }
+  }
+  let tail = "…";
+  while (stack.length > 0) tail += stack.pop();
+  return head + tail;
+}
+
+function InlineValue({ row }: { row: InlineParamRow }) {
+  const truncated = row.preview.length > INLINE_VALUE_MAX;
+  const display = truncated
+    ? balancedTruncate(row.preview, INLINE_VALUE_MAX)
+    : row.preview;
+  const valueClass = row.isAddress ? "text-success" : "text-foreground";
+  if (!truncated && row.preview === row.full) {
+    return <span className={valueClass}>{display}</span>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`${valueClass} cursor-help underline decoration-dotted decoration-muted-foreground/40`}
+        >
+          {display}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-md font-mono text-[10px] whitespace-pre-wrap break-all">
+        {row.full}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function decodeInlineParams(
+  params: Array<{ name: string; type: string }>,
+  felts: string[],
+  types: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>,
+): InlineParamRow[] {
+  const rows: InlineParamRow[] = [];
+  let i = 0;
+  for (let idx = 0; idx < params.length; idx++) {
+    const p = params[idx];
+    if (i >= felts.length) {
+      rows.push({
+        name: p.name || `arg${idx}`,
+        type: lastTypeSeg(p.type),
+        preview: "—",
+        full: "(no felt available)",
+        isAddress: false,
+      });
+      continue;
+    }
+    const r = previewForType(p.type, felts, i, types, 0);
+    rows.push({
+      name: p.name || `arg${idx}`,
+      type: lastTypeSeg(p.type),
+      preview: r.preview,
+      full: r.full,
+      isAddress: r.isAddress,
+    });
+    i = r.next;
+  }
+  return rows;
+}
+
+export function FrameDetailPane({
   frame,
   frames,
   parentMap,
@@ -471,8 +980,6 @@ function FrameDetailPane({
   onExplain,
 }: {
   frame: FunctionInvocation | null;
-  /** Walk-order frame array, used to compute the index for the
-   *  shareable #frame=N deep-link copy button. */
   frames: FunctionInvocation[];
   parentMap: Map<FunctionInvocation, FunctionInvocation | null>;
   chainId?: string | null;
@@ -494,11 +1001,12 @@ function FrameDetailPane({
   const sel = selectorName(frame);
   const lbl = frameLabel(frame);
   const calldata = stripSys ? stripSystemArgs(frame.calldata) : frame.calldata;
+  const network = chainIdToStarknetNetwork(chainId);
   return (
-    <Card className="p-4 gap-3">
+    <Card className="starknet-frame-detail-card p-4 gap-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="text-xs uppercase text-muted-foreground">Selected frame</div>
-        <div className="flex items-center gap-2">
+        <div className="starknet-frame-detail-actions flex items-center gap-2">
           <CopyFrameLinkButton frame={frame} frames={frames} />
           <CopyFrameJsonButton frame={frame} />
           {onExplain && (
@@ -514,7 +1022,7 @@ function FrameDetailPane({
         </div>
       </div>
       <FrameBreadcrumb frame={frame} parentMap={parentMap} onSelect={onSelect} />
-      <div className="text-sm space-y-2">
+      <div className="text-sm space-y-2 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={frame.callType === "Call" ? "success" : "accent"} size="sm">
             {frame.callType}
@@ -530,87 +1038,82 @@ function FrameDetailPane({
             </span>
           )}
         </div>
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-muted-foreground">contract:</span>{" "}
-            {lbl ? <span className="font-mono text-success">{lbl}</span> : null}{" "}
-            <span className="font-mono text-foreground break-all">{frame.contractAddress}</span>
-            <CopyButton value={frame.contractAddress} className="h-4 w-4" iconSize={10} />
-            {(() => {
-              const links = contractExplorerLinks(frame.contractAddress, chainId);
-              return (
-                <>
-                  <a
-                    href={links.voyager}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-foreground hover:underline"
-                    data-testid="contract-link-voyager"
-                  >
-                    Voyager
-                    <ArrowSquareOut size={10} />
-                  </a>
-                  <a
-                    href={links.starkscan}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center gap-0.5 text-[10px] text-foreground hover:underline"
-                    data-testid="contract-link-starkscan"
-                  >
-                    Starkscan
-                    <ArrowSquareOut size={10} />
-                  </a>
-                </>
-              );
-            })()}
+        <div className="starknet-frame-meta text-xs">
+          <div className="starknet-frame-meta-row">
+            <span className="starknet-frame-meta-label">contract</span>
+            <div className="starknet-frame-meta-value">
+              <FrameContractLabel
+                address={frame.contractAddress}
+                staticLabel={lbl}
+                network={network}
+              />
+              <span
+                className="starknet-frame-hash"
+                title={frame.contractAddress}
+              >
+                {shortHex(frame.contractAddress, 12, 10)}
+              </span>
+              <CopyButton
+                value={frame.contractAddress}
+                ariaLabel="Copy contract address"
+                className="h-4 w-4 shrink-0"
+                iconSize={10}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-muted-foreground">classHash:</span>{" "}
-            {(() => {
-              const cls = classLabel(frame.classHash);
-              return cls ? (
-                <span className="font-mono text-success">{cls}</span>
-              ) : null;
-            })()}
-            <span className="font-mono text-foreground break-all">{frame.classHash || "—"}</span>
-            {frame.classHash && (
-              <CopyButton value={frame.classHash} className="h-4 w-4" iconSize={10} />
-            )}
+          <div className="starknet-frame-meta-row">
+            <span className="starknet-frame-meta-label">class hash</span>
+            <div className="starknet-frame-meta-value">
+              {(() => {
+                const cls = classLabel(frame.classHash);
+                return cls ? (
+                  <span className="font-mono text-success">{cls}</span>
+                ) : null;
+              })()}
+              <span
+                className="starknet-frame-hash"
+                title={frame.classHash || undefined}
+              >
+                {frame.classHash ? shortHex(frame.classHash, 12, 10) : "—"}
+              </span>
+              {frame.classHash && (
+                <CopyButton
+                  value={frame.classHash}
+                  ariaLabel="Copy class hash"
+                  className="h-4 w-4 shrink-0"
+                  iconSize={10}
+                />
+              )}
+            </div>
           </div>
-          <div>
-            <span className="text-muted-foreground">caller:</span>{" "}
-            <span className="font-mono text-foreground">{shortHex(frame.callerAddress)}</span>
+          <div className="starknet-frame-meta-row">
+            <span className="starknet-frame-meta-label">caller</span>
+            <span className="starknet-frame-hash" title={frame.callerAddress}>
+              {shortHex(frame.callerAddress)}
+            </span>
           </div>
         </div>
 
-        {/* Voyager-style typed-input block when the bridge sent a
-            decoded ABI; otherwise fall back to the raw felt array. */}
-        {frame.decodedFunctionAbi && frame.decodedFunctionAbi.inputs.length > 0 ? (
-          <TypedParamBlock
-            label="INPUT"
-            params={frame.decodedFunctionAbi.inputs}
-            felts={calldata}
-            types={types}
-          />
-        ) : (
-          <DataBlock
-            label={`calldata (${calldata.length} felt${calldata.length === 1 ? "" : "s"})`}
-            items={calldata}
-          />
-        )}
-        {frame.decodedFunctionAbi && frame.decodedFunctionAbi.outputs.length > 0 ? (
-          <TypedParamBlock
-            label="OUTPUT"
-            params={frame.decodedFunctionAbi.outputs}
-            felts={frame.result || []}
-            types={types}
-          />
-        ) : (
-          <DataBlock
-            label={`retdata (${(frame.result || []).length} felt${(frame.result || []).length === 1 ? "" : "s"})`}
-            items={frame.result || []}
-          />
-        )}
+        <TypedParamBlock
+          label={`INPUT (calldata · ${calldata.length} felt${calldata.length === 1 ? "" : "s"})`}
+          params={
+            frame.decodedFunctionAbi && frame.decodedFunctionAbi.inputs.length > 0
+              ? frame.decodedFunctionAbi.inputs
+              : null
+          }
+          felts={calldata}
+          types={types}
+        />
+        <TypedParamBlock
+          label={`OUTPUT (retdata · ${(frame.result || []).length} felt${(frame.result || []).length === 1 ? "" : "s"})`}
+          params={
+            frame.decodedFunctionAbi && frame.decodedFunctionAbi.outputs.length > 0
+              ? frame.decodedFunctionAbi.outputs
+              : null
+          }
+          felts={frame.result || []}
+          types={types}
+        />
 
         {frame.events && frame.events.length ? (
           <Card className="p-2 gap-1 bg-background">
@@ -644,12 +1147,6 @@ function FrameDetailPane({
   );
 }
 
-/** Cairo-aware typed-param renderer. Pairs ABI inputs with their
- *  consumed slice of the calldata felt array — primitives consume one
- *  felt each, u256 / pairs of felts collapse to a single decimal value,
- *  arrays consume `[len, …]` and render as a Span<…> of the next len
- *  felts. Anything unknown gets shown as an opaque fallback so we
- *  never hide data. */
 function TypedParamBlock({
   label,
   params,
@@ -657,83 +1154,32 @@ function TypedParamBlock({
   types,
 }: {
   label: string;
-  params: import("@/chains/starknet/simulatorTypes").AbiParam[];
+  params: import("@/chains/starknet/simulatorTypes").AbiParam[] | null;
   felts: string[];
   types?: Record<string, import("@/chains/starknet/simulatorTypes").AbiTypeDef>;
 }) {
-  // Voyager-style Hex / Dec / Text format toggle. Persists across the
-  // session so a user who prefers decimal once gets it for every
-  // frame.
-  const [valueFormat, setValueFormat] = useState<ValueFormat>(() => {
-    if (typeof window === "undefined") return "hex";
-    try {
-      const raw = window.localStorage.getItem("hexkit:starknet-sim:valueFormat");
-      if (raw === "dec" || raw === "text") return raw;
-    } catch {/* fall through */}
-    return "hex";
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("hexkit:starknet-sim:valueFormat", valueFormat);
-    } catch {/* quota — preference just won't persist */}
-  }, [valueFormat]);
-  // Voyager has a Decoded / Raw toggle that flips the entire INPUT
-  // block from typed structured rendering to a flat indexed felt
-  // dump. Keep both available — typed is more useful 95% of the
-  // time but Raw is irreplaceable when the ABI decoder is wrong or
-  // missing for a given frame.
-  const [showRaw, setShowRaw] = useState(false);
+  const valueFormat: ValueFormat = "hex";
+  const showRaw = !params || params.length === 0;
 
   const rows: Array<{ name: string; type: string; rendered: React.ReactNode; raw: string }> = [];
   let i = 0;
-  for (const p of params) {
-    const consumed = consumeForType(p.type, felts, i, types ?? {}, 0, valueFormat);
-    rows.push({
-      name: p.name || `arg${rows.length}`,
-      type: p.type,
-      rendered: consumed.rendered,
-      raw: consumed.raw,
-    });
-    i = consumed.next;
+  if (params) {
+    for (const p of params) {
+      const consumed = consumeForType(p.type, felts, i, types ?? {}, 0, valueFormat);
+      rows.push({
+        name: p.name || `arg${rows.length}`,
+        type: p.type,
+        rendered: consumed.rendered,
+        raw: consumed.raw,
+      });
+      i = consumed.next;
+    }
   }
-  // If we consumed less than the felt array (e.g. unknown layout) tail
-  // the rest as "extra" so nothing is hidden.
   const tail = felts.slice(i);
   return (
     <Card className="p-2 gap-1.5 bg-background">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
-        <div className="flex items-center gap-1.5">
-          <div className="inline-flex rounded-md border border-border overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowRaw(false)}
-              aria-pressed={!showRaw}
-              data-testid="view-decoded"
-              className={`px-1.5 py-0.5 text-[9px] uppercase ${
-                !showRaw
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Decoded
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRaw(true)}
-              aria-pressed={showRaw}
-              data-testid="view-raw"
-              className={`px-1.5 py-0.5 text-[9px] uppercase border-l border-border ${
-                showRaw
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Raw
-            </button>
-          </div>
-          <ValueFormatToggle value={valueFormat} onChange={setValueFormat} />
-        </div>
       </div>
       <div className="text-xs space-y-1.5">
         {showRaw ? (
@@ -786,41 +1232,6 @@ function TypedParamBlock({
 
 type ValueFormat = "hex" | "dec" | "text";
 
-/** Voyager-style segmented control for the per-block value format. */
-function ValueFormatToggle({
-  value,
-  onChange,
-}: {
-  value: ValueFormat;
-  onChange: (v: ValueFormat) => void;
-}) {
-  const opts: ValueFormat[] = ["hex", "dec", "text"];
-  return (
-    <div className="inline-flex rounded-md border border-border overflow-hidden">
-      {opts.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          aria-pressed={value === o}
-          data-testid={`value-format-${o}`}
-          className={`px-1.5 py-0.5 text-[9px] uppercase ${
-            value === o
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          } ${o === "dec" || o === "text" ? "border-l border-border" : ""}`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Re-render a single felt value in the user-chosen base. Hex stays
- *  as-is; dec converts via BigInt; text decodes as ASCII when each
- *  byte is printable (Cairo's `'string'` short-strings are felts of
- *  ASCII bytes). Falls back to hex for non-printable values. */
 function formatFelt(hex: string, fmt: ValueFormat): string {
   if (fmt === "hex") return hex;
   let n: bigint;
@@ -830,11 +1241,8 @@ function formatFelt(hex: string, fmt: ValueFormat): string {
     return hex;
   }
   if (fmt === "dec") return n.toString();
-  // text — only decode when every byte is printable ASCII (>= 0x20,
-  // < 0x7f). Otherwise show hex. Useful for ABI selectors / session-
-  // token bytes / Cairo short strings, noisy for everything else.
   if (n === 0n) return "''";
-  let bytes: number[] = [];
+  const bytes: number[] = [];
   let v = n;
   while (v > 0n) {
     bytes.unshift(Number(v & 0xffn));
@@ -846,11 +1254,6 @@ function formatFelt(hex: string, fmt: ValueFormat): string {
   return hex;
 }
 
-/** Per-Cairo-type recursive felt consumer. Walks the bridge's type
- *  registry so structs, enums, and arrays of any depth get their
- *  proper field/variant breakdown rendered as nested rows. Recursion
- *  capped at depth 8 + array length 64 to keep accidental
- *  self-referential type loops from blowing the stack or the DOM. */
 function consumeForType(
   ty: string,
   felts: string[],
@@ -868,7 +1271,6 @@ function consumeForType(
     };
   }
   const norm = ty.replace(/\s+/g, "");
-  // u256 = (low, high) — render as decimal big-int.
   if (norm.endsWith("::u256") || norm === "u256") {
     const low = felts[i] ?? "0x0";
     const high = felts[i + 1] ?? "0x0";
@@ -891,7 +1293,6 @@ function consumeForType(
       next: i + 2,
     };
   }
-  // bool — single felt (0 or 1).
   if (norm.endsWith("::bool") || norm === "bool") {
     const v = felts[i] ?? "0x0";
     let display = v;
@@ -906,9 +1307,6 @@ function consumeForType(
       next: i + 1,
     };
   }
-  // Array<T> / Span<T> — len felt followed by N items. Recurse into
-  // the inner type so an array of structs renders as N expanded
-  // structs rather than a flat felt list.
   const arrayMatch = norm.match(/Array::<(.+)>$|Span::<(.+)>$/);
   if (arrayMatch) {
     const inner = arrayMatch[1] ?? arrayMatch[2] ?? "felt";
@@ -946,7 +1344,6 @@ function consumeForType(
       next: pos,
     };
   }
-  // Tuple — `(T, U, …)` — consume each component sequentially.
   if (norm.startsWith("(") && norm.endsWith(")")) {
     const inner = splitTupleArgs(norm.slice(1, -1));
     const rendered: React.ReactNode[] = [];
@@ -967,7 +1364,6 @@ function consumeForType(
       next: pos,
     };
   }
-  // Struct from the bridge's type registry — recurse into each field.
   const structDef = types[ty] ?? types[norm];
   if (structDef && structDef.kind === "struct") {
     const rows: React.ReactNode[] = [];
@@ -993,10 +1389,6 @@ function consumeForType(
       next: pos,
     };
   }
-  // Enum — Cairo enums are emitted as (variant_index, payload_felts).
-  // The actual layout depends on the variant; we conservatively show
-  // the discriminator and one felt of payload. Without the variant
-  // type-aware payload size, deeper expansion would mis-align.
   if (structDef && structDef.kind === "enum") {
     const disc = felts[i] ?? "0x0";
     let variantName = `variant ${disc}`;
@@ -1019,7 +1411,6 @@ function consumeForType(
       next: i + 1,
     };
   }
-  // Default: one felt, render with the user's preferred format.
   const v = felts[i] ?? "—";
   const formatted = v === "—" ? v : formatFelt(v, fmt);
   return {
@@ -1029,85 +1420,933 @@ function consumeForType(
   };
 }
 
-/** Last `::`-separated segment of a Cairo type, with generics
- *  collapsed to a short form — useful for one-line previews. */
-function lastTypeSeg(ty: string): string {
-  const stripped = ty.replace(/\s+/g, "");
-  // Special-case Array<T> / Span<T> → keep the wrapper to convey
-  // "this is a list" without dragging the inner generic.
-  const arr = stripped.match(/Array::<(.+)>$|Span::<(.+)>$/);
-  if (arr) {
-    const inner = arr[1] ?? arr[2] ?? "felt";
-    const innerSeg = inner.split("::").slice(-1)[0] ?? inner;
-    return `Array<${innerSeg.replace(/[<>]/g, "")}>`;
-  }
-  return stripped.split("::").slice(-1)[0] ?? stripped;
+interface ClassInfoEntryPoint {
+  selector: string;
+  functionIdx?: number;
+  offset?: number;
 }
 
-/** Split a Cairo tuple's inner args by top-level commas, respecting
- *  nested `<...>` / `(...)` so `(felt, Array::<u256>, (a, b))` splits
- *  into 3 components. */
-function splitTupleArgs(inner: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < inner.length; i++) {
-    const c = inner[i];
-    if (c === "<" || c === "(") depth++;
-    else if (c === ">" || c === ")") depth--;
-    else if (c === "," && depth === 0) {
-      out.push(inner.slice(start, i).trim());
-      start = i + 1;
+interface ClassInfoAbiParam {
+  name: string;
+  type: string;
+}
+
+type ClassInfoAbiItem =
+  | {
+      type: "function" | "external" | "view" | "l1_handler" | "constructor";
+      name: string;
+      inputs?: ClassInfoAbiParam[];
+      outputs?: ClassInfoAbiParam[];
+      state_mutability?: string;
+    }
+  | {
+      type: "event";
+      name: string;
+      inputs?: ClassInfoAbiParam[];
+      members?: ClassInfoAbiParam[];
+      kind?: string;
+    }
+  | {
+      type: "struct";
+      name: string;
+      members?: ClassInfoAbiParam[];
+    }
+  | {
+      type: "enum";
+      name: string;
+      variants?: ClassInfoAbiParam[];
+    }
+  | {
+      type: "interface" | "impl";
+      name: string;
+      items?: ClassInfoAbiItem[];
+      interface_name?: string;
+    };
+
+export interface ClassInfo {
+  classHash: string;
+  isCairo1: boolean;
+  contractClassVersion?: string | null;
+  abi: ClassInfoAbiItem[] | null;
+  entryPoints: {
+    external: ClassInfoEntryPoint[];
+    l1Handler: ClassInfoEntryPoint[];
+    constructor: ClassInfoEntryPoint[];
+  };
+  sierraProgram: { length: number; sample: string[] } | null;
+  program: { encodedLength: number } | null;
+}
+
+const classInfoCache = new Map<string, ClassInfo>();
+const classInfoInflight = new Map<string, Promise<ClassInfo>>();
+
+function classInfoCacheKey(classHash: string, network: StarknetNetwork): string {
+  return `${network}:${classHash.toLowerCase()}`;
+}
+
+export function chainIdToStarknetNetwork(chainId: string | null | undefined): StarknetNetwork {
+  const lower = (chainId || "").toLowerCase();
+  return lower === "0x534e5f5345504f4c4941" ||
+    lower === "0x534e5f494e544547524154494f4e5f5345504f4c4941"
+    ? "sepolia"
+    : "mainnet";
+}
+
+export async function fetchClassInfo(
+  classHash: string,
+  network: StarknetNetwork = "mainnet",
+): Promise<ClassInfo> {
+  const key = classInfoCacheKey(classHash, network);
+  const cached = classInfoCache.get(key);
+  if (cached) return cached;
+  const flight = classInfoInflight.get(key);
+  if (flight) return flight;
+
+  const base = (getStarknetSimBridgeUrl() || "").replace(/\/+$/, "");
+  if (!base) {
+    throw new Error("Starknet sim bridge URL not configured");
+  }
+  const url = `${base}/class?class_hash=${encodeURIComponent(classHash)}`;
+  const promise = (async () => {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getBridgeHeaders(rpcOverrideHeaderFor(network)),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`bridge /class ${response.status}: ${text || response.statusText}`);
+    }
+    const data = (await response.json()) as ClassInfo;
+    classInfoCache.set(key, data);
+    if (Array.isArray(data?.abi) && data.abi.length > 0) {
+      try {
+        markClassVerified(classHash);
+      } catch {
+        /* non-critical marker update */
+      }
+    }
+    return data;
+  })();
+  classInfoInflight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    classInfoInflight.delete(key);
+  }
+}
+
+function felthexEq(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const norm = (h: string) =>
+    h.replace(/^0x/i, "").replace(/^0+/, "").toLowerCase() || "0";
+  return norm(a) === norm(b);
+}
+
+interface FlattenedAbi {
+  functions: Array<{
+    name: string;
+    kind: "function" | "l1_handler" | "constructor";
+    inputs: ClassInfoAbiParam[];
+    outputs: ClassInfoAbiParam[];
+    stateMutability?: string;
+  }>;
+  events: Array<{ name: string; fields: ClassInfoAbiParam[] }>;
+  structs: Array<{ name: string; fields: ClassInfoAbiParam[] }>;
+  enums: Array<{ name: string; variants: ClassInfoAbiParam[] }>;
+}
+
+export function flattenAbi(abi: ClassInfoAbiItem[] | null): FlattenedAbi {
+  const functions: FlattenedAbi["functions"] = [];
+  const events: FlattenedAbi["events"] = [];
+  const structs: FlattenedAbi["structs"] = [];
+  const enums: FlattenedAbi["enums"] = [];
+
+  function walk(items: ClassInfoAbiItem[] | undefined): void {
+    if (!Array.isArray(items)) return;
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      switch (item.type) {
+        case "function":
+        case "external":
+        case "view":
+          functions.push({
+            name: item.name,
+            kind: "function",
+            inputs: item.inputs ?? [],
+            outputs: item.outputs ?? [],
+            stateMutability: item.state_mutability,
+          });
+          break;
+        case "l1_handler":
+          functions.push({
+            name: item.name,
+            kind: "l1_handler",
+            inputs: item.inputs ?? [],
+            outputs: item.outputs ?? [],
+          });
+          break;
+        case "constructor":
+          functions.push({
+            name: item.name,
+            kind: "constructor",
+            inputs: item.inputs ?? [],
+            outputs: item.outputs ?? [],
+          });
+          break;
+        case "event":
+          events.push({
+            name: item.name,
+            fields: item.members ?? item.inputs ?? [],
+          });
+          break;
+        case "struct":
+          if (item.members && item.members.length > 0) {
+            structs.push({ name: item.name, fields: item.members });
+          }
+          break;
+        case "enum":
+          if (item.variants && item.variants.length > 0) {
+            enums.push({ name: item.name, variants: item.variants });
+          }
+          break;
+        case "interface":
+        case "impl":
+          walk(item.items);
+          break;
+        default:
+          break;
+      }
     }
   }
-  if (start < inner.length) out.push(inner.slice(start).trim());
-  return out.filter(Boolean);
+  walk(abi ?? undefined);
+  return { functions, events, structs, enums };
 }
 
-function DataBlock({ label, items }: { label: string; items: string[] }) {
+function shortenName(name: string, max = 64): string {
+  if (name.length <= max) return name;
+  const tail = name.split("::").pop() ?? name;
+  if (tail.length <= max) return tail;
+  return `${name.slice(0, max - 1)}…`;
+}
+
+export function classExplorerVoyager(
+  classHash: string,
+  chainId: string | null | undefined,
+): string {
+  const lower = (chainId || "").toLowerCase();
+  const host =
+    lower === "0x534e5f5345504f4c4941" ||
+    lower === "0x534e5f494e544547524154494f4e5f5345504f4c4941"
+      ? "sepolia.voyager.online"
+      : "voyager.online";
+  return `https://${host}/class/${classHash}`;
+}
+
+export function SourcePane({
+  frame,
+  chainId,
+  defaultTab = "functions",
+}: {
+  frame: FunctionInvocation | null;
+  chainId?: string | null;
+  defaultTab?: "functions" | "events" | "types" | "source";
+}) {
+  const classHash = frame?.classHash || null;
+  const network = chainIdToStarknetNetwork(chainId);
+  const cairoSource = useCairoSource(classHash, network);
+  const [info, setInfo] = useState<ClassInfo | null>(() =>
+    classHash ? classInfoCache.get(classInfoCacheKey(classHash, network)) ?? null : null,
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState<"functions" | "events" | "types" | "source">(
+    defaultTab,
+  );
+  useEffect(() => {
+    const pending = PENDING_SOURCE_INTENT.current;
+    if (
+      pending &&
+      classHash &&
+      pending.classHash.toLowerCase() === classHash.toLowerCase()
+    ) {
+      setTab("source");
+      PENDING_SOURCE_INTENT.current = null;
+    } else {
+      setTab(defaultTab);
+    }
+  }, [classHash, defaultTab]);
+  useEffect(() => {
+    const handle = (target: { classHash: string }) => {
+      if (
+        classHash &&
+        target.classHash.toLowerCase() === classHash.toLowerCase()
+      ) {
+        setTab("source");
+      }
+    };
+    SOURCE_PANE_HANDLE.current = handle;
+    return () => {
+      if (SOURCE_PANE_HANDLE.current === handle) {
+        SOURCE_PANE_HANDLE.current = null;
+      }
+    };
+  }, [classHash]);
+
+  useEffect(() => {
+    if (!classHash) {
+      setInfo(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    const cached = classInfoCache.get(classInfoCacheKey(classHash, network));
+    if (cached) {
+      setInfo(cached);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setInfo(null);
+    fetchClassInfo(classHash, network)
+      .then((data) => {
+        if (cancelled) return;
+        setInfo(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : String(err));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [classHash, network]);
+
+  const flattened = useMemo(() => flattenAbi(info?.abi ?? null), [info]);
+
+  if (!frame) {
+    return (
+      <Card className="p-4 gap-3">
+        <div className="text-xs uppercase text-muted-foreground">Cairo source</div>
+        <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground leading-relaxed">
+          Select a frame in the call tree to view its source.
+        </div>
+      </Card>
+    );
+  }
+
+  if (!classHash) {
+    return (
+      <Card className="p-4 gap-3">
+        <div className="text-xs uppercase text-muted-foreground">Cairo source</div>
+        <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground leading-relaxed">
+          Selected frame has no class hash (likely a revert before class load).
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="p-2 gap-1 bg-background">
-      <div className="text-[10px] uppercase text-muted-foreground">{label}</div>
-      <div className="font-mono text-xs space-y-0.5 max-h-44 overflow-auto">
-        {items.length === 0 ? (
-          <div className="text-muted-foreground/70">empty</div>
-        ) : (
-          items.map((f, i) => (
-            <div key={i}>
-              <span className="text-muted-foreground">[{i}]</span> {f}
+    <Card className="p-4 gap-3" data-testid="source-pane">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="text-xs uppercase text-muted-foreground">Cairo source</div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {info ? (
+            <>
+              <Badge variant="outline" className="text-[10px] uppercase">
+                {info.isCairo1 ? "Cairo 1" : "Cairo 0"}
+              </Badge>
+              {info.contractClassVersion ? (
+                <Badge variant="outline" className="text-[10px]">
+                  v{info.contractClassVersion}
+                </Badge>
+              ) : null}
+              {info.isCairo1 && info.sierraProgram ? (
+                <Badge variant="outline" className="text-[10px]">
+                  {info.sierraProgram.length.toLocaleString()} felts
+                </Badge>
+              ) : null}
+              {!info.isCairo1 && info.program ? (
+                <Badge variant="outline" className="text-[10px]">
+                  {info.program.encodedLength.toLocaleString()} bytes
+                </Badge>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+        <div className="starknet-source-class-row flex items-center gap-2 text-xs flex-wrap">
+        <span className="text-muted-foreground">class</span>
+        <span className="font-mono text-[11px]" title={classHash}>
+          {shortHex(classHash)}
+        </span>
+        <CopyButton value={classHash} />
+        <a
+          href={classExplorerVoyager(classHash, chainId)}
+          target="_blank"
+          rel="noreferrer"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          <ArrowSquareOut size={12} />
+          Voyager
+        </a>
+      </div>
+
+      {loading ? (
+        <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground">
+          Loading class…
+        </div>
+      ) : error ? (
+        <div className="rounded bg-background border border-border p-3 text-xs text-destructive break-all">
+          Failed to load class: {error}
+        </div>
+      ) : info ? (
+        <ClassInfoTabs
+          key={`${classHash}:${frame.entryPointSelector}`}
+          info={info}
+          flattened={flattened}
+          activeSelector={frame.entryPointSelector}
+          activeFunctionName={selectorName(frame)}
+          cairoSource={cairoSource.data}
+          cairoSourceLoading={cairoSource.loading}
+          cairoSourceError={cairoSource.error}
+          tab={tab}
+          onTabChange={setTab}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
+export function ClassInfoTabs({
+  info,
+  flattened,
+  activeSelector,
+  activeFunctionName,
+  cairoSource,
+  cairoSourceLoading,
+  cairoSourceError,
+  tab,
+  onTabChange,
+}: {
+  info: ClassInfo;
+  flattened: FlattenedAbi;
+  activeSelector: string;
+  activeFunctionName?: string | null;
+  cairoSource: CairoSourceResponse | null;
+  cairoSourceLoading: boolean;
+  cairoSourceError: string | null;
+  tab?: "functions" | "events" | "types" | "source";
+  onTabChange?: (next: "functions" | "events" | "types" | "source") => void;
+}) {
+  const totalEntryPoints =
+    info.entryPoints.external.length +
+    info.entryPoints.l1Handler.length +
+    info.entryPoints.constructor.length;
+
+  const [internalTab, setInternalTab] = useState<
+    "functions" | "events" | "types" | "source"
+  >("functions");
+  const isControlled = tab !== undefined && onTabChange !== undefined;
+  const effectiveTab = isControlled ? tab! : internalTab;
+  const handleTabChange = (
+    next: "functions" | "events" | "types" | "source",
+  ) => {
+    if (!isControlled) setInternalTab(next);
+    onTabChange?.(next);
+  };
+
+  return (
+    <Tabs
+      value={effectiveTab}
+      onValueChange={(v) =>
+        handleTabChange(v as "functions" | "events" | "types" | "source")
+      }
+      className="gap-2"
+    >
+      <TabsList
+        className="starknet-class-info-tabs h-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <TabsTrigger value="functions" className="text-[11px] px-2" data-testid="class-info-tab-functions">
+          Functions ({totalEntryPoints})
+        </TabsTrigger>
+        <TabsTrigger value="events" className="text-[11px] px-2" data-testid="class-info-tab-events">
+          Events ({flattened.events.length})
+        </TabsTrigger>
+        <TabsTrigger value="types" className="text-[11px] px-2" data-testid="class-info-tab-types">
+          Types ({flattened.structs.length + flattened.enums.length})
+        </TabsTrigger>
+        <TabsTrigger value="source" className="text-[11px] px-2" data-testid="class-info-tab-source">
+          Source ({cairoSource?.files.length ?? 0})
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="functions" className="mt-1">
+        <FunctionList
+          info={info}
+          flattened={flattened}
+          activeSelector={activeSelector}
+        />
+      </TabsContent>
+
+      <TabsContent value="events" className="mt-1">
+        <EventList events={flattened.events} />
+      </TabsContent>
+
+      <TabsContent value="types" className="mt-1">
+        <TypeList structs={flattened.structs} enums={flattened.enums} />
+      </TabsContent>
+
+      <TabsContent value="source" className="mt-1">
+        <InlineCairoSource
+          source={cairoSource}
+          loading={cairoSourceLoading}
+          error={cairoSourceError}
+          activeFunctionName={activeFunctionName}
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function InlineCairoSource({
+  source,
+  loading,
+  error,
+  activeFunctionName,
+}: {
+  source: CairoSourceResponse | null;
+  loading: boolean;
+  error: string | null;
+  activeFunctionName?: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded border border-border bg-background p-3 text-xs text-muted-foreground">
+        Loading verified Cairo source…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="rounded border border-border bg-background p-3 text-xs text-destructive break-all">
+        Failed to load Cairo source: {error}
+      </div>
+    );
+  }
+  if (!source || !source.verified || source.files.length === 0) {
+    return (
+      <div className="rounded border border-border bg-background p-3 text-xs text-muted-foreground">
+        Verified Cairo source is not available for this class.
+      </div>
+    );
+  }
+  const target = resolveCairoSourceTarget(source, activeFunctionName);
+  return (
+    <div className="rounded border border-border bg-background overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-[11px]">
+        <span className="font-mono truncate" title={target.file.path}>
+          {target.file.path}
+        </span>
+        <div className="flex items-center gap-1.5">
+          {target.functionFound && activeFunctionName ? (
+            <Badge variant="info" className="text-[10px]">
+              {activeFunctionName}
+            </Badge>
+          ) : null}
+          <Badge variant="outline" className="text-[10px]">
+            verified
+          </Badge>
+        </div>
+      </div>
+      <div className="max-h-[420px] overflow-auto">
+        <ColorizedSnippet
+          sourceContent={target.file.content}
+          highlightLine={target.line}
+          contextLines={target.functionFound ? 18 : 30}
+          language="cairo"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function resolveCairoSourceTarget(
+  source: CairoSourceResponse,
+  activeFunctionName: string | null | undefined,
+): { file: CairoSourceResponse["files"][number]; line: number; functionFound: boolean } {
+  const files = source.files.length > 0 ? source.files : [{ path: "", content: "" }];
+  const mainFile =
+    files.find((f) => f.path === source.mainFile) ??
+    files.find((f) => f.path.endsWith(".cairo")) ??
+    files[0];
+
+  const functionName = activeFunctionName?.trim();
+  if (!functionName) {
+    return { file: mainFile, line: 1, functionFound: false };
+  }
+
+  type FileMatch = {
+    file: CairoSourceResponse["files"][number];
+    line: number;
+    isMethod: boolean;
+    inImpl: boolean;
+    hasBody: boolean;
+  };
+  const all: FileMatch[] = [];
+  for (const file of files) {
+    const fileMatches = findCairoFunctionMatches(file.content, functionName);
+    for (const m of fileMatches) {
+      all.push({
+        file,
+        line: m.line,
+        isMethod: m.isMethod,
+        inImpl: m.inImpl,
+        hasBody: m.hasBody,
+      });
+    }
+  }
+
+  if (all.length === 0) {
+    return { file: mainFile, line: 1, functionFound: false };
+  }
+  const score = (m: FileMatch) =>
+    (m.hasBody ? 2 : 0) + (m.inImpl ? 1 : 0) + (m.isMethod ? 1 : 0);
+  all.sort((a, b) => score(b) - score(a));
+  const best = all[0];
+  return { file: best.file, line: best.line, functionFound: true };
+}
+
+interface CairoFunctionMatch {
+  line: number;
+  isMethod: boolean;
+  inImpl: boolean;
+  hasBody: boolean;
+}
+
+function findCairoFunctionMatches(
+  content: string,
+  functionName: string,
+): CairoFunctionMatch[] {
+  const shortName = functionName.split("::").pop() ?? functionName;
+  const escaped = escapeRegex(shortName);
+  const fnRegex = new RegExp(`\\b(?:fn|func)\\s+${escaped}\\b`);
+  const lines = content.split("\n");
+
+  const cleaned: string[] = [];
+  let inBlock = false;
+  for (const raw of lines) {
+    let out = "";
+    let i = 0;
+    while (i < raw.length) {
+      if (inBlock) {
+        const close = raw.indexOf("*/", i);
+        if (close === -1) {
+          i = raw.length;
+          break;
+        }
+        i = close + 2;
+        inBlock = false;
+        continue;
+      }
+      const ch = raw[i];
+      const next = raw[i + 1];
+      if (ch === "/" && next === "/") break;
+      if (ch === "/" && next === "*") {
+        inBlock = true;
+        i += 2;
+        continue;
+      }
+      out += ch;
+      i++;
+    }
+    cleaned.push(out);
+  }
+
+  const matches: CairoFunctionMatch[] = [];
+  let depth = 0;
+  const implOpenStack: number[] = [];
+  let pendingImpl = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const line = cleaned[i];
+    if (/\b(?:pub\s+)?impl\b/.test(line) && !line.includes(";")) {
+      if (line.includes("{")) {
+        implOpenStack.push(depth);
+      } else {
+        pendingImpl = true;
+      }
+    } else if (pendingImpl) {
+      if (line.includes("{")) {
+        implOpenStack.push(depth);
+        pendingImpl = false;
+      } else if (line.includes(";")) {
+        pendingImpl = false;
+      }
+    }
+    for (const ch of line) {
+      if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (
+          implOpenStack.length > 0 &&
+          depth <= implOpenStack[implOpenStack.length - 1]
+        ) {
+          implOpenStack.pop();
+        }
+      }
+    }
+    if (!fnRegex.test(line)) continue;
+    const sigChunk = cleaned
+      .slice(i, Math.min(i + 6, cleaned.length))
+      .join(" ");
+    const isMethod = /\b(?:ref\s+|mut\s+)?self\s*:/.test(sigChunk);
+    const semi = sigChunk.indexOf(";");
+    const brace = sigChunk.indexOf("{");
+    const hasBody =
+      brace !== -1 && (semi === -1 || brace < semi);
+    matches.push({
+      line: i + 1,
+      isMethod,
+      inImpl: implOpenStack.length > 0,
+      hasBody,
+    });
+  }
+
+  return matches;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function FunctionList({
+  info,
+  flattened,
+  activeSelector,
+}: {
+  info: ClassInfo;
+  flattened: FlattenedAbi;
+  activeSelector: string;
+}) {
+  const externalAbi = flattened.functions.filter((f) => f.kind === "function");
+  const constructorAbi = flattened.functions.filter((f) => f.kind === "constructor");
+  const l1HandlerAbi = flattened.functions.filter((f) => f.kind === "l1_handler");
+
+  type Row = {
+    selector: string;
+    sig?: { name: string; inputs: ClassInfoAbiParam[]; outputs: ClassInfoAbiParam[] };
+    kind: "external" | "l1_handler" | "constructor";
+  };
+
+  const rows: Row[] = [];
+  info.entryPoints.external.forEach((ep, idx) => {
+    rows.push({
+      selector: ep.selector,
+      sig: externalAbi[idx]
+        ? {
+            name: externalAbi[idx].name,
+            inputs: externalAbi[idx].inputs,
+            outputs: externalAbi[idx].outputs,
+          }
+        : undefined,
+      kind: "external",
+    });
+  });
+  info.entryPoints.l1Handler.forEach((ep, idx) => {
+    rows.push({
+      selector: ep.selector,
+      sig: l1HandlerAbi[idx]
+        ? {
+            name: l1HandlerAbi[idx].name,
+            inputs: l1HandlerAbi[idx].inputs,
+            outputs: l1HandlerAbi[idx].outputs,
+          }
+        : undefined,
+      kind: "l1_handler",
+    });
+  });
+  info.entryPoints.constructor.forEach((ep, idx) => {
+    rows.push({
+      selector: ep.selector,
+      sig: constructorAbi[idx]
+        ? {
+            name: constructorAbi[idx].name,
+            inputs: constructorAbi[idx].inputs,
+            outputs: constructorAbi[idx].outputs,
+          }
+        : undefined,
+      kind: "constructor",
+    });
+  });
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground">
+        No entry points exposed.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded bg-background border border-border max-h-80 overflow-auto">
+      <ul className="divide-y divide-border">
+        {rows.map((row, i) => {
+          const active = felthexEq(row.selector, activeSelector);
+          const inputs = row.sig?.inputs ?? [];
+          const outputs = row.sig?.outputs ?? [];
+          return (
+            <li
+              key={`${row.selector}-${i}`}
+              className={`px-2 py-1.5 text-xs ${
+                active ? "bg-muted/60 border-l-2 border-foreground" : ""
+              }`}
+              data-testid={active ? "active-entry-point" : undefined}
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[11px] truncate">
+                  {row.sig ? row.sig.name : "<selector only>"}
+                </span>
+                <Badge variant="outline" className="text-[9px] uppercase shrink-0">
+                  {row.kind === "external" ? "ext" : row.kind === "l1_handler" ? "l1" : "ctor"}
+                </Badge>
+                {active ? (
+                  <Badge variant="outline" className="text-[9px] uppercase shrink-0">
+                    selected
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="font-mono text-[10px] text-muted-foreground/80 mt-0.5 break-all">
+                {shortHex(row.selector, 14, 8)}
+              </div>
+              {inputs.length || outputs.length ? (
+                <div className="font-mono text-[10px] mt-1 space-y-0.5">
+                  {inputs.length ? (
+                    <div>
+                      <span className="text-muted-foreground">in </span>
+                      <span>
+                        ({inputs
+                          .map((p) => `${p.name}: ${shortenName(p.type)}`)
+                          .join(", ")})
+                      </span>
+                    </div>
+                  ) : null}
+                  {outputs.length ? (
+                    <div>
+                      <span className="text-muted-foreground">out</span>{" "}
+                      <span>
+                        ({outputs
+                          .map((p) => (p.name ? `${p.name}: ` : "") + shortenName(p.type))
+                          .join(", ")})
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+export function EventList({
+  events,
+}: {
+  events: FlattenedAbi["events"];
+}) {
+  if (events.length === 0) {
+    return (
+      <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground">
+        No events declared.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded bg-background border border-border max-h-80 overflow-auto">
+      <ul className="divide-y divide-border">
+        {events.map((ev, i) => (
+          <li key={`${ev.name}-${i}`} className="px-2 py-1.5 text-xs">
+            <div className="font-mono text-[11px] truncate" title={ev.name}>
+              {shortenName(ev.name)}
             </div>
-          ))
-        )}
-      </div>
-    </Card>
+            {ev.fields.length ? (
+              <div className="font-mono text-[10px] text-muted-foreground mt-0.5">
+                {ev.fields
+                  .map((p) => `${p.name}: ${shortenName(p.type)}`)
+                  .join(", ")}
+              </div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground/70">no fields</div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-function SourcePane({ frame }: { frame: FunctionInvocation | null }) {
+export function TypeList({
+  structs,
+  enums,
+}: {
+  structs: FlattenedAbi["structs"];
+  enums: FlattenedAbi["enums"];
+}) {
+  if (structs.length === 0 && enums.length === 0) {
+    return (
+      <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground">
+        No struct or enum types exposed.
+      </div>
+    );
+  }
   return (
-    <Card className="p-4 gap-3">
-      <div className="text-xs uppercase text-muted-foreground">Cairo source</div>
-      <div className="rounded bg-background border border-border p-3 text-xs text-muted-foreground leading-relaxed">
-        {frame ? (
-          <>
-            Cairo source unavailable for{" "}
-            <span className="font-mono">{shortHex(frame.classHash) || "unverified class"}</span>.
-            Verified-class lookup + <span className="font-mono">cairo-annotations</span>{" "}
-            plumbing land in a future bridge release.
-          </>
-        ) : (
-          <>Select a frame in the call tree to view its source.</>
-        )}
-      </div>
-    </Card>
+    <div className="rounded bg-background border border-border max-h-80 overflow-auto divide-y divide-border">
+      {structs.length ? (
+        <div className="px-2 py-1.5">
+          <div className="text-[10px] uppercase text-muted-foreground mb-1">Structs</div>
+          <ul className="space-y-1.5">
+            {structs.map((s, i) => (
+              <li key={`s-${s.name}-${i}`} className="text-xs">
+                <div className="font-mono text-[11px] truncate" title={s.name}>
+                  {shortenName(s.name)}
+                </div>
+                <div className="font-mono text-[10px] text-muted-foreground">
+                  {s.fields.map((f) => `${f.name}: ${shortenName(f.type)}`).join(", ")}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {enums.length ? (
+        <div className="px-2 py-1.5">
+          <div className="text-[10px] uppercase text-muted-foreground mb-1">Enums</div>
+          <ul className="space-y-1.5">
+            {enums.map((e, i) => (
+              <li key={`e-${e.name}-${i}`} className="text-xs">
+                <div className="font-mono text-[11px] truncate" title={e.name}>
+                  {shortenName(e.name)}
+                </div>
+                <div className="font-mono text-[10px] text-muted-foreground">
+                  {e.variants.map((v) => `${v.name}${v.type ? `(${shortenName(v.type)})` : ""}`).join(" | ")}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-/** Copies the current page URL with `#frame=N` set to the selected
- *  frame's walk-order index. Pairs with the existing read side
- *  (StarknetSimulationResults' useEffect that restores #frame=N on
- *  mount) so a shared link drops the recipient straight onto the same
- *  selected frame. */
 function CopyFrameLinkButton({
   frame,
   frames,
@@ -1122,11 +2361,11 @@ function CopyFrameLinkButton({
     const url = new URL(window.location.href);
     url.hash = `frame=${idx}`;
     try {
-      await navigator.clipboard.writeText(url.toString());
+      await copyTextToClipboard(url.toString());
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      window.prompt("Copy this link", url.toString());
+      toast.error("Copy failed");
     }
   };
   return (
@@ -1137,6 +2376,7 @@ function CopyFrameLinkButton({
       icon={copied ? <Check size={14} /> : <LinkSimple size={14} />}
       onClick={onClick}
       disabled={idx < 0}
+      aria-label={copied ? "Copied frame link" : "Copy frame link"}
       data-testid="copy-frame-link"
     >
       {copied ? "Copied" : "Copy link"}
@@ -1149,11 +2389,11 @@ function CopyFrameJsonButton({ frame }: { frame: FunctionInvocation }) {
   const onClick = async () => {
     const json = JSON.stringify(frame, null, 2);
     try {
-      await navigator.clipboard.writeText(json);
+      await copyTextToClipboard(json);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      window.prompt("Copy this frame JSON", json);
+      toast.error("Copy failed");
     }
   };
   return (
@@ -1163,6 +2403,7 @@ function CopyFrameJsonButton({ frame }: { frame: FunctionInvocation }) {
       size="sm"
       icon={copied ? <Check size={14} /> : <Code size={14} />}
       onClick={onClick}
+      aria-label={copied ? "Copied frame JSON" : "Copy frame JSON"}
       data-testid="copy-frame-json"
     >
       {copied ? "Copied" : "Copy JSON"}
@@ -1170,10 +2411,6 @@ function CopyFrameJsonButton({ frame }: { frame: FunctionInvocation }) {
   );
 }
 
-/** Renders the ancestor chain root → … → selected as clickable
- *  selectors so a user can hop back up the call stack without
- *  scrolling the tree. The current frame is rendered last and not
- *  clickable (it's already selected). */
 function FrameBreadcrumb({
   frame,
   parentMap,
@@ -1185,9 +2422,6 @@ function FrameBreadcrumb({
 }) {
   const path: FunctionInvocation[] = [];
   let cur: FunctionInvocation | null | undefined = frame;
-  // Walk parents up the chain. Cap at 32 hops as a safety belt — call
-  // depth in practice rarely exceeds 8, this just guarantees the loop
-  // terminates if the parent map is somehow circular.
   let safety = 0;
   while (cur && safety++ < 32) {
     path.unshift(cur);
@@ -1225,9 +2459,6 @@ function FrameBreadcrumb({
 
 const TOGGLE_STORAGE_PREFIX = "hexkit:starknet-sim:calltree:";
 
-/** localStorage-backed boolean toggle. Reads once on mount, writes on
- *  change. Falls back to `defaultValue` on parse failure or when the
- *  key is unset. Quota / disabled-storage failures are swallowed. */
 function usePersistedToggle(
   key: string,
   defaultValue: boolean,
@@ -1248,8 +2479,23 @@ function usePersistedToggle(
     try {
       window.localStorage.setItem(storageKey, value ? "1" : "0");
     } catch {
-      // Quota / private mode — preference just won't persist this session.
+      /* storage unavailable */
     }
   }, [storageKey, value]);
   return [value, setValue];
+}
+
+function FrameContractLabel({
+  address,
+  staticLabel,
+  network,
+}: {
+  address: string;
+  staticLabel: string | null;
+  network: StarknetNetwork;
+}) {
+  const { name: dynamicLabel } = useContractName(staticLabel ? null : address, network);
+  const label = staticLabel ?? dynamicLabel;
+  if (!label) return null;
+  return <span className="font-mono text-success">{label}</span>;
 }

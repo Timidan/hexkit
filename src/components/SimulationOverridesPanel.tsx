@@ -302,7 +302,7 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
         <div className="border border-dashed border-border/50 rounded-lg p-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="text-emerald-400">EDB Supported:</span>
-            Storage Overrides (coming to UI soon)
+            Storage overrides through advanced request payloads
           </div>
         </div>
       </div>

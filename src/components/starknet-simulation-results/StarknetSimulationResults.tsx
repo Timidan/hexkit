@@ -1,135 +1,596 @@
-// Top-level Starknet sim results panel. Mirrors the EVM
-// `simulation-results/` shell but adapted for the Starknet wire format
-// (validate / execute / fee_transfer invocations + canonical stateDiff +
-// per-CallInfo decodedSelector). Uses HexKit's shadcn-derived primitives
-// + CSS vars so it themes correctly in both light and dark modes.
+// Top-level Starknet simulation result view.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ArrowsClockwise,
-  ArrowSquareOut,
-  DownloadSimple,
-  Sparkle,
-} from "@phosphor-icons/react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bug, CaretDown, Square } from "@phosphor-icons/react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import UniversalSearchBar from "@/components/UniversalSearchBar";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { CopyButton } from "@/components/ui/copy-button";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
-  explorerLinks,
+  contractExplorerLinks,
   networkLabel,
 } from "@/components/starknet/explorerLinks";
 import type {
+  AbiTypeDef,
+  FunctionFrame,
   FunctionInvocation,
   SimulateResponse,
   SimulationResult,
+  TraceStep,
 } from "@/chains/starknet/simulatorTypes";
-import { CallTreeTab } from "./CallTreeTab";
-import { TokenFlowTab } from "./TokenFlowTab";
-import { EventsTab } from "./EventsTab";
-import { StateDiffTab } from "./StateDiffTab";
+import type { StarknetNetwork } from "@/config/networkConfig";
+import { getStarknetDebugReady } from "@/chains/starknet/debug/starknetDebugTypes";
+import { resolveBridgeError } from "@/chains/starknet/simulatorErrorCopy";
+import "@/styles/SimulationResultsPage.css";
+import "@/components/debug/DebugWindow.css";
+import "./StarknetSimulationResults.css";
+import { classExplorerVoyager } from "./CallTreeTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { MessagesTab } from "./MessagesTab";
-import { DevInfoTab } from "./DevInfoTab";
+import { DebuggerPane } from "./DebuggerPane";
+import { SummaryPanel } from "./SummaryPanel";
+import { ContractAddress } from "./ContractAddress";
+import { ResultsHeader } from "@/components/simulation-results/ResultsHeader";
+import { TransactionSummary } from "@/components/simulation-results/TransactionSummary";
+import { StateTab } from "@/components/simulation-results/StateTab";
+import { ContractsTab as EdbContractsTab } from "@/components/simulation-results/ContractsTab";
+import { EventsTab as EdbEventsTab } from "@/components/simulation-results/EventsTab";
+import {
+  adaptStarknetEventsForEdb,
+  type EvmShapeEvent,
+} from "./starknetEventsAdapter";
+import type { JsonTree } from "./buildFrameDetailJson";
+import { adaptStarknetStateForEdb } from "./starknetStateAdapter";
+import {
+  adaptStarknetClasses,
+  buildEdbContractsResult,
+} from "./starknetClassesAdapter";
+import { useLocation, useNavigate } from "react-router-dom";
+import ExecutionStackTrace from "@/components/ExecutionStackTrace";
+import type { TraceFilters } from "@/components/execution-trace";
+import { adaptStarknetForEvmTrace } from "./starknetTraceAdapter";
+import {
+  fetchCairoSource,
+  type CairoSourceResponse,
+} from "@/chains/starknet/cairoSourceClient";
+import {
+  findStatementLocation,
+  sourceMapStatementCountMatches,
+  useSierraSourceMap,
+  type SourceMapResponse,
+} from "@/chains/starknet/sierraSourceMapClient";
+import {
+  useSierraDebug,
+  type SierraDebugInfo,
+} from "@/chains/starknet/sierraDebugClient";
+import { fetchContractName } from "@/chains/starknet/contractNameClient";
+import {
+  resolveCairoSourceTarget,
+  chainIdToStarknetNetwork,
+} from "./CallTreeTab";
+import { StarknetArgDetailModal } from "./StarknetFrameDetailModal";
+import { buildAllArgsForFrame } from "./buildFrameDetailJson";
+import { CopyButton } from "@/components/ui/copy-button";
+import type { DebugPrepState } from "@/types/debug";
 import {
   buildAddressLabels,
+  collectL2ToL1Messages,
   contractLabel,
   formatFriAmount,
-  formatHexGasAmount,
   selectorName,
   shortHex,
   walkInvocations,
 } from "./decoders";
+import { useStarknetTokenPriceRegistry } from "@/lib/starknet-token-prices";
+import {
+  Stepper,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger,
+} from "@/components/reui/stepper";
 
 export type TabKey =
-  | "trace"
-  | "flow"
+  | "summary"
+  | "contracts"
   | "events"
   | "state"
-  | "resources"
   | "messages"
-  | "dev"
-  | "raw";
+  | "resources";
+
+const PRIMARY_TABS: { value: TabKey; label: string }[] = [
+  { value: "summary", label: "Summary" },
+  { value: "contracts", label: "Classes" },
+  { value: "events", label: "Events" },
+  { value: "state", label: "State" },
+];
+
+const SECONDARY_TABS_BASE: { value: TabKey; label: string }[] = [
+  { value: "resources", label: "Resources" },
+];
+
+interface SierraBridgeClassLookup {
+  sourceMap: SourceMapResponse | null;
+  sourceMapLoading: boolean;
+  sourceMapError: string | null;
+  debug: SierraDebugInfo | null;
+  debugLoading: boolean;
+  debugError: string | null;
+}
+
+type CairoFrameSourceKind =
+  | "revert-observation"
+  | "frame-entry"
+  | "regex-fallback";
+
+interface CairoFrameSourceTarget {
+  file: string;
+  line: number;
+  kind: CairoFrameSourceKind;
+}
+
+interface CairoFunctionRange {
+  file: string;
+  lineStart: number;
+  lineEnd: number;
+}
+
+function normalizedClassHash(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase();
+}
+
+function sierraBridgeLookupKey(
+  classHash: string,
+  network: StarknetNetwork,
+): string {
+  return `${network}:${classHash}`;
+}
+
+function cairoSourceLookupKey(
+  classHash: string,
+  network: StarknetNetwork,
+): string {
+  return `${network}:${classHash}`;
+}
+
+function pcToStatement(
+  table: ReadonlyArray<{ pc: number; statementIdx: number }>,
+  pc: number,
+): number | null {
+  if (table.length === 0) return null;
+  let lo = 0;
+  let hi = table.length - 1;
+  let best: number | null = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const midPc = table[mid].pc;
+    if (midPc <= pc) {
+      best = table[mid].statementIdx;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+function bridgeLookupPending(
+  lookup: SierraBridgeClassLookup | undefined,
+): boolean {
+  if (!lookup) return true;
+  return lookup.sourceMapLoading || lookup.debugLoading;
+}
+
+function resolveBridgeCairoLocation(
+  lookup: SierraBridgeClassLookup | undefined,
+  pc: number | null | undefined,
+): { file: string; line: number } | null {
+  if (typeof pc !== "number" || !Number.isFinite(pc)) return null;
+  const sourceMap = lookup?.sourceMap;
+  const debug = lookup?.debug;
+  if (
+    !sourceMapStatementCountMatches(sourceMap, debug?.sierra?.statementCount)
+  ) {
+    return null;
+  }
+  if (sourceMap.mappedStatementCount === 0) return null;
+  if (!debug || debug.pcToStatement.length === 0) return null;
+
+  const statementIdx = pcToStatement(debug.pcToStatement, pc);
+  if (statementIdx === null) return null;
+  const location = findStatementLocation(
+    sourceMap.statementToSource,
+    statementIdx,
+  );
+  if (!location || location.lineStart <= 0) return null;
+  return { file: location.file, line: location.lineStart };
+}
+
+function resolveBridgeCairoLocationMatchingLine(
+  lookup: SierraBridgeClassLookup | undefined,
+  steps: ReadonlyArray<TraceStep> | undefined,
+  line: number | null | undefined,
+  file?: string | null,
+): { file: string; line: number } | null {
+  if (!steps || steps.length === 0) return null;
+  if (typeof line !== "number" || !Number.isFinite(line) || line <= 0) {
+    return null;
+  }
+  for (const step of steps) {
+    const location = resolveBridgeCairoLocation(lookup, step.pc);
+    if (location?.line === line && (!file || location.file === file)) {
+      return location;
+    }
+  }
+  return null;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findCairoFunctionRangeInFile(
+  src: CairoSourceResponse,
+  filePath: string,
+  fnName: string | null | undefined,
+): CairoFunctionRange | null {
+  const shortName = fnName?.split("::").pop()?.trim();
+  if (!shortName) return null;
+  const file = src.files.find((f) => f.path === filePath);
+  if (!file) return null;
+
+  const lines = file.content.split("\n");
+  const fnRegex = new RegExp(`\\b(?:fn|func)\\s+${escapeRegex(shortName)}\\b`);
+  const startIdx = lines.findIndex((line) => fnRegex.test(line));
+  if (startIdx < 0) return null;
+
+  let braceDepth = 0;
+  let started = false;
+  for (let i = startIdx; i < lines.length; i += 1) {
+    for (const c of lines[i]) {
+      if (c === "{") {
+        braceDepth += 1;
+        started = true;
+      } else if (c === "}") {
+        braceDepth -= 1;
+        if (started && braceDepth <= 0) {
+          return {
+            file: file.path,
+            lineStart: startIdx + 1,
+            lineEnd: i + 1,
+          };
+        }
+      }
+    }
+  }
+
+  return {
+    file: file.path,
+    lineStart: startIdx + 1,
+    lineEnd: startIdx + 1,
+  };
+}
+
+function resolveBridgeCairoLocationInFunction(
+  lookup: SierraBridgeClassLookup | undefined,
+  steps: ReadonlyArray<TraceStep> | undefined,
+  src: CairoSourceResponse | undefined,
+  fnName: string | null | undefined,
+): { file: string; line: number } | null {
+  if (!steps || steps.length === 0 || !src?.verified) return null;
+  const rangeCache = new Map<string, CairoFunctionRange | null>();
+  for (const step of steps) {
+    const location = resolveBridgeCairoLocation(lookup, step.pc);
+    if (!location) continue;
+    const key = `${location.file}:${fnName ?? ""}`;
+    let range = rangeCache.get(key);
+    if (!rangeCache.has(key)) {
+      range = findCairoFunctionRangeInFile(src, location.file, fnName);
+      rangeCache.set(key, range ?? null);
+    }
+    if (
+      range &&
+      location.line >= range.lineStart &&
+      location.line <= range.lineEnd
+    ) {
+      return location;
+    }
+  }
+  return null;
+}
+
+function selectEntryFunctionFrame(
+  current: FunctionFrame | undefined,
+  candidate: FunctionFrame,
+): FunctionFrame {
+  if (!current) return candidate;
+  if (candidate.parentFrameId === null && current.parentFrameId !== null) {
+    return candidate;
+  }
+  if (candidate.parentFrameId !== null && current.parentFrameId === null) {
+    return current;
+  }
+  return candidate.stepIndexStart < current.stepIndexStart
+    ? candidate
+    : current;
+}
+
+function frameRevertReason(frame: FunctionInvocation): string | null {
+  const reason = frame.revertReason;
+  return typeof reason === "string" && reason.trim().length > 0 ? reason : null;
+}
+
+function hasDirectRevertedDescendant(
+  frame: FunctionInvocation,
+  directlyReverted: Set<FunctionInvocation>,
+): boolean {
+  const stack = [...(frame.calls || [])];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (directlyReverted.has(cur)) return true;
+    for (const child of cur.calls || []) stack.push(child);
+  }
+  return false;
+}
+
+function addRevertPath(
+  leaf: FunctionInvocation,
+  parentMap: Map<FunctionInvocation, FunctionInvocation | null>,
+  out: Set<FunctionInvocation>,
+): void {
+  let cursor: FunctionInvocation | null | undefined = leaf;
+  while (cursor) {
+    out.add(cursor);
+    cursor = parentMap.get(cursor) ?? null;
+  }
+}
+
+function buildRevertedFrameSet(
+  result: SimulationResult,
+  frames: FunctionInvocation[],
+  parentMap: Map<FunctionInvocation, FunctionInvocation | null>,
+  frameCallIds: Map<FunctionInvocation, number>,
+): Set<FunctionInvocation> {
+  const out = new Set<FunctionInvocation>();
+  const directlyReverted = new Set(
+    frames.filter((frame) => frameRevertReason(frame) !== null),
+  );
+  for (const frame of directlyReverted) out.add(frame);
+
+  if (!result.revertReason) return out;
+
+  const revertedLeaves = [...directlyReverted].filter(
+    (frame) => !hasDirectRevertedDescendant(frame, directlyReverted),
+  );
+
+  if (revertedLeaves.length > 0) {
+    for (const leaf of revertedLeaves) addRevertPath(leaf, parentMap, out);
+    return out;
+  }
+
+  const txLevelFallback =
+    result.executeInvocation ??
+    result.validateInvocation ??
+    result.feeTransferInvocation;
+  if (txLevelFallback) {
+    addRevertPath(txLevelFallback, parentMap, out);
+    return out;
+  }
+
+  const lastStep = result.traceSteps?.[result.traceSteps.length - 1];
+  if (!lastStep) return out;
+  for (const [frame, callId] of frameCallIds) {
+    if (callId === lastStep.callId) {
+      addRevertPath(frame, parentMap, out);
+      break;
+    }
+  }
+  return out;
+}
+
+function collectInvocationsPostorder(
+  result: SimulationResult,
+): FunctionInvocation[] {
+  const out: FunctionInvocation[] = [];
+  const visit = (frame: FunctionInvocation) => {
+    for (const child of frame.calls || []) visit(child);
+    out.push(frame);
+  };
+  for (const top of [
+    result.validateInvocation,
+    result.executeInvocation,
+    result.feeTransferInvocation,
+  ]) {
+    if (top) visit(top);
+  }
+  return out;
+}
+
+function sameSierraBridgeLookup(
+  a: SierraBridgeClassLookup | undefined,
+  b: SierraBridgeClassLookup,
+): boolean {
+  return (
+    a?.sourceMap === b.sourceMap &&
+    a?.sourceMapLoading === b.sourceMapLoading &&
+    a?.sourceMapError === b.sourceMapError &&
+    a?.debug === b.debug &&
+    a?.debugLoading === b.debugLoading &&
+    a?.debugError === b.debugError
+  );
+}
 
 export interface StarknetSimulationResultsProps {
-  /** Canonical /simulate response from the bridge. */
   response: SimulateResponse;
-  /** Optional override — by default we pick `results[0]`. */
   resultIndex?: number;
-  /** Hook for the LLM "Explain this …" affordance. */
   onExplainTransaction?: (result: SimulationResult) => void;
   onExplainFrame?: (frame: FunctionInvocation) => void;
-  /** Async hook so the button can show a spinner. Treat omission as "no
-   *  re-simulate available" and hide the button. */
   onResimulate?: () => void | Promise<void>;
   isResimulating?: boolean;
-  /** Fixture / tx label rendered in the footer. */
   source?: string;
-  /** Optional tx hash to display in the header. Shown above the title with
-   *  a copy button. The /trace flow knows the hash; /simulate flows that
-   *  haven't landed do not. */
   txHash?: string;
-  /** Bridge-reported chain ID. Decides whether the Voyager / Starkscan
-   *  links resolve to mainnet or sepolia hosts. */
   chainId?: string | null;
-  /** Bridge git SHA from /health, rendered in the footer so a shared
-   *  screenshot identifies which bridge build produced this result. */
   bridgeGitSha?: string | null;
+  stateReplayPending?: boolean;
+  stateReplayError?: Error | null;
 }
 
 export function StarknetSimulationResults({
   response,
   resultIndex = 0,
-  onExplainTransaction,
-  onExplainFrame,
-  onResimulate,
-  isResimulating,
-  source,
-  txHash,
-  chainId,
-  bridgeGitSha,
+  ...rest
 }: StarknetSimulationResultsProps) {
   const result = response.results?.[resultIndex];
+  if (!result) {
+    return (
+      <Card className="p-6 text-muted-foreground">
+        No simulation result at index {resultIndex}.
+      </Card>
+    );
+  }
+  return (
+    <StarknetSimulationResultsBody
+      response={response}
+      resultIndex={resultIndex}
+      result={result}
+      {...rest}
+    />
+  );
+}
+
+function SierraBridgeClassLoader({
+  classHash,
+  network,
+  onUpdate,
+}: {
+  classHash: string;
+  network: StarknetNetwork;
+  onUpdate: (key: string, value: SierraBridgeClassLookup) => void;
+}) {
+  const sourceMap = useSierraSourceMap(classHash, network);
+  const debug = useSierraDebug(classHash, network);
+
+  useEffect(() => {
+    onUpdate(sierraBridgeLookupKey(classHash, network), {
+      sourceMap: sourceMap.data,
+      sourceMapLoading: sourceMap.loading,
+      sourceMapError: sourceMap.error,
+      debug: debug.data,
+      debugLoading: debug.loading,
+      debugError: debug.error,
+    });
+  }, [
+    classHash,
+    debug.data,
+    debug.error,
+    debug.loading,
+    network,
+    onUpdate,
+    sourceMap.data,
+    sourceMap.error,
+    sourceMap.loading,
+  ]);
+
+  return null;
+}
+
+function StarknetSimulationResultsBody({
+  response,
+  result,
+  onExplainTransaction: _onExplainTransaction,
+  onExplainFrame: _onExplainFrame,
+  onResimulate,
+  isResimulating,
+  txHash,
+  chainId,
+  stateReplayPending,
+  stateReplayError,
+}: StarknetSimulationResultsProps & { result: SimulationResult }) {
+  useStarknetTokenPriceRegistry();
+  const resolvedChainId =
+    chainId ?? response.chainId ?? response.blockContext.chainId ?? null;
   const [tab, setTab] = useState<TabKey>(loadStoredTab);
-  // Persist on every change so a reload lands the user back where they
-  // were last looking (Call tree / State diff / Events / …). Outer
-  // ?tab=… still owns the trace vs synthetic vs estimate page split.
+  const l2ToL1MessageCount = useMemo(
+    () => collectL2ToL1Messages(result).length,
+    [result],
+  );
+  const secondaryTabs = useMemo(() => {
+    const tabs = [...SECONDARY_TABS_BASE];
+    if (l2ToL1MessageCount > 0) {
+      tabs.unshift({ value: "messages", label: "Messages" });
+    }
+    return tabs;
+  }, [l2ToL1MessageCount]);
+  const [isDebugging, setIsDebugging] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const visibleTabs = new Set([
+      ...PRIMARY_TABS.map((t) => t.value),
+      ...secondaryTabs.map((t) => t.value),
+    ]);
+    if (!visibleTabs.has(tab)) setTab("summary");
+  }, [secondaryTabs, tab]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(RESULT_TAB_KEY, tab);
     } catch {
-      // Quota / private mode — preference just won't carry forward.
+      /* storage unavailable */
     }
   }, [tab]);
-  const [selectedFrame, setSelectedFrame] = useState<FunctionInvocation | null>(null);
+  const [selectedFrame, setSelectedFrame] = useState<FunctionInvocation | null>(
+    null,
+  );
+  const openDebugger = useCallback(() => {
+    setIsDebugging(true);
+    const params = new URLSearchParams(location.search);
+    params.set("debug", "1");
+    navigate(
+      {
+        pathname: location.pathname,
+        search: `?${params.toString()}`,
+        hash: location.hash,
+      },
+      { replace: true },
+    );
+  }, [location.hash, location.pathname, location.search, navigate]);
+  const closeDebugger = useCallback(() => {
+    setIsDebugging(false);
+    const params = new URLSearchParams(location.search);
+    params.delete("debug");
+    const search = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: search ? `?${search}` : "",
+        hash: location.hash,
+      },
+      { replace: true },
+    );
+  }, [location.hash, location.pathname, location.search, navigate]);
 
-  // Frame walk-order index — shared between Call tree, Resources heatmap,
-  // and the step debugger so "frame #17" means the same thing everywhere.
   const frames = useMemo(
     () => (result ? Array.from(walkInvocations(result)) : []),
     [result],
   );
 
-  // Address → label map built once from the full result. Tabs that
-  // don't have a frame in hand (state diff, nonce updates, class hash
-  // updates) read this to render the same labels the call tree shows.
   const addressLabels = useMemo(
     () => (result ? buildAddressLabels(result) : {}),
     [result],
   );
 
-  // Frame → parent frame map (null for the top-level entries). Built
-  // once at the response root so the FrameDetailPane can render a
-  // clickable breadcrumb without having to re-walk the tree on each
-  // selection.
   const parentMap = useMemo(() => {
     const map = new Map<FunctionInvocation, FunctionInvocation | null>();
     if (!result) return map;
@@ -152,16 +613,95 @@ export function StarknetSimulationResults({
     return map;
   }, [result]);
 
-  // Auto-select the first event-emitting frame so the right pane has
-  // something interesting on first render.
+  const frameCallIds = useMemo(() => {
+    const map = new Map<FunctionInvocation, number>();
+    const usedCallIds = new Set<number>();
+    for (const frame of frames) {
+      const explicit = frame.traceCallId;
+      if (
+        typeof explicit === "number" &&
+        Number.isInteger(explicit) &&
+        explicit >= 0
+      ) {
+        map.set(frame, explicit);
+        usedCallIds.add(explicit);
+      }
+    }
+
+    const rootFrames = (result.functionFrames || [])
+      .filter((f) => f.parentFrameId === null)
+      .sort((a, b) => a.stepIndexStart - b.stepIndexStart);
+    if (rootFrames.length === 0) {
+      frames.forEach((frame, idx) => {
+        if (!map.has(frame)) map.set(frame, idx);
+      });
+      return map;
+    }
+    const availableRoots = rootFrames.filter((f) => !usedCallIds.has(f.callId));
+    let rootIdx = 0;
+    for (const frame of collectInvocationsPostorder(result)) {
+      if (map.has(frame)) continue;
+      const root = availableRoots[rootIdx];
+      rootIdx += 1;
+      if (root) {
+        map.set(frame, root.callId);
+      }
+    }
+    return map;
+  }, [frames, result]);
+
+  const entryFunctionFrameByCallId = useMemo(() => {
+    const map = new Map<number, FunctionFrame>();
+    for (const frame of result.functionFrames || []) {
+      map.set(
+        frame.callId,
+        selectEntryFunctionFrame(map.get(frame.callId), frame),
+      );
+    }
+    return map;
+  }, [result.functionFrames]);
+
+  const traceStepsByCallId = useMemo(() => {
+    const map = new Map<number, TraceStep[]>();
+    for (const step of result.traceSteps || []) {
+      const steps = map.get(step.callId);
+      if (steps) {
+        steps.push(step);
+      } else {
+        map.set(step.callId, [step]);
+      }
+    }
+    return map;
+  }, [result.traceSteps]);
+
+  const lastTraceStepByCallId = useMemo(() => {
+    const map = new Map<number, TraceStep>();
+    for (const [callId, steps] of traceStepsByCallId) {
+      const last = steps[steps.length - 1];
+      if (last) map.set(callId, last);
+    }
+    return map;
+  }, [traceStepsByCallId]);
+
+  const revertedFrames = useMemo(
+    () => buildRevertedFrameSet(result, frames, parentMap, frameCallIds),
+    [result, frames, parentMap, frameCallIds],
+  );
+
   useEffect(() => {
     if (!result || selectedFrame) return;
     const candidate =
-      frames.find((f) => (f.events || []).length > 0) || result.executeInvocation;
+      frames.find((f) => (f.events || []).length > 0) ||
+      result.executeInvocation;
     if (candidate) setSelectedFrame(candidate);
   }, [result, frames, selectedFrame]);
 
-  // URL hash deep-link `#frame=N` — Phalcon-style shareable selection.
+  const stateDiffMissing =
+    !result?.stateDiff ||
+    ((result.stateDiff.storageDiffs?.length ?? 0) === 0 &&
+      (result.stateDiff.nonceUpdates?.length ?? 0) === 0 &&
+      (result.stateDiff.classHashUpdates?.length ?? 0) === 0);
+
   useEffect(() => {
     const sync = () => {
       const m = window.location.hash.match(/frame=(\d+)/);
@@ -180,8 +720,6 @@ export function StarknetSimulationResults({
       if (f) {
         const idx = frames.indexOf(f);
         if (idx >= 0) {
-          // Preserve any existing ?tab= query so jumping between frames
-          // doesn't clobber the URL the parent route is maintaining.
           const url = new URL(window.location.href);
           url.hash = `frame=${idx}`;
           window.history.replaceState(null, "", url.toString());
@@ -191,20 +729,23 @@ export function StarknetSimulationResults({
     [frames],
   );
 
-  // Keyboard shortcuts: b/space prev/next, n step in, o step out, j/k tree nav.
   useEffect(() => {
+    if (isDebugging) return;
     const handler = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && ["INPUT", "TEXTAREA"].includes(t.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const idx = selectedFrame ? frames.indexOf(selectedFrame) : 0;
-      const wrap = (i: number) => ((i % frames.length) + frames.length) % frames.length;
+      const wrap = (i: number) =>
+        ((i % frames.length) + frames.length) % frames.length;
       if (e.key === "b" || e.key === "ArrowLeft" || e.key === "k") {
         e.preventDefault();
-        if (frames[wrap(idx - 1)]) setSelectedFrameWithHash(frames[wrap(idx - 1)]);
+        if (frames[wrap(idx - 1)])
+          setSelectedFrameWithHash(frames[wrap(idx - 1)]);
       } else if (e.key === " " || e.key === "ArrowRight" || e.key === "j") {
         e.preventDefault();
-        if (frames[wrap(idx + 1)]) setSelectedFrameWithHash(frames[wrap(idx + 1)]);
+        if (frames[wrap(idx + 1)])
+          setSelectedFrameWithHash(frames[wrap(idx + 1)]);
       } else if (e.key === "n" && selectedFrame?.calls?.[0]) {
         e.preventDefault();
         setSelectedFrameWithHash(selectedFrame.calls[0]);
@@ -217,25 +758,27 @@ export function StarknetSimulationResults({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [frames, selectedFrame, setSelectedFrameWithHash]);
+  }, [frames, isDebugging, selectedFrame, setSelectedFrameWithHash]);
 
-  if (!result) {
-    return (
-      <Card className="p-6 text-muted-foreground">
-        No simulation result at index {resultIndex}.
-      </Card>
-    );
-  }
-
-  const sender = (result.executeInvocation || result.validateInvocation)?.contractAddress;
-  const ts = new Date(response.blockContext.timestamp * 1000);
-
-  const explorers = txHash ? explorerLinks(txHash, chainId) : null;
+  const sender = (result.executeInvocation || result.validateInvocation)
+    ?.contractAddress;
+  const userIntentTarget = useMemo(() => {
+    const exec = result.executeInvocation;
+    if (!exec) return null;
+    const inner = exec.calls?.[0];
+    return inner?.contractAddress || exec.contractAddress || null;
+  }, [result]);
+  const userIntentSelector = useMemo(() => {
+    const exec = result.executeInvocation;
+    if (!exec) return null;
+    const inner = exec.calls?.[0];
+    return inner
+      ? selectorName(inner) || shortHex(inner.entryPointSelector, 8, 6)
+      : null;
+  }, [result]);
   const senderLabel = sender ? contractLabel(sender) : null;
-  // Meta-tx heuristic: if any frame in the trace dispatches via the
-  // Argent / AVNU paymaster patterns, the user-visible call is being
-  // sponsored. Voyager surfaces this as a META-TRANSACTION tag on the
-  // header — useful signal for "the sender isn't the payer".
+  const targetLabel = userIntentTarget ? contractLabel(userIntentTarget) : null;
+
   const isMetaTx = useMemo(() => {
     return frames.some((f) => {
       const sel = selectorName(f);
@@ -246,11 +789,6 @@ export function StarknetSimulationResults({
       );
     });
   }, [frames]);
-  // Voyager labels the meta-tx flow with "Sponsored by 0x…" — pulled
-  // from the AVNU AA Forwarder's caller (the actual paymaster).
-  // Detect by walking down to the execute_from_outside_v2 frame and
-  // taking its `callerAddress`, which by Argent / AVNU convention is
-  // the paymaster account.
   const sponsorAddress = useMemo(() => {
     if (!isMetaTx) return null;
     for (const f of frames) {
@@ -266,508 +804,1655 @@ export function StarknetSimulationResults({
     return null;
   }, [isMetaTx, frames]);
 
+  const statusOk = result.status === "SUCCEEDED";
+  const statusReverted = result.status === "REVERTED";
+  const statusColor = statusOk
+    ? "var(--sim-success, #22c55e)"
+    : statusReverted
+      ? "#fbbf24"
+      : "var(--sim-error, #ef4444)";
+  const statusLabel = statusOk
+    ? "Success"
+    : statusReverted
+      ? "Reverted"
+      : "Failed";
+  const statusIconGlyph = statusOk ? "✓" : statusReverted ? "⚠" : "✗";
+
+  const summaryAdapter = useMemo(() => {
+    const senderAddrFinal = sender || "—";
+    const targetAddrFinal = userIntentTarget || "—";
+    const knownLabels = new Map<string, string>();
+    if (senderAddrFinal !== "—" && senderLabel) {
+      knownLabels.set(senderAddrFinal.toLowerCase(), senderLabel);
+    }
+    if (targetAddrFinal !== "—" && targetLabel) {
+      knownLabels.set(targetAddrFinal.toLowerCase(), targetLabel);
+    }
+    const formatAddressWithName = (address: string) => {
+      const lbl =
+        knownLabels.get(address.toLowerCase()) || contractLabel(address);
+      return {
+        display: lbl ? `${lbl} (${shortHex(address, 6, 4)})` : address,
+        hasName: Boolean(lbl),
+      };
+    };
+    const normalizeValue = (v: string | undefined | null): string | null => {
+      if (!v) return null;
+      const lower = v.trim().toLowerCase();
+      return lower.startsWith("0x") ? lower : null;
+    };
+    const fee = result.feeEstimate;
+    const formatGas = (v: unknown): string => {
+      if (v === null || v === undefined) return "—";
+      try {
+        const big = typeof v === "string" ? BigInt(v) : BigInt(v as number);
+        if (big === 0n) return "0";
+        return big.toLocaleString("en-US");
+      } catch {
+        return "—";
+      }
+    };
+    const l1GasValue = formatGas(fee.l1GasConsumed);
+    const l1DataGasValue = formatGas(fee.l1DataGasConsumed);
+    const traceStepCount = result.traceSteps?.length ?? 0;
+    const stepsValue =
+      result.executionResources.steps && result.executionResources.steps > 0
+        ? result.executionResources.steps.toLocaleString()
+        : traceStepCount > 0
+          ? traceStepCount.toLocaleString()
+          : "—";
+    return {
+      hash: txHash || `speculative · ${response.simId}`,
+      network: networkLabel(resolvedChainId),
+      blockNumber: response.blockContext.blockNumber.toLocaleString(),
+      result: { timestamp: response.blockContext.timestamp },
+      from: senderAddrFinal,
+      to: targetAddrFinal,
+      functionName: userIntentSelector || "—",
+      value: "—",
+      txFee: formatFriAmount(
+        response.txReceipt?.actual_fee?.amount ?? result.feeEstimate.overallFee,
+      ),
+      gasUsed: result.executionResources.l2Gas.toLocaleString(),
+      gasLimit: "—",
+      gasPrice: "—",
+      gasPriceLabel: "L1 Gas",
+      gasPriceRaw: l1GasValue,
+      txType: isMetaTx ? "INVOKE v3 · META-TX" : "INVOKE v3",
+      nonce: (response.txBody as { nonce?: string } | undefined)?.nonce ?? "—",
+      l1DataGasValue,
+      stepsValue,
+      formatAddressWithName,
+      normalizeValue,
+    };
+  }, [
+    isMetaTx,
+    response,
+    result,
+    resolvedChainId,
+    sender,
+    senderLabel,
+    targetLabel,
+    txHash,
+    userIntentSelector,
+    userIntentTarget,
+  ]);
+
+  const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
+
+  const [selectedFrameDetail, setSelectedFrameDetail] = useState<{
+    title: string;
+    value: string;
+  } | null>(null);
+
+  const [showProtocolFrames, setShowProtocolFrames] = useState(false);
+
+  const [cairoSourceMap, setCairoSourceMap] = useState<
+    Map<string, CairoSourceResponse>
+  >(new Map());
+  const network = useMemo(
+    () => chainIdToStarknetNetwork(resolvedChainId),
+    [resolvedChainId],
+  );
+  const traceClassHashes = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const frame of frames) {
+      const classHash = normalizedClassHash(frame.classHash);
+      if (!classHash || seen.has(classHash)) continue;
+      seen.add(classHash);
+      out.push(classHash);
+    }
+    return out;
+  }, [frames]);
+  const [sierraBridgeMap, setSierraBridgeMap] = useState<
+    Map<string, SierraBridgeClassLookup>
+  >(new Map());
+  const handleSierraBridgeUpdate = useCallback(
+    (key: string, value: SierraBridgeClassLookup) => {
+      setSierraBridgeMap((prev) => {
+        if (sameSierraBridgeLookup(prev.get(key), value)) return prev;
+        const next = new Map(prev);
+        next.set(key, value);
+        return next;
+      });
+    },
+    [],
+  );
+  useEffect(() => {
+    if (traceClassHashes.length === 0) return;
+    let cancelled = false;
+    const next = new Map(cairoSourceMap);
+    Promise.all(
+      traceClassHashes.map(async (ch) => {
+        const key = cairoSourceLookupKey(ch, network);
+        if (next.has(key)) return null;
+        try {
+          const resp = await fetchCairoSource(ch, network);
+          return [key, resp] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      let dirty = false;
+      for (const r of results) {
+        if (!r) continue;
+        const [key, resp] = r;
+        next.set(key, resp);
+        dirty = true;
+      }
+      if (dirty) setCairoSourceMap(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traceClassHashes, network]);
+
+  const failureStrings = useMemo(() => {
+    const reason = result?.revertReason;
+    if (!reason) return [] as string[];
+    const out = new Set<string>();
+    for (const m of reason.matchAll(/'([^'"(),]{2,})'|"([^'"(),]{2,})"/g)) {
+      const s = (m[1] ?? m[2] ?? "").trim();
+      if (s.length >= 3 && /[A-Za-z]/.test(s)) {
+        out.add(s);
+      }
+    }
+    return Array.from(out);
+  }, [result?.revertReason]);
+
+  const resolveFailureHint = useMemo(() => {
+    return (
+      frame: (typeof frames)[number],
+    ): {
+      file: string;
+      line: number;
+      tag: string;
+      source: "panic-string" | "identifier-shape";
+    } | null => {
+      if (failureStrings.length === 0) return null;
+      const ch = normalizedClassHash(frame.classHash);
+      if (!ch) return null;
+      const src = cairoSourceMap.get(cairoSourceLookupKey(ch, network));
+      if (!src || !src.verified || src.files.length === 0) return null;
+      const fnName = selectorName(frame);
+      const entryTarget = resolveCairoSourceTarget(src, fnName);
+      if (!entryTarget.functionFound) return null;
+
+      const lines = entryTarget.file.content.split("\n");
+      const startIdx = entryTarget.line - 1;
+      let endIdx = lines.length;
+      let braceDepth = 0;
+      let started = false;
+      for (let i = startIdx; i < lines.length; i += 1) {
+        for (const c of lines[i]) {
+          if (c === "{") {
+            braceDepth += 1;
+            started = true;
+          } else if (c === "}") {
+            braceDepth -= 1;
+            if (started && braceDepth <= 0) {
+              endIdx = i + 1;
+              break;
+            }
+          }
+        }
+        if (endIdx !== lines.length) break;
+      }
+
+      const body = lines.slice(startIdx, endIdx);
+      for (const tag of failureStrings) {
+        const exact = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const exactRe = new RegExp(exact);
+        for (let i = 0; i < body.length; i += 1) {
+          if (exactRe.test(body[i])) {
+            return {
+              file: entryTarget.file.path,
+              line: startIdx + i + 1,
+              tag,
+              source: "panic-string",
+            };
+          }
+        }
+
+        if (/^[A-Z0-9_]+$/.test(tag)) {
+          const lowered = tag.toLowerCase();
+          const variants = new Set<string>();
+          variants.add(lowered);
+          if (lowered.startsWith("only_")) variants.add(lowered);
+          for (const variant of variants) {
+            const re = new RegExp(`\\b${variant}\\s*\\(`);
+            for (let i = 0; i < body.length; i += 1) {
+              if (re.test(body[i])) {
+                return {
+                  file: entryTarget.file.path,
+                  line: startIdx + i + 1,
+                  tag,
+                  source: "identifier-shape",
+                };
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+  }, [cairoSourceMap, failureStrings, network]);
+
+  const frameSourceTargets = useMemo(() => {
+    const out = new Map<FunctionInvocation, CairoFrameSourceTarget | null>();
+    for (const frame of frames) {
+      const ch = normalizedClassHash(frame.classHash);
+      if (!ch) {
+        out.set(frame, null);
+        continue;
+      }
+
+      const bridgeLookup = sierraBridgeMap.get(
+        sierraBridgeLookupKey(ch, network),
+      );
+      const callId = frameCallIds.get(frame);
+      const entryFunctionFrame =
+        callId !== undefined
+          ? entryFunctionFrameByCallId.get(callId)
+          : undefined;
+
+      if (bridgeLookupPending(bridgeLookup)) {
+        out.set(frame, null);
+        continue;
+      }
+
+      if (
+        callId !== undefined &&
+        entryFunctionFrame &&
+        revertedFrames.has(frame) &&
+        (result.traceSteps?.length ?? 0) > 0
+      ) {
+        const failureHint = resolveFailureHint(frame);
+        const hintedLocationForCall = resolveBridgeCairoLocationMatchingLine(
+          bridgeLookup,
+          traceStepsByCallId.get(callId),
+          failureHint?.line,
+          failureHint?.file,
+        );
+        const hintedLocation =
+          hintedLocationForCall ??
+          resolveBridgeCairoLocationMatchingLine(
+            bridgeLookup,
+            result.traceSteps,
+            failureHint?.line,
+            failureHint?.file,
+          );
+        if (hintedLocation) {
+          out.set(frame, {
+            ...hintedLocation,
+            kind: "revert-observation",
+          });
+          continue;
+        }
+
+        const observedRevertStep = lastTraceStepByCallId.get(callId);
+        const observedLocation = resolveBridgeCairoLocation(
+          bridgeLookup,
+          observedRevertStep?.pc,
+        );
+        if (observedLocation) {
+          out.set(frame, {
+            ...observedLocation,
+            kind: "revert-observation",
+          });
+          continue;
+        }
+      }
+
+      const src = cairoSourceMap.get(cairoSourceLookupKey(ch, network));
+      const fnName = selectorName(frame);
+      if (
+        callId !== undefined &&
+        src?.verified &&
+        (result.traceSteps?.length ?? 0) > 0
+      ) {
+        const inFunctionLocation = resolveBridgeCairoLocationInFunction(
+          bridgeLookup,
+          traceStepsByCallId.get(callId),
+          src,
+          fnName,
+        );
+        if (inFunctionLocation) {
+          out.set(frame, {
+            ...inFunctionLocation,
+            kind: "frame-entry",
+          });
+          continue;
+        }
+      }
+
+      if (entryFunctionFrame) {
+        const entryLocation = resolveBridgeCairoLocation(
+          bridgeLookup,
+          entryFunctionFrame.pcStart,
+        );
+        if (entryLocation) {
+          out.set(frame, { ...entryLocation, kind: "frame-entry" });
+          continue;
+        }
+      }
+
+      if (!src || !src.verified || src.files.length === 0) {
+        out.set(frame, null);
+        continue;
+      }
+      const entryTarget = resolveCairoSourceTarget(src, fnName);
+      out.set(
+        frame,
+        entryTarget.functionFound
+          ? {
+              file: entryTarget.file.path,
+              line: entryTarget.line,
+              kind: "regex-fallback",
+            }
+          : null,
+      );
+    }
+    return out;
+  }, [
+    cairoSourceMap,
+    entryFunctionFrameByCallId,
+    frameCallIds,
+    frames,
+    lastTraceStepByCallId,
+    network,
+    resolveFailureHint,
+    result.traceSteps,
+    revertedFrames,
+    sierraBridgeMap,
+    traceStepsByCallId,
+  ]);
+
+  const resolveCairoSource = useMemo(() => {
+    return (frame: (typeof frames)[number]) => {
+      const target = frameSourceTargets.get(frame);
+      return target ? { file: target.file, line: target.line } : null;
+    };
+  }, [frameSourceTargets]);
+
+  const resolveFallbackFailureHint = useMemo(() => {
+    return (
+      frame: (typeof frames)[number],
+    ): {
+      line: number;
+      tag: string;
+      source: "panic-string" | "identifier-shape";
+    } | null => {
+      const target = frameSourceTargets.get(frame);
+      if (target?.kind !== "regex-fallback") return null;
+      return resolveFailureHint(frame);
+    };
+  }, [frameSourceTargets, resolveFailureHint]);
+
+  const cairoSourceTexts = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const src of cairoSourceMap.values()) {
+      if (!src.verified) continue;
+      for (const f of src.files) {
+        out[f.path] = f.content;
+      }
+    }
+    return out;
+  }, [cairoSourceMap]);
+
+  const traceAdapter = useMemo(
+    () =>
+      result
+        ? adaptStarknetForEvmTrace(result, frames, {
+            includeProtocolFrames: showProtocolFrames,
+            types: response.types,
+            resolveCairoSource,
+            resolveFailureHint: resolveFallbackFailureHint,
+          })
+        : null,
+    [
+      result,
+      frames,
+      showProtocolFrames,
+      response.types,
+      resolveCairoSource,
+      resolveFallbackFailureHint,
+    ],
+  );
+  const [traceSearchQuery, setTraceSearchQuery] = useState("");
+  const [traceFilters, setTraceFilters] = useState<TraceFilters>({
+    gas: true,
+    full: true,
+    storage: true,
+    events: true,
+  });
+  const handleTraceFilterChange = useCallback((key: keyof TraceFilters) => {
+    setTraceFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+  void traceAdapter?.frameToRowId;
+
+  const eventsAdapter = useMemo(() => {
+    if (!result || !traceAdapter) {
+      return { events: [] as EvmShapeEvent[], eventsByEdbId: new Map() };
+    }
+    return adaptStarknetEventsForEdb(
+      result,
+      frames,
+      traceAdapter.frameToRowId,
+      response.types,
+    );
+  }, [result, frames, traceAdapter, response.types]);
+  const [eventNameFilter, setEventNameFilter] = useState("");
+  const [eventContractFilter, setEventContractFilter] = useState("");
+
+  const [selectedEventDetail, setSelectedEventDetail] = useState<{
+    title: string;
+    value: string;
+  } | null>(null);
+
+  const idleDebugPrep: DebugPrepState = {
+    prepareId: null,
+    status: "idle",
+    stage: null,
+    progressPct: 0,
+    message: null,
+    sessionId: null,
+    simulationId: null,
+    snapshotCount: null,
+    sourceFiles: null,
+    error: null,
+  };
+  const debugPrepState: DebugPrepState = result.debugTraceError
+    ? {
+        ...idleDebugPrep,
+        status: "failed",
+        error: result.debugTraceError,
+      }
+    : idleDebugPrep;
+  const debugReadiness = getStarknetDebugReady(result.debugTrace);
+  const legacyDebugAvailable =
+    (result.traceSteps?.length ?? 0) > 0 ||
+    (result.functionFrames?.length ?? 0) > 0;
+  const debugAvailable = debugReadiness.ready || legacyDebugAvailable;
+
+  useEffect(() => {
+    if (!debugAvailable || isDebugging) return;
+    const params = new URLSearchParams(location.search);
+    if (params.get("debug") === "1") openDebugger();
+  }, [debugAvailable, isDebugging, location.search, openDebugger]);
+
+  if (isDebugging) {
+    const debugStepCount =
+      result.debugTrace?.steps.length ?? result.traceSteps?.length ?? 0;
+    const debugFrameLabel = selectedFrame
+      ? (selectorName(selectedFrame) ??
+        shortHex(selectedFrame.entryPointSelector, 8, 6) ??
+        "Selected frame")
+      : "No frame selected";
+
+    return (
+      <TooltipProvider delayDuration={200}>
+        <div className="debug-window starknet-debug-window">
+          <div className="debug-window__header">
+            <div className="debug-window__title">
+              <Bug className="h-5 w-5 text-cyan-400" />
+              <span>Starknet Debugger</span>
+              <span className="debug-window__contract">{debugFrameLabel}</span>
+            </div>
+            <UniversalSearchBar className="max-w-sm" />
+            <div className="debug-window__header-actions">
+              <span className="debug-window__snapshot-info">
+                {debugReadiness.ready
+                  ? `Offline trace · ${debugStepCount.toLocaleString()} steps`
+                  : "Legacy trace debugger"}
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={closeDebugger}
+                className="gap-2"
+              >
+                <Square className="h-3 w-3" />
+                Stop debugging
+              </Button>
+            </div>
+          </div>
+          <DebuggerPane
+            selectedFrame={selectedFrame}
+            simulationResult={result}
+            invocations={frames}
+            invocationCallIds={frameCallIds}
+            types={response.types}
+            onSelectFrame={setSelectedFrameWithHash}
+            traceSteps={result.debugTrace?.steps ?? result.traceSteps}
+            functionFrames={result.debugTrace?.frames ?? result.functionFrames}
+            initialStepIndex={result.debugTrace?.initialStepIndex}
+            chainId={resolvedChainId}
+          />
+        </div>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="text-foreground space-y-4">
-        {/* Sticky compact header — mirror of the EDB simulation results
-            page so the two surfaces feel like one app. Status pill on
-            the left, action icons on the right. Each section below
-            lives in its own bordered card so the hierarchy is obvious
-            on a wide layout. */}
-        <header className="sticky top-0 z-10 -mx-[clamp(1rem,3vw,2.5rem)] px-[clamp(1rem,3vw,2.5rem)] py-2 flex items-center justify-between gap-3 border-b border-border bg-background">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-base font-semibold">Starknet simulation</span>
-            <StatusBadge status={result.status} />
-            <Badge variant="outline" size="sm">
-              INVOKE v3
-            </Badge>
-            {isMetaTx && (
-              <Badge variant="info" size="sm" data-testid="meta-tx-badge">
-                META-TX
-              </Badge>
-            )}
-            {/* Compact 3-step lifecycle pill — Voyager parity. The
-                bridge runs against blockifier so the tx is always
-                "Simulated"; L2 / L1 acceptance comes from the
-                receipt's finality_status when present. */}
-            {(() => {
-              const finality = response.txReceipt?.finality_status ?? null;
-              const onL2 =
-                finality === "ACCEPTED_ON_L2" || finality === "ACCEPTED_ON_L1";
-              const onL1 = finality === "ACCEPTED_ON_L1";
-              return (
-                <span className="hidden md:inline-flex items-center gap-1 ml-2 text-[10px] text-muted-foreground">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-success" />
-                  <span>Simulated</span>
-                  <span className="text-muted-foreground/60">›</span>
-                  <span
-                    className={`inline-block w-1.5 h-1.5 rounded-full ${
-                      onL2 ? "bg-success" : "bg-muted-foreground/40"
-                    }`}
-                  />
-                  <span>{onL2 ? "Accepted on L2" : "Speculative"}</span>
-                  <span className="text-muted-foreground/60">›</span>
-                  <span
-                    className={`inline-block w-1.5 h-1.5 rounded-full ${
-                      onL1 ? "bg-success" : "bg-muted-foreground/30"
-                    }`}
-                  />
-                  <span>
-                    {onL1 ? "Settled on L1" : "Pending L1 settlement"}
-                  </span>
-                </span>
-              );
-            })()}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {onResimulate && (
-              <Button
-                variant="outline"
-                size="sm"
-                icon={<ArrowsClockwise size={14} />}
-                loading={isResimulating}
-                onClick={() => void onResimulate()}
-              >
-                Re-simulate
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<DownloadSimple size={14} />}
-              onClick={() => downloadResponseJson(response, txHash)}
-              data-testid="download-json"
-            >
-              Download
-            </Button>
-            {onExplainTransaction && (
-              <Button
-                variant="outline"
-                size="sm"
-                icon={<Sparkle size={14} />}
-                onClick={() => onExplainTransaction(result)}
-              >
-                Explain
-              </Button>
-            )}
-          </div>
-        </header>
+      <div className="starknet-sim-results">
+        {traceClassHashes.map((classHash) => (
+          <SierraBridgeClassLoader
+            key={`${network}:${classHash}`}
+            classHash={classHash}
+            network={network}
+            onUpdate={handleSierraBridgeUpdate}
+          />
+        ))}
+        <ResultsHeader
+          statusColor={statusColor}
+          statusLabel={statusLabel}
+          statusIcon={statusIconGlyph}
+          showBackButton={false}
+          handleBack={() => window.history.back()}
+          handleExportTestData={() => downloadResponseJson(response, txHash)}
+          handleShare={() => {
+            if (typeof window !== "undefined") {
+              try {
+                void navigator.clipboard?.writeText(window.location.href);
+              } catch {
+                /* clipboard blocked — share button is best-effort */
+              }
+            }
+          }}
+          handleOpenDebug={openDebugger}
+          handleReSimulate={() => {
+            if (onResimulate) void onResimulate();
+          }}
+          closeDebugWindow={() => {}}
+          isDebugging={isDebugging}
+          isDebugLoading={Boolean(isResimulating)}
+          debugEnabled={debugAvailable}
+          hasLiveDebugSession={false}
+          debugPrepState={debugPrepState}
+          cancelDebugPrep={() => {}}
+        />
 
-        {/* Two-column summary — same row pattern EDB uses, swapped to
-            Starknet fields. Left column = identity (hash, network,
-            block, when, sender). Right column = execution outcome
-            (fee, L1 / L1 data / L2 gas, VM steps, frame count). */}
-        <section className="border border-border rounded-md bg-card p-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs">
-            <SummaryRow label="Hash">
-              {txHash ? (
-                <>
-                  <span className="font-mono text-foreground">
-                    {shortHex(txHash, 14, 6)}
-                  </span>
-                  <CopyButton value={txHash} className="h-4 w-4" iconSize={10} />
-                  {explorers && (
-                    <>
-                      <a
-                        href={explorers.voyager}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="inline-flex items-center gap-0.5 text-foreground hover:underline"
-                        data-testid="explorer-link-voyager"
-                      >
-                        Voyager
-                        <ArrowSquareOut size={10} />
-                      </a>
-                      <a
-                        href={explorers.starkscan}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="inline-flex items-center gap-0.5 text-foreground hover:underline"
-                        data-testid="explorer-link-starkscan"
-                      >
-                        Starkscan
-                        <ArrowSquareOut size={10} />
-                      </a>
-                    </>
-                  )}
-                </>
-              ) : (
-                <span className="font-mono text-muted-foreground">
-                  speculative · {response.simId}
-                </span>
-              )}
-            </SummaryRow>
-            <SummaryRow label="Fee">
-              <span className="font-mono text-foreground">
-                {formatFriAmount(result.feeEstimate.overallFee)}
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {result.feeEstimate.overallFee}
-              </span>
-              {(() => {
-                // Voyager parity: surface the fee recipient label
-                // alongside the amount so users see "0.05 STRK → StarkWare
-                // Sequencer" without drilling into the fee_transfer frame.
-                const seq = response.blockContext.sequencerAddress;
-                const seqLbl = seq ? contractLabel(seq) : null;
-                if (!seqLbl) return null;
-                return (
-                  <span className="text-[10px] text-muted-foreground">
-                    → <span className="text-foreground">{seqLbl}</span>
-                  </span>
-                );
-              })()}
-            </SummaryRow>
-            <SummaryRow label="Network">
-              <span className="text-foreground">{networkLabel(chainId)}</span>
-            </SummaryRow>
-            <SummaryRow label="L1 gas">
-              <span className="font-mono text-foreground">
-                {result.feeEstimate.l1GasConsumed
-                  ? formatHexGasAmount(result.feeEstimate.l1GasConsumed)
-                  : "—"}
-              </span>
-            </SummaryRow>
-            <SummaryRow label="Block">
-              <span className="font-mono text-foreground">
-                {response.blockContext.blockNumber.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                · starknet {response.blockContext.starknetVersion}
-              </span>
-            </SummaryRow>
-            <SummaryRow label="L1 data gas">
-              <span className="font-mono text-foreground">
-                {result.feeEstimate.l1DataGasConsumed
-                  ? formatHexGasAmount(result.feeEstimate.l1DataGasConsumed)
-                  : "—"}
-              </span>
-            </SummaryRow>
-            <SummaryRow label="Time">
-              <span
-                className="text-foreground"
-                title={ts.toUTCString()}
-              >
-                {humanRelative(ts)}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                {ts.toUTCString()}
-              </span>
-            </SummaryRow>
-            <SummaryRow label="L2 gas">
-              <span className="font-mono text-foreground">
-                {result.executionResources.l2Gas.toLocaleString()}
-              </span>
-            </SummaryRow>
-            <SummaryRow label="Sender">
-              {sender ? (
-                <>
-                  {senderLabel && (
-                    <span className="text-success">{senderLabel}</span>
-                  )}
-                  <span className="font-mono text-foreground">
-                    {shortHex(sender, 10, 6)}
-                  </span>
-                  <CopyButton value={sender} className="h-4 w-4" iconSize={10} />
-                  {sponsorAddress && (
-                    <span className="text-[10px] text-muted-foreground">
-                      · sponsored by{" "}
-                      <span className="font-mono text-foreground">
-                        {shortHex(sponsorAddress, 8, 4)}
-                      </span>
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </SummaryRow>
-            <SummaryRow label="Frames">
-              <span className="font-mono text-foreground">
-                {frames.length.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-muted-foreground">
-                · {result.executionResources.steps.toLocaleString()} VM steps
-              </span>
-            </SummaryRow>
-          </div>
-        </section>
+        <TxLifecycleStepper response={response} />
+
+        <TransactionSummary
+          hash={summaryAdapter.hash}
+          network={summaryAdapter.network}
+          statusColor={statusColor}
+          statusIcon={statusIconGlyph}
+          statusLabel={statusLabel}
+          blockNumber={summaryAdapter.blockNumber}
+          result={summaryAdapter.result}
+          from={summaryAdapter.from}
+          to={summaryAdapter.to}
+          functionName={summaryAdapter.functionName}
+          value={summaryAdapter.value}
+          txFee={summaryAdapter.txFee}
+          gasUsed={summaryAdapter.gasUsed}
+          gasLimit={summaryAdapter.gasLimit}
+          gasPrice={summaryAdapter.gasPrice}
+          gasPriceLabel={summaryAdapter.gasPriceLabel}
+          gasPriceRaw={summaryAdapter.gasPriceRaw}
+          txType={summaryAdapter.txType}
+          nonce={summaryAdapter.nonce}
+          chainId={null}
+          networkIcon={<StarknetNetworkIcon />}
+          formatAddressWithName={summaryAdapter.formatAddressWithName}
+          normalizeValue={summaryAdapter.normalizeValue}
+          highlightedValue={highlightedValue}
+          setHighlightedValue={setHighlightedValue}
+          omitValue
+          extraLeftRows={<StarknetExtraLeftRows response={response} />}
+          extraRightRows={
+            <StarknetExtraRightRows
+              l1DataGasValue={summaryAdapter.l1DataGasValue}
+              stepsValue={summaryAdapter.stepsValue}
+              isMetaTx={isMetaTx}
+              sponsorAddress={sponsorAddress}
+            />
+          }
+        />
 
         <Tabs
           value={tab}
           onValueChange={(v) => setTab(v as TabKey)}
-          className="border border-border rounded-md bg-card p-3 gap-3"
+          className="sim-tabs-container"
         >
-          {/* Mirror of the EDB tab strip — 4 textual labels, no icons,
-              flat underline. Token flow / Resources / Developer info /
-              Raw JSON live behind the "More" menu so the primary tabs
-              stay aligned with what users hit on every trace. */}
-          <TabsList className="w-full justify-start gap-1 bg-transparent p-0 border-b border-border rounded-none h-auto">
-            <TabTrigger value="trace">Trace</TabTrigger>
-            <TabTrigger value="events">Events</TabTrigger>
-            <TabTrigger value="state">State</TabTrigger>
-            <TabTrigger value="messages">L1 messages</TabTrigger>
-            <span className="ml-auto flex items-center gap-1 text-[11px]">
-              <SecondaryTabButton
-                value="flow"
-                current={tab}
-                onChange={(v) => setTab(v as TabKey)}
-              >
-                Token flow
-              </SecondaryTabButton>
-              <SecondaryTabButton
-                value="resources"
-                current={tab}
-                onChange={(v) => setTab(v as TabKey)}
-              >
-                Resources
-              </SecondaryTabButton>
-              <SecondaryTabButton
-                value="dev"
-                current={tab}
-                onChange={(v) => setTab(v as TabKey)}
-              >
-                Dev
-              </SecondaryTabButton>
-              <SecondaryTabButton
-                value="raw"
-                current={tab}
-                onChange={(v) => setTab(v as TabKey)}
-              >
-                Raw
-              </SecondaryTabButton>
-            </span>
-          </TabsList>
+          <div className="starknet-sim-tabs-scroll overflow-x-auto sm:overflow-x-hidden -mx-2 px-2 sm:mx-0 sm:px-0">
+            <nav className="sim-tabs-wrapper sim-tabs-wrapper--centered flex-nowrap min-w-max sm:min-w-0">
+              <TabsList className="sim-tabs-list">
+                {PRIMARY_TABS.map((t) => (
+                  <TabsTrigger
+                    key={t.value}
+                    value={t.value}
+                    className="sim-tab-trigger"
+                    data-testid={`tab-${t.value}`}
+                  >
+                    {t.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <div className="starknet-sim-secondary-tabs">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="starknet-sim-secondary-tab"
+                      data-state={
+                        secondaryTabs.some((t) => t.value === tab)
+                          ? "active"
+                          : "inactive"
+                      }
+                      data-testid="tab-more-menu"
+                    >
+                      More
+                      <CaretDown size={11} className="ml-1 inline" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {secondaryTabs.map((t) => (
+                      <DropdownMenuItem
+                        key={t.value}
+                        onClick={() => setTab(t.value)}
+                        data-active={tab === t.value ? "true" : "false"}
+                        data-testid={`tab-${t.value}`}
+                      >
+                        {t.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </nav>
+          </div>
 
-          <TabsContent value="trace">
-            <CallTreeTab
-              result={result}
-              frames={frames}
-              parentMap={parentMap}
-              chainId={chainId ?? null}
-              types={response.types}
-              selectedFrame={selectedFrame}
-              setSelectedFrame={setSelectedFrameWithHash}
-              onExplainFrame={onExplainFrame}
-            />
-          </TabsContent>
-          <TabsContent value="flow">
-            <TokenFlowTab
-              result={result}
-              frames={frames}
-              onJumpToFrame={(f) => {
-                setTab("trace");
-                setSelectedFrameWithHash(f);
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="events">
-            <EventsTab
-              result={result}
-              frames={frames}
-              types={response.types}
-              blockNumber={response.blockContext.blockNumber}
-              txPosition={resultIndex}
-              onJumpToFrame={(f) => {
-                setTab("trace");
-                setSelectedFrameWithHash(f);
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="state">
-            <StateDiffTab
-              result={result}
-              addressLabels={addressLabels}
-              blockNumber={response.blockContext.blockNumber}
-              blockTimestamp={response.blockContext.timestamp}
-            />
-          </TabsContent>
-          <TabsContent value="resources">
-            <ResourcesTab
-              result={result}
-              frames={frames}
-              onJumpToFrame={(f) => {
-                setTab("trace");
-                setSelectedFrameWithHash(f);
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="messages">
-            <MessagesTab
-              result={result}
-              frames={frames}
-              onJumpToFrame={(f) => {
-                setTab("trace");
-                setSelectedFrameWithHash(f);
-              }}
-            />
-          </TabsContent>
-          <TabsContent value="dev">
-            <DevInfoTab response={response} result={result} />
-          </TabsContent>
-          <TabsContent value="raw">
-            <RawTab response={response} />
-          </TabsContent>
+          <div className="sim-tab-content">
+            <TabsContent value="summary" className="m-0 space-y-6">
+              <SummaryPanel
+                result={result}
+                frames={frames}
+                types={response.types}
+                network={network}
+                onJumpToFrame={(f) => {
+                  setTab("contracts");
+                  setSelectedFrameWithHash(f);
+                }}
+              />
+              {traceAdapter && (
+                <>
+                  <ProtocolFramesToggle
+                    enabled={showProtocolFrames}
+                    onToggle={() => setShowProtocolFrames((v) => !v)}
+                  />
+                  <TraceClickWrapper
+                    traceAdapter={traceAdapter}
+                    types={response.types}
+                    onOpenDetail={setSelectedFrameDetail}
+                    onSelectFrame={(frame) => {
+                      setSelectedFrameWithHash(frame);
+                    }}
+                  >
+                    <ExecutionStackTrace
+                      traceRows={traceAdapter.traceRows}
+                      traceEvents={traceAdapter.traceEvents}
+                      searchQuery={traceSearchQuery}
+                      onSearchChange={setTraceSearchQuery}
+                      filters={traceFilters}
+                      onFilterChange={handleTraceFilterChange}
+                      senderAddress={sender ?? undefined}
+                      highlightedValue={highlightedValue}
+                      onHighlightChange={setHighlightedValue}
+                      sourceTexts={cairoSourceTexts}
+                      hideIO
+                    />
+                  </TraceClickWrapper>
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="contracts" className="m-0">
+              <StarknetClassesPanel
+                result={result}
+                chainId={resolvedChainId}
+                addressLabels={addressLabels}
+              />
+            </TabsContent>
+
+            <TabsContent value="events" className="m-0">
+              <EventClickWrapper
+                eventsByEdbId={eventsAdapter.eventsByEdbId}
+                onOpenDetail={setSelectedEventDetail}
+              >
+                <EdbEventsTab
+                  result={
+                    result as unknown as import("@/types/transaction").SimulationResult
+                  }
+                  artifacts={{ events: eventsAdapter.events }}
+                  contractContext={null}
+                  decodedTrace={{ rawEvents: eventsAdapter.events }}
+                  lookedUpEventNames={{}}
+                  eventNameFilter={eventNameFilter}
+                  setEventNameFilter={setEventNameFilter}
+                  eventContractFilter={eventContractFilter}
+                  setEventContractFilter={setEventContractFilter}
+                />
+              </EventClickWrapper>
+            </TabsContent>
+
+            <TabsContent value="state" className="m-0">
+              <StarknetStateTabPanel
+                result={result}
+                addressLabels={addressLabels}
+                chainId={resolvedChainId}
+                stateReplayPending={Boolean(stateReplayPending)}
+                stateReplayError={stateReplayError ?? null}
+                stateDiffMissing={stateDiffMissing}
+              />
+            </TabsContent>
+
+            {l2ToL1MessageCount > 0 && (
+              <TabsContent value="messages" className="m-0">
+                <MessagesTab
+                  result={result}
+                  frames={frames}
+                  onJumpToFrame={(f) => {
+                    setTab("contracts");
+                    setSelectedFrameWithHash(f);
+                  }}
+                />
+              </TabsContent>
+            )}
+
+            <TabsContent value="resources" className="m-0">
+              <ResourcesTab
+                result={result}
+                frames={frames}
+                onJumpToFrame={(f) => {
+                  setTab("contracts");
+                  setSelectedFrameWithHash(f);
+                }}
+              />
+            </TabsContent>
+
+          </div>
         </Tabs>
 
-        <footer className="mt-6 border-t border-border pt-3 text-[11px] text-muted-foreground">
-          Bridge: <span className="font-mono">starknet-sim-bridge</span>
-          {bridgeGitSha && <> @ <span className="font-mono">{bridgeGitSha.slice(0, 7)}</span></>}
-          {source && <> — {source}</>}.
-          <span className="mx-2">·</span>
-          <span className="font-mono">b</span>/<span className="font-mono">k</span> ← prev ·{" "}
-          <span className="font-mono">space</span>/<span className="font-mono">j</span> → next ·{" "}
-          <span className="font-mono">n</span> step in · <span className="font-mono">o</span> step out
-        </footer>
+        <StarknetArgDetailModal
+          detail={selectedFrameDetail}
+          onClose={() => setSelectedFrameDetail(null)}
+        />
+
+        <StarknetArgDetailModal
+          detail={selectedEventDetail}
+          onClose={() => setSelectedEventDetail(null)}
+        />
       </div>
     </TooltipProvider>
   );
 }
 
-function SummaryRow({
-  label,
+function TraceClickWrapper({
+  traceAdapter,
+  types,
+  onOpenDetail,
+  onSelectFrame,
   children,
 }: {
-  label: string;
+  traceAdapter: {
+    traceRows: Array<{ id: string }>;
+    rowIdToFrame: Map<string, FunctionInvocation>;
+  };
+  types: Record<string, AbiTypeDef> | undefined;
+  onOpenDetail: (detail: { title: string; value: string } | null) => void;
+  onSelectFrame?: (frame: FunctionInvocation) => void;
   children: React.ReactNode;
 }) {
-  // Stable kebab-cased id used by tooling (voyager-parity harness, e2e
-  // tests). Must NOT depend on the visible label string changing —
-  // that's why we slug the label once and stash it as a data attr.
-  const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const detailHit = target.closest<HTMLElement>(
+      ".starknet-row-click[data-row-id], [data-arg-name][data-row-id]",
+    );
+    const rowHit =
+      detailHit ?? target.closest<HTMLElement>(".exec-trace-row[data-row-id]");
+    if (!rowHit) return;
+    const rowId = rowHit.dataset.rowId;
+    if (!rowId) return;
+    const frame = traceAdapter.rowIdToFrame.get(rowId);
+    if (!frame) return;
+    onSelectFrame?.(frame);
+    if (!detailHit) return;
+
+    const body = buildAllArgsForFrame(frame, types);
+    if (Object.keys(body).length === 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const fnLabel =
+      selectorName(frame) || `unknown(${frame.entryPointSelector})`;
+    const frameIdx = traceAdapter.traceRows.findIndex((r) => r.id === rowId);
+    onOpenDetail({
+      title: `${fnLabel} · frame ${frameIdx >= 0 ? frameIdx : "?"}`,
+      value: JSON.stringify(body, null, 2),
+    });
+  };
+
   return (
     <div
-      className="flex items-center gap-2 py-1 border-b border-border/30 last:border-b-0"
-      data-summary-row={id}
+      onClick={handleClick}
+      data-testid="starknet-trace-click-wrapper"
     >
-      <span className="text-muted-foreground w-24 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5 flex-wrap min-w-0">{children}</div>
+      {children}
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const variant: React.ComponentProps<typeof Badge>["variant"] =
-    status === "SUCCEEDED"
-      ? "success"
-      : status === "REVERTED"
-      ? "warning"
-      : "destructive";
-  return (
-    <Badge
-      variant={variant}
-      size="md"
-      className="font-bold"
-      data-status={status}
-    >
-      {status}
-    </Badge>
-  );
-}
-
-function TabTrigger({
-  value,
+function EventClickWrapper({
+  eventsByEdbId,
+  onOpenDetail,
   children,
 }: {
-  value: string;
+  eventsByEdbId: Map<
+    string,
+    EvmShapeEvent & { decodedTree?: Record<string, JsonTree> }
+  >;
+  onOpenDetail: (detail: { title: string; value: string } | null) => void;
   children: React.ReactNode;
 }) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let scheduled = false;
+
+    const stamp = () => {
+      scheduled = false;
+      const lists = wrapper.querySelectorAll<HTMLElement>(
+        'div[style*="flex-direction: column"][style*="gap: 12px"]',
+      );
+      lists.forEach((list) => {
+        const cards = Array.from(list.children).filter(
+          (el): el is HTMLElement =>
+            el instanceof HTMLElement &&
+            el.style.borderRadius === "8px" &&
+            el.style.overflow === "hidden",
+        );
+        cards.forEach((card, i) => {
+          const id = `evt-${i}`;
+          if (card.dataset.eventId !== id) card.dataset.eventId = id;
+          const argsBlock = card.querySelector<HTMLElement>(
+            'div[style*="font-family: monospace"][style*="font-size: 0.8rem"]',
+          );
+          if (argsBlock) wrapEventArgsBlock(argsBlock, id);
+        });
+      });
+    };
+
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      Promise.resolve().then(stamp);
+    };
+
+    stamp();
+    const obs = new MutationObserver(schedule);
+    obs.observe(wrapper, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    return () => obs.disconnect();
+  }, [eventsByEdbId]);
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const span = target.closest<HTMLElement>(
+      ".starknet-event-click[data-event-id]",
+    );
+    const eventId = span?.dataset.eventId;
+    if (!eventId) return;
+    const entry = eventsByEdbId.get(eventId);
+    if (!entry) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const tree = entry.decodedTree ?? buildFallbackTree(entry);
+    if (Object.keys(tree).length === 0) return;
+    const fullAddr = entry.starknetAddress ?? entry.address;
+    const fromLabel = entry.contractName
+      ? `${entry.contractName}`
+      : `${fullAddr.slice(0, 10)}…${fullAddr.slice(-6)}`;
+    onOpenDetail({
+      title: `${entry.eventName} · ${fromLabel}`,
+      value: JSON.stringify(tree, null, 2),
+    });
+  };
+
   return (
-    <TabsTrigger
-      value={value}
-      className="data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-foreground border-b-2 border-transparent rounded-none px-3 py-2 text-sm"
+    <div
+      ref={wrapperRef}
+      onClick={handleClick}
+      data-testid="starknet-event-click-wrapper"
     >
       {children}
-    </TabsTrigger>
+    </div>
   );
 }
 
-/** Smaller, ghost-style buttons for the secondary tabs (Token flow,
- *  Resources, Dev, Raw). They share the same underlying tab state as
- *  the primary tab strip but don't take front-and-centre real estate. */
-function SecondaryTabButton({
-  value,
-  current,
-  onChange,
-  children,
+function wrapEventArgsBlock(block: HTMLElement, eventId: string): void {
+  const existing = block.querySelector<HTMLElement>(
+    ":scope > .starknet-event-click",
+  );
+  if (existing) {
+    if (existing.dataset.eventId !== eventId) {
+      existing.dataset.eventId = eventId;
+    }
+    return;
+  }
+  const doc = block.ownerDocument;
+  if (!doc) return;
+  const span = doc.createElement("span");
+  span.className = "starknet-event-click";
+  span.dataset.eventId = eventId;
+  span.tabIndex = 0;
+  span.setAttribute("role", "button");
+  span.setAttribute("aria-label", "Open event argument detail");
+  while (block.firstChild) span.appendChild(block.firstChild);
+  block.appendChild(span);
+}
+
+function buildFallbackTree(entry: EvmShapeEvent): Record<string, JsonTree> {
+  const out: Record<string, JsonTree> = {};
+  for (const a of entry.eventArgs ?? []) {
+    out[a.name] = { value: a.value, type: a.type ?? "felt252" };
+  }
+  return out;
+}
+
+function ProtocolFramesToggle({
+  enabled,
+  onToggle,
 }: {
-  value: string;
-  current: string;
-  onChange: (v: string) => void;
-  children: React.ReactNode;
+  enabled: boolean;
+  onToggle: () => void;
 }) {
-  const active = current === value;
   return (
-    <button
-      type="button"
-      onClick={() => onChange(value)}
-      className={`px-2 py-1 rounded-md ${
-        active
-          ? "bg-muted text-foreground"
-          : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
+    <div className="flex justify-end mb-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        data-state={enabled ? "active" : "inactive"}
+        data-testid="toggle-protocol-frames"
+        className={
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] " +
+          "uppercase tracking-wide font-medium border transition-colors " +
+          (enabled
+            ? "border-[var(--sim-accent,#a069ff)] text-white bg-[rgba(160,105,255,0.12)]"
+            : "border-[var(--sim-border,rgba(255,255,255,0.08))] text-[var(--sim-text-muted,#6b6b7b)] bg-transparent hover:text-[var(--sim-text,#e5e5e5)] hover:bg-[rgba(255,255,255,0.04)]")
+        }
+        aria-pressed={enabled}
+      >
+        <span
+          className="inline-block w-1.5 h-1.5 rounded-full"
+          style={{
+            background: enabled
+              ? "var(--sim-accent, #a069ff)"
+              : "rgba(255,255,255,0.25)",
+          }}
+        />
+        Protocol frames
+      </button>
+    </div>
   );
 }
 
-function RawTab({ response }: { response: SimulateResponse }) {
+function TxLifecycleStepper({ response }: { response: SimulateResponse }) {
+  const finality = response.txReceipt?.finality_status ?? null;
+  if (!finality) return null;
+
+  const onL2 = finality === "ACCEPTED_ON_L2" || finality === "ACCEPTED_ON_L1";
+  const onL1 = finality === "ACCEPTED_ON_L1";
+
+  const checkIcon = (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+
   return (
-    <Card className="p-4 gap-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs uppercase text-muted-foreground">
-          Raw <span className="font-mono text-foreground">/simulate</span> response
-        </div>
-        <CopyButton value={JSON.stringify(response, null, 2)} className="h-6 px-2" />
+    <div className="starknet-sim-lifecycle">
+      <div className="starknet-sim-lifecycle__phase">
+        <span className="starknet-sim-lifecycle__phase-label">
+          Transaction Executed
+        </span>
+        <Stepper
+          defaultValue={onL2 ? 3 : 2}
+          indicators={{ completed: checkIcon }}
+        >
+          <StepperNav className="gap-1">
+            <StepperItem step={1} completed>
+              <StepperTrigger className="flex-row gap-2">
+                <StepperIndicator />
+                <StepperTitle>Received</StepperTitle>
+              </StepperTrigger>
+              <StepperSeparator />
+            </StepperItem>
+            <StepperItem step={2} completed={onL2}>
+              <StepperTrigger className="flex-row gap-2">
+                <StepperIndicator />
+                <StepperTitle>Accepted on L2</StepperTitle>
+              </StepperTrigger>
+            </StepperItem>
+          </StepperNav>
+        </Stepper>
       </div>
-      <pre className="text-xs leading-relaxed overflow-auto max-h-[70vh] font-mono">
-        {JSON.stringify(response, null, 2)}
-      </pre>
-    </Card>
+
+      <span className="starknet-sim-lifecycle__connector" aria-hidden>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </span>
+
+      <div className="starknet-sim-lifecycle__phase">
+        <span className="starknet-sim-lifecycle__phase-label">Settled</span>
+        <Stepper
+          defaultValue={onL1 ? 2 : 1}
+          indicators={{ completed: checkIcon }}
+        >
+          <StepperNav className="gap-1">
+            <StepperItem step={1} completed={onL1}>
+              <StepperTrigger className="flex-row gap-2">
+                <StepperIndicator />
+                <StepperTitle>Accepted on L1</StepperTitle>
+              </StepperTrigger>
+            </StepperItem>
+          </StepperNav>
+        </Stepper>
+      </div>
+    </div>
   );
 }
 
-/** "5m ago" / "2h ago" / "3d ago" — coarse buckets, only useful as a
- *  glance metric. The absolute UTC timestamp is right next to it. */
-function humanRelative(ts: Date): string {
-  const delta = Date.now() - ts.getTime();
-  if (delta < 0) return "in the future";
-  if (delta < 60_000) return "just now";
-  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)}m ago`;
-  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)}h ago`;
-  return `${Math.floor(delta / 86_400_000)}d ago`;
+function StarknetNetworkIcon() {
+  return (
+    <img
+      src="/logos/starknet.png"
+      alt="Starknet"
+      width={18}
+      height={18}
+      className="starknet-sim-network-icon"
+      loading="lazy"
+    />
+  );
+}
+
+function StarknetExtraLeftRows({ response }: { response: SimulateResponse }) {
+  const blockCtx = response.blockContext;
+  return (
+    <div className="sim-summary-row" data-summary-row="starknet-version">
+      <span className="sim-summary-label">Starknet Version</span>
+      <span className="sim-summary-value sim-summary-mono">
+        {blockCtx.starknetVersion && blockCtx.starknetVersion !== "upstream"
+          ? blockCtx.starknetVersion
+          : "—"}
+      </span>
+    </div>
+  );
+}
+
+function StarknetExtraRightRows({
+  l1DataGasValue,
+  stepsValue,
+  isMetaTx,
+  sponsorAddress,
+}: {
+  l1DataGasValue: string;
+  stepsValue: string;
+  isMetaTx: boolean;
+  sponsorAddress: string | null;
+}) {
+  return (
+    <>
+      <div className="sim-summary-row" data-summary-row="l1-data-gas">
+        <span className="sim-summary-label">L1 Data Gas</span>
+        <span className="sim-summary-value sim-summary-mono">
+          {l1DataGasValue}
+        </span>
+      </div>
+      <div className="sim-summary-row" data-summary-row="vm-steps">
+        <span className="sim-summary-label">VM Steps</span>
+        <span className="sim-summary-value sim-summary-mono">{stepsValue}</span>
+      </div>
+      {isMetaTx && (
+        <div className="sim-summary-row" data-summary-row="sponsor">
+          <span className="sim-summary-label">Sponsor</span>
+          <span className="sim-summary-value">
+            {sponsorAddress ? (
+              <ContractAddress addr={sponsorAddress} head={10} tail={6} />
+            ) : (
+              <span style={{ color: "var(--sim-text-muted)" }}>
+                META-TX (no sponsor address)
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
+function StarknetStateTabPanel({
+  result,
+  addressLabels,
+  chainId,
+  stateReplayPending,
+  stateReplayError,
+  stateDiffMissing,
+}: {
+  result: SimulationResult;
+  addressLabels: Record<string, string>;
+  chainId: string | null;
+  stateReplayPending: boolean;
+  stateReplayError: Error | null;
+  stateDiffMissing: boolean;
+}) {
+  const artifacts = useMemo(
+    () => adaptStarknetStateForEdb(result.stateDiff),
+    [result.stateDiff],
+  );
+
+  if (stateDiffMissing && stateReplayPending) {
+    return (
+      <Card
+        className="p-6 text-sm text-muted-foreground leading-relaxed border-dashed"
+        data-testid="state-diff-replay-pending"
+      >
+        <div className="text-xs uppercase text-muted-foreground mb-2">
+          State diff
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-3 h-3 rounded-full border-2 border-foreground/30 border-t-foreground animate-spin"
+            aria-hidden
+          />
+          <span>Recomputing state diff via local blockifier replay…</span>
+        </div>
+        <div className="text-[11px] text-muted-foreground mt-2">
+          Upstream <span className="font-mono">starknet_traceTransaction</span>{" "}
+          doesn't return <span className="font-mono">state_diff</span> for
+          landed txs. We're re-running the tx in a local blockifier to recover
+          it (~9 s).
+        </div>
+      </Card>
+    );
+  }
+
+  if (stateDiffMissing && stateReplayError) {
+    const replayError = resolveBridgeError(stateReplayError);
+    return (
+      <Card
+        className="p-6 text-sm text-muted-foreground leading-relaxed border-dashed"
+        data-testid="state-diff-replay-error"
+      >
+        <div className="text-xs uppercase text-muted-foreground mb-2">
+          State diff
+        </div>
+        <div className="text-sm text-foreground mb-1">{replayError.title}</div>
+        <div className="text-xs text-muted-foreground">{replayError.hint}</div>
+        <details className="mt-3 text-[11px]">
+          <summary className="cursor-pointer text-warning">
+            Raw replay error
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-warning">
+            {replayError.message}
+          </pre>
+        </details>
+      </Card>
+    );
+  }
+
+  const sd = result.stateDiff;
+  const nonceUpdates = sd?.nonceUpdates ?? [];
+  const classHashUpdates = sd?.classHashUpdates ?? [];
+  const declaredClasses = sd?.declaredClasses ?? [];
+
+  return (
+    <div className="space-y-4">
+      {nonceUpdates.length > 0 && (
+        <Card className="p-4 gap-3" data-testid="starknet-nonce-updates">
+          <div className="text-xs uppercase text-muted-foreground">
+            Nonce updates
+          </div>
+          <div className="space-y-1.5">
+            {nonceUpdates.map((n, i) => {
+              const lbl = addressLabels[n.contractAddress];
+              const beforeNonce = previousFelt(n.nonce);
+              return (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 text-[11px] flex-wrap"
+                >
+                  <ContractAddress
+                    addr={n.contractAddress}
+                    precomputedLabel={lbl ?? null}
+                    className="text-info"
+                    trailing={
+                      <StateContractActions
+                        address={n.contractAddress}
+                        chainId={chainId}
+                      />
+                    }
+                  />
+                  <span className="font-mono inline-flex items-center gap-2">
+                    <span className="text-muted-foreground">
+                      {beforeNonce ?? "unknown"}
+                    </span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="text-warning">{n.nonce}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {classHashUpdates.length > 0 && (
+        <Card className="p-4 gap-3" data-testid="starknet-class-hash-updates">
+          <div className="text-xs uppercase text-muted-foreground">
+            Class hash updates
+          </div>
+          <div className="space-y-1.5">
+            {classHashUpdates.map((c, i) => {
+              const lbl = addressLabels[c.contractAddress];
+              return (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 text-[11px]"
+                >
+                  <ContractAddress
+                    addr={c.contractAddress}
+                    precomputedLabel={lbl ?? null}
+                    className="text-info"
+                    trailing={
+                      <StateContractActions
+                        address={c.contractAddress}
+                        chainId={chainId}
+                      />
+                    }
+                  />
+                  <span className="font-mono text-warning">
+                    {shortHex(c.classHash)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {declaredClasses.length > 0 && (
+        <Card className="p-4 gap-3" data-testid="starknet-declared-classes">
+          <div className="text-xs uppercase text-muted-foreground">
+            Declared classes
+          </div>
+          <div className="space-y-1.5">
+            {declaredClasses.map((declared, i) => (
+              <div
+                key={`${declared.classHash}-${i}`}
+                className="flex items-center justify-between gap-3 text-[11px]"
+              >
+                <span className="font-mono text-info">
+                  {shortHex(declared.classHash)}
+                </span>
+                <span className="font-mono text-warning">
+                  CASM {shortHex(declared.compiledClassHash)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <StateTab
+        result={
+          result as unknown as import("@/types/transaction").SimulationResult
+        }
+        artifacts={artifacts}
+        contractContext={{}}
+      />
+    </div>
+  );
+}
+
+function StateContractActions({
+  address,
+  chainId,
+}: {
+  address: string;
+  chainId: string | null | undefined;
+}) {
+  const links = contractExplorerLinks(address, chainId);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <CopyButton
+        value={address}
+        ariaLabel="Copy contract address"
+        className="h-4 w-4"
+        iconSize={10}
+      />
+      <a
+        href={links.voyager}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-[9px] text-muted-foreground hover:text-foreground"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Voyager
+      </a>
+      <a
+        href={links.starkscan}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-[9px] text-muted-foreground hover:text-foreground"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Starkscan
+      </a>
+    </span>
+  );
+}
+
+function previousFelt(value: string): string | null {
+  try {
+    const next = BigInt(value);
+    if (next <= 0n) return null;
+    return `0x${(next - 1n).toString(16)}`;
+  } catch {
+    return null;
+  }
+}
+
+function labelForClassContracts(
+  addresses: string[],
+  addressLabels: Record<string, string>,
+): string | null {
+  for (const address of addresses) {
+    const label =
+      addressLabels[address] ??
+      addressLabels[address.toLowerCase()] ??
+      contractLabel(address);
+    if (label) return label;
+  }
+  return null;
+}
+
+function StarknetClassesPanel({
+  result,
+  chainId,
+  addressLabels,
+}: {
+  result: SimulationResult;
+  chainId: string | null;
+  addressLabels: Record<string, string>;
+}) {
+  const navigate = useNavigate();
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [verifyTick, setVerifyTick] = useState(0);
+  const [classContractNames, setClassContractNames] = useState<
+    Map<string, string>
+  >(() => new Map());
+  const { contracts, classToContracts } = useMemo(() => {
+    void verifyTick; // dependency hook
+    const adapted = adaptStarknetClasses(result);
+    return {
+      ...adapted,
+      contracts: adapted.contracts.map((row) => ({
+        ...row,
+        name:
+          classContractNames.get(row.address.toLowerCase()) ??
+          labelForClassContracts(
+            adapted.classToContracts.get(row.address.toLowerCase()) ?? [],
+            addressLabels,
+          ) ??
+          row.name,
+        explorerUrl: classExplorerVoyager(row.address, chainId),
+        explorerName: "Voyager",
+      })),
+    };
+  }, [addressLabels, chainId, classContractNames, result, verifyTick]);
+  const edbResult = useMemo(
+    () => buildEdbContractsResult(result, contracts),
+    [result, contracts],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const network = starknetNetworkFromChainId(chainId);
+    (async () => {
+      const { fetchClassInfo } = await import("./CallTreeTab");
+      for (const row of contracts) {
+        if (cancelled) return;
+        if (row.verified) continue;
+        try {
+          await fetchClassInfo(row.address, network);
+          if (!cancelled) setVerifyTick((t) => t + 1);
+        } catch {
+          /* class fetch errors stay as the unverified pill */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chainId, contracts]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const network = starknetNetworkFromChainId(chainId);
+    (async () => {
+      for (const row of contracts) {
+        if (cancelled || !row.verified) continue;
+        const classHash = row.address.toLowerCase();
+        if (classContractNames.has(classHash)) continue;
+        const addresses = classToContracts.get(classHash) ?? [];
+        for (const address of addresses) {
+          if (cancelled) return;
+          const name = await fetchContractName(address, { network });
+          if (!name) continue;
+          setClassContractNames((current) => {
+            if (current.has(classHash)) return current;
+            const next = new Map(current);
+            next.set(classHash, name);
+            return next;
+          });
+          break;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chainId, classContractNames, classToContracts, contracts]);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let scheduled = false;
+    const stamp = () => {
+      scheduled = false;
+      const rows = wrapper.querySelectorAll<HTMLElement>(
+        '.sim-panel > div > div[style*="grid-template-columns"]',
+      );
+      rows.forEach((el) => {
+        const code = el.querySelector("code");
+        if (!code) return;
+        const text = code.textContent?.trim() ?? "";
+        if (text && text.startsWith("0x") && el.dataset.classesRowId !== text) {
+          el.dataset.classesRowId = text;
+          el.setAttribute("role", "link");
+          el.setAttribute("tabindex", "0");
+          el.setAttribute(
+            "aria-label",
+            `Open class ${shortHex(text)} in Starknet explorer`,
+          );
+          el.setAttribute("title", "Open class in Starknet explorer");
+        }
+      });
+    };
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      Promise.resolve().then(stamp);
+    };
+    stamp();
+    const obs = new MutationObserver(schedule);
+    obs.observe(wrapper, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [contracts]);
+
+  const handleCapturedClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a")) return;
+      const row = target.closest<HTMLElement>("[data-classes-row-id]");
+      if (!row) return;
+      const classHash = row.dataset.classesRowId;
+      if (!classHash) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const params = new URLSearchParams();
+      params.set("classHash", classHash);
+      if (chainId) params.set("chainId", chainId);
+      navigate(`/starknet/explorer?${params.toString()}`);
+    },
+    [navigate, chainId],
+  );
+
+  const openClassRow = useCallback(
+    (row: HTMLElement) => {
+      const classHash = row.dataset.classesRowId;
+      if (!classHash) return;
+      const params = new URLSearchParams();
+      params.set("classHash", classHash);
+      if (chainId) params.set("chainId", chainId);
+      navigate(`/starknet/explorer?${params.toString()}`);
+    },
+    [navigate, chainId],
+  );
+
+  const handleCapturedKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const target = e.target as HTMLElement;
+      const row = target.closest<HTMLElement>("[data-classes-row-id]");
+      if (!row) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openClassRow(row);
+    },
+    [openClassRow],
+  );
+
+  return (
+    <div
+      ref={wrapperRef}
+      data-testid="starknet-classes-click-wrapper"
+      onClickCapture={handleCapturedClick}
+      onKeyDownCapture={handleCapturedKeyDown}
+    >
+      <EdbContractsTab
+        result={
+          edbResult as unknown as import("@/types/transaction").SimulationResult
+        }
+        contractContext={{}}
+      />
+    </div>
+  );
+}
+
+function starknetNetworkFromChainId(
+  chainId: string | null | undefined,
+): "mainnet" | "sepolia" {
+  const lower = (chainId || "").toLowerCase();
+  return lower === "0x534e5f5345504f4c4941" ||
+    lower === "0x534e5f494e544547524154494f4e5f5345504f4c4941"
+    ? "sepolia"
+    : "mainnet";
 }
 
 const RESULT_TAB_KEY = "hexkit:starknet-sim:resultTab";
 const VALID_RESULT_TABS: readonly TabKey[] = [
-  "trace",
-  "flow",
+  "summary",
+  "contracts",
   "events",
   "state",
-  "resources",
   "messages",
-  "dev",
-  "raw",
+  "resources",
 ] as const;
 
 function loadStoredTab(): TabKey {
-  if (typeof window === "undefined") return "trace";
+  if (typeof window === "undefined") return "summary";
   try {
     const raw = window.localStorage.getItem(RESULT_TAB_KEY);
     if (raw && VALID_RESULT_TABS.includes(raw as TabKey)) return raw as TabKey;
   } catch {
-    // Fall through to default.
+    /* fall through */
   }
-  return "trace";
+  return "summary";
 }
 
-/** Triggers a browser download of the raw bridge response. Filename
- *  uses the tx hash when present (trace flow) or the simId (synthetic),
- *  so an archive of multiple downloads stays self-describing. */
-function downloadResponseJson(response: SimulateResponse, txHash?: string): void {
+function downloadResponseJson(
+  response: SimulateResponse,
+  txHash?: string,
+): void {
   if (typeof window === "undefined") return;
-  const stem = txHash ? txHash.replace(/^0x/, "0x").slice(0, 18) : response.simId;
+  const stem = txHash
+    ? txHash.replace(/^0x/, "0x").slice(0, 18)
+    : response.simId;
   const filename = `starknet-sim-${stem}.json`;
   try {
     const blob = new Blob([JSON.stringify(response, null, 2)], {
@@ -782,8 +2467,7 @@ function downloadResponseJson(response: SimulateResponse, txHash?: string): void
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch {
-    // Browsers block this for various reasons (sandbox iframes, etc.) —
-    // worst case the user can still copy from the Raw JSON tab.
+    /* sandbox iframes block this — Raw JSON tab still works */
   }
 }
 

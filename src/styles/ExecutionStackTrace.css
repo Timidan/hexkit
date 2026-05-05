@@ -72,6 +72,17 @@
    ============================================ */
 
 .exec-io-section {
+  /* Fallback design tokens. Mirror the values declared on
+   *  `.exec-stack-trace` so Starknet's SummaryPanel — which mounts the
+   *  I/O chrome outside any `.exec-stack-trace` wrapper — still resolves
+   *  borders / typography. EVM keeps its scope-level definitions, this
+   *  just guarantees the chrome renders standalone too. */
+  --tst-bg: transparent;
+  --tst-border: rgba(255, 255, 255, 0.08);
+  --tst-text: #e5e5e5;
+  --tst-text-muted: #6b6b7b;
+  --tst-accent: #a069ff;
+
   margin-bottom: 12px;
 }
 
@@ -1057,6 +1068,10 @@
   background: #422006;
   color: #fbbf24;
 }
+
+.exec-trace-opcode-badge.op-constructor { background: #1a2e05; color: #86efac; }
+.exec-trace-opcode-badge.op-l2tol1 { background: #431407; color: #fb923c; }
+.exec-trace-opcode-badge.op-function { background: #2d1a4e; color: #c084fc; }
 
 /* CALLCODE - deprecated (yellow-orange) */
 .exec-trace-opcode-badge.op-callcode {

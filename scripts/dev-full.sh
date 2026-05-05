@@ -2,10 +2,11 @@
 # Starts the Starknet sim bridge + Vite dev server in parallel for local
 # development. Stops both on Ctrl-C.
 #
-# Required env (set in .env or .env.local):
-#   STARKNET_RPC_URL — your Alchemy / Infura / self-hosted RPC URL
-#
 # Optional env:
+#   STARKNET_RPC_URL  — fallback RPC for direct bridge calls without the
+#                       X-Starknet-Rpc-Url header. The UI normally sends
+#                       this header from app-side RPC settings.
+#   VOYAGER_API_KEY    — optional; enables verified Cairo source passthrough.
 #   STARKNET_SIM_BIND  — default 127.0.0.1:5790
 #   STARKNET_SIM_LOG   — default info
 #   VITE_PORT          — default 5173
@@ -22,19 +23,16 @@ if [[ ! -x "$BRIDGE_BIN" ]]; then
   exit 1
 fi
 
-if [[ -z "${STARKNET_RPC_URL:-}" ]]; then
-  if [[ -f ".env.local" ]]; then
-    # shellcheck disable=SC1091
-    set -a; source ".env.local"; set +a
+for env_file in ".env" ".env.local"; do
+  if [[ -f "$env_file" ]]; then
+    # shellcheck disable=SC1090
+    set -a; source "$env_file"; set +a
   fi
-  if [[ -f ".env" ]]; then
-    # shellcheck disable=SC1091
-    set -a; source ".env"; set +a
-  fi
-fi
+done
 
 if [[ -z "${STARKNET_RPC_URL:-}" ]]; then
-  echo "[dev-full] STARKNET_RPC_URL not set; bridge will refuse simulate requests." >&2
+  echo "[dev-full] STARKNET_RPC_URL not set; using per-request X-Starknet-Rpc-Url from the UI." >&2
+  echo "[dev-full] Direct bridge calls without that header will fail." >&2
 fi
 
 cleanup() {
@@ -49,6 +47,7 @@ BIND_ADDR="$BRIDGE_BIND" \
   REQUIRE_API_KEY=false \
   LOG_LEVEL="$BRIDGE_LOG" \
   STARKNET_RPC_URL="${STARKNET_RPC_URL:-}" \
+  VOYAGER_API_KEY="${VOYAGER_API_KEY:-}" \
   "$BRIDGE_BIN" 2>&1 | sed -u 's/^/[bridge] /' &
 
 echo "[dev-full] starting Vite dev server on :$VITE_PORT"

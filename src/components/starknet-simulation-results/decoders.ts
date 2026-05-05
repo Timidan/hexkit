@@ -4,6 +4,12 @@
 // and the static metadata for token/event keys.
 
 import type { FunctionInvocation, SimulationEvent } from "@/chains/starknet/simulatorTypes";
+// Re-export so all consumers of starknet-sim decoders share one canonical
+// address shape. Keeping the implementation in `lib/starknet-token-icons`
+// avoids duplicating the leading-zero / case-normalization logic — the
+// icon registry uses the exact same key shape, so a normalized address
+// looked up here is guaranteed to match a registry entry.
+export { normalizeAddr } from "@/lib/starknet-token-icons";
 
 // Hardcoded fallback for frames where the bridge couldn't resolve the
 // selector (no class loaded, revert path, etc). Mirrors print_selectors.rs.
@@ -47,24 +53,58 @@ export const KNOWN_CONTRACTS: Record<string, string> = {
   "0x1176a1bd84444c89232ec27754698e5d2e7e1a7f1539f12027f28b23ec9f3d8": "StarkWare Sequencer",
   "0x041a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf":
     "Universal Deployer",
-  // DEX routers.
-  "0x4270219d365d6b017a6a3c8a2dba89dab1d50e6f8a2e0a3c2f3a3d3f8e8e8e8": "AVNU Router",
-  "0x041fd22b238fa21cfcf5dd45a8548974d8263b3a531a60388411c5e230f97023": "10kSwap Router",
-  "0x07a6f98c03379b9513ca84cca1373ff452a7462a3b61598f0af5bb27ad7f76d1": "JediSwap Router",
-  "0x010884171baf1914edc28d7afb619b40a4051cfae78a094a55d230f19e944a28":
+  // DEX routers / pools — verified mainnet addresses from each
+  // protocol's own docs (avnu-labs/avnu-contracts-v2, docs.ekubo.org,
+  // docs.jediswap.xyz). The toolkit's previous "AVNU Router" entry
+  // ended in `e8e8e8` which is a placeholder; it's been replaced with
+  // the v2 exchange contract from avnu-labs's README.
+  "0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f": "AVNU Exchange",
+  "0x07a6f98c03379b9513ca84cca1373ff452a7462a3b61598f0af5bb27ad7f76d1": "JediSwap V1 Router",
+  "0x01aa950c9b974294787de8df8880ecf668840a6ab8fa8290bf2952212b375148":
     "JediSwap V2 Factory",
-  "0x004f3afaf72e34a087fd60beea49a2a96a4c8edda08fa1e16ce4ba9d6090e5b3": "Ekubo Core",
-  "0x05dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b": "MySwap CL",
+  "0x0359550b990167afd6635fa574f3bdadd83cb51850e1d00061fe693158c23f80":
+    "JediSwap V2 Swap Router",
+  "0x0469b656239972a2501f2f1cd71bf4e844d64b7cae6773aa84c702327c476e5b":
+    "JediSwap V2 NFT Router",
+  "0x05dd3d2f4429af886cd1a3b08289dbcea99a294197e9eb43b0e0325b4b": "Ekubo Core",
+  "0x02e0af29598b407c8716b17f6d2795eca1b471413fa03fb145a5e33722184067":
+    "Ekubo Positions",
+  "0x0199741822c2dc722f6f605204f35e56dbc23bceed54818168c4c49e4fb8737e":
+    "Ekubo Router",
+  // Lending / money markets — verified from docs.nostra.finance
+  // money-market-mainnet page. zkLend addresses excluded pending
+  // post-incident v2 redeployment confirmation.
+  "0x073f6addc9339de9822cab4dac8c9431779c09077f02ba7bc36904ea342dd9eb":
+    "Nostra CDP Manager",
+  "0x059a943ca214c10234b9a3b61c558ac20c005127d183b86a99a8f3c60a08b4ff":
+    "Nostra Interest Rate Model",
+  "0x06bde9f5dad56196ce852c8099db62d0a2827bd389cd0d0885aa7c7dd969fd57":
+    "Nostra Deferred Batch Call Adapter",
+  "0x01bcfcb651e98317dc042cb34d0e0226c7f83bca309b6c54d8f0df6ee4e5f721":
+    "Nostra Flash Loan Adapter",
+  // Identity / naming — verified from docs.starknet.id deployed
+  // contracts page.
+  "0x06ac597f8116f886fa1c97a23fa4e08299975ecaf6b598873ca6792b9bbfb678":
+    "Starknet ID Naming",
+  "0x05dbdedc203e92749e2e746e2d40a768d966bd243df04a6b712e222bc040a9af":
+    "Starknet ID Identity",
+  "0x04a9834dffae8d6813405b504027ad91b47f69c3f58a72c1aa1b337b5fc25771":
+    "Starknet ID Pricing",
 };
 
 /** Class-hash → label registry. Lets us recognise wallet brands and
  *  popular implementation classes when the bridge gives us a class
  *  hash but the deployment address isn't in KNOWN_CONTRACTS. */
 export const KNOWN_CLASS_HASHES: Record<string, string> = {
-  // Argent / Ready.
+  // Argent / Ready — verified from
+  // argentlabs/argent-contracts-starknet/deployments/account.txt.
+  // v0.4.0 was rebranded "Ready" for the wallet's renaming; older
+  // versions keep their original brand.
+  "0x073414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2":
+    "Argent Account v0.5.0",
   "0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f":
     "Ready Account v0.4.0",
-  "0x29927c8af6bccf3f6fda035981e765a7bdbf18a2dc0d630494f8758aa908e2b":
+  "0x029927c8af6bccf3f6fda035981e765a7bdbf18a2dc0d630494f8758aa908e2b":
     "Argent Account v0.3.1",
   "0x01a736d6ed154502257f02b1ccdf4d9d1089f80811cd6acad48e6b6a9d1f2003":
     "Argent Account v0.3.0",
@@ -114,11 +154,21 @@ export function classLabel(classHash: string | null | undefined): string | null 
   }
 }
 
-export const TOKEN_META: Record<string, { symbol: string; decimals: number }> = {
+export const TOKEN_META: Record<string, { symbol: string; decimals: number; name?: string }> = {
   "0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7": { symbol: "ETH", decimals: 18 },
   "0x4718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d": { symbol: "STRK", decimals: 18 },
   "0x53c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8": { symbol: "USDC", decimals: 6 },
   "0x68f5c6a61780768455de69077e07e89787839bf8166decfbf92b645209c0fb8": { symbol: "USDT", decimals: 6 },
+  "0x16dea82a6b48e0c86f2c90ce5e300df38707a5da3e32a4ca479896d90441a796": {
+    symbol: "Extra Life",
+    name: "Extra Life",
+    decimals: 18,
+  },
+  "0x29023e0ad12a954b2c57411f4ab0af088b34f550bbd20bc097a2330a4f711dbe": {
+    symbol: "Revive",
+    name: "Revive",
+    decimals: 18,
+  },
 };
 
 /** Bridge-emitted decodedSelector wins, hardcoded table is the fallback. */
@@ -128,7 +178,11 @@ export function selectorName(ci: FunctionInvocation | null | undefined): string 
 }
 
 export function eventName(ev: SimulationEvent): string | null {
-  return ev.keys[0] ? KNOWN_EVENTS[ev.keys[0]] || null : null;
+  return (
+    ev.decodedEventAbi?.name ||
+    ev.decoded?.name ||
+    (ev.keys[0] ? KNOWN_EVENTS[ev.keys[0]] || null : null)
+  );
 }
 
 let CONTRACT_BY_BIGINT: Map<bigint, string> | null = null;
@@ -165,6 +219,7 @@ const ACCOUNT_ENTRY_POINT_NAMES = new Set([
   "__validate_deploy__",
   "__validate_declare__",
   "execute_from_outside_v2",
+  "execute_from_outside_v3",
   "execute_from_outside",
 ]);
 
@@ -227,7 +282,7 @@ export function formatTokenAmount(amount: bigint, decimals: number): string {
   const whole = amount / div;
   const frac = amount % div;
   if (frac === 0n) return whole.toString();
-  let fracStr = frac.toString().padStart(decimals, "0").slice(0, 6).replace(/0+$/, "");
+  const fracStr = frac.toString().padStart(decimals, "0").slice(0, 6).replace(/0+$/, "");
   return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
