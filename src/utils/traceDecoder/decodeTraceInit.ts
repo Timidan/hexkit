@@ -476,7 +476,7 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
   const opcodeDetails = snaps.map((s: any) => s.detail?.Opcode).filter(Boolean);
 
   // Extract gas_remaining from raw text to preserve BigInt precision
-  let rawText = (raw as any).__rawText || "";
+  const rawText = (raw as any).__rawText || "";
   let gasMatches: string[] = [];
   if (rawText) {
     const snapshotsMatch = rawText.match(/"snapshots"\s*:\s*\[/);

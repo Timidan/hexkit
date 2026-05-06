@@ -1,7 +1,5 @@
 import React from 'react';
-import { Database, Hash, Shield, BracketsCurly, WarningCircle } from '@phosphor-icons/react';
 import { middleTruncate } from './storageViewerHelpers';
-import type { ResolvedSlot } from './storageViewerTypes';
 
 export const CopyableCell: React.FC<{
   value: string;
@@ -80,12 +78,3 @@ export const ClickableValue: React.FC<{
   );
 };
 
-export function DecodeKindIcon({ kind }: { kind: ResolvedSlot['decodeKind'] }) {
-  switch (kind) {
-    case 'exact': return <Database className="h-3 w-3 text-blue-400" />;
-    case 'derived': return <Hash className="h-3 w-3 text-yellow-400" />;
-    case 'proxy_slot': return <Shield className="h-3 w-3 text-purple-400" />;
-    case 'namespace_root': return <BracketsCurly className="h-3 w-3 text-cyan-400" />;
-    case 'unknown': return <WarningCircle className="h-3 w-3 text-muted-foreground" />;
-  }
-}

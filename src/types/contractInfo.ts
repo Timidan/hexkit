@@ -35,12 +35,3 @@ export interface ContractInfoResult {
   }>;
 }
 
-export type ContractExternalFunction = NonNullable<
-  ContractInfoResult['externalFunctions']
->[number];
-
-export type ContractTokenInfo = NonNullable<ContractInfoResult['tokenInfo']>;
-
-export type ContractSearchProgress = NonNullable<
-  ContractInfoResult['searchProgress']
->[number];

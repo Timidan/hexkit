@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { animate } from 'animejs';
 import {
   CheckCircle,
   Sparkle,
@@ -116,11 +115,8 @@ const SmartDecoder: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fallbackSectionRef = useRef<HTMLDivElement | null>(null);
   const abiContractInputRef = useRef<HTMLInputElement | null>(null);
-  const abiSourceSectionRef = useRef<HTMLDivElement | null>(null);
   const lookupAbortRef = useRef<AbortController | null>(null);
   const abiCacheRef = useRef<Map<string, CachedAbiEntry>>(new Map());
-  const [showAbiSourceSection, setShowAbiSourceSection] = useState(false);
-  const prevDecodedResultRef = useRef<DecodedResultState | null>(null);
 
   const cancelActiveLookup = useCallback(() => {
     if (lookupAbortRef.current) {
@@ -139,19 +135,6 @@ const SmartDecoder: React.FC = () => {
   useEffect(() => {
     return () => cancelActiveLookup();
   }, [cancelActiveLookup]);
-
-  useEffect(() => {
-    if (decodedResult && !prevDecodedResultRef.current && showFallbackOptions && abiSourceSectionRef.current) {
-      setShowAbiSourceSection(true);
-      animate(abiSourceSectionRef.current, {
-        translateY: [-20, 0],
-        opacity: [0, 1],
-        duration: 400,
-        ease: 'outCubic'
-      });
-    }
-    prevDecodedResultRef.current = decodedResult;
-  }, [decodedResult, showFallbackOptions]);
 
   const addDecodingStep = useCallback((step: string) => {
     setDecodingSteps(prev => [...prev, step]);

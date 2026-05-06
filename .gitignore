@@ -64,6 +64,11 @@ edb
 *test*
 *Test*
 *TEST*
+*.spec.ts
+*.spec.tsx
+*.spec.js
+*.spec.mjs
+*.spec.mts
 /tmp
 video/out
 .superpowers

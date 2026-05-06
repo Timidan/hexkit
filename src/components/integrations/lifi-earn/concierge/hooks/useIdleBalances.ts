@@ -23,10 +23,6 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
         if (!page.nextCursor) return all;
         cursor = page.nextCursor;
       }
-      console.warn(
-        `[concierge] earn-vaults pagination hit safety cap (${SAFETY_MAX_PAGES} pages); ` +
-          `subsequent vaults were not loaded.`
-      );
       return all;
     },
     staleTime: 5 * 60 * 1000,
@@ -56,15 +52,6 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
         (id) => !isTestnet(id as number)
       ) as number[];
 
-      // eslint-disable-next-line no-console
-      console.log(
-        `[concierge] scanning ${chainIds.length} chains:`,
-        chainIds.map((id) => {
-          const meta = CHAIN_REGISTRY.find((c) => c.id === id);
-          return `${meta?.name ?? id}(${(underlyingsByChain.get(id) ?? []).length} tokens)`;
-        })
-      );
-
       const chainResults = await Promise.all(
         chainIds.map((chainId) =>
           scanSingleChain({
@@ -72,13 +59,7 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
             address: targetAddress as `0x${string}`,
             tokens: underlyingsByChain.get(chainId) ?? [],
             timeoutMs: perChainTimeoutMs,
-          }).catch((err) => {
-            console.warn(
-              `[concierge] chain ${chainId} (${CHAIN_REGISTRY.find((c) => c.id === chainId)?.name ?? "?"}) scan failed:`,
-              err?.message ?? err
-            );
-            return null;
-          })
+          }).catch(() => null)
         )
       );
 

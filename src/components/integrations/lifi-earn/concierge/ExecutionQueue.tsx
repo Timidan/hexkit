@@ -14,7 +14,10 @@ interface ExecutionQueueProps {
 
 export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
   if (state.legs.length === 0) return null;
+  return <ExecutionQueueBody state={state} dispatch={dispatch} />;
+}
 
+function ExecutionQueueBody({ state, dispatch }: ExecutionQueueProps) {
   const current = state.currentIndex >= 0 ? state.legs[state.currentIndex] : null;
   const allDone = state.legs.every(
     (l) => l.status === "done" || l.status === "failed"
@@ -33,7 +36,6 @@ export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
     requestAnimationFrame(() => {
       queueRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -41,18 +41,6 @@ export type ParsedContracts = Record<string, ParsedContract>;
 
 // ---- Constants ----
 
-export const SIGNATURE_TAB_OPTIONS: Array<{
-  value: TabType;
-  title: string;
-  helper: string;
-}> = [
-  { value: "lookup", title: "Lookup", helper: "By Hash" },
-  { value: "search", title: "Search", helper: "By Name" },
-  { value: "tools", title: "Tools", helper: "Utilities" },
-  { value: "custom", title: "Custom", helper: "Add Signatures" },
-  { value: "cache", title: "Cache", helper: "Saved Results" },
-];
-
 export const SIGNATURE_TABS: TabType[] = [
   "lookup",
   "search",

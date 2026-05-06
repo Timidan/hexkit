@@ -22,43 +22,43 @@
     },
     {
       "source": "/api/eth-blockscout/:path*",
-      "destination": "https://eth.blockscout.com/:path*"
+      "destination": "https://eth.blockscout.com/api/:path*"
     },
     {
       "source": "/api/blockscout/:path*",
-      "destination": "https://base.blockscout.com/:path*"
+      "destination": "https://base.blockscout.com/api/:path*"
     },
     {
       "source": "/api/polygon-blockscout/:path*",
-      "destination": "https://polygon.blockscout.com/:path*"
+      "destination": "https://polygon.blockscout.com/api/:path*"
     },
     {
       "source": "/api/arbitrum-blockscout/:path*",
-      "destination": "https://arbitrum.blockscout.com/:path*"
+      "destination": "https://arbitrum.blockscout.com/api/:path*"
     },
     {
       "source": "/api/base-sepolia-blockscout/:path*",
-      "destination": "https://base-sepolia.blockscout.com/:path*"
+      "destination": "https://base-sepolia.blockscout.com/api/:path*"
     },
     {
       "source": "/api/lisk-sepolia-blockscout/:path*",
-      "destination": "https://sepolia-blockscout.lisk.com/:path*"
+      "destination": "https://sepolia-blockscout.lisk.com/api/:path*"
     },
     {
       "source": "/api/lisk-blockscout/:path*",
-      "destination": "https://blockscout.lisk.com/:path*"
+      "destination": "https://blockscout.lisk.com/api/:path*"
     },
     {
       "source": "/api/optimism-blockscout/:path*",
-      "destination": "https://optimism.blockscout.com/:path*"
+      "destination": "https://optimism.blockscout.com/api/:path*"
     },
     {
       "source": "/api/sepolia-blockscout/:path*",
-      "destination": "https://eth-sepolia.blockscout.com/:path*"
+      "destination": "https://eth-sepolia.blockscout.com/api/:path*"
     },
     {
       "source": "/api/gnosis-blockscout/:path*",
-      "destination": "https://gnosis.blockscout.com/:path*"
+      "destination": "https://gnosis.blockscout.com/api/:path*"
     },
     {
       "source": "/api/repo/:path*",

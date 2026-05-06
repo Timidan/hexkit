@@ -24,7 +24,7 @@ function useAllEarnVaults() {
         if (!page.nextCursor) return all;
         cursor = page.nextCursor;
       }
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[intent] earn-vaults pagination hit safety cap (${SAFETY_MAX_PAGES} pages)`
       );

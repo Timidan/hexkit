@@ -1,13 +1,4 @@
 import { OPCODE_MNEMONICS } from "./constants";
-import { shortenAddress, shortenHash } from '../shared/AddressDisplay';
-
-export const formatLongAddress = (value?: string | null) => {
-  if (!value) return "0x0";
-  if (value === "0x0000000000000000000000000000000000000000") {
-    return "Zero Address (0x0000\u20260000)";
-  }
-  return `${shortenAddress(value)} (${shortenHash(value, 10, 4)})`;
-};
 
 export const getOpcodeName = (opcode?: number | null) => {
   if (typeof opcode !== "number") return "OP";
@@ -144,27 +135,9 @@ export const formatTxType = (type?: number | null) => {
   }
 };
 
-export const getOpcodeToneClass = (name?: string) => {
-  if (!name) return "";
-  if (name.startsWith("SLOAD") || name.startsWith("SSTORE")) return "sim-opcode-badge--storage";
-  if (name.startsWith("STOP")) return "sim-opcode-badge--stop";
-  if (name.startsWith("JUMP") || name.startsWith("CALL")) return "sim-opcode-badge--flow";
-  return "";
-};
-
 export const parseGasSafe = (value: string | number | null | undefined): number => {
   if (!value) return 0;
   const num = typeof value === 'string' ? parseInt(value, 10) : value;
   const MAX_REASONABLE_GAS = 100_000_000;
   return (Number.isFinite(num) && num > 0 && num < MAX_REASONABLE_GAS) ? num : 0;
-};
-
-/** Format contract name with address */
-export const formatContractDisplay = (address?: string, name?: string) => {
-  if (!address) return "—";
-  const short = shortenAddress(address);
-  if (name && name !== address) {
-    return `${name}(${short})`;
-  }
-  return short;
 };

@@ -70,20 +70,6 @@ function extractSources(data: Record<string, unknown>): {
 }
 
 /**
- * Fetch storage layout from Sourcify V2 API.
- * Uses the shared cache to avoid redundant requests.
- */
-export async function fetchStorageLayoutFromSourcify(
-  chainId: number,
-  address: string,
-  signal?: AbortSignal
-): Promise<StorageLayoutResponse | null> {
-  const data = await fetchSourcifyV2Cached(chainId, address, ['storageLayout'], signal);
-  if (!data) return null;
-  return extractStorageLayout(data);
-}
-
-/**
  * Fetch source files from Sourcify V2 API for AST-based reconstruction.
  * Uses the shared cache to avoid redundant requests.
  */

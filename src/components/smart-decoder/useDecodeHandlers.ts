@@ -224,7 +224,7 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
           const result = await prefetched[currentSourceIndex];
 
           if (result.status === "fulfilled" && Array.isArray(result.result?.abi)) {
-            let abi = result.result.abi;
+            const abi = result.result.abi;
             const resolvedChainId = result.result.chainId || chainIdForLookup;
             const resolvedChain = resolvedChainId ? getChainById(parseInt(resolvedChainId, 10)) : null;
             setCurrentSearchProgress(prev => [...prev, `Found verified contract on ${source.name}!`]);

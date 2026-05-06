@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import type { SimulationResult } from "../types/transaction";
 import type { TraceContract } from "../utils/traceAddressCollector";
 import type { DecodedTraceRow } from "../utils/traceDecoder";
@@ -116,8 +116,6 @@ const SimulationContext = createContext<SimulationContextValue | undefined>(
   undefined
 );
 
-const STORAGE_KEY = "web3-toolkit:simulation-state";
-
 export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -129,17 +127,6 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
   const [decodedTraceRows, setDecodedTraceRowsState] = useState<DecodedTraceRow[] | null>(null);
   // Decoded trace metadata - persisted separately to survive page refresh
   const [decodedTraceMeta, setDecodedTraceMetaState] = useState<DecodedTraceMeta | null>(null);
-
-  // Clear old localStorage data on mount to free space
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // Ignore errors
-      }
-    }
-  }, []);
 
   const setSimulation = useCallback((result: SimulationResult, contractCtx?: SimulationContractContext, options?: SetSimulationOptions) => {
     let nextResult = result;
