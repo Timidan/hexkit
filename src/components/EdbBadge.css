@@ -1,0 +1,54 @@
+.edb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: #d4a574;
+  transition: color 0.15s ease, transform 0.15s ease;
+  line-height: 1;
+}
+.edb-badge:hover {
+  color: #e8dfd0;
+}
+.edb-badge:hover .edb-cog path {
+  stroke: #e8dfd0;
+}
+.edb-badge svg {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.edb-badge-label {
+  font-family: ui-monospace, "JetBrains Mono", "Geist Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.edb-cog {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.edb-cog-big {
+  animation: edb-cog-cw 6s linear infinite;
+}
+.edb-cog-small {
+  animation: edb-cog-ccw 4s linear infinite;
+}
+@keyframes edb-cog-cw {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes edb-cog-ccw {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edb-cog-big,
+  .edb-cog-small {
+    animation: none;
+  }
+}

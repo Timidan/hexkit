@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { cn } from "@/lib/utils";
+import EdbBadge from "./EdbBadge";
 
 export interface SimulationOverrides {
   from?: string;
@@ -300,9 +301,10 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
         </div>
 
         <div className="border border-dashed border-border/50 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="text-emerald-400">EDB Supported:</span>
-            Storage Overrides (coming to UI soon)
+          <div className="flex items-center gap-2.5 text-xs text-muted-foreground flex-wrap">
+            <EdbBadge />
+            <span className="text-muted-foreground/40">·</span>
+            <span>Storage Overrides (coming to UI soon)</span>
           </div>
         </div>
       </div>
