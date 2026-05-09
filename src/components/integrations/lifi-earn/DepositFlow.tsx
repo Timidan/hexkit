@@ -35,6 +35,7 @@ import { useTokenBalance } from "./hooks/useTokenBalance";
 import { TokenIcon } from "./TokenIcon";
 import type { EarnToken, EarnVault } from "./types";
 import { formatTxError, shortAddress, isNativeToken } from "./txUtils";
+import EdbBadge from "../../EdbBadge";
 
 type FlowState =
   | "idle"
@@ -1548,14 +1549,18 @@ export function DepositFlow({
 
           <div className="flex flex-col items-center gap-2 pt-1">
             {!needsApproval && !isTwoStepEligible && !simResult?.success && (
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
-                <Switch
-                  checked={simulateFirst}
-                  onCheckedChange={setSimulateFirst}
-                  disabled={isBusy || flowState === "success"}
-                />
-                Simulate first
-              </label>
+              <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/30 px-3 py-1.5">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
+                  <Switch
+                    checked={simulateFirst}
+                    onCheckedChange={setSimulateFirst}
+                    disabled={isBusy || flowState === "success"}
+                  />
+                  Simulate first
+                </label>
+                <span className="text-muted-foreground/30 text-xs">·</span>
+                <EdbBadge className="opacity-70 transition-opacity hover:opacity-100" />
+              </div>
             )}
 
             {(() => {
