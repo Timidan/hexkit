@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { useAccount } from "wagmi";
+import { useEarnAdapter } from "../../../features/earn/context/EarnAdapterContext";
 import { motion } from "framer-motion";
 import { MagnifyingGlass, X, CircleNotch } from "@phosphor-icons/react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
@@ -27,7 +27,8 @@ const LifiEarnPage: React.FC = () => {
   const [selectedVault, setSelectedVault] = useState<EarnVault | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { address: walletAddress, isConnected } = useAccount();
+  const { connectedAddress, isConnected } = useEarnAdapter();
+  const walletAddress = connectedAddress ?? undefined;
   const [inputAddress, setInputAddress] = useState("");
 
   const sanitizedInput = useMemo(

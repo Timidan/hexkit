@@ -69,7 +69,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
                 Simulations are stored in your browser's IndexedDB and may have been cleared.
               </p>
               <div className="sim-not-found__actions">
-                <Button onClick={() => navigate('/simulations')} variant="outline">
+                <Button onClick={() => navigate('/evm/simulations')} variant="outline">
                   View Simulation History
                 </Button>
                 <Button onClick={handleBack} variant="secondary">

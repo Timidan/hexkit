@@ -12,6 +12,7 @@ import { parseFunctionSignatureParameters } from '../../utils/solidityTypes';
 import { resolveContractContext, type ProxyInfo } from '../../utils/resolver';
 import type { Chain } from '../../types';
 import { getChainById } from '../../utils/chains';
+import { toEvmChainKey } from '../../chains/types/evm';
 import type { ExtendedChain } from '../shared/NetworkSelector';
 
 import type {
@@ -336,7 +337,14 @@ export function useDecodeHandlers(deps: DecodeHandlersDeps) {
       if (lookupMode === 'single' && selectedLookupNetwork) {
         addDecodingStep(' Resolving contract (ABI + proxy detection)...');
         const resolvedChain = getChainById(selectedLookupNetwork.id);
-        const chain: Chain = resolvedChain || { id: selectedLookupNetwork.id, name: selectedLookupNetwork.name, rpcUrl: '', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 } };
+        const chain: Chain = resolvedChain || {
+          id: selectedLookupNetwork.id,
+          chainFamily: 'evm',
+          chainKey: toEvmChainKey(selectedLookupNetwork.id),
+          name: selectedLookupNetwork.name,
+          rpcUrl: '',
+          nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        };
         const ctx = await resolveContractContext(contractAddress.trim(), chain, { abi: true, proxy: true, onProgress: (step, detail) => { addDecodingStep(` ${step}${detail ? ` (${detail})` : ''}`); } });
         if (ctx.proxyInfo?.isProxy) {
           setProxyInfo(ctx.proxyInfo);

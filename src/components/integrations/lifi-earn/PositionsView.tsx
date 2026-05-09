@@ -4,7 +4,7 @@ import {
   Wallet,
   CaretDown,
 } from "@phosphor-icons/react";
-import { useAccount } from "wagmi";
+import { useEarnAdapter } from "../../../features/earn/context/EarnAdapterContext";
 import { SUPPORTED_CHAINS } from "../../../utils/chains";
 import ChainIcon from "../../icons/ChainIcon";
 import { Button } from "../../../components/ui/button";
@@ -184,7 +184,7 @@ export function PositionsView({ targetAddress, vaults = [] }: PositionsViewProps
   );
 
   const vaultMap = useVaultLookup(vaults);
-  const { address: connectedAddress } = useAccount();
+  const { connectedAddress } = useEarnAdapter();
   const [withdrawKey, setWithdrawKey] = useState<string | null>(null);
 
   const uniqueProtocolCount = useMemo(

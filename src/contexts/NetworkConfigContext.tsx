@@ -21,6 +21,12 @@ import {
   type NetworkConfig,
   type RpcProviderMode,
   type RpcResolution,
+  type SolanaCluster,
+  type SolanaRpcConfig,
+  type SolanaRpcResolution,
+  type StarknetNetwork,
+  type StarknetRpcConfig,
+  type StarknetRpcResolution,
   networkConfigManager,
 } from '../config/networkConfig';
 
@@ -33,6 +39,8 @@ interface NetworkConfigContextValue {
 
   // RPC resolution
   resolveRpcUrl: (chainId: number, defaultUrl?: string) => RpcResolution;
+  resolveStarknetRpc: (network: StarknetNetwork) => StarknetRpcResolution;
+  resolveSolanaRpc: (cluster: SolanaCluster) => SolanaRpcResolution;
   getRpcMode: () => RpcProviderMode;
   isFallbackAllowed: () => boolean;
 
@@ -49,6 +57,8 @@ interface NetworkConfigContextValue {
 
   // Config mutations
   saveConfig: (config: Partial<NetworkConfig>) => void;
+  saveStarknetConfig: (patch: Partial<StarknetRpcConfig>) => void;
+  saveSolanaConfig: (patch: Partial<SolanaRpcConfig>) => void;
   reset: () => void;
 
   // Setup acknowledgment (for UX gate)
@@ -133,6 +143,20 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
     [configVersion]
   );
 
+  const resolveStarknetRpc = useCallback(
+    (network: StarknetNetwork): StarknetRpcResolution => {
+      return networkConfigManager.resolveStarknetRpc(network);
+    },
+    [configVersion]
+  );
+
+  const resolveSolanaRpc = useCallback(
+    (cluster: SolanaCluster): SolanaRpcResolution => {
+      return networkConfigManager.resolveSolanaRpc(cluster);
+    },
+    [configVersion]
+  );
+
   const getRpcMode = useCallback((): RpcProviderMode => {
     return networkConfigManager.getRpcMode();
   }, [configVersion]);
@@ -176,6 +200,18 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
     setConfigVersion((prev) => prev + 1);
   }, []);
 
+  const saveStarknetConfig = useCallback((patch: Partial<StarknetRpcConfig>) => {
+    networkConfigManager.saveStarknetConfig(patch);
+    setConfig(networkConfigManager.getConfig());
+    setConfigVersion((prev) => prev + 1);
+  }, []);
+
+  const saveSolanaConfig = useCallback((patch: Partial<SolanaRpcConfig>) => {
+    networkConfigManager.saveSolanaConfig(patch);
+    setConfig(networkConfigManager.getConfig());
+    setConfigVersion((prev) => prev + 1);
+  }, []);
+
   const reset = useCallback(() => {
     networkConfigManager.reset();
     setConfig(networkConfigManager.getConfig());
@@ -188,6 +224,8 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
       config,
       configVersion,
       resolveRpcUrl,
+      resolveStarknetRpc,
+      resolveSolanaRpc,
       getRpcMode,
       isFallbackAllowed,
       getEtherscanApiKey,
@@ -196,6 +234,8 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
       isAlchemyAvailable,
       isInfuraAvailable,
       saveConfig,
+      saveStarknetConfig,
+      saveSolanaConfig,
       reset,
       hasAcknowledgedDefaults,
       acknowledgeDefaults,
@@ -204,6 +244,8 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
       config,
       configVersion,
       resolveRpcUrl,
+      resolveStarknetRpc,
+      resolveSolanaRpc,
       getRpcMode,
       isFallbackAllowed,
       getEtherscanApiKey,
@@ -212,6 +254,8 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
       isAlchemyAvailable,
       isInfuraAvailable,
       saveConfig,
+      saveStarknetConfig,
+      saveSolanaConfig,
       reset,
       hasAcknowledgedDefaults,
       acknowledgeDefaults,

@@ -1,5 +1,5 @@
 import React from "react";
-import { formatUnits } from "viem";
+import { formatUnits } from "../../../../features/earn/shared/formatUnits";
 import { Checkbox } from "../../../../components/ui/checkbox";
 import ChainIcon from "../../../icons/ChainIcon";
 import { TokenIcon } from "../TokenIcon";

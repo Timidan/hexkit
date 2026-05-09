@@ -6,6 +6,7 @@
  */
 
 import type { Chain, ExplorerAPI } from "../types";
+import { toEvmChainKey } from "./types/evm";
 
 // ── Explorer API configs for chains that have them ──────────────────────────
 
@@ -401,6 +402,8 @@ function makeChain(id: number, name: string, nativeCurrency: Chain["nativeCurren
   const explorer = EXPLORER_APIS[id];
   return {
     id,
+    chainFamily: "evm",
+    chainKey: toEvmChainKey(id),
     name,
     rpcUrl,
     nativeCurrency,
@@ -493,8 +496,12 @@ export const CHAIN_REGISTRY: Chain[] = [
 // ── Lookup helpers ───────────────────────────────────────────────────────────
 
 const CHAIN_BY_ID = new Map(CHAIN_REGISTRY.map((c) => [c.id, c]));
+const CHAIN_BY_KEY = new Map(CHAIN_REGISTRY.map((c) => [c.chainKey, c]));
 
 export const getChainById = (id: number): Chain | undefined => CHAIN_BY_ID.get(id);
+
+/** Look up an EVM chain by its canonical cross-family key (`evm:${id}`). */
+export const getChainByKey = (key: Chain["chainKey"]): Chain | undefined => CHAIN_BY_KEY.get(key);
 
 /** IDs of testnet chains */
 const TESTNET_IDS = new Set([11155111, 84532, 17000, 4202, 80002, 421614, 11155420, 97]);

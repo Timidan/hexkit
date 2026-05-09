@@ -12,6 +12,8 @@ import {
   type SlotDescriptor,
 } from "../../utils/storageLayoutDecode";
 import { formatTokenValue } from "../../utils/displayFormatters";
+import { CopyButton } from "../ui/copy-button";
+import { contractExplorerLinks } from "../starknet/explorerLinks";
 import "./StateTab.css";
 
 /** Format a decoded value, optionally applying token decimal formatting */
@@ -328,6 +330,8 @@ export const StateTab: React.FC<StateTabProps> = ({ result, artifacts, contractC
     if (t === 'ERC1155') return 'state-token-badge erc1155';
     return 'state-token-badge';
   };
+  const isLikelyStarknetAddress = (addr: string): boolean =>
+    /^0x[a-fA-F0-9]{49,64}$/.test(addr);
 
   return (
     <section className="sim-panel">
@@ -375,6 +379,39 @@ export const StateTab: React.FC<StateTabProps> = ({ result, artifacts, contractC
                 <code className="state-contract-addr">
                   {contract.address}
                 </code>
+                <span className="state-contract-actions">
+                  <CopyButton
+                    value={contract.address}
+                    className="h-4 w-4"
+                    iconSize={10}
+                    ariaLabel="Copy contract address"
+                  />
+                  {isLikelyStarknetAddress(contract.address) && (() => {
+                    const links = contractExplorerLinks(contract.address, undefined);
+                    return (
+                      <>
+                        <a
+                          href={links.voyager}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="state-contract-link"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Voyager
+                        </a>
+                        <a
+                          href={links.starkscan}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="state-contract-link"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Starkscan
+                        </a>
+                      </>
+                    );
+                  })()}
+                </span>
                 <span className="state-change-count">
                   ({contract.diffs.length} change{contract.diffs.length !== 1 ? "s" : ""})
                 </span>

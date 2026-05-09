@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   GearSix as SettingsIcon,
   HardDrive,
@@ -9,9 +9,10 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import RainbowKitWallet from "./RainbowKitWallet";
 
 import UniversalSearchBar from "./UniversalSearchBar";
+import FamilySelector from "./shared/FamilySelector";
+import GlobalWalletPicker from "./wallet/GlobalWalletPicker";
 import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
 import { cn } from "@/lib/utils";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
@@ -167,6 +168,8 @@ const TopBar: React.FC<TopBarProps> = ({
         </span>
       </div>
 
+      <FamilySelector className="ml-2 hidden md:inline-flex" />
+
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
           className="pointer-events-auto w-full max-w-[460px]"
@@ -199,7 +202,7 @@ const TopBar: React.FC<TopBarProps> = ({
             <MagnifyingGlass size={16} />
           </Button>
         )}
-        <RainbowKitWallet />
+        <GlobalWalletPicker />
         <Button
           type="button"
           variant="icon-borderless"

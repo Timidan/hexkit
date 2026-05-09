@@ -1,13 +1,18 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { CaretDown, CaretRight, Bug, CircleNotch } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Bug, CircleNotch, Info } from "@phosphor-icons/react";
 import { formatParamValue } from "./traceTypes";
-import type { TraceRow, TraceFilters, FrameHierarchyEntry } from "./traceTypes";
+import type {
+  TraceRow,
+  TraceFilters,
+  FrameHierarchyEntry,
+  SelectedEvent,
+  TraceValueDetail,
+} from "./traceTypes";
 import { Button } from "../ui/button";
 import { shortenAddress } from "../shared/AddressDisplay";
 import { ColorizedSnippet } from "@/lib/monaco";
 
 import {
-  splitTopLevel,
   compactPreviewValue,
   shouldExpandValue,
   getDetailMode,
@@ -27,17 +32,20 @@ interface TraceRowRendererProps {
   filters: TraceFilters;
   sourceLines?: string[];
   sourceTexts?: Record<string, string>;
-  // State from useTraceState
   currentStepIndex: number;
   expandedRowId: string | null;
   setExpandedRowId: (id: string | null) => void;
   collapsedFrames: Set<string>;
   slotXRefEnabled: boolean;
-  setSelectedEvent: (event: any) => void;
-  openTraceDetail: (detail: { title: string; value: string; mode: "popover" | "modal"; format?: "text" | "json" }) => void;
-  debugSession: any;
+  setSelectedEvent: (event: SelectedEvent) => void;
+  openTraceDetail: (detail: TraceValueDetail) => void;
+  debugSession: unknown;
   openDebugAtSnapshot: (step: number) => Promise<void>;
-  contractContext: any;
+  contractContext: {
+    abi?: unknown;
+    diamondFacets?: Array<{ abi?: unknown }>;
+    selectedFunction?: string | null;
+  } | null | undefined;
   highlightedValue: string | null;
   setHighlightedValue: (value: string | null) => void;
   resolveAddressName: (address: string | undefined | null) => string | null;
@@ -52,10 +60,18 @@ interface TraceRowRendererProps {
   handleJumpToStep: (stepIndex: number) => void;
 }
 
+function starknetBadgeClass(row: TraceRow): string {
+  if (row.type === "message") return "op-l2tol1";
+  if (row.type === "function") return "op-function";
+  const ct = (row.callType || "CALL").toUpperCase();
+  if (ct === "DELEGATE" || ct === "LIBRARY_CALL") return "op-delegatecall";
+  if (ct === "CONSTRUCTOR") return "op-constructor";
+  return "op-call";
+}
+
 export function useTraceRowRenderer(props: TraceRowRendererProps) {
   const {
     filters,
-    sourceLines,
     sourceTexts,
     currentStepIndex,
     expandedRowId,
@@ -94,15 +110,19 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [],
   );
 
+  const contractAbi = contractContext?.abi;
+  const diamondFacets = contractContext?.diamondFacets;
+  const selectedFunction = contractContext?.selectedFunction;
+
   const decodeInterface = useMemo(
-    () => buildDecodeInterface(contractContext),
-    [contractContext?.abi, contractContext?.diamondFacets],
+    () => buildDecodeInterface({ abi: contractAbi, diamondFacets }),
+    [contractAbi, diamondFacets],
   );
 
   const decodeOutputForRow = useCallback(
     (row: TraceRow): string | null =>
-      decodeOutputForRowFn(row, decodeInterface, contractContext?.selectedFunction),
-    [decodeInterface, contractContext?.selectedFunction],
+      decodeOutputForRowFn(row, decodeInterface, selectedFunction),
+    [decodeInterface, selectedFunction],
   );
 
   const InlineHighlightableValue: React.FC<{
@@ -166,12 +186,19 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
       const content = resolveSourceContent(row.sourceFile);
       if (!content) return null;
 
+      const language: "solidity" | "cairo" =
+        row.sourceFile?.endsWith(".cairo") ? "cairo" : "solidity";
+
       return (
-        <ColorizedSnippet
-          sourceContent={content}
-          highlightLine={lineNum}
-          contextLines={8}
-        />
+        <>
+          <ColorizedSnippet
+            sourceContent={content}
+            highlightLine={lineNum}
+            contextLines={8}
+            language={language}
+          />
+          {row.failureHint ? <FailureHintCallout hint={row.failureHint} /> : null}
+        </>
       );
     },
     [resolveSourceContent],
@@ -213,11 +240,58 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
     [debugSession, openDebugAtSnapshot, pendingDebugSnapshotId],
   );
 
+  const renderFunctionName = useCallback(
+    (row: TraceRow, decodedParams: string): React.ReactNode => {
+      if (row.chainFamily !== "starknet") {
+        return `${row.functionName}(${decodedParams || row.input || ""})`;
+      }
+
+      const label = row.functionName ?? "";
+      const firstParen = label.indexOf("(");
+      if (firstParen < 0) return label;
+
+      let depth = 0;
+      let close = -1;
+      for (let i = firstParen; i < label.length; i += 1) {
+        const c = label[i];
+        if (c === "(") depth += 1;
+        else if (c === ")") {
+          depth -= 1;
+          if (depth === 0) {
+            close = i;
+            break;
+          }
+        }
+      }
+      if (close < 0) return label;
+
+      const head = label.slice(0, firstParen);
+      const args = label.slice(firstParen, close + 1);
+      const tail = label.slice(close + 1);
+
+      return (
+        <>
+          {head}
+          <span
+            className="starknet-row-click"
+            data-row-id={row.id}
+            tabIndex={0}
+            role="button"
+            aria-label="Open frame argument detail"
+          >
+            {args}…
+          </span>
+          {tail}
+        </>
+      );
+    },
+    [],
+  );
+
   const renderTraceRow = useCallback(
     (row: TraceRow, index: number, visibleIdx: number) => {
       const isCurrentStep = index === currentStepIndex;
       const activeRails = activeRailsAtRow.get(visibleIdx);
-      const isExpanded = expandedRowId === row.id;
       const rowClasses = [
         "exec-trace-row",
         isCurrentStep ? "exec-trace-row--current" : "",
@@ -226,14 +300,14 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
         .filter(Boolean)
         .join(" ");
 
-      if (row.type === "call") {
+      if (row.type === "call" || row.type === "message" || row.type === "function") {
         let decodedParams = "";
         if (row.input && decodeInterface) {
           try {
             const decoded = decodeInterface.parseTransaction({ data: row.input });
             if (decoded.args && decoded.args.length > 0) {
               decodedParams = decoded.args
-                .map((arg: any, idx: number) =>
+                .map((arg: unknown, idx: number) =>
                   formatParamValue(
                     arg,
                     decoded.functionFragment.inputs[idx]?.type,
@@ -248,78 +322,141 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
         }
 
         const decodedReturn = decodeOutputForRow(row) || "";
+        const targetDisplayName =
+          row.contractName ||
+          row.contract ||
+          row.entryMeta?.targetContractName ||
+          resolveAddressName(row.to) ||
+          row.to ||
+          "\u2014";
+        const sourceDisplayName =
+          row.chainFamily === "starknet"
+            ? resolveAddressName(row.from) || row.from || "\u2014"
+            : null;
+        const rowDepth = row.visualDepth ?? row.depth ?? 0;
+        const isActualParent = actualParentFrames.has(row.id);
+        const isCollapsed = collapsedFrames.has(row.id);
 
         return (
-          <div key={row.id} className={rowClasses} onClick={() => handleJumpToStep(index)}>
+          <div
+            key={row.id}
+            className={rowClasses}
+            data-visual-depth={rowDepth}
+            data-row-id={row.id}
+            onClick={() => {
+              handleJumpToStep(index);
+              setExpandedRowId(expandedRowId === row.id ? null : row.id);
+            }}
+          >
             <div className="exec-trace-row__content">
               <div className="exec-sticky-columns">
-                <span className={`exec-trace-opcode-badge op-call`}>
-                  {row.callType?.toUpperCase() || "CALL"}
+                <span className={`exec-trace-opcode-badge ${starknetBadgeClass(row)}`}>
+                  {row.type === "message" ? "L2→L1" : row.type === "function" ? "FN" : (row.callType?.toUpperCase() || "CALL")}
                 </span>
-                {row.gasUsed && (
+                {filters.gas && row.gasUsed && (
                   <span className="exec-trace-step-count">
                     {parseInt(row.gasUsed).toLocaleString()}
                   </span>
                 )}
               </div>
-              <span className="exec-trace-chevron">
-                <CaretDown size={12} />
+              <div
+                className="exec-trace-depth-spacer"
+                style={{
+                  width: rowDepth * 20,
+                  position: "relative",
+                }}
+              >
+                {renderDepthLines(rowDepth, activeRails)}
+              </div>
+              <span
+                className={`exec-trace-chevron${isActualParent ? " clickable" : ""}`}
+                onClick={isActualParent ? (e) => toggleFrameCollapse(row.id, e) : undefined}
+              >
+                {isActualParent &&
+                  (isCollapsed ? (
+                    <CaretRight size={12} />
+                  ) : (
+                    <CaretDown size={12} />
+                  ))}
               </span>
-              <span className="exec-trace-depth">{row.depth ?? 0}</span>
-              <span className={getGlobalAddressTag(row.from) === "Sender" ? "exec-trace-sender" : "exec-trace-address-plain"}>
-                {getGlobalAddressTag(row.from) && <>[{getGlobalAddressTag(row.from)}] </>}
-                <InlineHighlightableValue value={row.from} className="exec-trace-address">
-                  {resolveAddressName(row.from) || row.from || "\u2014"}
-                </InlineHighlightableValue>
-              </span>
-              <span className="exec-trace-arrow">{" => "}</span>
-              <span className={getGlobalAddressTag(row.to) === "Receiver" ? "exec-trace-receiver" : "exec-trace-address-plain"}>
-                {getGlobalAddressTag(row.to) && <>[{getGlobalAddressTag(row.to)}] </>}
-                <InlineHighlightableValue value={row.to} className="exec-trace-address">
-                  {resolveAddressName(row.to) || row.to || "\u2014"}
-                </InlineHighlightableValue>
-              </span>
-              {row.functionName && (
-                <>
-                  <span className="exec-trace-separator"> . </span>
-                  <span className="exec-trace-function">
-                    {row.functionName}({decodedParams || row.input || ""})
-                  </span>
-                </>
-              )}
-              {row.value && row.value !== "0" && (
-                <span className="exec-trace-value"> Wei:{row.value}</span>
-              )}
-              {(() => {
-                const returnValue = decodedReturn || row.returnData || "";
-                if (!returnValue) return null;
-                const canExpand = shouldExpandValue(returnValue);
-                const preview = canExpand ? compactPreviewValue(returnValue) : returnValue;
-                return (
+              <div className="exec-trace-details">
+                <span className={getGlobalAddressTag(row.from) === "Sender" ? "exec-trace-sender" : "exec-trace-address-plain"}>
+                  {row.chainFamily !== "starknet" && getGlobalAddressTag(row.from) && <>[{getGlobalAddressTag(row.from)}] </>}
+                  <InlineHighlightableValue value={row.from} className="exec-trace-address">
+                    {sourceDisplayName ?? (resolveAddressName(row.from) || row.from || "\u2014")}
+                  </InlineHighlightableValue>
+                </span>
+                <span className="exec-trace-arrow">{" => "}</span>
+                <span className={getGlobalAddressTag(row.to) === "Receiver" ? "exec-trace-receiver" : "exec-trace-address-plain"}>
+                  {row.chainFamily !== "starknet" && getGlobalAddressTag(row.to) && <>[{getGlobalAddressTag(row.to)}] </>}
+                  <InlineHighlightableValue value={row.to} className="exec-trace-address">
+                    {targetDisplayName}
+                  </InlineHighlightableValue>
+                </span>
+                {row.functionName && (
                   <>
-                    <span className="exec-trace-arrow"> -&gt; </span>
+                    <span className="exec-trace-separator"> . </span>
+                    <span className="exec-trace-function">
+                      {renderFunctionName(row, decodedParams)}
+                    </span>
+                  </>
+                )}
+                {row.type === "message" && row.messagePayload && row.messagePayload.length > 0 && (
+                  <>
+                    <span className="exec-trace-separator"> . </span>
                     <span
-                      className={`exec-trace-return${canExpand ? " exec-trace-return--expandable" : ""}`}
+                      className="exec-trace-event-args exec-trace-event-args--expandable"
                       onClick={(e) => {
-                        if (!canExpand) return;
                         e.stopPropagation();
+                        const value = row.messagePayload!.join("\n");
                         openTraceDetail({
-                          title: `${row.functionName || "call"} return value`,
-                          value: returnValue,
-                          mode: getDetailMode(returnValue),
+                          title: "L2→L1 message payload",
+                          value,
+                          mode: getDetailMode(value),
                           format: "text",
                         });
                       }}
-                      title={canExpand ? "Click to view full return value" : returnValue}
-                      role={canExpand ? "button" : undefined}
+                      title="Click to view message payload"
+                      role="button"
                     >
-                      ({preview})
-                      {canExpand && <span className="exec-trace-expand-hint">{"\u22EF"}</span>}
+                      [{row.messagePayload.length} felts]
                     </span>
                   </>
-                );
-              })()}
-              {renderDebugButton(row)}
+                )}
+                {row.value && row.value !== "0" && (
+                  <span className="exec-trace-value"> Wei:{row.value}</span>
+                )}
+                {(() => {
+                  const returnValue = decodedReturn || row.returnData || "";
+                  if (!returnValue) return null;
+                  const canExpand = shouldExpandValue(returnValue);
+                  const preview = canExpand ? compactPreviewValue(returnValue) : returnValue;
+                  return (
+                    <>
+                      <span className="exec-trace-arrow"> -&gt; </span>
+                      <span
+                        className={`exec-trace-return${canExpand ? " exec-trace-return--expandable" : ""}`}
+                        onClick={(e) => {
+                          if (!canExpand) return;
+                          e.stopPropagation();
+                          openTraceDetail({
+                            title: `${row.functionName || "call"} return value`,
+                            value: returnValue,
+                            mode: getDetailMode(returnValue),
+                            format: "text",
+                          });
+                        }}
+                        title={canExpand ? "Click to view full return value" : returnValue}
+                        role={canExpand ? "button" : undefined}
+                      >
+                        ({preview})
+                        {canExpand && <span className="exec-trace-expand-hint">{"\u22EF"}</span>}
+                      </span>
+                    </>
+                  );
+                })()}
+                {renderDebugButton(row)}
+              </div>
             </div>
           </div>
         );
@@ -720,9 +857,9 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
       resolveAddressName, getGlobalAddressTag, getRowAddress,
       isStoragePointerFunction, frameHierarchy, toggleFrameCollapse,
       actualParentFrames, activeRailsAtRow, handleJumpToStep, filters.gas,
-      renderDepthLines, renderSnippet, renderDebugButton, InlineHighlightableValue,
+      renderDepthLines, renderDebugButton, renderFunctionName, InlineHighlightableValue,
       decodeInterface, decodeOutputForRow,
-      sourceLines, sourceTexts, resolveSourceContent, formatShortAddress,
+      resolveSourceContent, formatShortAddress,
     ],
   );
 
@@ -781,4 +918,56 @@ export function useTraceRowRenderer(props: TraceRowRendererProps) {
   );
 
   return { renderTraceRow: stableRenderTraceRow, renderExpandedContent: stableRenderExpandedContent };
+}
+
+/** Shown only for heuristic fallback matches when class source maps are absent. */
+function FailureHintCallout({
+  hint,
+}: {
+  hint: NonNullable<TraceRow["failureHint"]>;
+}) {
+  const provenanceLabel =
+    hint.source === "panic-string"
+      ? "panic-string match"
+      : "identifier-shape match";
+  return (
+    <div
+      className="exec-failure-hint"
+      data-testid="failure-hint-callout"
+      style={{
+        marginTop: 6,
+        padding: "8px 10px",
+        borderLeft: "2px solid rgba(248, 113, 113, 0.55)",
+        background: "rgba(248, 113, 113, 0.04)",
+        borderRadius: "4px",
+        fontSize: 11,
+        color: "var(--sim-text-muted, #b0b0bb)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <Info size={11} className="opacity-70" />
+        <span style={{ fontWeight: 500, color: "var(--sim-text, #e5e5e5)" }}>
+          Fallback hint (no source map for this class)
+        </span>
+        <span
+          className="ml-auto font-mono"
+          style={{ fontSize: 10, opacity: 0.65 }}
+        >
+          {provenanceLabel}
+        </span>
+      </div>
+      <div className="font-mono" style={{ fontSize: 11, lineHeight: 1.45 }}>
+        Line <span style={{ color: "var(--sim-text, #e5e5e5)" }}>{hint.line}</span>
+        {" — matched "}
+        <span style={{ color: "var(--sim-text, #e5e5e5)" }}>{hint.tag}</span>
+        {" inside this frame's function body. "}
+        <span style={{ opacity: 0.7 }}>
+          This is fallback text matching, not a bridge source-map line.
+        </span>
+      </div>
+    </div>
+  );
 }

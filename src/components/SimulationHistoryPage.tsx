@@ -352,7 +352,7 @@ const SimulationHistoryPage: React.FC = () => {
   // Handle new simulation
   const handleNewSimulation = useCallback(() => {
     clearSimulation();
-    navigate('/builder');
+    navigate('/evm/builder');
   }, [clearSimulation, navigate]);
 
   // Unique networks for filter dropdown

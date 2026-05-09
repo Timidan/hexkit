@@ -40,6 +40,14 @@ const EtherscanLogo: React.FC<{ className?: string }> = ({ className = 'h-3 w-3'
   </svg>
 );
 
+// Voyager (Starknet) — abstract starburst glyph; no trademarked artwork.
+const VoyagerLogo: React.FC<{ className?: string }> = ({ className = 'h-3 w-3' }) => (
+  <svg className={className} viewBox="0 0 100 100" fill="currentColor">
+    <circle cx="50" cy="50" r="8" />
+    <path d="M50 6 L54 38 L86 50 L54 62 L50 94 L46 62 L14 50 L46 38 Z" />
+  </svg>
+);
+
 const GemIcon: React.FC<{ className?: string }> = ({ className = 'h-3 w-3' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 3h12l4 6-10 13L2 9z" />
@@ -73,6 +81,11 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
         return 'accent';
       case 'blockscout-bytecode':
         return 'teal';
+      case 'voyager':
+        // 'success' so verified Starknet classes get the same green chip
+        // EVM verified contracts get from Sourcify — green here means
+        // "ABI loaded" rather than "source verified".
+        return 'success';
       default:
         return 'secondary';
     }
@@ -82,6 +95,8 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
     switch (source) {
       case 'blockscout-bytecode':
         return 'bytecode-db';
+      case 'voyager':
+        return 'ABI · Voyager';
       default:
         return source;
     }
@@ -97,6 +112,8 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
         return 'Contract ABI verified from Etherscan - Blockchain explorer verification';
       case 'blockscout-bytecode':
         return 'Contract ABI from Blockscout Bytecode DB - Shared bytecode database fallback';
+      case 'voyager':
+        return 'Class ABI loaded from the starknet-sim bridge — open in Voyager for the canonical view';
       default:
         return `Source: ${source}`;
     }
@@ -113,6 +130,7 @@ export const SourceBadge: React.FC<SourceBadgeProps> = ({
       {showLogo && source === 'sourcify' && <SourcifyLogo />}
       {showLogo && (source === 'blockscout' || source === 'blockscout-bytecode') && <BlockscoutLogo />}
       {showLogo && source === 'etherscan' && <EtherscanLogo />}
+      {showLogo && source === 'voyager' && <VoyagerLogo />}
     </Badge>
   );
 };

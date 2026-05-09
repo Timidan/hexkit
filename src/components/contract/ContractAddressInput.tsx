@@ -10,6 +10,7 @@ import NetworkSelector, {
   type ExtendedChain,
 } from "../shared/NetworkSelector";
 import type { Chain } from "../../types";
+import { toEvmChainKey } from "../../chains/types/evm";
 import "@/styles/ContractComponents.css";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,8 @@ const mapExtendedToChain = (
 
   return {
     id: extended.id,
+    chainFamily: "evm",
+    chainKey: toEvmChainKey(extended.id),
     name: extended.name,
     rpcUrl: extended.rpcUrl ?? current?.rpcUrl ?? "",
     explorerUrl: extended.blockExplorer ?? current?.explorerUrl ?? "",

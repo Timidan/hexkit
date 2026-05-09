@@ -13,6 +13,14 @@ interface ExecutionQueueProps {
 }
 
 export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
+  const queueRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      queueRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
+
   if (state.legs.length === 0) return null;
 
   const current = state.currentIndex >= 0 ? state.legs[state.currentIndex] : null;
@@ -26,15 +34,6 @@ export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
     (current.status === "done" || current.status === "failed");
 
   const total = state.legs.length;
-
-  const queueRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      queueRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div ref={queueRef} className="space-y-3">

@@ -1,6 +1,7 @@
 import React from "react";
 import { EXTENDED_NETWORKS, type ExtendedChain } from "../shared/NetworkSelector";
 import { SUPPORTED_CHAINS } from "../../utils/chains";
+import { toEvmChainKey } from "../../chains/types/evm";
 import type { Chain } from "../../types";
 import type { SimulationCallNode } from "../../utils/simulationArtifacts";
 
@@ -106,6 +107,8 @@ export const mapExtendedToChain = (network: ExtendedChain): Chain => {
   if (supported) return supported;
   return {
     id: network.id,
+    chainFamily: "evm",
+    chainKey: toEvmChainKey(network.id),
     name: network.name,
     rpcUrl: network.rpcUrl ?? "",
     explorerUrl: network.blockExplorer,

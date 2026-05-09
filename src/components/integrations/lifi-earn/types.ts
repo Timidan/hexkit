@@ -55,6 +55,14 @@ export interface EarnVault {
   name?: string;
   network: string;
   chainId: number;
+  /**
+   * Canonical family-scoped chain key. Populated by
+   * `src/features/earn/shared/normalizeEarnVault.ts` at the edge of the LI.FI
+   * proxy. Today always `evm:${chainId}`; when LI.FI adds SVM pools, the
+   * normalizer will emit `svm:${cluster}` instead. Shell code should prefer
+   * `chainKey` over the raw numeric `chainId`.
+   */
+  chainKey: string;
   slug: string;
   protocol: EarnProtocol;
   underlyingTokens: EarnToken[];

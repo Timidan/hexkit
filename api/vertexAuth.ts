@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import fs from "fs";
 
 interface ServiceAccountKey {
   project_id: string;
@@ -31,9 +32,6 @@ function loadServiceAccountKey(): ServiceAccountKey | null {
   const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   if (filePath) {
     try {
-      // Dynamic require for local dev — Vercel bundles won't hit this path
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const fs = require("fs");
       const content = fs.readFileSync(filePath, "utf-8");
       return JSON.parse(content);
     } catch {

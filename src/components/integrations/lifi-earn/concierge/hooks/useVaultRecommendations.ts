@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { formatUnits } from "viem";
+import { formatUnits } from "../../../../../features/earn/shared/formatUnits";
 import { postLlmRecommend } from "../../earnApi";
 import type { EarnVault } from "../../types";
 import type {

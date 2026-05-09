@@ -9,6 +9,7 @@ interface ResultsHeaderProps {
   statusColor: string;
   statusLabel: string;
   statusIcon: string;
+  showBackButton?: boolean;
   handleBack: () => void;
   handleExportTestData: () => void;
   handleShare: () => void;
@@ -27,6 +28,7 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
   statusColor,
   statusLabel,
   statusIcon,
+  showBackButton = true,
   handleBack,
   handleExportTestData,
   handleShare,
@@ -43,14 +45,16 @@ export const ResultsHeader: React.FC<ResultsHeaderProps> = ({
   return (
     <header className="sim-results-header">
       <div className="sim-results-header__left">
-        <Button
-          onClick={handleBack}
-          variant="outline"
-          size="icon"
-          aria-label="Back to Builder"
-        >
-          <ArrowLeft size={18} />
-        </Button>
+        {showBackButton && (
+          <Button
+            onClick={handleBack}
+            variant="outline"
+            size="icon"
+            aria-label="Back to Builder"
+          >
+            <ArrowLeft size={18} />
+          </Button>
+        )}
         <div className="sim-results-header__title">
           <span>Simulation</span>
           <span

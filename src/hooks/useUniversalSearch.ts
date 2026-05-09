@@ -1,6 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
+import { familyHasCapability, type ChainCapability } from '@/chains/capabilities';
+import { useActiveChainFamily } from './useActiveChainFamily';
+import { buildFamilyPath } from '@/routes/familyRoutes';
 
 export type InputType =
   | 'address'
@@ -17,6 +20,8 @@ export interface ToolDefinition {
   description: string;
   /** lucide-react icon name (rendered by the component) */
   icon: string;
+  /** Capability required for the active chain family. */
+  capability: ChainCapability;
   /** Which input types this tool accepts */
   accepts: InputType[];
   /** Handler called when the tool is selected */
@@ -37,6 +42,7 @@ export interface PageDefinition {
   description: string;
   icon: string;
   route: string;
+  capability: ChainCapability;
   keywords?: string[];
 }
 
@@ -118,37 +124,48 @@ function saveRecentSearch(entry: RecentSearch): void {
   localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
 }
 
-const pages: PageDefinition[] = [
-  { id: 'page-sig-lookup', name: 'Signature Lookup', description: 'Look up function selectors and signatures', icon: 'Hash', route: '/database?tab=lookup' },
-  { id: 'page-sig-search', name: 'Signature Search', description: 'Search the signature database', icon: 'Search', route: '/database?tab=search' },
-  { id: 'page-sig-tools', name: 'Signature Tools', description: 'Hash and encode utilities', icon: 'Wrench', route: '/database?tab=tools' },
-  { id: 'page-sig-custom', name: 'Custom ABI', description: 'Load custom ABI definitions', icon: 'FileText', route: '/database?tab=custom' },
-  { id: 'page-sig-cache', name: 'Signature Cache', description: 'View cached signatures', icon: 'Database', route: '/database?tab=cache' },
-  { id: 'page-live', name: 'Live Interaction', description: 'Call contract functions on-chain', icon: 'Zap', route: '/builder?mode=live' },
-  { id: 'page-simulation', name: 'Simulation (EDB)', description: 'Simulate transactions with traces', icon: 'Play', route: '/builder?mode=simulation' },
-  { id: 'page-explorer', name: 'Contract Explorer', description: 'View contract source and ABI', icon: 'Code2', route: '/explorer?tool=explorer' },
-  { id: 'page-diff', name: 'Contract Diff', description: 'Compare contract bytecode', icon: 'GitCompare', route: '/explorer?tool=diff' },
-  { id: 'page-storage', name: 'Storage Viewer', description: 'Inspect contract storage layout', icon: 'Database', route: '/explorer?tool=storage' },
-  { id: 'page-history', name: 'Simulation History', description: 'View past simulation results', icon: 'RotateCcw', route: '/simulations', keywords: ['history', 'past', 'previous'] },
-  { id: 'page-integrations', name: 'Integrations', description: 'Protocol integrations with yield vaults', icon: 'Layers', route: '/integrations', keywords: ['yield', 'earn', 'lifi', 'vault', 'defi'] },
-  { id: 'page-lifi-earn', name: 'LI.FI Earn', description: 'Browse yield vaults and deposit', icon: 'Layers', route: '/integrations/lifi-earn', keywords: ['yield', 'earn', 'lifi', 'vault', 'apy', 'tvl'] },
+const PAGE_DEFINITIONS: PageDefinition[] = [
+  { id: 'page-sig-lookup', name: 'Signature Lookup', description: 'Look up function selectors and signatures', icon: 'Hash', route: '/database?tab=lookup', capability: 'signature-tools' },
+  { id: 'page-sig-search', name: 'Signature Search', description: 'Search the signature database', icon: 'Search', route: '/database?tab=search', capability: 'signature-tools' },
+  { id: 'page-sig-tools', name: 'Signature Tools', description: 'Hash and encode utilities', icon: 'Wrench', route: '/database?tab=tools', capability: 'signature-tools' },
+  { id: 'page-sig-custom', name: 'Custom ABI', description: 'Load custom ABI definitions', icon: 'FileText', route: '/database?tab=custom', capability: 'signature-tools' },
+  { id: 'page-sig-cache', name: 'Signature Cache', description: 'View cached signatures', icon: 'Database', route: '/database?tab=cache', capability: 'signature-tools' },
+  { id: 'page-live', name: 'Live Interaction', description: 'Build contract interactions', icon: 'Zap', route: '/builder?mode=live', capability: 'tx-builder' },
+  { id: 'page-simulation', name: 'Simulation', description: 'Simulate transactions with traces', icon: 'Play', route: '/builder?mode=simulation', capability: 'simulation' },
+  { id: 'page-explorer', name: 'Contract Explorer', description: 'View contract source and ABI', icon: 'Code2', route: '/explorer?tool=explorer', capability: 'source-lookup' },
+  { id: 'page-diff', name: 'Contract Diff', description: 'Compare contract bytecode', icon: 'GitCompare', route: '/explorer?tool=diff', capability: 'bytecode-diff' },
+  { id: 'page-storage', name: 'Storage Viewer', description: 'Inspect contract storage layout', icon: 'Database', route: '/explorer?tool=storage', capability: 'storage-layout' },
+  { id: 'page-history', name: 'Simulation History', description: 'View past simulation results', icon: 'RotateCcw', route: '/simulations', capability: 'simulation', keywords: ['history', 'past', 'previous'] },
+  { id: 'page-integrations', name: 'Integrations', description: 'Protocol integrations with yield vaults', icon: 'Layers', route: '/integrations', capability: 'earn', keywords: ['yield', 'earn', 'lifi', 'vault', 'defi'] },
+  { id: 'page-lifi-earn', name: 'LI.FI Earn', description: 'Browse yield vaults and deposit', icon: 'Layers', route: '/integrations/lifi-earn', capability: 'earn', keywords: ['yield', 'earn', 'lifi', 'vault', 'apy', 'tvl'] },
 ];
 
 export function useUniversalSearch(): UseUniversalSearchReturn {
   const navigate = useNavigate();
+  const activeFamily = useActiveChainFamily();
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(loadRecentSearches);
 
   const inputType = useMemo(() => detectInputType(query), [query]);
+  const pages = useMemo(
+    () =>
+      PAGE_DEFINITIONS
+        .filter((page) => familyHasCapability(activeFamily, page.capability))
+        .map((page) => ({
+          ...page,
+          route: buildFamilyPath(activeFamily, page.route),
+        })),
+    [activeFamily],
+  );
 
   const navigateToExplorer = useCallback(
     (input: string) => {
       const params = new URLSearchParams();
       params.set('tool', 'explorer');
       params.set('address', input);
-      navigate(`/explorer?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/explorer')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToExplorerDiff = useCallback(
@@ -156,9 +173,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('address', input);
       params.set('tool', 'diff');
-      navigate(`/explorer?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/explorer')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToExplorerStorage = useCallback(
@@ -166,9 +183,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('address', input);
       params.set('tool', 'storage');
-      navigate(`/explorer?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/explorer')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToLiveInteraction = useCallback(
@@ -176,9 +193,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('mode', 'live');
       params.set('address', input);
-      navigate(`/builder?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/builder')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToSimulation = useCallback(
@@ -186,9 +203,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('address', input);
       params.set('mode', 'simulation');
-      navigate(`/builder?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/builder')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToSelectorLookup = useCallback(
@@ -197,9 +214,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       params.set('tab', 'lookup');
       params.set('tool', 'selector');
       params.set('q', input);
-      navigate(`/database?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/database')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToTextSignatureLookup = useCallback(
@@ -208,9 +225,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       params.set('tab', 'lookup');
       params.set('tool', 'text');
       params.set('q', input);
-      navigate(`/database?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/database')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const navigateToCalldataDecode = useCallback(
@@ -219,9 +236,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       params.set('tab', 'lookup');
       params.set('tool', 'calldata');
       params.set('q', input);
-      navigate(`/database?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/database')}?${params.toString()}`);
     },
-    [navigate],
+    [activeFamily, navigate],
   );
 
   const persistTxReplayIntent = useCallback((txHash: string, noAutoReplay = false) => {
@@ -255,9 +272,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('mode', 'replay');
       params.set('replay', 'txhash');
-      navigate(`/builder?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/builder')}?${params.toString()}`);
     },
-    [navigate, persistTxReplayIntent],
+    [activeFamily, navigate, persistTxReplayIntent],
   );
 
   const navigateToTxReplay = useCallback(
@@ -266,9 +283,9 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       const params = new URLSearchParams();
       params.set('mode', 'replay');
       params.set('replay', 'txhash');
-      navigate(`/builder?${params.toString()}`);
+      navigate(`${buildFamilyPath(activeFamily, '/builder')}?${params.toString()}`);
     },
-    [navigate, persistTxReplayIntent],
+    [activeFamily, navigate, persistTxReplayIntent],
   );
 
   const tools: ToolDefinition[] = useMemo(
@@ -279,6 +296,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Explorer',
         description: 'View contract source code and ABI',
         icon: 'Code2',
+        capability: 'source-lookup',
         accepts: ['address'],
         navigate: navigateToExplorer,
       },
@@ -287,6 +305,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Contract Diff',
         description: 'Compare bytecode between contracts',
         icon: 'GitCompare',
+        capability: 'bytecode-diff',
         accepts: ['address'],
         navigate: navigateToExplorerDiff,
       },
@@ -295,6 +314,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Storage Inspection',
         description: 'View storage layout and slot values',
         icon: 'Database',
+        capability: 'storage-layout',
         accepts: ['address'],
         navigate: navigateToExplorerStorage,
       },
@@ -303,6 +323,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Live Interaction',
         description: 'Call functions on the contract',
         icon: 'Play',
+        capability: 'tx-builder',
         accepts: ['address'],
         navigate: navigateToLiveInteraction,
       },
@@ -311,6 +332,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Simulation',
         description: 'Simulate transactions against the contract',
         icon: 'Zap',
+        capability: 'simulation',
         accepts: ['address'],
         navigate: navigateToSimulation,
       },
@@ -320,6 +342,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Selector Lookup',
         description: 'Resolve 4-byte selector to function signature',
         icon: 'Hash',
+        capability: 'signature-tools',
         accepts: ['selector'],
         navigate: navigateToSelectorLookup,
       },
@@ -329,6 +352,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Signature Lookup',
         description: 'Look up function/event by text signature',
         icon: 'Hash',
+        capability: 'signature-tools',
         accepts: ['signature'],
         navigate: navigateToTextSignatureLookup,
       },
@@ -338,6 +362,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Decode Calldata',
         description: 'Decode raw calldata into function call',
         icon: 'ListTree',
+        capability: 'signature-tools',
         accepts: ['calldata'],
         navigate: navigateToCalldataDecode,
       },
@@ -347,6 +372,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Transaction Trace',
         description: 'Auto-run replay and open the execution trace',
         icon: 'ListTree',
+        capability: 'tx-replay',
         accepts: ['txhash'],
         navigate: navigateToTxTrace,
       },
@@ -355,6 +381,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
         name: 'Transaction Replay',
         description: 'Prefill replay form and run manually',
         icon: 'RotateCcw',
+        capability: 'tx-replay',
         accepts: ['txhash'],
         navigate: navigateToTxReplay,
       },
@@ -375,8 +402,12 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
 
   const matchingTools = useMemo(() => {
     if (inputType === 'empty' || inputType === 'unknown') return [];
-    return tools.filter((t) => t.accepts.includes(inputType));
-  }, [inputType, tools]);
+    return tools.filter(
+      (t) =>
+        t.accepts.includes(inputType) &&
+        familyHasCapability(activeFamily, t.capability),
+    );
+  }, [activeFamily, inputType, tools]);
 
   const getEffectiveInput = useCallback((): string => {
     return query.trim();

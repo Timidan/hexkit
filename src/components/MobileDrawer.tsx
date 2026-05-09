@@ -1,72 +1,33 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
-import { Database, Wrench, Code, MagnifyingGlass, CaretRight, Stack } from "@phosphor-icons/react";
+import { MagnifyingGlass, CaretRight } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useActiveChainFamily } from "../hooks/useActiveChainFamily";
+import { buildFamilyPath, stripFamilyPrefix } from "../routes/familyRoutes";
+import {
+  getActiveNavigationToolId,
+  getNavigationToolsForFamily,
+} from "../chains/toolRegistry";
+import type { ToolNavigationEntry, ToolSubTab } from "../chains/toolRegistry";
 
 interface MobileDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const TOOLS = [
-  {
-    id: "database",
-    route: "/database",
-    label: "Signature Database",
-    icon: Database,
-    subTabs: [
-      { id: "lookup", label: "Lookup", paramKey: "tab" },
-      { id: "search", label: "Search", paramKey: "tab" },
-      { id: "tools", label: "Tools", paramKey: "tab" },
-      { id: "custom", label: "Custom", paramKey: "tab" },
-      { id: "cache", label: "Cache", paramKey: "tab" },
-    ],
-  },
-  {
-    id: "builder",
-    route: "/builder",
-    label: "Transaction Utils",
-    icon: Wrench,
-    subTabs: [
-      { id: "live", label: "Live Interaction", paramKey: "mode" },
-      { id: "simulation", label: "Simulation (EDB)", paramKey: "mode" },
-    ],
-  },
-  {
-    id: "explorer",
-    route: "/explorer",
-    label: "Source Tools",
-    icon: Code,
-    subTabs: [
-      { id: "explorer", label: "Explorer", paramKey: "tool" },
-      { id: "diff", label: "Contract Diff", paramKey: "tool" },
-      { id: "storage", label: "Storage", paramKey: "tool" },
-    ],
-  },
-  {
-    id: "integrations",
-    route: "/integrations",
-    label: "Integrations",
-    icon: Stack,
-    subTabs: [
-      { id: "lifi-earn", label: "LI.FI Earn", paramKey: "route" },
-    ],
-  },
-];
-
-function getActiveToolId(pathname: string): string {
-  if (pathname.startsWith("/builder") || pathname.startsWith("/simulations")) return "builder";
-  if (pathname.startsWith("/database")) return "database";
-  if (pathname.startsWith("/explorer")) return "explorer";
-  if (pathname.startsWith("/integrations")) return "integrations";
-  return "database";
-}
-
 const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const activeToolId = getActiveToolId(location.pathname);
+  const family = useActiveChainFamily();
+  const strippedPath = useMemo(() => stripFamilyPrefix(location.pathname), [location.pathname]);
+
+  const tools = useMemo(
+    () => getNavigationToolsForFamily(family, "mobile-drawer"),
+    [family],
+  );
+
+  const activeToolId = getActiveNavigationToolId(strippedPath);
 
   const handleSearch = () => {
     onOpenChange(false);
@@ -75,27 +36,27 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
     );
   };
 
-  const handleToolClick = (route: string) => {
-    navigate(route);
+  const handleToolClick = (tool: ToolNavigationEntry) => {
+    navigate(buildFamilyPath(family, tool.path));
     onOpenChange(false);
   };
 
   const handleSubTabClick = (
-    tool: (typeof TOOLS)[number],
-    subId: string,
-    paramKey: string
+    tool: ToolNavigationEntry,
+    sub: ToolSubTab
   ) => {
-    // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
-    if (paramKey === "route") {
-      navigate(`${tool.route}/${subId}`);
+    const familyToolRoute = buildFamilyPath(family, tool.path);
+    // Route-based sub-tabs navigate to a sub-path (e.g. /evm/integrations/lifi-earn)
+    if (sub.paramKey === "route") {
+      navigate(`${familyToolRoute}/${sub.id}`);
       onOpenChange(false);
       return;
     }
 
     const params = new URLSearchParams();
-    params.set(paramKey, subId);
+    params.set(sub.paramKey, sub.id);
     navigate(
-      { pathname: tool.route, search: `?${params.toString()}` },
+      { pathname: familyToolRoute, search: `?${params.toString()}` },
       { replace: true }
     );
     onOpenChange(false);
@@ -129,14 +90,19 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
         <div className="h-px bg-border/30 mx-4 my-1" />
 
         <nav className="flex flex-col gap-1 px-2 py-2">
-          {TOOLS.map((tool) => {
+          {tools.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              No tools for this chain family yet.
+            </div>
+          )}
+          {tools.map((tool) => {
             const Icon = tool.icon;
             const isActive = tool.id === activeToolId;
             return (
               <div key={tool.id}>
                 <button
                   type="button"
-                  onClick={() => handleToolClick(tool.route)}
+                  onClick={() => handleToolClick(tool)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
@@ -154,19 +120,19 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
                   />
                 </button>
 
-                {isActive && tool.subTabs && (
+                {isActive && tool.subTabs && tool.subTabs.length > 0 && (
                   <div className="ml-7 mt-1 flex flex-col gap-0.5 border-l border-border/30 pl-3">
                     {tool.subTabs.map((sub) => {
                       const params = new URLSearchParams(location.search);
                       const currentSubId =
-                        params.get(sub.paramKey) || tool.subTabs[0].id;
+                        params.get(sub.paramKey) || tool.subTabs![0].id;
                       const isSubActive = sub.id === currentSubId;
                       return (
                         <button
                           key={sub.id}
                           type="button"
                           onClick={() =>
-                            handleSubTabClick(tool, sub.id, sub.paramKey)
+                            handleSubTabClick(tool, sub)
                           }
                           className={cn(
                             "rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors",

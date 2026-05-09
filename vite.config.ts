@@ -1,29 +1,96 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import wasm from "vite-plugin-wasm";
 import path from "path";
+import fs from "node:fs";
 import { handleEtherscanLookup } from "./api/explorer/etherscanShared";
 
 /**
- * Injects the EDB bridge origin into the CSP connect-src at build time.
- * Set VITE_SIMULATOR_BRIDGE_URL in your Vercel env vars and the CSP
- * automatically allows connections to that origin.
+ * Routes `import "ethers"` from inside starkzap@2 and its @avnu/avnu-sdk
+ * dep to the ethers@6 alias package. Our app code keeps resolving ethers
+ * to v5 (20+ files depend on it); starkzap@2's swap/bridge paths get the
+ * v6 APIs (`toBeHex`, `parseUnits`) they need to build.
+ *
+ * Matches on the owning package name by walking the importer path up to
+ * its nearest package.json, which survives pnpm's .pnpm virtual store,
+ * Windows backslashes, and symlinked workspaces — all of which defeat a
+ * naive `importer.includes("/node_modules/pkg/")` match.
+ */
+const REDIRECT_PACKAGES = new Set(["starkzap", "@avnu/avnu-sdk"]);
+
+function starkzapEthersV6(): Plugin {
+  const packageNameCache = new Map<string, string | null>();
+
+  function packageNameFor(filePath: string): string | null {
+    const normalized = filePath.split(path.sep).join("/");
+    let dir = path.dirname(normalized);
+    while (true) {
+      const cached = packageNameCache.get(dir);
+      if (cached !== undefined) return cached;
+      try {
+        const { name } = JSON.parse(
+          fs.readFileSync(path.join(dir, "package.json"), "utf8"),
+        ) as { name?: string };
+        const resolved = typeof name === "string" ? name : null;
+        packageNameCache.set(dir, resolved);
+        return resolved;
+      } catch {
+        // no package.json here (or malformed) — walk up
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) {
+        packageNameCache.set(dir, null);
+        return null;
+      }
+      dir = parent;
+    }
+  }
+
+  return {
+    name: "starkzap-ethers-v6",
+    enforce: "pre",
+    async resolveId(source, importer) {
+      if (source !== "ethers" || !importer) return null;
+      const owner = packageNameFor(importer);
+      if (owner && REDIRECT_PACKAGES.has(owner)) {
+        const v6 = await this.resolve("ethers-v6", importer, { skipSelf: true });
+        if (v6) return v6;
+      }
+      return null;
+    },
+  };
+}
+
+/**
+ * Injects bridge origins into the CSP connect-src at build time.
+ * - VITE_SIMULATOR_BRIDGE_URL for the EDB bridge
+ * - VITE_STARKNET_SIM_BRIDGE_URL for the Starknet sim bridge
+ * A value of "disabled" skips injection for that bridge.
  */
 function injectBridgeCsp(): Plugin {
   return {
     name: "inject-bridge-csp",
     transformIndexHtml(html) {
-      const bridgeUrl = process.env.VITE_SIMULATOR_BRIDGE_URL;
-      if (!bridgeUrl || bridgeUrl === "disabled") return html;
-      try {
-        const origin = new URL(bridgeUrl).origin;
-        return html.replace(
-          /(connect-src\s[^"]*?)(;)/,
-          `$1 ${origin} wss://${new URL(bridgeUrl).host}$2`,
-        );
-      } catch {
-        return html;
+      const origins: string[] = [];
+      for (const envVar of [
+        "VITE_SIMULATOR_BRIDGE_URL",
+        "VITE_STARKNET_SIM_BRIDGE_URL",
+      ]) {
+        const value = process.env[envVar];
+        if (!value || value === "disabled") continue;
+        try {
+          const parsed = new URL(value);
+          origins.push(parsed.origin, `wss://${parsed.host}`);
+        } catch {
+          // Relative paths like "/api/starknet-sim" don't need CSP changes
+        }
       }
+      if (origins.length === 0) return html;
+      return html.replace(
+        /(connect-src\s[^"]*?)(;)/,
+        `$1 ${origins.join(" ")}$2`,
+      );
     },
   };
 }
@@ -149,6 +216,13 @@ export default defineConfig(({ mode }) => {
         include: "**/*.{jsx,tsx}",
       }),
       tailwindcss(),
+      // wasm() handles @cartridge/controller's WASM module. Do NOT add
+      // vite-plugin-top-level-await — its transform rewrites `export
+      // function foo()` to an assignment without reordering preceding
+      // `foo.something = ...` statements, breaking wagmi's `injected.type`
+      // pattern at runtime. Native TLA support via `build.target: esnext`.
+      wasm(),
+      starkzapEthersV6(),
       injectBridgeCsp(),
       devExplorerProxy(),
       llmProxyPlugin(env),
@@ -162,9 +236,49 @@ export default defineConfig(({ mode }) => {
       "process.env": "{}",
     },
     optimizeDeps: {
-      include: ["ethers", "buffer"],
+      // Pre-bundle these so CJS deps get ESM-normalized interop in dev.
+      // @avnu/avnu-sdk reaches into `dayjs`, `qs`, `moment`, `zod` (all CJS)
+      // and `ethers` (esbuild plugin below redirects this subtree to v6).
+      include: [
+        "ethers",
+        "ethers-v6",
+        "buffer",
+        "@avnu/avnu-sdk",
+        "dayjs",
+        "qs",
+        "moment",
+        "zod",
+      ],
+      // starkzap itself stays excluded — its Cartridge module uses WASM
+      // + top-level await, which esbuild's pre-bundler can't normalize.
+      exclude: ["starkzap"],
+      esbuildOptions: {
+        // Mirror `starkzapEthersV6` at the esbuild layer so pre-bundle of
+        // @avnu/avnu-sdk resolves ethers to v6 (Rollup-style resolveId
+        // hooks don't fire during Vite's esbuild pre-bundle).
+        plugins: [
+          {
+            name: "avnu-ethers-v6-esbuild",
+            setup(build) {
+              build.onResolve({ filter: /^ethers$/ }, async (args) => {
+                if (!args.importer.includes("/@avnu/avnu-sdk/")) return;
+                const resolved = await build.resolve("ethers-v6", {
+                  resolveDir: args.resolveDir,
+                  kind: args.kind,
+                });
+                if (resolved.errors.length === 0) return resolved;
+              });
+            },
+          },
+        ],
+      },
     },
     build: {
+      // es2022 is the lowest ECMAScript target that preserves native
+      // top-level await in the emitted output. Lets us ship without
+      // vite-plugin-top-level-await (whose transform breaks wagmi — see
+      // plugin list above).
+      target: "es2022",
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
@@ -177,6 +291,7 @@ export default defineConfig(({ mode }) => {
               "@reown/appkit-controllers",
             ],
             ethers: ["ethers"],
+            starkzap: ["starkzap", "@avnu/avnu-sdk", "ethers-v6"],
           },
         },
       },
@@ -185,6 +300,13 @@ export default defineConfig(({ mode }) => {
       alias: {
         buffer: "buffer",
         "@": path.resolve(__dirname, "./src"),
+        // starkzap@2 pulls `Account` from tongo-sdk for its confidential-
+        // payments module. We don't use that feature; point at a stub so
+        // the build can resolve the symbol.
+        "@fatsolutions/tongo-sdk": path.resolve(
+          __dirname,
+          "./src/shims/tongo-sdk.ts",
+        ),
       },
     },
     server: {
@@ -210,6 +332,21 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/api\/edb/, ""),
           configure: (proxy) => {
             const apiKey = env.EDB_API_KEY || "";
+            proxy.on("proxyReq", (proxyReq) => {
+              if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
+            });
+          },
+        },
+        // Proxy for Starknet simulator bridge — mirrors the EDB proxy: strips
+        // /api/starknet-sim, forwards to STARKNET_SIM_BRIDGE_URL (defaults to
+        // the local binary on :5790), injects X-API-Key server-side.
+        "/api/starknet-sim": {
+          target: env.STARKNET_SIM_BRIDGE_URL || "http://127.0.0.1:5790",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/starknet-sim/, ""),
+          configure: (proxy) => {
+            const apiKey = env.STARKNET_SIM_API_KEY || "";
             proxy.on("proxyReq", (proxyReq) => {
               if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
             });

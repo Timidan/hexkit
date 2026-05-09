@@ -1,91 +1,39 @@
-import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { Lightning, Play, Code, GitDiff, Database } from "@phosphor-icons/react";
 import {
-  SearchIcon,
-  HashtagIcon,
-  ToolIcon,
-  FileTextIcon,
-  ZapIcon,
-} from "./icons/IconLibrary";
+  getActiveNavigationToolId,
+  getNavigationToolsForFamily,
+  TOOL_NAVIGATION_ITEMS,
+} from "../chains/toolRegistry";
+import type { ToolNavigationEntry, ToolSubTab, ToolSubTabIcon } from "../chains/toolRegistry";
+import { useActiveChainFamily } from "../hooks/useActiveChainFamily";
+import { buildFamilyPath, stripFamilyPrefix } from "../routes/familyRoutes";
 
-interface SubTab {
-  id: string;
-  label: string;
-  shortLabel?: string;
-  icon?: React.ReactNode;
-  paramKey: string;
+function renderSubTabIcon(icon?: ToolSubTabIcon): React.ReactNode {
+  if (!icon) return null;
+  if (icon.type === "image") {
+    return (
+      <img
+        src={icon.src}
+        alt={icon.alt}
+        width={icon.width}
+        height={icon.height}
+        className={icon.className}
+      />
+    );
+  }
+  const Icon = icon.component;
+  return <Icon width={12} height={12} />;
 }
 
-interface ToolDef {
-  id: string;
-  route: string;
-  label: string;
-  shortLabel: string;
-  subTabs: SubTab[] | null;
-}
-
-const TOOLS: ToolDef[] = [
-  {
-    id: "database",
-    route: "/database",
-    label: "Signature Database",
-    shortLabel: "Signatures",
-    subTabs: [
-      { id: "lookup", label: "Lookup", shortLabel: "Lookup", paramKey: "tab", icon: <HashtagIcon width={12} height={12} /> },
-      { id: "search", label: "Search", shortLabel: "Search", paramKey: "tab", icon: <SearchIcon width={12} height={12} /> },
-      { id: "tools", label: "Tools", shortLabel: "Tools", paramKey: "tab", icon: <ToolIcon width={12} height={12} /> },
-      { id: "custom", label: "Custom", shortLabel: "Custom", paramKey: "tab", icon: <FileTextIcon width={12} height={12} /> },
-      { id: "cache", label: "Cache", shortLabel: "Cache", paramKey: "tab", icon: <ZapIcon width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "builder",
-    route: "/builder",
-    label: "Transaction Utils",
-    shortLabel: "Tx Utils",
-    subTabs: [
-      { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
-      { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "explorer",
-    route: "/explorer",
-    label: "Source Tools",
-    shortLabel: "Source",
-    subTabs: [
-      { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code width={12} height={12} /> },
-      { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitDiff width={12} height={12} /> },
-      { id: "storage", label: "Storage", shortLabel: "Storage", paramKey: "tool", icon: <Database width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "integrations",
-    route: "/integrations",
-    label: "Integrations",
-    shortLabel: "Integrate",
-    subTabs: [
-      { id: "lifi-earn", label: "LI.FI Earn", shortLabel: "LI.FI", paramKey: "route", icon: <img src="/logos/lifi.png" alt="" width={14} height={14} className="opacity-80" /> },
-    ],
-  },
-];
-
-function getActiveToolId(pathname: string): string {
-  if (pathname.startsWith("/builder")) return "builder";
-  if (pathname.startsWith("/simulations")) return "builder";
-  if (pathname.startsWith("/database")) return "database";
-  if (pathname.startsWith("/explorer")) return "explorer";
-  if (pathname.startsWith("/integrations")) return "integrations";
-  return "database";
-}
-
-function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): string | null {
+function getActiveSubTabId(tool: ToolNavigationEntry, search: string, pathname: string): string | null {
   if (!tool.subTabs) return null;
-  // /simulations is the history page — highlight the "simulation" sub-tab
-  if (pathname.startsWith("/simulations")) return "simulation";
+  // /simulations is reachable via deep-links (universal search, sim-results
+  // back-button) but no longer has its own pill — light up the builder's
+  // Simulation sub-tab when the user lands on the history page.
+  if (tool.id === "builder" && pathname.startsWith("/simulations")) return "simulation";
   const params = new URLSearchParams(search);
   // Replay is a simulation workflow even though it can carry dedicated replay params.
   if (
@@ -96,7 +44,7 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   }
   // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn)
   if (tool.subTabs[0]?.paramKey === "route") {
-    const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+    const segment = pathname.replace(new RegExp(`^${tool.path}/?`), "").split("/")[0];
     for (const sub of tool.subTabs) {
       if (sub.id === segment) return sub.id;
     }
@@ -139,13 +87,23 @@ const SUB_ITEM: Variants = {
 const Navigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const family = useActiveChainFamily();
+  const strippedPath = useMemo(() => stripFamilyPrefix(location.pathname), [location.pathname]);
 
-  const activeToolId = getActiveToolId(location.pathname);
-  const activeTool = TOOLS.find((t) => t.id === activeToolId) ?? TOOLS[0];
-  const activeSubId = getActiveSubTabId(activeTool, location.search, location.pathname);
+  const visibleTools = useMemo(
+    () => getNavigationToolsForFamily(family, "navigation"),
+    [family],
+  );
+
+  const activeToolId = getActiveNavigationToolId(strippedPath);
+  const activeTool =
+    visibleTools.find((t) => t.id === activeToolId) ?? visibleTools[0] ?? TOOL_NAVIGATION_ITEMS[0];
+  const activeSubId = getActiveSubTabId(activeTool, location.search, strippedPath);
   const hasSubTabs = activeTool.subTabs != null && activeTool.subTabs.length > 0;
+  // Keep this after hook calls so the hook count stays constant across
+  // family switches when a family has no visible tools.
+  const shouldRender = visibleTools.length > 0;
 
-  // Refs
   const capsuleRef = useRef<HTMLDivElement>(null);
   const mainRowRef = useRef<HTMLDivElement>(null);
   const subRowRef = useRef<HTMLDivElement>(null);
@@ -260,17 +218,19 @@ const Navigation: React.FC = () => {
 
   const [pressedTab, setPressedTab] = useState<string | null>(null);
 
-  const handleToolClick = (tool: ToolDef) => {
+  const handleToolClick = (tool: ToolNavigationEntry) => {
     if (tool.id === activeToolId) return;
-    navigate(tool.route);
+    navigate(buildFamilyPath(family, tool.path));
   };
 
-  const handleSubTabClick = (sub: SubTab) => {
+  const handleSubTabClick = (sub: ToolSubTab) => {
     if (sub.id === activeSubId) return;
+
+    const familyToolRoute = buildFamilyPath(family, activeTool.path);
 
     // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
     if (sub.paramKey === "route") {
-      navigate(`${activeTool.route}/${sub.id}`);
+      navigate(`${familyToolRoute}/${sub.id}`);
       return;
     }
 
@@ -278,14 +238,16 @@ const Navigation: React.FC = () => {
     params.set(sub.paramKey, sub.id);
     // Use the tool's canonical route when the current path doesn't match
     // (e.g. navigating from /simulations back to /builder?mode=live)
-    const basePath = location.pathname.startsWith(activeTool.route)
+    const basePath = location.pathname.startsWith(familyToolRoute)
       ? location.pathname
-      : activeTool.route;
+      : familyToolRoute;
     navigate(
       { pathname: basePath, search: `?${params.toString()}` },
       { replace: true },
     );
   };
+
+  if (!shouldRender) return null;
 
   return (
     <div className="flex justify-center px-1 pt-3 sm:px-0">
@@ -324,7 +286,7 @@ const Navigation: React.FC = () => {
             className="capsule-indicator"
             style={{ left: mainLeft, width: mainWidth }}
           />
-          {TOOLS.map((tool) => (
+          {visibleTools.map((tool) => (
             <motion.button
               key={tool.id}
               type="button"
@@ -372,7 +334,7 @@ const Navigation: React.FC = () => {
                       variants={hasInitialRender ? undefined : SUB_ITEM}
                       whileTap={{ scale: 0.94 }}
                     >
-                      {sub.icon}
+                      {renderSubTabIcon(sub.icon)}
                       <span className="hidden sm:inline">{sub.label}</span>
                       <span className="sm:hidden">{sub.shortLabel ?? sub.label}</span>
                     </motion.button>

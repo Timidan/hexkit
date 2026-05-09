@@ -425,10 +425,13 @@ export const TransactionReplayView: React.FC<{
       };
 
       const calldata = simulation.data;
+      const networkIdForCtx = selectedNetwork?.id || 1;
       const contractContext = {
+        chainFamily: 'evm' as const,
+        chainKey: `evm:${networkIdForCtx}` as const,
         address: simulation.to || "",
         abi: null as any[] | null,
-        networkId: selectedNetwork?.id || 1,
+        networkId: networkIdForCtx,
         networkName: selectedNetwork?.name || "Unknown",
         simulationOrigin: 'tx-hash-replay' as const,
         replayTxHash: trimmedHash,

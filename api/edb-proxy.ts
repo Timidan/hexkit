@@ -1,5 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { maybeInjectDefaultEtherscanKey } from "./edbShared.js";
+import {
+  applyCorsHeaders,
+  fetchUpstream,
+  handleCorsPreflight,
+  readRawBody,
+  sendBufferedUpstreamResponse,
+  sendProxyError,
+  streamSseResponse,
+} from "./_utils/proxyHelper";
 
 export const config = {
   api: { bodyParser: false },
@@ -44,30 +53,14 @@ function applyCors(req: VercelRequest, res: VercelResponse) {
     typeof req.headers.host === "string" ? req.headers.host : undefined;
   const allowed = resolveAllowedOrigin(origin, host);
   if (allowed) {
-    res.setHeader("Access-Control-Allow-Origin", allowed);
-    res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
-    res.setHeader("Access-Control-Max-Age", "600");
-  }
-}
-
-function getRawBody(req: VercelRequest): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    req.on("data", (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > MAX_BODY_BYTES) {
-        req.destroy();
-        reject(new Error("body_too_large"));
-        return;
-      }
-      chunks.push(chunk);
+    applyCorsHeaders(res, {
+      allowedOrigin: allowed,
+      allowMethods: "GET, POST, OPTIONS, HEAD",
+      allowHeaders: "Content-Type, Accept",
+      maxAge: "600",
+      varyOrigin: true,
     });
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -86,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // OPTIONS preflight — CORS headers already set above
   if (req.method === "OPTIONS") {
-    res.status(204).end();
+    handleCorsPreflight(req, res);
     return;
   }
 
@@ -140,7 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const rawBody =
       req.method !== "GET" && req.method !== "HEAD"
-        ? await getRawBody(req)
+        ? await readRawBody(req, MAX_BODY_BYTES)
         : undefined;
     const body = maybeInjectDefaultEtherscanKey(
       rawBody,
@@ -151,73 +144,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Detect SSE path — use longer timeout, abort on client disconnect
     const isSSE = subPath.match(/debug\/prepare\/[^/]+\/events$/);
-    const controller = new AbortController();
 
-    if (isSSE) {
-      // Abort upstream when client disconnects
-      req.on("close", () => controller.abort());
-    } else {
-      // Regular requests get a hard timeout
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      req.on("close", () => clearTimeout(timer));
-    }
+    const upstream = await fetchUpstream(
+      req,
+      target,
+      {
+        method: req.method || "GET",
+        headers: upstreamHeaders,
+        body,
+        redirect: "error", // never follow redirects — prevents key leaking to unexpected hosts
+      },
+      isSSE ? { abortOnClose: true } : { timeoutMs: FETCH_TIMEOUT_MS },
+    );
 
-    const upstream = await fetch(target, {
-      method: req.method || "GET",
-      headers: upstreamHeaders,
-      body,
-      signal: controller.signal,
-      redirect: "error", // never follow redirects — prevents key leaking to unexpected hosts
-    });
-
-    // SSE streaming response
-    const contentType = upstream.headers.get("content-type") || "";
-    if (contentType.includes("text/event-stream") && upstream.body) {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Accel-Buffering", "no");
-
-      const reader = upstream.body.getReader();
-      const decoder = new TextDecoder();
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(decoder.decode(value, { stream: true }));
-        }
-      } catch {
-        // client disconnected or upstream closed
-      } finally {
-        reader.cancel().catch(() => {});
-        res.end();
-      }
+    if (await streamSseResponse(res, upstream)) {
       return;
     }
 
     // Standard response — pipe status + body
-    res.status(upstream.status);
-
-    const upstreamContentType = upstream.headers.get("content-type");
-    if (upstreamContentType) res.setHeader("content-type", upstreamContentType);
-    // Merge upstream Vary with any Vary header set in applyCors (e.g., "Origin")
-    // so CORS cache keys remain correct.
-    const upstreamVary = upstream.headers.get("vary");
-    if (upstreamVary) {
-      const existing = res.getHeader("Vary");
-      res.setHeader(
-        "Vary",
-        existing ? `${existing}, ${upstreamVary}` : upstreamVary,
-      );
-    }
-
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.send(buf);
+    await sendBufferedUpstreamResponse(res, upstream);
   } catch (err: unknown) {
-    if (err instanceof Error && err.name === "AbortError") {
-      return res.status(504).json({ error: "bridge_timeout" });
-    }
-    console.error("[edb] upstream error:", err);
-    res.status(502).json({ error: "bridge_unreachable" });
+    return sendProxyError(res, err, {
+      logLabel: "edb",
+      timeout: { status: 504, body: { error: "bridge_timeout" } },
+      upstream: { status: 502, body: { error: "bridge_unreachable" } },
+    });
   }
 }

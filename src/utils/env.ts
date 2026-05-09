@@ -31,7 +31,37 @@ export const getSimulatorBridgeUrl = () => {
   return value;
 };
 
-/** Returns default headers for bridge requests. API key is injected server-side by the proxy. */
-export const getBridgeHeaders = (extra?: Record<string, string>): Record<string, string> => {
-  return { 'Content-Type': 'application/json', ...extra };
+export const getStarknetSimBridgeUrl = () => {
+  const value = readEnv(
+    ["VITE_STARKNET_SIM_BRIDGE_URL"],
+    "/api/starknet-sim"
+  );
+
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["disabled", "disable", "off", "false", "none"].includes(normalized)) {
+    return "";
+  }
+
+  return value;
+};
+
+/** Returns default headers for bridge requests. API key is injected
+ *  server-side by the proxy.
+ *
+ *  Pass `{ method: "GET" }` to omit `Content-Type: application/json` —
+ *  GET requests have no body so the header is harmless but technically
+ *  wrong (audit P3). Defaults to a JSON content type to preserve
+ *  existing POST/PUT call sites that don't pass options. */
+export const getBridgeHeaders = (
+  extra?: Record<string, string>,
+  options?: { method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH" },
+): Record<string, string> => {
+  const method = options?.method;
+  const base: Record<string, string> =
+    method === "GET" ? {} : { 'Content-Type': 'application/json' };
+  return { ...base, ...extra };
 };

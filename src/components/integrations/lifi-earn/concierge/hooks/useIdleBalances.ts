@@ -1,13 +1,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
 import { fetchEarnVaults, extractUniqueUnderlyings } from "../../earnApi";
 import { CHAIN_REGISTRY, isTestnet } from "../../../../../utils/chains";
-import { networkConfigManager } from "../../../../../config/networkConfig";
 import { fetchAssetPrices, applyPricesToAssets } from "./fetchAssetPrices";
-import type { EarnToken, EarnVault } from "../../types";
+import type { EarnVault } from "../../types";
 import type { IdleAsset } from "../types";
-import { isNativeToken, MULTICALL3_ADDRESS } from "../../../../../utils/addressConstants";
+import { scanEvmChainBalances } from "../../../../../features/earn/adapters/evm/idleScan";
 
 export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs = 8000) {
 
@@ -67,7 +65,7 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
 
       const chainResults = await Promise.all(
         chainIds.map((chainId) =>
-          scanSingleChain({
+          scanEvmChainBalances({
             chainId,
             address: targetAddress as `0x${string}`,
             tokens: underlyingsByChain.get(chainId) ?? [],
@@ -143,110 +141,4 @@ export function useIdleBalances(targetAddress: string | null, perChainTimeoutMs 
     chainsReachable: scanQuery.data?.chainsReachable ?? 0,
     refetch,
   };
-}
-
-async function scanSingleChain(args: {
-  chainId: number;
-  address: `0x${string}`;
-  tokens: EarnToken[];
-  timeoutMs: number;
-}): Promise<IdleAsset[]> {
-  const { chainId, address, tokens, timeoutMs } = args;
-
-  const chainMeta = CHAIN_REGISTRY.find((c) => c.id === chainId);
-  if (!chainMeta) return [];
-
-  const resolution = networkConfigManager.resolveRpcUrl(chainId, chainMeta.rpcUrl);
-  const rpcUrl = resolution.url;
-  if (!rpcUrl) return [];
-
-  const client = createPublicClient({
-    transport: http(rpcUrl),
-  });
-
-  const erc20s = tokens.filter((t) => !isNativeToken(t.address));
-  const nativeTokenMeta = tokens.find((t) => isNativeToken(t.address));
-
-  const multicallCalls = erc20s.map((tok) => ({
-    address: tok.address as `0x${string}`,
-    abi: erc20Abi,
-    functionName: "balanceOf" as const,
-    args: [address] as const,
-  }));
-
-  // Always fetch native balance — the user may hold native tokens on chains
-  // where no vault explicitly lists the native sentinel as an underlying.
-  const [erc20Results, nativeBalance] = await Promise.all([
-    multicallCalls.length > 0
-      ? withTimeout(
-          client.multicall({
-            contracts: multicallCalls,
-            allowFailure: true,
-            multicallAddress: MULTICALL3_ADDRESS,
-          }),
-          timeoutMs
-        )
-      : Promise.resolve([] as any[]),
-    withTimeout(client.getBalance({ address }), timeoutMs),
-  ]);
-
-  const assets: IdleAsset[] = [];
-
-  erc20Results.forEach((r: any, i: number) => {
-    if (r.status !== "success") return;
-    const raw = r.result as bigint;
-    if (raw === 0n) return;
-    const tok = erc20s[i];
-    assets.push(toIdleAsset(chainId, chainMeta.name, tok, raw));
-  });
-
-  if ((nativeBalance as bigint) > 0n) {
-    // Use vault-provided native token metadata if available, otherwise
-    // synthesise it from the chain's nativeCurrency config.
-    const nativeTok: EarnToken = nativeTokenMeta ?? {
-      address: "0x0000000000000000000000000000000000000000",
-      symbol: chainMeta.nativeCurrency.symbol,
-      decimals: chainMeta.nativeCurrency.decimals,
-      name: chainMeta.nativeCurrency.name,
-      chainId,
-      logoURI: "",
-    };
-    assets.push(
-      toIdleAsset(chainId, chainMeta.name, nativeTok, nativeBalance as bigint)
-    );
-  }
-
-  return assets;
-}
-
-function toIdleAsset(
-  chainId: number,
-  chainName: string,
-  token: EarnToken,
-  raw: bigint
-): IdleAsset {
-  return {
-    chainId,
-    chainName,
-    token,
-    amountRaw: raw.toString(),
-    amountDecimal: formatUnits(raw, token.decimals),
-    amountUsd: null,
-  };
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timeout ${ms}ms`)), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(t);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(t);
-        reject(e);
-      }
-    );
-  });
 }

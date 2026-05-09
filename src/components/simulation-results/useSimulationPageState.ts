@@ -189,7 +189,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       }
     }
 
-    navigate('/builder?mode=simulation&replay=txhash');
+    navigate('/evm/builder?mode=simulation&replay=txhash');
   }, [onReSimulate, navigate, result, contractContext, contextSimulationId, id]);
 
   const handleExportTestData = useCallback(() => {
@@ -724,7 +724,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
   const handleBack = useCallback(() => {
     clearSimulation();
-    navigate("/builder");
+    navigate("/evm/builder");
   }, [navigate, clearSimulation]);
 
   const handleToggleFilter = useCallback(

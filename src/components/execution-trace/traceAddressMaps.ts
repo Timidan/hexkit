@@ -5,8 +5,8 @@ import type { TraceRow } from "./traceTypes";
 
 // ---- helpers ----------------------------------------------------------
 
-const isHexAddress = (value: string): boolean =>
-  /^0x[a-fA-F0-9]{40}$/.test(value);
+export const isTraceAddress = (value: string): boolean =>
+  /^0x[a-fA-F0-9]{1,64}$/.test(value);
 
 // ---- address  ->  name  map ------------------------------------------
 
@@ -24,10 +24,10 @@ export function buildAddressToNameMap(traceRows: TraceRow[]): Map<string, string
     if (
       labelCandidate &&
       labelCandidate !== "0x0" &&
-      !isHexAddress(labelCandidate) &&
+      !isTraceAddress(labelCandidate) &&
       !labelCandidate.toLowerCase().startsWith("unknown")
     ) {
-      if (row.entryMeta?.target && isHexAddress(row.entryMeta.target)) {
+      if (row.entryMeta?.target && isTraceAddress(row.entryMeta.target)) {
         const addr = row.entryMeta.target.toLowerCase();
         if (!map.has(addr)) {
           map.set(addr, labelCandidate);
@@ -35,7 +35,7 @@ export function buildAddressToNameMap(traceRows: TraceRow[]): Map<string, string
       }
       if (
         row.to &&
-        isHexAddress(row.to) &&
+        isTraceAddress(row.to) &&
         row.entryMeta?.target &&
         row.to.toLowerCase() === row.entryMeta.target.toLowerCase()
       ) {
@@ -47,7 +47,7 @@ export function buildAddressToNameMap(traceRows: TraceRow[]): Map<string, string
     }
     if (row.entryMeta?.callerName && row.entryMeta?.caller) {
       const addr = row.entryMeta.caller.toLowerCase();
-      if (!map.has(addr) && isHexAddress(row.entryMeta.caller)) {
+      if (!map.has(addr) && isTraceAddress(row.entryMeta.caller)) {
         map.set(addr, row.entryMeta.callerName);
       }
     }

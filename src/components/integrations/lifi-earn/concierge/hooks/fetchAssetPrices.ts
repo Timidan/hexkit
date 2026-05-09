@@ -1,6 +1,6 @@
 // Batch USD-price lookup via DeFiLlama /prices/current. Missing entries mean
 // the asset could not be priced — keep amountUsd null, don't fabricate zero.
-import { formatUnits } from "viem";
+import { formatUnits } from "../../../../../features/earn/shared/formatUnits";
 import type { IdleAsset } from "../types";
 import { isNativeToken } from "../../../../../utils/addressConstants";
 
