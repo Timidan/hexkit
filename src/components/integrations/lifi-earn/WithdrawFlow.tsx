@@ -34,6 +34,7 @@ import { useWithdrawQuote } from "./hooks/useWithdrawQuote";
 import { useTokenAllowance } from "./hooks/useTokenAllowance";
 import { formatTxError, shortAddress } from "./txUtils";
 import type { EarnPosition, EarnVault, EarnToken } from "./types";
+import EdbBadge from "../../EdbBadge";
 
 type WithdrawState = "idle" | "approving" | "simulating" | "executing" | "success" | "error";
 
@@ -801,14 +802,18 @@ export function WithdrawFlow({ position, vault, onComplete, onClose }: WithdrawF
 
           <div className="flex flex-col items-center gap-2">
             {!simResult?.success && (
-              <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground select-none">
-                <Switch
-                  checked={simulateFirst}
-                  onCheckedChange={setSimulateFirst}
-                  disabled={isBusy}
-                />
-                Simulate first
-              </label>
+              <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/30 px-3 py-1.5">
+                <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted-foreground select-none">
+                  <Switch
+                    checked={simulateFirst}
+                    onCheckedChange={setSimulateFirst}
+                    disabled={isBusy}
+                  />
+                  Simulate first
+                </label>
+                <span className="text-muted-foreground/30 text-xs">·</span>
+                <EdbBadge className="opacity-70 transition-opacity hover:opacity-100" />
+              </div>
             )}
 
             {needsApproval ? (
