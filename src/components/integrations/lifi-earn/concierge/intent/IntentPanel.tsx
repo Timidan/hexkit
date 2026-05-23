@@ -25,6 +25,15 @@ import { useIntentParser } from "./hooks/useIntentParser";
 import { useVaultsByIntent } from "./hooks/useVaultsByIntent";
 import { useIntentRecommendation, buildRecommendation } from "./hooks/useIntentRecommendation";
 import type { ParsedIntent } from "./schema";
+import {
+  buildIntentLegPlan,
+  buildRoutesIndex,
+  type IntentLegSpec,
+} from "./intentLegs";
+import { useIntentLegPipeline } from "./useIntentLegPipeline";
+import { RebalancePlanCard } from "./RebalancePlanCard";
+import { fetchIntentRoutes } from "../../intentsApi";
+import { Switch } from "../../../../ui/switch";
 import type { EarnVault } from "../../types";
 import type { IdleAsset, SelectedSource, VaultRecommendation } from "../types";
 import { rankVaultsForIntent, type IntentVaultsResult } from "./hooks/useVaultsByIntent";
@@ -328,6 +337,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     if (!isMyAssetsMode) return [];
     const bySymbol = new Map<string, IdleAsset>();
     for (const a of idleAssets) {
+      if (!a.token.symbol) continue;
       const sym = a.token.symbol.toUpperCase();
       const existing = bySymbol.get(sym);
       if (!existing || (a.amountUsd ?? 0) > (existing.amountUsd ?? 0)) {
@@ -510,7 +520,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
         intent: perAssetIntents[idx],
         rankedVaults: vaultResult.ranked,
         walletAssets: idleAssets,
-        sourceTokenSymbol: asset.token.symbol.toUpperCase(),
+        sourceTokenSymbol: asset.token.symbol?.toUpperCase(),
         sourceChainId: asset.chainId,
       };
     });
@@ -543,7 +553,25 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
 
   // ── Execution pipeline ─────────────────────────────────────────────
   const [legState, legDispatch] = useReducer(legsReducer, initialLegState);
+  const [useIntentsPipeline, setUseIntentsPipeline] = useState(false);
   const isConsolidateMode = intent?.routing_mode === "consolidate";
+
+  // ── LI.FI Intents pipeline (opt-in) ────────────────────────────────
+  // Fetch the supported routes once so we can degrade unsupported legs
+  // gracefully in the rebalance plan. Empty / errored index falls back to
+  // "all routes plausible" rather than blocking the whole UI.
+  const { data: routesData } = useQuery({
+    queryKey: ["lifi-intent-routes"],
+    queryFn: fetchIntentRoutes,
+    staleTime: 5 * 60_000,
+    enabled: useIntentsPipeline,
+  });
+  const routesIndex = useMemo(
+    () => buildRoutesIndex(routesData?.routes),
+    [routesData],
+  );
+
+  const intentPipeline = useIntentLegPipeline();
 
   // For consolidate: use the global ranked vault list directly (already sorted
   // by objective in rankVaultsForIntent). No per-asset search needed — LI.FI
@@ -572,6 +600,62 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     () => consolidateCandidates.find((v) => v.slug === selectedConsolidateSlug) ?? consolidateCandidates[0] ?? null,
     [consolidateCandidates, selectedConsolidateSlug],
   );
+
+  // Map per-asset recommendations back to vaults aligned with dedupedAssets.
+  const perAssetVaultByIndex = useMemo<(EarnVault | null)[]>(() => {
+    if (!isMyAssetsMode || isConsolidateMode) return [];
+    return dedupedAssets.map((asset) => {
+      const key = `${asset.chainId}:${asset.token.address.toLowerCase()}`;
+      const rec = recommendations.find(
+        (r) => `${r.forChainId}:${r.forTokenAddress.toLowerCase()}` === key,
+      );
+      return rec?.bestPick?.vault ?? null;
+    });
+  }, [isMyAssetsMode, isConsolidateMode, dedupedAssets, recommendations]);
+
+  // Build the Intent leg plan when the toggle is on. Re-derives on every
+  // change to source assets / recommendations / routing mode.
+  const plannedIntentLegs = useMemo<IntentLegSpec[]>(() => {
+    if (!useIntentsPipeline || !intent || !isMyAssetsMode) return [];
+    return buildIntentLegPlan({
+      intent,
+      sourceAssets: dedupedAssets,
+      perAssetVaults: perAssetVaultByIndex,
+      consolidateVault,
+      walletAddress: walletAddress ?? null,
+      routesIndex,
+    });
+  }, [
+    useIntentsPipeline,
+    intent,
+    isMyAssetsMode,
+    dedupedAssets,
+    perAssetVaultByIndex,
+    consolidateVault,
+    walletAddress,
+    routesIndex,
+  ]);
+
+  // Reset the pipeline when the user changes execution mode (Composer ↔
+  // Intents) or the routing mode. NOT keyed on `plannedIntentLegs.length`:
+  // a wallet-balance refetch or recommendation re-rank can shift that count
+  // mid-flight, and we don't want to nuke runs the user has already opened.
+  //
+  // Only protect rows that are on-chain or sequentially funded — `quoted` is
+  // pre-open (no wallet signature yet) so resetting it is harmless and lets
+  // the user retry from scratch when their intent changes.
+  const hasOnChainRuns = intentPipeline.runs.some(
+    (r) =>
+      r.status === "approving" ||
+      r.status === "signing" ||
+      r.status === "open" ||
+      r.status === "refunding",
+  );
+  useEffect(() => {
+    if (hasOnChainRuns) return;
+    intentPipeline.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent?.routing_mode, useIntentsPipeline]);
 
   const canExecute = useMemo(() => {
     if (!isMyAssetsMode || dedupedAssets.length === 0) return false;
@@ -1004,8 +1088,29 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                 </>
               )}
 
+              {/* Execution engine toggle — Composer queue vs LI.FI Intents pipeline */}
+              {isMyAssetsMode && canExecute && isConnected && (
+                <div className="flex items-center justify-between rounded-lg border border-border/40 bg-background/30 px-3 py-1.5 text-xs">
+                  <label className="flex cursor-pointer items-center gap-2 text-muted-foreground select-none">
+                    <Switch
+                      checked={useIntentsPipeline}
+                      onCheckedChange={(v) => {
+                        setUseIntentsPipeline(v);
+                        legDispatch({ type: "RESET" });
+                      }}
+                    />
+                    Execute with LI.FI Intents
+                  </label>
+                  <span className="text-muted-foreground/70">
+                    {useIntentsPipeline
+                      ? "Per-leg solver settlement + refundable escrow"
+                      : "Composer per-leg quote + deposit"}
+                  </span>
+                </div>
+              )}
+
               {/* Execute pipeline button — only for connected wallets, not read-only */}
-              {isMyAssetsMode && canExecute && !pipelineActive && isConnected && (
+              {isMyAssetsMode && canExecute && !pipelineActive && isConnected && !useIntentsPipeline && (
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -1030,8 +1135,27 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
       )}
 
       {/* Execution pipeline — only for connected wallets */}
-      {pipelineActive && isConnected && (
+      {pipelineActive && isConnected && !useIntentsPipeline && (
         <ExecutionQueue state={legState} dispatch={legDispatch} />
+      )}
+
+      {/* LI.FI Intents rebalance plan — replaces the Composer queue when enabled */}
+      {useIntentsPipeline && isConnected && isMyAssetsMode && plannedIntentLegs.length > 0 && (
+        <RebalancePlanCard
+          plannedSpecs={plannedIntentLegs}
+          runs={intentPipeline.runs}
+          routingMode={isConsolidateMode ? "consolidate" : "per-asset"}
+          isConnected={isConnected}
+          onQuoteAll={() => {
+            void intentPipeline.quoteAll(plannedIntentLegs);
+          }}
+          onOpenAll={() => void intentPipeline.openAll()}
+          onRetry={(id) => void intentPipeline.retryLeg(id)}
+          onRefund={(id) => void intentPipeline.refundLeg(id)}
+          onDeposit={(id) => void intentPipeline.depositLeg(id)}
+          onMarkDelivered={intentPipeline.markLegDelivered}
+          onPickVault={onSelectVault}
+        />
       )}
     </div>
   );

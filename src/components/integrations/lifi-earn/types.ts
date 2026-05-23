@@ -1,6 +1,9 @@
 export interface EarnToken {
   address: string;
-  symbol: string;
+  // The upstream Earn API occasionally ships underlyings with a missing symbol;
+  // typed nullable so call sites have to handle it instead of crashing on
+  // `.toUpperCase()` (etc.).
+  symbol: string | undefined;
   name?: string;
   decimals: number;
   chainId?: number;

@@ -329,6 +329,15 @@ export default defineConfig(({ mode }) => {
             "x-lifi-api-key": LIFI_API_KEY,
           },
         },
+        // LI.FI Intents (order.li.fi) — integrator endpoints are open, no API
+        // key required per docs.li.fi/lifi-intents/authentication. Proxy exists
+        // for CORS parity with the Vercel serverless fn used in prod.
+        "/api/lifi-intents": {
+          target: "https://order.li.fi",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/lifi-intents/, ""),
+        },
         // Gemini is handled by llmProxyPlugin() below — not a static proxy
         // Proxy for Sourcify repo
         "/api/repo": {
