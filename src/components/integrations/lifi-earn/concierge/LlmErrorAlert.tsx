@@ -70,7 +70,7 @@ function classify(rawError: string): Classification {
       category: "auth",
       title: "Recommender not authorized",
       description:
-        "The AI proxy rejected our request. This usually means the GEMINI_API_KEY isn't set on the server or the Origin allow-list is misconfigured. Rules-based picks are still safe to use.",
+        "The AI proxy rejected our request. This usually means the GEMINI_API_KEY isn't set on the server or the Origin allow-list is misconfigured. Rules-based picks are shown below as a fallback.",
       icon: <Shield weight="duotone" className="h-4 w-4" />,
       retryable: false,
     };
@@ -103,7 +103,7 @@ function classify(rawError: string): Classification {
       category: "schema",
       title: "Recommender returned something we couldn't parse",
       description:
-        "Gemini's response didn't match the shape we expect. We already retried once and fell back to rules-based picks — they're safe to use. Try again to see if a second call returns clean JSON.",
+        "Gemini's response didn't match the shape we expect. We already retried once and fell back to rules-based picks — rules-based picks are shown below. Try again to see if a second call returns clean JSON.",
       icon: <Robot weight="duotone" className="h-4 w-4" />,
       retryable: true,
     };
@@ -113,7 +113,7 @@ function classify(rawError: string): Classification {
     category: "unknown",
     title: "AI recommender unavailable",
     description:
-      "Something went wrong while fetching AI recommendations. Rules-based picks are still shown below and are safe to use.",
+      "Something went wrong while fetching AI recommendations. Rules-based picks are shown below as a fallback.",
     icon: <WarningCircle weight="duotone" className="h-4 w-4" />,
     retryable: true,
   };

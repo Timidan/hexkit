@@ -65,3 +65,95 @@ export function formatTxError(err: unknown): string {
 }
 
 export { isNativeToken } from "../../../utils/addressConstants";
+
+import {
+  readContract as wagmiReadContract,
+  waitForTransactionReceipt as wagmiWaitForReceipt,
+  type Config,
+} from "@wagmi/core";
+import {
+  encodeFunctionData,
+  parseAbi,
+  type Address,
+  type Hex,
+} from "viem";
+
+const ERC20_APPROVE_ABI = parseAbi([
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+]);
+
+/**
+ * Issue `approve(spender, amount)`, resetting a nonzero allowance to zero
+ * first when needed. USDT and a handful of other ERC-20s revert on
+ * `approve(spender, X)` when an existing nonzero `approve(spender, Y)` is
+ * already set — must `approve(spender, 0)` first. Always paying the extra tx
+ * when allowance is nonzero is safer than maintaining a token allowlist.
+ *
+ * No-op when current allowance >= amount.
+ */
+export async function safeApproveErc20(args: {
+  wagmiConfig: Config;
+  walletClient: {
+    sendTransaction: (tx: { to: Address; data: Hex }) => Promise<Hex>;
+  };
+  token: Address;
+  spender: Address;
+  amount: bigint;
+  owner: Address;
+  chainId: number;
+  timeoutMs?: number;
+}): Promise<void> {
+  const {
+    wagmiConfig,
+    walletClient,
+    token,
+    spender,
+    amount,
+    owner,
+    chainId,
+    timeoutMs = 120_000,
+  } = args;
+
+  const current = (await wagmiReadContract(wagmiConfig, {
+    address: token,
+    abi: ERC20_APPROVE_ABI,
+    functionName: "allowance",
+    args: [owner, spender],
+    chainId,
+  })) as bigint;
+
+  if (current >= amount) return;
+
+  if (current > 0n) {
+    const resetData = encodeFunctionData({
+      abi: ERC20_APPROVE_ABI,
+      functionName: "approve",
+      args: [spender, 0n],
+    });
+    const resetHash = await walletClient.sendTransaction({
+      to: token,
+      data: resetData,
+    });
+    await wagmiWaitForReceipt(wagmiConfig, {
+      hash: resetHash,
+      chainId,
+      timeout: timeoutMs,
+    });
+  }
+
+  const approveData = encodeFunctionData({
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [spender, amount],
+  });
+  const hash = await walletClient.sendTransaction({
+    to: token,
+    data: approveData,
+  });
+  await wagmiWaitForReceipt(wagmiConfig, {
+    hash,
+    chainId,
+    timeout: timeoutMs,
+  });
+}

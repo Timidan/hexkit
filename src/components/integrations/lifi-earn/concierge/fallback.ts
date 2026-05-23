@@ -91,9 +91,9 @@ export function classifyRoute(
   vault: EarnVault,
 ): RouteType {
   const isSameChain = vault.chainId === asset.chainId;
-  const aliases = symbolAliases(asset.token.symbol);
+  const aliases = symbolAliases(asset.token.symbol ?? "");
   const hasSymbolMatch = (vault.underlyingTokens ?? []).some((u) =>
-    aliases.has(u.symbol.toUpperCase())
+    u.symbol ? aliases.has(u.symbol.toUpperCase()) : false
   );
   if (isSameChain && hasSymbolMatch) return "direct";
   if (isSameChain && !hasSymbolMatch) return "swap";
@@ -116,7 +116,7 @@ export function candidatesForAsset(
   allVaults: EarnVault[]
 ): EarnVault[] {
   const tokenAddr = asset.token.address.toLowerCase();
-  const aliases = symbolAliases(asset.token.symbol);
+  const aliases = symbolAliases(asset.token.symbol ?? "");
   const sourceIsL2 = chainCostTier(asset.chainId) === "L2";
 
   const direct: EarnVault[] = [];
@@ -128,7 +128,11 @@ export function candidatesForAsset(
     if (!v.isTransactional) continue;
 
     const isSameChain = v.chainId === asset.chainId;
-    const symbols = (v.underlyingTokens ?? []).map((u) => u.symbol.toUpperCase());
+    // Some upstream vaults ship underlyings with missing/undefined symbol —
+    // skip those entries rather than crashing on .toUpperCase().
+    const symbols = (v.underlyingTokens ?? [])
+      .filter((u): u is typeof u & { symbol: string } => Boolean(u.symbol))
+      .map((u) => u.symbol.toUpperCase());
     const hasAliasMatch = symbols.some((s) => aliases.has(s));
     const hasExactAddr = isSameChain && (v.underlyingTokens ?? []).some(
       (u) => u.address.toLowerCase() === tokenAddr
@@ -237,7 +241,13 @@ export function pickByRules(
     safestPick: mkPick(
       safest,
       safest
-        ? `Highest TVL ($${formatCompactUsd(Number(safest.analytics.tvl.usd))}) above the safety floor.`
+        ? (() => {
+            const tvl = Number(safest.analytics.tvl.usd);
+            const aboveFloor = tvl >= minTvlForSafe;
+            return aboveFloor
+              ? `Highest TVL ($${formatCompactUsd(tvl)}) above the safety floor.`
+              : `Highest TVL available ($${formatCompactUsd(tvl)}) — below the configured safety floor.`;
+          })()
         : "no candidate meets TVL floor"
     ),
     alternatives: alternatives.map((v) => ({

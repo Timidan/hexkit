@@ -33,6 +33,15 @@ import { fetchComposerQuote } from "./earnApi";
 import { useTokenAllowance } from "./hooks/useTokenAllowance";
 import { useTokenBalance } from "./hooks/useTokenBalance";
 import { TokenIcon } from "./TokenIcon";
+import { IntentBridgeStep } from "./IntentBridgeStep";
+import { useIdleBalances } from "./concierge/hooks/useIdleBalances";
+import {
+  executeCrossChainComposerDeposit,
+  type CrossChainDepositState,
+} from "./crossChainComposerDeposit";
+import { getAccount as wagmiGetAccount } from "@wagmi/core";
+import type { Address } from "viem";
+import type { DepositExecutionEvent } from "./concierge/types";
 import type { EarnToken, EarnVault } from "./types";
 import { formatTxError, shortAddress, isNativeToken } from "./txUtils";
 import EdbBadge from "../../EdbBadge";
@@ -175,6 +184,7 @@ interface DepositFlowProps {
   onBroadcast?: (txHash: string) => void;
   onConfirmed?: () => void;
   onError?: (message: string) => void;
+  onExecutionEvent?: (event: DepositExecutionEvent) => void;
 }
 
 
@@ -184,14 +194,11 @@ export function DepositFlow({
   onBroadcast,
   onConfirmed,
   onError,
+  onExecutionEvent,
 }: DepositFlowProps) {
   const { address, isConnected, chain: walletChain } = useAccount();
   const wagmiConfig = useConfig();
   const { switchChainAsync } = useSwitchChain();
-
-  const fromChainForQuote = override?.fromChain ?? vault.chainId;
-
-  const supportedChain = SUPPORTED_CHAINS.find((c) => c.id === fromChainForQuote);
 
   const underlyingTokens = useMemo(
     () => vault.underlyingTokens ?? [],
@@ -202,17 +209,57 @@ export function DepositFlow({
   // Stable symbol list for the Composer error hint — avoids busting the
   // react-query cache with a new array reference every render.
   const underlyingSymbols = useMemo(
-    () => underlyingTokens.map((t) => t.symbol),
+    () => underlyingTokens.flatMap((t) => (t.symbol ? [t.symbol] : [])),
     [underlyingTokens],
   );
 
-  const tokens = useMemo(() => {
+  // Pull wallet-wide idle balances so the picker can offer cross-chain sources
+  // (e.g. USDC on Base when the user is opening a USDT vault on Polygon).
+  // Skipped when an override is present — that path already nails the source.
+  const { idleAssets } = useIdleBalances(
+    override ? null : (address ?? null),
+  );
+
+  // Cross-chain idle balances that the LI.FI Intent path can actually use:
+  //  - chain ≠ vault chain (same-chain already covered by the existing groups)
+  //  - non-native (Intents escrow is ERC-20-only; native shows as 'unsupported')
+  //  - balance > 0
+  const crossChainHoldings = useMemo<EarnToken[]>(() => {
+    if (override) return [];
+    return idleAssets
+      .filter((a) => a.chainId !== vault.chainId)
+      .filter((a) => !isNativeToken(a.token.address))
+      .filter((a) => {
+        try {
+          return BigInt(a.amountRaw) > 0n;
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => (b.amountUsd ?? 0) - (a.amountUsd ?? 0))
+      .map((a) => ({
+        ...a.token,
+        chainId: a.chainId,
+      }));
+  }, [idleAssets, vault.chainId, override]);
+
+  const sameChainTokens = useMemo(() => {
     const seen = new Set(underlyingTokens.map((t) => t.address.toLowerCase()));
     const extras = getCommonTokensForChain(vault.chainId).filter(
       (t) => !seen.has(t.address.toLowerCase()),
     );
     return [...underlyingTokens, ...extras];
   }, [underlyingTokens, vault.chainId]);
+
+  const tokens = useMemo(
+    () => [...sameChainTokens, ...crossChainHoldings],
+    [sameChainTokens, crossChainHoldings],
+  );
+
+  // Disambiguate same-address-different-chain entries (e.g. USDC.e exists on
+  // multiple chains) in the dropdown by chainId:address.
+  const tokenKey = (t: EarnToken) =>
+    `${t.chainId ?? vault.chainId}:${t.address.toLowerCase()}`;
 
   const forcedToken = override?.fromToken ?? null;
   const forcedAmountRaw = override?.fromAmountRaw ?? null;
@@ -225,6 +272,16 @@ export function DepositFlow({
   const [selectedToken, setSelectedToken] = useState<EarnToken>(
     forcedToken ?? firstToken
   );
+
+  // fromChainForQuote follows the picked token's chainId so a cross-chain
+  // pick (e.g. "USDC on Base" while the vault lives on Polygon) automatically
+  // routes through the Intent bridge.
+  const fromChainForQuote =
+    override?.fromChain ?? selectedToken?.chainId ?? vault.chainId;
+
+  const supportedChain = SUPPORTED_CHAINS.find(
+    (c) => c.id === fromChainForQuote,
+  );
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [simResult, setSimResult] = useState<AssetMovementResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -234,6 +291,27 @@ export function DepositFlow({
   });
   const [simulateFirst, setSimulateFirst] = useState(false);
   const [twoStepLabel, setTwoStepLabel] = useState<string | null>(null);
+  // Cross-chain Composer 2-tx state (bridge fromToken on chain A → underlying
+  // on chain B, then deposit underlying into vault). Only meaningful when
+  // useIntents is OFF and fromChainForQuote !== vault.chainId.
+  const [crossChainState, setCrossChainState] = useState<CrossChainDepositState>({
+    phase: "idle",
+  });
+  const destinationUnderlying = underlyingTokens[0] ?? null;
+
+  function emitExecutionEvent(event: DepositExecutionEvent) {
+    onExecutionEvent?.(event);
+  }
+
+  // When source chain ≠ vault chain we can route the funding leg through
+  // LI.FI Intents instead of Composer. Default to Intents because that's
+  // where the UX win lives (visible solver lifecycle + faster settlement).
+  // Users can flip back to Composer with the toggle below.
+  const isCrossChain = fromChainForQuote !== vault.chainId;
+  const [useIntents, setUseIntents] = useState(isCrossChain);
+  useEffect(() => {
+    setUseIntents(isCrossChain);
+  }, [isCrossChain]);
 
   // Reset state when vault/override changes so reopening the drawer for a
   // different vault doesn't leak stale state.
@@ -286,7 +364,15 @@ export function DepositFlow({
     toAddress: address ?? "",
     fromAmount: fromAmountRaw?.toString() ?? "0",
     underlyingSymbols,
-    enabled: isConnected && !!fromAmountRaw && fromAmountRaw.gt(0),
+    // Cross-chain uses the dedicated 2-tx flow (bridge → deposit), which
+    // manages its own quotes. Don't fire the single-tx quote that's
+    // guaranteed to 1001 — it just clutters the UI with a red error and
+    // produces a stale `quote` for the spender check + needsApproval logic.
+    enabled:
+      isConnected &&
+      !!fromAmountRaw &&
+      fromAmountRaw.gt(0) &&
+      !(!useIntents && fromChainForQuote !== vault.chainId),
   });
 
   // When Composer can't route fromToken → vault directly (1002), detect if a
@@ -761,6 +847,11 @@ export function DepositFlow({
 
       setTxHash(hash);
       onBroadcast?.(hash);
+      emitExecutionEvent({
+        type: "tx-broadcast",
+        phase: "same-chain",
+        txHash: hash,
+      });
 
       const receipt = await wagmiWaitForReceipt(wagmiConfig, {
         hash,
@@ -774,12 +865,143 @@ export function DepositFlow({
 
       setFlowState("success");
       refetchBalance();
+      emitExecutionEvent({
+        type: "confirmed",
+        phase: "same-chain",
+        txHash: hash,
+      });
       onConfirmed?.();
     } catch (err: unknown) {
       const msg = formatTxError(err);
       setErrorMsg(msg);
       setFlowState("error");
+      emitExecutionEvent({
+        type: "failed",
+        phase: "same-chain",
+        message: msg,
+      });
       onError?.(msg);
+    }
+  }
+
+  async function handleCrossChainExecute(
+    opts?: { resume?: { bridgeTxHash: string; destinationAmountRaw: string } },
+  ) {
+    if (!address || !selectedToken || !fromAmountRaw || !destinationUnderlying) return;
+
+    setErrorMsg(null);
+    setFlowState("executing");
+
+    let lastBroadcastHash: string | null = null;
+
+    try {
+      await executeCrossChainComposerDeposit({
+        wagmiConfig,
+        sourceChainId: fromChainForQuote,
+        sourceToken: selectedToken,
+        sourceAmountRaw: fromAmountRaw.toString(),
+        vault,
+        destinationUnderlying,
+        userAddress: address as Address,
+        onStateChange: (s) => {
+          setCrossChainState(s);
+          if (
+            (s.phase === "bridging" || s.phase === "bridge-settled") &&
+            s.bridgeTxHash &&
+            s.bridgeTxHash !== lastBroadcastHash
+          ) {
+            lastBroadcastHash = s.bridgeTxHash;
+            setTxHash(s.bridgeTxHash);
+            onBroadcast?.(s.bridgeTxHash);
+            emitExecutionEvent({
+              type: "tx-broadcast",
+              phase: "composer-bridge",
+              txHash: s.bridgeTxHash,
+            });
+          }
+          if (s.phase === "bridging") {
+            emitExecutionEvent({
+              type: "bridge-status",
+              phase: "composer-bridge",
+              status: s.bridgeStatus ?? "PENDING",
+              txHash: s.bridgeTxHash,
+              substatus: s.bridgeSubstatus,
+            });
+          }
+          if (s.phase === "bridge-settled") {
+            emitExecutionEvent({
+              type: "bridge-status",
+              phase: "composer-bridge",
+              status: "DONE",
+              txHash: s.bridgeTxHash,
+            });
+            emitExecutionEvent({
+              type: "delivered",
+              phase: "composer-bridge",
+              txHash: s.bridgeTxHash,
+              amountRaw: s.destinationAmountRaw,
+            });
+          }
+          if (
+            s.phase === "depositing" &&
+            s.depositTxHash &&
+            s.depositTxHash !== lastBroadcastHash
+          ) {
+            lastBroadcastHash = s.depositTxHash;
+            setTxHash(s.depositTxHash);
+            onBroadcast?.(s.depositTxHash);
+            emitExecutionEvent({
+              type: "tx-broadcast",
+              phase: "composer-deposit",
+              txHash: s.depositTxHash,
+            });
+          }
+          if (s.phase === "done") {
+            emitExecutionEvent({
+              type: "confirmed",
+              phase: "composer-deposit",
+              txHash: s.depositTxHash,
+            });
+          }
+          if (s.phase === "failed") {
+            emitExecutionEvent({
+              type: "failed",
+              phase: s.failedAfterBridge ? "composer-deposit" : "composer-bridge",
+              message: s.message,
+              recoverable: s.failedAfterBridge,
+              txHash: s.failedAfterBridge ? undefined : s.bridgeTxHash,
+            });
+          }
+        },
+        switchChain: async (chainId) => {
+          // Read live, not from the render-captured `walletChain`. Without this
+          // the second-stage switch (back to vault chain after bridge step
+          // moved us to source chain) silently no-ops and the deposit prompts
+          // on the wrong chain.
+          const current = wagmiGetAccount(wagmiConfig).chainId;
+          if (current !== chainId) {
+            await switchChainAsync({ chainId });
+          }
+        },
+        resumeFromBridgeSettled: opts?.resume,
+      });
+
+      setFlowState("success");
+      refetchBalance();
+      onConfirmed?.();
+    } catch (err: unknown) {
+      const msg = formatTxError(err);
+      setCrossChainState((prev) => {
+        const recoverable = prev.phase === "failed" && prev.failedAfterBridge;
+        if (!recoverable) {
+          setErrorMsg(msg);
+          setFlowState("error");
+          onError?.(msg);
+        } else {
+          setFlowState("idle");
+        }
+        return prev;
+      });
     }
   }
 
@@ -852,6 +1074,11 @@ export function DepositFlow({
 
       setTxHash(swapHash);
       onBroadcast?.(swapHash);
+      emitExecutionEvent({
+        type: "tx-broadcast",
+        phase: "same-chain",
+        txHash: swapHash,
+      });
       setTwoStepLabel("Confirming swap…");
 
       const swapReceipt = await wagmiWaitForReceipt(wagmiConfig, {
@@ -937,6 +1164,11 @@ export function DepositFlow({
       });
 
       setTxHash(depositHash);
+      emitExecutionEvent({
+        type: "tx-broadcast",
+        phase: "same-chain",
+        txHash: depositHash,
+      });
       setTwoStepLabel("Confirming deposit…");
 
       const depositReceipt = await wagmiWaitForReceipt(wagmiConfig, {
@@ -951,12 +1183,22 @@ export function DepositFlow({
       setFlowState("success");
       setTwoStepLabel(null);
       refetchBalance();
+      emitExecutionEvent({
+        type: "confirmed",
+        phase: "same-chain",
+        txHash: depositHash,
+      });
       onConfirmed?.();
     } catch (err: unknown) {
       const msg = formatTxError(err);
       setErrorMsg(msg);
       setFlowState("error");
       setTwoStepLabel(null);
+      emitExecutionEvent({
+        type: "failed",
+        phase: "same-chain",
+        message: msg,
+      });
       onError?.(msg);
     }
   }
@@ -1071,9 +1313,9 @@ export function DepositFlow({
           <div className="space-y-1">
             <label className="text-sm text-muted-foreground">Deposit with</label>
             <Select
-              value={selectedToken?.address}
-              onValueChange={(addr) => {
-                const t = tokens.find((tk) => tk.address === addr);
+              value={selectedToken ? tokenKey(selectedToken) : undefined}
+              onValueChange={(key) => {
+                const t = tokens.find((tk) => tokenKey(tk) === key);
                 if (t) {
                   setSelectedToken(t);
                   setAmount("");
@@ -1091,24 +1333,40 @@ export function DepositFlow({
                   </div>
                 )}
                 {underlyingTokens.map((t) => (
-                  <SelectItem key={t.address} value={t.address}>
+                  <SelectItem key={tokenKey(t)} value={tokenKey(t)}>
                     <TokenSelectRow
                       token={t}
-                      chainId={fromChainForQuote}
+                      chainId={t.chainId ?? vault.chainId}
                       ownerAddress={address ?? null}
                     />
                   </SelectItem>
                 ))}
-                {tokens.length > underlyingTokens.length && (
+                {sameChainTokens.length > underlyingTokens.length && (
                   <>
                     <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                       Swap + Deposit
                     </div>
-                    {tokens.slice(underlyingTokens.length).map((t) => (
-                      <SelectItem key={t.address} value={t.address}>
+                    {sameChainTokens.slice(underlyingTokens.length).map((t) => (
+                      <SelectItem key={tokenKey(t)} value={tokenKey(t)}>
                         <TokenSelectRow
                           token={t}
-                          chainId={fromChainForQuote}
+                          chainId={t.chainId ?? vault.chainId}
+                          ownerAddress={address ?? null}
+                        />
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+                {crossChainHoldings.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                      Bridge via LI.FI Intent
+                    </div>
+                    {crossChainHoldings.map((t) => (
+                      <SelectItem key={tokenKey(t)} value={tokenKey(t)}>
+                        <TokenSelectRow
+                          token={t}
+                          chainId={t.chainId ?? vault.chainId}
                           ownerAddress={address ?? null}
                         />
                       </SelectItem>
@@ -1239,7 +1497,70 @@ export function DepositFlow({
             apy={vault.analytics.apy.total}
           />
 
-          {amount && fromAmountRaw && fromAmountRaw.gt(0) && (
+          {isCrossChain && fromAmountRaw && fromAmountRaw.gt(0) && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between rounded-md border border-border/40 bg-background/30 px-3 py-1.5 text-xs">
+                <label className="flex cursor-pointer items-center gap-2 text-muted-foreground select-none">
+                  <Switch
+                    checked={useIntents}
+                    onCheckedChange={setUseIntents}
+                    disabled={isBusy || flowState === "success"}
+                  />
+                  Bridge via LI.FI Intents
+                </label>
+                <span className="text-muted-foreground/70">
+                  {useIntents ? "Solver settlement + live lifecycle" : "Composer 2-step (bridge + deposit)"}
+                </span>
+              </div>
+              {useIntents && (
+                <IntentBridgeStep
+                  sourceChainId={fromChainForQuote}
+                  sourceToken={selectedToken}
+                  sourceAmountRaw={fromAmountRaw.toString()}
+                  vault={vault}
+                  onExecutionEvent={onExecutionEvent}
+                  // No onDismiss handoff: the IntentBridgeStep tells the user
+                  // to switch wallet to {vault.chainId} and reopen this vault
+                  // — that takes them out of this DepositFlow instance
+                  // entirely, so there's nothing to clean up here.
+                  onFallbackToComposer={() => setUseIntents(false)}
+                />
+              )}
+              {!useIntents && crossChainState.phase !== "idle" && (
+                <CrossChainTimeline
+                  state={crossChainState}
+                  sourceChainId={fromChainForQuote}
+                  destinationChainId={vault.chainId}
+                  sourceToken={selectedToken}
+                  destinationToken={destinationUnderlying}
+                  vaultLabel={vault.name ?? vault.slug}
+                  onRetryDeposit={() => {
+                    // Resume needs only the bridge tx hash — the executor
+                    // re-reads live destination balance to recompute the
+                    // depositable delta. destinationAmountRaw can be
+                    // undefined if the post-bridge balance read failed
+                    // before we could assign it; passing "" lets the resume
+                    // code fall through to the live re-read.
+                    if (
+                      crossChainState.phase === "failed" &&
+                      crossChainState.failedAfterBridge &&
+                      crossChainState.bridgeTxHash
+                    ) {
+                      handleCrossChainExecute({
+                        resume: {
+                          bridgeTxHash: crossChainState.bridgeTxHash,
+                          destinationAmountRaw:
+                            crossChainState.destinationAmountRaw ?? "0",
+                        },
+                      });
+                    }
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {amount && fromAmountRaw && fromAmountRaw.gt(0) && !useIntents && (
             <div className="text-sm space-y-1">
               {quoteLoading && (
                 <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -1247,7 +1568,7 @@ export function DepositFlow({
                   Fetching quote…
                 </div>
               )}
-              {quoteError && !isTwoStepEligible && (
+              {quoteError && !isTwoStepEligible && !isCrossChain && (
                 <div className="flex items-center gap-1.5 text-destructive">
                   <XCircle className="h-3 w-3" />
                   {(quoteErrorObj as Error)?.message ?? "Failed to fetch quote"}
@@ -1337,7 +1658,7 @@ export function DepositFlow({
             </div>
           )}
 
-          {simResult && (
+          {!useIntents && simResult && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1469,6 +1790,7 @@ export function DepositFlow({
             </motion.div>
           )}
 
+          {!useIntents && (
           <AnimatePresence>
             {flowState === "error" && errorMsg && (
               <motion.div
@@ -1483,7 +1805,9 @@ export function DepositFlow({
               </motion.div>
             )}
           </AnimatePresence>
+          )}
 
+          {!useIntents && (
           <AnimatePresence>
             {flowState === "success" && txHash && (
               <motion.div
@@ -1517,8 +1841,9 @@ export function DepositFlow({
               </motion.div>
             )}
           </AnimatePresence>
+          )}
 
-          {needsApproval && quote?.estimate?.approvalAddress && (
+          {!useIntents && !isCrossChain && needsApproval && quote?.estimate?.approvalAddress && (
             <SpenderCheckPanel
               spender={quote.estimate.approvalAddress}
               explorerUrl={explorerUrl}
@@ -1536,7 +1861,7 @@ export function DepositFlow({
             up blue.
           */}
           {/* Two-step progress indicator */}
-          {twoStepLabel && (
+          {!useIntents && twoStepLabel && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1547,6 +1872,7 @@ export function DepositFlow({
             </motion.div>
           )}
 
+          {!useIntents && (
           <div className="flex flex-col items-center gap-2 pt-1">
             {!needsApproval && !isTwoStepEligible && !simResult?.success && (
               <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/30 px-3 py-1.5">
@@ -1564,6 +1890,72 @@ export function DepositFlow({
             )}
 
             {(() => {
+              // Cross-chain Composer 2-tx mode — bridge fromToken→underlying on
+              // vault chain, then deposit underlying into vault. Active when
+              // the user is on Composer (not Intents) AND source≠vault chain.
+              if (isCrossChain && destinationUnderlying) {
+                const inFlight =
+                  crossChainState.phase !== "idle" &&
+                  crossChainState.phase !== "done" &&
+                  crossChainState.phase !== "failed";
+                const isFailed = crossChainState.phase === "failed";
+                const failedAfterBridge =
+                  isFailed && crossChainState.failedAfterBridge;
+                const isDone = crossChainState.phase === "done";
+                const disabled =
+                  inFlight ||
+                  isDone ||
+                  insufficientBalance ||
+                  !fromAmountRaw ||
+                  fromAmountRaw.isZero();
+                let ctaKey: string;
+                let ctaLabel: React.ReactNode;
+                if (inFlight) {
+                  ctaKey = `xchain-${crossChainState.phase}`;
+                  ctaLabel = (
+                    <>
+                      <CircleNotch className="h-3 w-3 animate-spin mr-1.5" />
+                      {phaseLabel(crossChainState.phase)}
+                    </>
+                  );
+                } else if (isDone) {
+                  ctaKey = "xchain-done";
+                  ctaLabel = "Deposit complete";
+                } else if (failedAfterBridge) {
+                  // Retry CTA lives in the timeline; keep the main button quiet.
+                  ctaKey = "xchain-recoverable";
+                  ctaLabel = "See timeline to retry deposit";
+                } else if (insufficientBalance) {
+                  ctaKey = "xchain-insufficient";
+                  ctaLabel = "Insufficient balance";
+                } else {
+                  ctaKey = "xchain-start";
+                  ctaLabel = "Bridge + Deposit (2 steps)";
+                }
+                return (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-6 text-sm overflow-hidden"
+                    disabled={disabled || failedAfterBridge}
+                    onClick={() => handleCrossChainExecute()}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={ctaKey}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        className="inline-flex items-center"
+                      >
+                        {ctaLabel}
+                      </motion.span>
+                    </AnimatePresence>
+                  </Button>
+                );
+              }
+
               // Two-step mode: the CTA is always "Deposit (2 steps)"
               if (isTwoStepEligible) {
                 const twoStepBusy =
@@ -1682,6 +2074,7 @@ export function DepositFlow({
               );
             })()}
           </div>
+          )}
         </>
       )}
       </div>
@@ -1766,7 +2159,7 @@ function SpenderCheckPanel({
         return (
           <span className="inline-flex items-center gap-1.5 text-emerald-500 animate-in fade-in zoom-in duration-300">
             <CheckCircle className="h-4 w-4" weight="fill" />
-            Spender verified
+            Spender matches quote path
           </span>
         );
       case "already":
@@ -1814,6 +2207,209 @@ function SpenderCheckPanel({
   );
 }
 
+function phaseLabel(phase: CrossChainDepositState["phase"]): string {
+  switch (phase) {
+    case "quoting-bridge": return "Fetching bridge quote…";
+    case "approving-bridge": return "Approving bridge…";
+    case "signing-bridge": return "Confirm in wallet…";
+    case "bridging": return "Bridging…";
+    case "bridge-settled": return "Bridge settled";
+    case "quoting-deposit": return "Fetching deposit quote…";
+    case "approving-deposit": return "Approving deposit…";
+    case "signing-deposit": return "Confirm in wallet…";
+    case "depositing": return "Depositing…";
+    case "done": return "Done";
+    case "failed": return "Failed";
+    case "idle": return "";
+  }
+}
+
+type TimelineStepStatus = "pending" | "active" | "done" | "failed";
+
+interface TimelineStep {
+  key: string;
+  label: string;
+  status: TimelineStepStatus;
+  detail?: string;
+  txHash?: string;
+  chainId?: number;
+}
+
+function buildTimelineSteps(args: {
+  state: CrossChainDepositState;
+  sourceChainId: number;
+  destinationChainId: number;
+  sourceToken: EarnToken | null;
+  destinationToken: EarnToken | null;
+  vaultLabel: string;
+}): TimelineStep[] {
+  const { state, sourceChainId, destinationChainId, sourceToken, destinationToken, vaultLabel } = args;
+  const phase = state.phase;
+  const bridgeTxHash = "bridgeTxHash" in state ? state.bridgeTxHash : undefined;
+  const depositTxHash =
+    "depositTxHash" in state ? (state as { depositTxHash?: string }).depositTxHash : undefined;
+  const bridgeStatus =
+    "bridgeStatus" in state ? (state as { bridgeStatus?: string }).bridgeStatus : undefined;
+  const bridgeSubstatus =
+    "bridgeSubstatus" in state ? (state as { bridgeSubstatus?: string }).bridgeSubstatus : undefined;
+
+  const bridgePhases = new Set(["quoting-bridge", "approving-bridge", "signing-bridge"]);
+  const settlePhases = new Set(["bridging"]);
+  const settledPhases = new Set([
+    "bridge-settled", "quoting-deposit", "approving-deposit",
+    "signing-deposit", "depositing", "done",
+  ]);
+  const depositPhases = new Set(["quoting-deposit", "approving-deposit", "signing-deposit"]);
+  const depositingPhases = new Set(["depositing"]);
+
+  const failedAfterBridge =
+    phase === "failed" && (state as { failedAfterBridge?: boolean }).failedAfterBridge;
+
+  function stepStatus(opts: { active: boolean; isPast: boolean; failedHere: boolean }): TimelineStepStatus {
+    if (opts.failedHere) return "failed";
+    if (opts.isPast) return "done";
+    if (opts.active) return "active";
+    return "pending";
+  }
+
+  const bridgeSubmitActive = bridgePhases.has(phase);
+  const bridgeSubmitDone = settlePhases.has(phase) || settledPhases.has(phase);
+  const bridgeSubmitFailed = phase === "failed" && !failedAfterBridge && bridgeTxHash === undefined;
+  const settleActive = settlePhases.has(phase);
+  const settleDone = settledPhases.has(phase);
+  const settleFailed = phase === "failed" && !failedAfterBridge && bridgeTxHash !== undefined;
+  const depositSubmitActive = depositPhases.has(phase);
+  const depositSubmitDone = depositingPhases.has(phase) || phase === "done";
+  const depositSubmitFailed = phase === "failed" && failedAfterBridge === true && !depositTxHash;
+  const depositConfirmActive = depositingPhases.has(phase);
+  const depositConfirmDone = phase === "done";
+  const depositConfirmFailed = phase === "failed" && failedAfterBridge === true && depositTxHash !== undefined;
+
+  const sourceChainName =
+    CHAIN_REGISTRY.find((c) => c.id === sourceChainId)?.name ?? `chain ${sourceChainId}`;
+  const destChainName =
+    CHAIN_REGISTRY.find((c) => c.id === destinationChainId)?.name ?? `chain ${destinationChainId}`;
+
+  return [
+    {
+      key: "bridge-submit",
+      label: `Bridge ${sourceToken?.symbol ?? "asset"} → ${destinationToken?.symbol ?? "asset"}`,
+      detail: `${sourceChainName} → ${destChainName}`,
+      status: stepStatus({ active: bridgeSubmitActive, isPast: bridgeSubmitDone, failedHere: bridgeSubmitFailed }),
+      txHash: bridgeTxHash,
+      chainId: sourceChainId,
+    },
+    {
+      key: "bridge-settle",
+      label: "Bridge settlement",
+      detail: bridgeSubstatus ?? (bridgeStatus ? `LI.FI status: ${bridgeStatus}` : "Waiting for delivery on destination chain"),
+      status: stepStatus({ active: settleActive, isPast: settleDone, failedHere: settleFailed }),
+    },
+    {
+      key: "deposit-submit",
+      label: `Deposit ${destinationToken?.symbol ?? "asset"} → ${vaultLabel}`,
+      detail: destChainName,
+      status: stepStatus({ active: depositSubmitActive, isPast: depositSubmitDone, failedHere: depositSubmitFailed }),
+    },
+    {
+      key: "deposit-confirm",
+      label: "Deposit confirmed",
+      status: stepStatus({ active: depositConfirmActive, isPast: depositConfirmDone, failedHere: depositConfirmFailed }),
+      txHash: depositTxHash,
+      chainId: destinationChainId,
+    },
+  ];
+}
+
+interface CrossChainTimelineProps {
+  state: CrossChainDepositState;
+  sourceChainId: number;
+  destinationChainId: number;
+  sourceToken: EarnToken | null;
+  destinationToken: EarnToken | null;
+  vaultLabel: string;
+  onRetryDeposit: () => void;
+}
+
+function CrossChainTimeline({
+  state, sourceChainId, destinationChainId,
+  sourceToken, destinationToken, vaultLabel, onRetryDeposit,
+}: CrossChainTimelineProps) {
+  const steps = buildTimelineSteps({
+    state, sourceChainId, destinationChainId, sourceToken, destinationToken, vaultLabel,
+  });
+  // Retry is reachable whenever the bridge tx landed — destinationAmountRaw
+  // may be missing if post-bridge balance read failed; the executor's resume
+  // path re-reads it live.
+  const showRetry =
+    state.phase === "failed" &&
+    state.failedAfterBridge === true &&
+    !!state.bridgeTxHash;
+
+  return (
+    <div className="rounded-md border border-border/40 bg-background/30 p-3 space-y-2">
+      <div className="text-xs font-medium text-muted-foreground">Cross-chain deposit</div>
+      <ol className="space-y-2">
+        {steps.map((s) => (
+          <li key={s.key} className="flex items-start gap-2.5 text-xs">
+            <TimelineDot status={s.status} />
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium ${
+                s.status === "failed" ? "text-destructive"
+                  : s.status === "done" ? "text-foreground"
+                  : s.status === "active" ? "text-foreground"
+                  : "text-muted-foreground/70"
+              }`}>
+                {s.label}
+              </div>
+              {s.detail && (
+                <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{s.detail}</div>
+              )}
+              {s.txHash && (() => {
+                const explorer = CHAIN_REGISTRY.find((c) => c.id === s.chainId)?.explorerUrl;
+                if (!explorer) return null;
+                return (
+                  <a href={`${explorer}/tx/${s.txHash}`} target="_blank" rel="noopener noreferrer"
+                     className="text-[10px] font-mono text-muted-foreground/60 underline-offset-2 hover:underline mt-0.5 inline-block">
+                    {shortAddress(s.txHash)}
+                  </a>
+                );
+              })()}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {state.phase === "failed" && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs space-y-2">
+          <div className="flex items-start gap-1.5 text-destructive">
+            <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+            <span className="break-words">
+              {state.message}
+              {showRetry && (
+                <span className="block mt-1 text-muted-foreground">
+                  Your bridged funds are safe on the destination chain. Retry the deposit step to finish.
+                </span>
+              )}
+            </span>
+          </div>
+          {showRetry && (
+            <Button variant="outline" size="sm" className="h-7 px-3 text-xs mt-2" onClick={onRetryDeposit}>
+              Retry deposit
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineDot({ status }: { status: TimelineStepStatus }) {
+  if (status === "done") return <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-0.5" weight="fill" />;
+  if (status === "failed") return <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5" weight="fill" />;
+  if (status === "active") return <CircleNotch className="h-3.5 w-3.5 text-blue-400 animate-spin mt-0.5" />;
+  return <span className="h-3.5 w-3.5 rounded-full border border-border/40 mt-0.5" />;
+}
+
 /** Token row inside the deposit-with dropdown — icon + symbol + balance. */
 function TokenSelectRow({
   token,
@@ -1840,6 +2436,14 @@ function TokenSelectRow({
     }
   }
 
+  // Show the chain label inline — without it, "USDC on Base" and "USDC on
+  // Ethereum" are indistinguishable in the dropdown and users can pick the
+  // wrong chain by accident.
+  const chainLabel =
+    SUPPORTED_CHAINS.find((c) => c.id === chainId)?.name ??
+    CHAIN_REGISTRY.find((c) => c.id === chainId)?.name ??
+    `chain ${chainId}`;
+
   return (
     <span className="flex w-full items-center gap-2">
       <TokenIcon
@@ -1847,7 +2451,12 @@ function TokenSelectRow({
         chainId={chainId}
         className="h-4 w-4 shrink-0 rounded-full"
       />
-      <span className="flex-1 truncate">{token.symbol}</span>
+      <span className="flex-1 truncate">
+        {token.symbol}
+        <span className="ml-1 text-[10px] text-muted-foreground/70">
+          on {chainLabel}
+        </span>
+      </span>
       {displayBal && (
         <span className="text-[10px] text-muted-foreground">{displayBal}</span>
       )}

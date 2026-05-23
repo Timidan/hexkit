@@ -73,6 +73,10 @@
       "destination": "/api/lifi-composer?path=:path*"
     },
     {
+      "source": "/api/lifi-intents/:path*",
+      "destination": "/api/lifi-intents?path=:path*"
+    },
+    {
       "source": "/:path((?!api/|assets/|.*\\..*).*)",
       "destination": "/index.html"
     }

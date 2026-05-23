@@ -182,7 +182,9 @@ const SWAP_ALIAS_GROUPS: ReadonlyArray<ReadonlySet<string>> = [
 function needsSwap(sourceSymbol: string | null | undefined, vault: EarnVault): boolean {
   if (!sourceSymbol) return false;
   const src = sourceSymbol.toUpperCase();
-  const underlyings = (vault.underlyingTokens ?? []).map((t) => t.symbol.toUpperCase());
+  const underlyings = (vault.underlyingTokens ?? [])
+    .filter((t): t is typeof t & { symbol: string } => Boolean(t.symbol))
+    .map((t) => t.symbol.toUpperCase());
   if (underlyings.length === 0) return false;
   // Check direct match or alias match
   for (const u of underlyings) {
