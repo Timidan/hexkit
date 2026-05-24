@@ -61,6 +61,22 @@
       "destination": "https://gnosis.blockscout.com/:path*"
     },
     {
+      "source": "/api/mezo-testnet-blockscout",
+      "destination": "https://api.explorer.test.mezo.org/api"
+    },
+    {
+      "source": "/api/mezo-testnet-blockscout/:path*",
+      "destination": "https://api.explorer.test.mezo.org/api/:path*"
+    },
+    {
+      "source": "/api/mezo-blockscout",
+      "destination": "https://api.explorer.mezo.org/api"
+    },
+    {
+      "source": "/api/mezo-blockscout/:path*",
+      "destination": "https://api.explorer.mezo.org/api/:path*"
+    },
+    {
       "source": "/api/repo/:path*",
       "destination": "https://repo.sourcify.dev/:path*"
     },

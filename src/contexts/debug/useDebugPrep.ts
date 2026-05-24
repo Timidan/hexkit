@@ -97,6 +97,7 @@ export function useDebugPrep(
 
       const handleReady = (prepareId: string, data: PrepareReadyEvent) => {
         if (prepareIdRef.current !== prepareId) return;
+        debugBridgeService.rememberSessionChain(data.sessionId, params.chainId);
 
         setPrepState((prev) => ({
           ...prev,
@@ -200,7 +201,7 @@ export function useDebugPrep(
         if (prepareIdRef.current !== prepareId) return;
 
         try {
-          const status = await debugBridgeService.getPrepareStatus(prepareId);
+          const status = await debugBridgeService.getPrepareStatus(prepareId, params.chainId);
           applyPolledStatus(prepareId, status);
           if (
             prepareIdRef.current !== prepareId ||
@@ -240,7 +241,7 @@ export function useDebugPrep(
         }));
 
         // Connect SSE for real-time progress
-        const es = debugBridgeService.connectPrepareEvents(prepareId);
+        const es = debugBridgeService.connectPrepareEvents(prepareId, params.chainId);
         eventSourceRef.current = es;
 
         es.addEventListener('stage', (event: MessageEvent) => {

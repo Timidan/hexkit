@@ -1,5 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { maybeInjectDefaultEtherscanKey } from "./edbShared.js";
+import {
+  appendEdbBridgeSubPath,
+  extractChainIdFromRawJsonBody,
+  maybeInjectDefaultEtherscanKey,
+  resolveEdbBridgeUrl,
+} from "./edbShared.js";
 
 export const config = {
   api: { bodyParser: false },
@@ -73,11 +78,14 @@ function getRawBody(req: VercelRequest): Promise<Buffer> {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyCors(req, res);
 
-  const bridgeUrl = process.env.EDB_BRIDGE_URL;
+  const configuredBridgeUrl =
+    process.env.EDB_BRIDGE_URL ||
+    process.env.EDB_DEFAULT_BRIDGE_URL ||
+    process.env.EDB_MEZO_BRIDGE_URL;
   const apiKey = process.env.EDB_API_KEY;
   const defaultEtherscanApiKey = process.env.ETHERSCAN_API_KEY;
 
-  if (!bridgeUrl) {
+  if (!configuredBridgeUrl) {
     return res.status(503).json({ error: "bridge_not_configured" });
   }
   if (!apiKey) {
@@ -124,8 +132,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const target = `${bridgeUrl.replace(/\/+$/, "")}/${subPath}`;
-
   // Build upstream headers (explicit allowlist — no client headers leak through)
   const upstreamHeaders: Record<string, string> = {
     "X-API-Key": apiKey,
@@ -142,6 +148,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       req.method !== "GET" && req.method !== "HEAD"
         ? await getRawBody(req)
         : undefined;
+    const queryChainId = Array.isArray(req.query?.chainId)
+      ? req.query.chainId[0]
+      : typeof req.query?.chainId === "string"
+        ? req.query.chainId
+        : undefined;
+    const parsedQueryChainId = queryChainId ? Number(queryChainId) : null;
+    const chainId = Number.isInteger(parsedQueryChainId)
+      ? parsedQueryChainId
+      : extractChainIdFromRawJsonBody(rawBody, req.headers["content-type"]);
+    const bridgeUrl = resolveEdbBridgeUrl(chainId, process.env, configuredBridgeUrl);
+    const target = appendEdbBridgeSubPath(bridgeUrl, subPath);
     const body = maybeInjectDefaultEtherscanKey(
       rawBody,
       req.headers["content-type"],
@@ -152,14 +169,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Detect SSE path — use longer timeout, abort on client disconnect
     const isSSE = subPath.match(/debug\/prepare\/[^/]+\/events$/);
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     if (isSSE) {
       // Abort upstream when client disconnects
       req.on("close", () => controller.abort());
     } else {
       // Regular requests get a hard timeout
-      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-      req.on("close", () => clearTimeout(timer));
+      timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     }
 
     const upstream = await fetch(target, {
@@ -169,6 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       signal: controller.signal,
       redirect: "error", // never follow redirects — prevents key leaking to unexpected hosts
     });
+    if (timer) clearTimeout(timer);
 
     // SSE streaming response
     const contentType = upstream.headers.get("content-type") || "";
