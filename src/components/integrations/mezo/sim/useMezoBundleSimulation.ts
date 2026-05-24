@@ -376,27 +376,14 @@ function buildWarnings(
 
 function isSwapLegSpec(
   spec: MezoLegSpec,
-): spec is Extract<
-  MezoLegSpec,
-  { type: "routerSwap" | "routerSwapEthIn" | "routerSwapEthOut" }
-> {
-  return (
-    spec.type === "routerSwap" ||
-    spec.type === "routerSwapEthIn" ||
-    spec.type === "routerSwapEthOut"
-  );
+): spec is Extract<MezoLegSpec, { type: "routerSwap" }> {
+  return spec.type === "routerSwap";
 }
 
 function isLiquidityLegSpec(
   spec: MezoLegSpec,
-): spec is Extract<
-  MezoLegSpec,
-  { type: "routerAddLiquidity" | "routerAddLiquidityEth" }
-> {
-  return (
-    spec.type === "routerAddLiquidity" ||
-    spec.type === "routerAddLiquidityEth"
-  );
+): spec is Extract<MezoLegSpec, { type: "routerAddLiquidity" }> {
+  return spec.type === "routerAddLiquidity";
 }
 
 function serializeRequest(req: SimulationRequest): string {

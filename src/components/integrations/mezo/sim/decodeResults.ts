@@ -261,14 +261,8 @@ function summarizeLeg(leg: MezoLegSpec): string {
       return `Claim gauge rewards`;
     case "routerSwap":
       return `Swap ${formatBn(leg.amountIn)} (min out ${formatBn(leg.amountOutMin)})`;
-    case "routerSwapEthIn":
-      return `Swap ${formatBn(leg.amountIn)} BTC (min out ${formatBn(leg.amountOutMin)})`;
-    case "routerSwapEthOut":
-      return `Swap ${formatBn(leg.amountIn)} (min ${formatBn(leg.amountOutMin)} BTC out)`;
     case "routerAddLiquidity":
       return `Add liquidity to ${leg.stable ? "stable" : "volatile"} pool`;
-    case "routerAddLiquidityEth":
-      return `Add BTC liquidity to ${leg.stable ? "stable" : "volatile"} pool`;
     case "redeemCollateral":
       return `Redeem ${formatBn(leg.musdAmount)} MUSD for BTC`;
     case "veMezoCreateLock": {

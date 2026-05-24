@@ -109,37 +109,13 @@ export async function executeLeg(
         address: MEZO_CONTRACTS.Router,
         abi: MEZO_ABIS.Router,
         functionName: "swapExactTokensForTokens",
+        // wagmi infers a strict tuple shape from the ABI's `as const`;
+        // our runtime route shape matches but TS can't prove it through
+        // the discriminated-union indirection.
         args: [
           leg.amountIn,
           leg.amountOutMin,
-          leg.routes,
-          leg.to,
-          leg.deadline,
-        ],
-        account,
-      });
-
-    case "routerSwapEthIn":
-      return writeContract(config, {
-        chainId: MEZO_TESTNET_CHAIN_ID,
-        address: MEZO_CONTRACTS.Router,
-        abi: MEZO_ABIS.Router,
-        functionName: "swapExactETHForTokens",
-        args: [leg.amountOutMin, leg.routes, leg.to, leg.deadline],
-        value: leg.amountIn,
-        account,
-      });
-
-    case "routerSwapEthOut":
-      return writeContract(config, {
-        chainId: MEZO_TESTNET_CHAIN_ID,
-        address: MEZO_CONTRACTS.Router,
-        abi: MEZO_ABIS.Router,
-        functionName: "swapExactTokensForETH",
-        args: [
-          leg.amountIn,
-          leg.amountOutMin,
-          leg.routes,
+          leg.routes as never,
           leg.to,
           leg.deadline,
         ],
@@ -163,25 +139,6 @@ export async function executeLeg(
           leg.to,
           leg.deadline,
         ],
-        account,
-      });
-
-    case "routerAddLiquidityEth":
-      return writeContract(config, {
-        chainId: MEZO_TESTNET_CHAIN_ID,
-        address: MEZO_CONTRACTS.Router,
-        abi: MEZO_ABIS.Router,
-        functionName: "addLiquidityETH",
-        args: [
-          leg.token,
-          leg.stable,
-          leg.amountTokenDesired,
-          leg.amountTokenMin,
-          leg.amountEthMin,
-          leg.to,
-          leg.deadline,
-        ],
-        value: leg.amountEthDesired,
         account,
       });
 

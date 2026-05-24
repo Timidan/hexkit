@@ -124,35 +124,6 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
       return { from: account, to: MEZO_CONTRACTS.Router, input };
     }
 
-    case "routerSwapEthIn": {
-      const input = encodeFunctionData({
-        abi: MEZO_ABIS.Router,
-        functionName: "swapExactETHForTokens",
-        args: [leg.amountOutMin, leg.routes, leg.to, leg.deadline],
-      });
-      return {
-        from: account,
-        to: MEZO_CONTRACTS.Router,
-        input,
-        value: bigintToHex(leg.amountIn),
-      };
-    }
-
-    case "routerSwapEthOut": {
-      const input = encodeFunctionData({
-        abi: MEZO_ABIS.Router,
-        functionName: "swapExactTokensForETH",
-        args: [
-          leg.amountIn,
-          leg.amountOutMin,
-          leg.routes,
-          leg.to,
-          leg.deadline,
-        ],
-      });
-      return { from: account, to: MEZO_CONTRACTS.Router, input };
-    }
-
     case "routerAddLiquidity": {
       const input = encodeFunctionData({
         abi: MEZO_ABIS.Router,
@@ -177,28 +148,6 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
         to: MEZO_CONTRACTS.Router,
         input,
         gas: "0x1e8480" as `0x${string}`, // 2,000,000
-      };
-    }
-
-    case "routerAddLiquidityEth": {
-      const input = encodeFunctionData({
-        abi: MEZO_ABIS.Router,
-        functionName: "addLiquidityETH",
-        args: [
-          leg.token,
-          leg.stable,
-          leg.amountTokenDesired,
-          leg.amountTokenMin,
-          leg.amountEthMin,
-          leg.to,
-          leg.deadline,
-        ],
-      });
-      return {
-        from: account,
-        to: MEZO_CONTRACTS.Router,
-        input,
-        value: bigintToHex(leg.amountEthDesired),
       };
     }
 

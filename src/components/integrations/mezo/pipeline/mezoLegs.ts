@@ -51,22 +51,6 @@ export type MezoLegSpec =
       deadline: bigint;
     }
   | {
-      type: "routerSwapEthIn";
-      amountIn: bigint;
-      amountOutMin: bigint;
-      routes: readonly MezoRouterRoute[];
-      to: Address;
-      deadline: bigint;
-    }
-  | {
-      type: "routerSwapEthOut";
-      amountIn: bigint;
-      amountOutMin: bigint;
-      routes: readonly MezoRouterRoute[];
-      to: Address;
-      deadline: bigint;
-    }
-  | {
       type: "routerAddLiquidity";
       tokenA: Address;
       tokenB: Address;
@@ -75,17 +59,6 @@ export type MezoLegSpec =
       amountBDesired: bigint;
       amountAMin: bigint;
       amountBMin: bigint;
-      to: Address;
-      deadline: bigint;
-    }
-  | {
-      type: "routerAddLiquidityEth";
-      token: Address;
-      stable: boolean;
-      amountTokenDesired: bigint;
-      amountEthDesired: bigint;
-      amountTokenMin: bigint;
-      amountEthMin: bigint;
       to: Address;
       deadline: bigint;
     }
