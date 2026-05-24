@@ -20,6 +20,7 @@ const SYMBOL_ACCENT: Record<string, string> = {
   sMUSD: "bg-emerald-300/80",
   MEZO: "bg-pink-400/80",
   veMEZO: "bg-violet-400/80",
+  veBTC: "bg-amber-300/70",
 };
 
 export function FlowRibbon({ steps, caption, className }: FlowRibbonProps) {

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { getTokenIconUrls } from "@/utils/tokenMovements";
 import { MEZO_GLOSSARY, type GlossaryKey } from "../glossary";
 
-export type AssetSymbol = "BTC" | "MUSD" | "sMUSD" | "MEZO" | "veMEZO";
+export type AssetSymbol = "BTC" | "MUSD" | "sMUSD" | "MEZO" | "veMEZO" | "veBTC";
 
 const SYMBOL_TO_GLOSSARY: Record<AssetSymbol, GlossaryKey> = {
   BTC: "btc",
@@ -16,16 +16,19 @@ const SYMBOL_TO_GLOSSARY: Record<AssetSymbol, GlossaryKey> = {
   sMUSD: "smusd",
   MEZO: "mezo",
   veMEZO: "vemezo",
+  veBTC: "vebtc",
 };
 
-// Canonical Mezo Mainnet addresses for icon lookup. veMEZO is a non-ERC20
-// position so it has no address; we render a styled glyph for it.
+// Canonical Mezo Mainnet addresses for icon lookup. veMEZO/veBTC are
+// non-transferable NFT positions with no public CDN coverage, so they
+// render styled local glyphs.
 const SYMBOL_TO_ADDRESS: Record<AssetSymbol, string | null> = {
   BTC: "0x7b7C000000000000000000000000000000000000",
   MUSD: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
   sMUSD: "0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16",
   MEZO: "0x7B7c000000000000000000000000000000000001",
   veMEZO: null,
+  veBTC: null,
 };
 
 const sizeClass = {
@@ -139,6 +142,8 @@ function renderGlyphFallback(symbol: AssetSymbol): ReactNode {
       return <MezoGlyph />;
     case "veMEZO":
       return <VeMezoGlyph />;
+    case "veBTC":
+      return <VeBtcGlyph />;
   }
 }
 
@@ -242,6 +247,36 @@ function VeMezoGlyph() {
         opacity="0.85"
         d="m75.235 191.087 31.207-31.089v-.138l31.059 31.089c8.976 8.942 19.953 12.919 30.781 12.919 22.658 0 44.454-17.597 44.454-44.008l31.058 31.089c8.976 8.942 19.953 12.919 30.782 12.919 22.657 0 44.453-17.597 44.453-44.008h-26.65l-31.059-30.941C252.344 119.977 241.229 116 230.4 116c-22.658 0-44.315 17.459-44.315 43.86l-31.058-30.941c-8.976-8.942-20.092-12.919-30.92-12.919-22.658 0-44.315 17.459-44.315 43.86L0 159.998c0 26.549 22.083 43.722 44.74 43.722 10.829 0 21.806-3.977 30.495-12.633"
       />
+    </svg>
+  );
+}
+
+function VeBtcGlyph() {
+  return (
+    <svg viewBox="0 0 32 32" className="h-full w-full" aria-hidden>
+      <circle cx="16" cy="16" r="16" fill="#1f1407" />
+      <circle
+        cx="16"
+        cy="16"
+        r="14"
+        fill="none"
+        stroke="#F7931A"
+        strokeWidth="0.9"
+        strokeDasharray="2.2 1.6"
+        opacity="0.7"
+      />
+      <circle cx="16" cy="16" r="10.5" fill="#F7931A" opacity="0.9" />
+      <text
+        x="16"
+        y="20.5"
+        textAnchor="middle"
+        fontFamily="ui-monospace, monospace"
+        fontWeight="700"
+        fontSize="14"
+        fill="#ffffff"
+      >
+        ₿
+      </text>
     </svg>
   );
 }

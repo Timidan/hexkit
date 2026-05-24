@@ -59,6 +59,11 @@ export const MEZO_GLOSSARY = {
     body:
       "Non-transferable governance NFT minted by locking MEZO. Voting weight = lockedAmount × (duration / maxDuration), decays linearly.",
   },
+  vebtc: {
+    title: "veBTC",
+    body:
+      "Base ve-token of Mezo's Aerodrome v2 fork. Locks BTC into a non-transferable NFT used by the Voter to set baseline pool weights before MEZO emissions are layered on top.",
+  },
 
   trove: {
     title: "Trove",

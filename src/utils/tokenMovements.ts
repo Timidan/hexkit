@@ -116,6 +116,14 @@ const MEZO_TOKEN_ICONS: Record<string, { cdn?: string; local?: string }> = {
   "0x6f461c68b2c5492c0f5ccec5a264d692aa7a8e16": {
     local: "/logos/smusd.svg",
   },
+  // Mezo Bridged USDC (CoinGecko id "mezo-bridged-usdc-mezo")
+  "0x04671c72aab5ac02a03c1098314b1bb6b560c197": {
+    cdn: "https://coin-images.coingecko.com/coins/images/68245/large/usdc.jpg",
+  },
+  // Mezo Bridged USDT (CoinGecko id "mezo-bridged-usdt-mezo")
+  "0xeb5a5d39de4ea42c2aa6a57eca2894376683bb8e": {
+    cdn: "https://coin-images.coingecko.com/coins/images/68246/large/usdt.jpg",
+  },
 };
 
 /**
@@ -444,6 +452,10 @@ setTokenMetadataCache("0x7B7c000000000000000000000000000000000001", { symbol: "M
 setTokenMetadataCache("0x7b7C000000000000000000000000000000000000", { symbol: "BTC", name: "Bitcoin", decimals: 18 });
 setTokenMetadataCache("0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", { symbol: "MUSD", name: "Mezo USD", decimals: 18 });
 setTokenMetadataCache("0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16", { symbol: "sMUSD", name: "Savings MUSD", decimals: 18 });
+setTokenMetadataCache("0x04671c72aab5aC02a03C1098314b1bB6B560C197", { symbol: "mUSDC", name: "Mezo Bridged USDC", decimals: 6 });
+setTokenMetadataCache("0xeb5a5d39DE4Ea42c2Aa6A57Eca2894376683bb8E", { symbol: "mUSDT", name: "Mezo Bridged USDT", decimals: 6 });
+setTokenMetadataCache("0xB63fcCd03521Cf21907627bd7fA465C129479231", { symbol: "veBTC", name: "Mezo Vote-Escrowed BTC", decimals: 18 });
+setTokenMetadataCache("0xaCE816CA2bcc9b12C59799dcC5A959Fb9b98111b", { symbol: "veMEZO", name: "Mezo Vote-Escrowed MEZO", decimals: 18 });
 
 /**
  * Parse a log event to detect token transfers
