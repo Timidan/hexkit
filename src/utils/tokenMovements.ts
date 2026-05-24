@@ -84,6 +84,40 @@ const CHAIN_ID_TO_ZAPPER: Record<number, string> = {
   1101: "polygon-zkevm",
 };
 
+// Mezo ecosystem icons. Zapper/1inch/Trust Wallet don't index chain 31611/31612,
+// and cross-chain NTT bridge traces reference Ethereum/Base twins that 1inch
+// also misses. Point at CoinGecko's CDN where possible, fall back to a bundled
+// SVG only where no CDN entry exists.
+// Keyed by address (lower-case); covers both the Mezo and Ethereum/Base sides.
+const MEZO_TOKEN_ICONS: Record<string, { cdn?: string; local?: string }> = {
+  // MEZO precompile (CoinGecko id "mezo")
+  "0x7b7c000000000000000000000000000000000001": {
+    cdn: "https://coin-images.coingecko.com/coins/images/71716/large/KnBgdkXh_400x400_%281%29.jpg",
+    local: "/logos/mezo.svg",
+  },
+  // MEZO on Ethereum/Base (NTT bridge twin)
+  "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b": {
+    cdn: "https://coin-images.coingecko.com/coins/images/71716/large/KnBgdkXh_400x400_%281%29.jpg",
+    local: "/logos/mezo.svg",
+  },
+  // BTC ERC-20 surface (use canonical bitcoin image)
+  "0x7b7c000000000000000000000000000000000000": {
+    cdn: "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png",
+  },
+  // Canonical MUSD on Mezo (CoinGecko id "mezo-usd")
+  "0x118917a40faf1cd7a13db0ef56c86de7973ac503": {
+    cdn: "https://coin-images.coingecko.com/coins/images/66938/large/37163_%281%29.png",
+  },
+  // MUSD on Ethereum (NTT bridge twin)
+  "0xdd468a1ddc392dcdbef6db6e34e89aa338f9f186": {
+    cdn: "https://coin-images.coingecko.com/coins/images/66938/large/37163_%281%29.png",
+  },
+  // sMUSD savings vault — not indexed by any public CDN
+  "0x6f461c68b2c5492c0f5ccec5a264d692aa7a8e16": {
+    local: "/logos/smusd.svg",
+  },
+};
+
 /**
  * Get token icon URL
  * Uses 1inch for Ethereum (supports lowercase), Trust Wallet for other chains
@@ -92,6 +126,12 @@ const CHAIN_ID_TO_ZAPPER: Record<number, string> = {
  */
 export function getTokenIconUrl(tokenAddress: string, chainId: number = 1): string {
   const addr = tokenAddress.toLowerCase();
+
+  const mezo = MEZO_TOKEN_ICONS[addr];
+  if (mezo) {
+    const url = mezo.cdn ?? mezo.local;
+    if (url) return url;
+  }
 
   // For Ethereum mainnet, use 1inch direct URL (avoids redirect)
   if (chainId === 1) {
@@ -121,6 +161,13 @@ export function getTokenIconUrl(tokenAddress: string, chainId: number = 1): stri
 export function getTokenIconUrls(tokenAddress: string, chainId: number = 1): string[] {
   const addr = tokenAddress.toLowerCase();
   const urls: string[] = [];
+
+  const mezo = MEZO_TOKEN_ICONS[addr];
+  if (mezo) {
+    if (mezo.cdn) urls.push(mezo.cdn);
+    if (mezo.local) urls.push(mezo.local);
+    if (urls.length) return urls;
+  }
 
   // 1. Zapper (good coverage of DeFi/vault tokens)
   const zapperChain = CHAIN_ID_TO_ZAPPER[chainId];

@@ -1,11 +1,11 @@
-import type { ReactNode } from "react";
-import { CurrencyBtc } from "@phosphor-icons/react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { getTokenIconUrls } from "@/utils/tokenMovements";
 import { MEZO_GLOSSARY, type GlossaryKey } from "../glossary";
 
 export type AssetSymbol = "BTC" | "MUSD" | "sMUSD" | "MEZO" | "veMEZO";
@@ -16,6 +16,16 @@ const SYMBOL_TO_GLOSSARY: Record<AssetSymbol, GlossaryKey> = {
   sMUSD: "smusd",
   MEZO: "mezo",
   veMEZO: "vemezo",
+};
+
+// Canonical Mezo Mainnet addresses for icon lookup. veMEZO is a non-ERC20
+// position so it has no address; we render a styled glyph for it.
+const SYMBOL_TO_ADDRESS: Record<AssetSymbol, string | null> = {
+  BTC: "0x7b7C000000000000000000000000000000000000",
+  MUSD: "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503",
+  sMUSD: "0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16",
+  MEZO: "0x7B7c000000000000000000000000000000000001",
+  veMEZO: null,
 };
 
 const sizeClass = {
@@ -49,7 +59,7 @@ export function AssetIcon({
       )}
       aria-hidden
     >
-      {renderGlyph(symbol)}
+      <SymbolIcon symbol={symbol} />
     </span>
   );
 
@@ -92,12 +102,35 @@ export function AssetIcon({
   );
 }
 
-function renderGlyph(symbol: AssetSymbol): ReactNode {
+function SymbolIcon({ symbol }: { symbol: AssetSymbol }): ReactNode {
+  const address = SYMBOL_TO_ADDRESS[symbol];
+
+  const urls = useMemo(
+    () => (address ? getTokenIconUrls(address, 31612) : []),
+    [address],
+  );
+  const [srcIdx, setSrcIdx] = useState(0);
+  useEffect(() => { setSrcIdx(0); }, [address]);
+
+  if (!address || srcIdx >= urls.length) {
+    return renderGlyphFallback(symbol);
+  }
+
+  return (
+    <img
+      src={urls[srcIdx]}
+      alt=""
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => setSrcIdx((i) => i + 1)}
+    />
+  );
+}
+
+function renderGlyphFallback(symbol: AssetSymbol): ReactNode {
   switch (symbol) {
     case "BTC":
-      return (
-        <CurrencyBtc weight="fill" className="h-[78%] w-[78%] text-amber-400" />
-      );
+      return <BtcGlyph />;
     case "MUSD":
       return <MusdGlyph />;
     case "sMUSD":
@@ -107,6 +140,25 @@ function renderGlyph(symbol: AssetSymbol): ReactNode {
     case "veMEZO":
       return <VeMezoGlyph />;
   }
+}
+
+function BtcGlyph() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-full w-full" aria-hidden>
+      <circle cx="10" cy="10" r="9" fill="#F7931A" />
+      <text
+        x="10"
+        y="14.5"
+        textAnchor="middle"
+        fontFamily="ui-monospace, monospace"
+        fontWeight="700"
+        fontSize="12"
+        fill="#ffffff"
+      >
+        ₿
+      </text>
+    </svg>
+  );
 }
 
 function MusdGlyph() {

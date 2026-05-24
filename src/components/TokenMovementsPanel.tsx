@@ -6,7 +6,7 @@ import {
   groupByTokenType,
   fetchTokenPrices,
   fetchTokenMetadata,
-  getTokenIconUrl,
+  getTokenIconUrls,
   type TokenType,
   type BalanceChange,
   type TokenMovement,
@@ -448,8 +448,14 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
     );
   };
 
-  // Get token icon URL
-  const iconUrl = getTokenIconUrl(change.tokenAddress, chainId);
+  // Token icon URL cascade (Mezo ecosystem: CoinGecko → local SVG → fallback)
+  const iconUrls = useMemo(
+    () => getTokenIconUrls(change.tokenAddress, chainId),
+    [change.tokenAddress, chainId],
+  );
+  const [iconIdx, setIconIdx] = useState(0);
+  useEffect(() => { setIconIdx(0); setIconError(false); }, [change.tokenAddress, chainId]);
+  const iconUrl = iconIdx < iconUrls.length ? iconUrls[iconIdx] : null;
 
   // Calculate USD value
   const usdValue = useMemo(() => {
@@ -477,14 +483,20 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
       </TableCell>
       <TableCell className="token-cell">
         <span className="token-cell-content">
-          {!iconError ? (
+          {iconUrl && !iconError ? (
             <img
               src={iconUrl}
               alt=""
               className="token-icon-img"
               width={16}
               height={16}
-              onError={() => setIconError(true)}
+              onError={() => {
+                if (iconIdx + 1 < iconUrls.length) {
+                  setIconIdx(iconIdx + 1);
+                } else {
+                  setIconError(true);
+                }
+              }}
               loading="lazy"
             />
           ) : (
