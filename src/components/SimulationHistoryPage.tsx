@@ -154,8 +154,14 @@ const SimulationHistoryPage: React.FC = () => {
       // Use lightweight=true to avoid loading full result/contractContext into memory
       const sims = await simulationHistoryService.getSimulations(filter, true);
       setSimulations(sims);
-    } catch {
-      setError('Failed to load simulation history');
+    } catch (err) {
+      const detail =
+        err instanceof DOMException
+          ? `${err.name}: ${err.message}`
+          : err instanceof Error
+            ? err.message
+            : String(err || 'Unknown IndexedDB error');
+      setError(`Failed to load simulation history (${detail})`);
     } finally {
       setLoading(false);
     }
