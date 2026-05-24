@@ -15,19 +15,14 @@ export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
   if (state.legs.length === 0) return null;
 
   const current = state.currentIndex >= 0 ? state.legs[state.currentIndex] : null;
-  // `allDone` must match the "leg is genuinely terminal" predicate so the
-  // queue doesn't auto-close while a recoverable-failed leg still has live
-  // user affordances.
+  // Recoverable failures (Intent expired with refund still available;
+  // bridged-but-deposit-failed) keep their in-step affordances, so the queue
+  // must not treat them as terminal. Refunded is terminal-good.
   const isLegTerminal = (l: Leg) =>
     l.status === "done" ||
     l.status === "refunded" ||
     (l.status === "failed" && !l.recoverable);
   const allDone = state.legs.every(isLegTerminal);
-  // NEXT must wait for the current step to reach a terminal state. Recoverable
-  // failures (Intent expired with refund still available; bridged-but-deposit-
-  // failed) are NOT terminal from the user's perspective — they have an
-  // in-step affordance (refund / retry deposit). Refunded IS terminal: the
-  // user got their funds back, queue can advance.
   const canAdvance = current !== null && isLegTerminal(current);
 
   const total = state.legs.length;

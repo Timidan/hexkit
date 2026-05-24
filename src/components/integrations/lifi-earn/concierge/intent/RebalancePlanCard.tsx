@@ -330,7 +330,7 @@ function LegRow({
             Delivered on {explorerLabel(spec.destination.chainId)}.
             {run.deliveredAmount && spec.destination.outputSymbol && (
               <span className="ml-1 font-mono text-[10px] opacity-80">
-                ({formatRaw(run.deliveredAmount, decimalsFor(run, spec))}{" "}
+                ({formatRaw(run.deliveredAmount, decimalsFor(spec))}{" "}
                 {spec.destination.outputSymbol})
               </span>
             )}
@@ -450,8 +450,8 @@ function DepositButton({
   );
 }
 
-// The status pill renders during all of these — keep timeline visible the
-// whole time so the user sees the order lifecycle through to settlement.
+// Keep the timeline visible across deposit phases so the user sees the
+// order lifecycle through to settlement.
 function isTimelineActive(status: IntentLegRun["status"]): boolean {
   return (
     status === "open" ||
@@ -468,14 +468,13 @@ function explorerLabel(chainId: number): string {
   return SUPPORTED_CHAINS.find((c) => c.id === chainId)?.name ?? `chain ${chainId}`;
 }
 
-function decimalsFor(run: IntentLegRun, spec: IntentLegSpec): number {
-  // The spec doesn't carry destination decimals — try to find them off the
-  // vault's underlyingTokens (matched by address), otherwise default to 18.
+function decimalsFor(spec: IntentLegSpec): number {
+  // The spec doesn't carry destination decimals — match by address against
+  // the vault's underlyingTokens, otherwise default to 18.
   const addr = spec.destination.outputToken.toLowerCase();
   const tok = spec.destination.vault?.underlyingTokens?.find(
     (t) => t.address.toLowerCase() === addr,
   );
-  void run; // run unused here; signature kept symmetric for future use.
   return tok?.decimals ?? 18;
 }
 

@@ -83,13 +83,12 @@ function isTerminal(status: LegStatus): boolean {
 
 function intentStatusToLegStatus(status: string, current: LegStatus): LegStatus {
   const normalized = status.toLowerCase();
-  // Refunded is a successful refund — funds are back in the user's wallet.
-  // It's terminal but distinct from "failed" so the UI can show a positive
-  // outcome and the queue can advance past it without showing retry UI.
+  // Refunded is its own terminal status (positive outcome, no retry UI).
   if (normalized === "refunded") {
     return "refunded";
   }
-  // Expired remains "failed + recoverable" — the user can still refund.
+  // Expired still maps to failed — recoverability is assigned downstream
+  // so the refund button stays reachable.
   if (normalized === "failed" || normalized === "expired") {
     return "failed";
   }
@@ -163,8 +162,7 @@ function applyExecutionEvent(leg: Leg, event: DepositExecutionEvent): Leg {
     case "intent-status": {
       const status = intentStatusToLegStatus(event.status, leg.status);
       const normalized = event.status.toLowerCase();
-      // Expired = refund button must stay reachable → recoverable.
-      // Refunded is its own terminal status now.
+      // Only Expired stays recoverable so the refund button remains reachable.
       const recoverable = status === "failed" && normalized === "expired";
       return {
         ...leg,

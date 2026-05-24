@@ -225,12 +225,11 @@ export function WithdrawFlow({ position, vault, onComplete, onClose }: WithdrawF
 
   // Composer's redeem flow uses `fromToken = vault.share`, so it expects
   // `fromAmount` in SHARE-token decimals. We parse with shareDecimals to
-  // match that wire format. Note: the UI label still shows the underlying
-  // symbol (position.asset.symbol) because Earn surfaces position size in
-  // underlying terms; for vaults where 1 share ≈ 1 underlying (most stables)
-  // this is harmless, but for appreciated-share vaults the user's number
-  // will be interpreted as shares-not-underlying. Honest follow-up: convert
-  // via the live exchange rate, or relabel the input "shares".
+  // match that wire format. The UI label still shows the underlying symbol
+  // (position.asset.symbol) because Earn surfaces position size in
+  // underlying terms; for vaults where 1 share ≈ 1 underlying (most
+  // stables) this is harmless, but for appreciated-share vaults the user's
+  // number is interpreted as shares-not-underlying.
   const fromAmountForQuote = useMemo(() => {
     if (!amount) return null;
     try {
