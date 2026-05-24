@@ -87,13 +87,13 @@ export const formatGwei = (weiValue?: string | null) => {
   }
 };
 
-export const formatEth = (weiValue?: string | null) => {
+export const formatEth = (weiValue?: string | null, symbol = "ETH") => {
   if (!weiValue) return "\u2014";
   try {
     const wei = BigInt(weiValue);
-    const isSmall = wei < 10n ** 14n; // < 0.0001 ETH
+    const isSmall = wei < 10n ** 14n; // < 0.0001 of the native asset
     const displayDecimals = isSmall ? 6 : 4;
-    return `${formatBigIntUnits(wei, 18, displayDecimals)} ETH`;
+    return `${formatBigIntUnits(wei, 18, displayDecimals)} ${symbol}`;
   } catch {
     return "\u2014";
   }
@@ -118,13 +118,17 @@ export const calculateIntrinsicGas = (calldata?: string | null): number => {
   return INTRINSIC_BASE + calldataGas;
 };
 
-export const calculateTxFee = (gasUsed?: string | null, gasPrice?: string | null) => {
+export const calculateTxFee = (
+  gasUsed?: string | null,
+  gasPrice?: string | null,
+  symbol = "ETH",
+) => {
   if (!gasUsed || !gasPrice) return "\u2014";
   try {
     const gas = BigInt(gasUsed);
     const price = BigInt(gasPrice);
     const feeInWei = gas * price;
-    return formatEth(feeInWei.toString());
+    return formatEth(feeInWei.toString(), symbol);
   } catch {
     return "\u2014";
   }

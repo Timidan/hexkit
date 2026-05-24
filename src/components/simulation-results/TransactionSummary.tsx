@@ -26,6 +26,8 @@ interface TransactionSummaryProps {
   nonce: string;
   /** Chain ID for native token USD pricing (defaults to 1 / Ethereum) */
   chainId?: number;
+  /** Native asset symbol from the chain registry; defaults to "ETH". */
+  nativeSymbol?: string;
   formatAddressWithName: (address: string) => { display: string; hasName: boolean };
   normalizeValue: (value: string | undefined | null) => string | null;
   highlightedValue: string | null;
@@ -51,6 +53,7 @@ export const TransactionSummary: React.FC<TransactionSummaryProps> = ({
   txType,
   nonce,
   chainId = 1,
+  nativeSymbol = "ETH",
   formatAddressWithName,
   normalizeValue,
   highlightedValue,
@@ -175,7 +178,7 @@ export const TransactionSummary: React.FC<TransactionSummaryProps> = ({
           <div className="sim-summary-row">
             <span className="sim-summary-label">Value</span>
             <span className="sim-summary-value">
-              {formatEth(value)}
+              {formatEth(value, nativeSymbol)}
               {value && value !== "\u2014" && (
                 <span className="text-muted-foreground ml-1 text-[11px]">{formatUsd(value)}</span>
               )}

@@ -9,6 +9,7 @@ import "../styles/SimulationResultsPage.css";
 import type { SimulationResultsPageProps, SimulatorTab } from "./simulation-results/types";
 import { useSimulationPageState } from "./simulation-results/useSimulationPageState";
 import { resolveFunctionName, computeGasValues, resolveReturnData } from "./simulation-results/gasHelpers";
+import { getChainById } from "../chains/registry";
 import type { ContractContextExtras } from "./simulation-results/useSimulationPageState";
 import { ResultsHeader } from "./simulation-results/ResultsHeader";
 import { TransactionSummary } from "./simulation-results/TransactionSummary";
@@ -107,8 +108,12 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const rawInput = result.data || rootCall?.input || "0x";
 
   const functionName = resolveFunctionName(result, rootCall, decodedTrace, rawInput, contractContext);
+  const chainIdForChain = result.chainId ?? contractContext?.networkId;
+  const nativeSymbol =
+    (typeof chainIdForChain === "number" ? getChainById(chainIdForChain) : undefined)
+      ?.nativeCurrency.symbol ?? "ETH";
   const { gasUsed, gasLimit, gasPrice, nonce, txFee, txType } = computeGasValues(
-    result, decodedTrace, rawInput, contractContext
+    result, decodedTrace, rawInput, contractContext, nativeSymbol
   );
   const returnData = resolveReturnData(decodedTrace, artifacts, rootCall, rawInput);
   const errorMessage = result.error || result.revertReason || null;
@@ -155,7 +160,8 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
             gasPrice={gasPrice}
             txType={txType}
             nonce={nonce}
-            chainId={contractContext?.networkId || 1}
+            chainId={chainIdForChain || 1}
+            nativeSymbol={nativeSymbol}
             formatAddressWithName={formatAddressWithName}
             normalizeValue={normalizeValue}
             highlightedValue={highlightedValue}
