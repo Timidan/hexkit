@@ -38,6 +38,11 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
     description:
       "Browse DeFi yield vaults, simulate deposits, and manage positions across protocols. Powered by LI.FI Earn.",
   },
+  "/integrations/mezo": {
+    title: "Hexkit - Mezo Lens — Bitcoin-native DeFi on Mezo",
+    description:
+      "Put your BTC, MUSD, and MEZO to work on Mezo — borrow, save, lock. Preview every leg before you sign.",
+  },
 };
 
 /**

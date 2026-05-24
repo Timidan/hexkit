@@ -79,6 +79,30 @@ A full yield management layer powered by the LI.FI Earn API:
 - **Deposit / Withdraw Flows** -- Deposit into and withdraw from vaults directly through LI.FI's Composer API, which handles cross-chain swaps and bridging automatically.
 - **Vault Simulator** -- Forecast projected returns for any vault over a configurable time horizon before committing capital.
 
+#### Mezo Lens
+
+DeFi on Mezo testnet (chain 31611): borrow MUSD against BTC, save it, lock MEZO for governance.
+
+- **Six action tabs**: Stack (composite onboarding flow), Borrow (Liquity-style CDP), Swap (v2 placeholder), Save (sMUSD deposit), Liquidity (v2 placeholder), Lock (veMEZO governance).
+- **Bundle simulation before sign**: every parameter change triggers an `eth_simulateV1` round-trip against Mezo's RPC. The whole multi-leg sequence (up to 5 writes + appended view calls) executes server-side and returns end-state balances, ICR, liquidation price, and decoded leg outcomes. State chains across calls.
+- **Testnet gauge emissions** report `rewardRate=0` and are displayed as such.
+- **Canonical-MUSD guard**: Mezo testnet has two MUSD ERC-20 deployments. The docs `0x118917a4…` is the one bound to BorrowerOperations; another `0x637e22A1…` exists separately. The sidebar warns if you hold balance on the wrong one.
+- **Shared dev tooling**: once Mezo is in the chain registry, the simulator, decoder, ABI fetcher, and storage-layout reader work against Mezo contracts.
+
+Demo path:
+
+1. Visit https://faucet.test.mezo.org/ for 0.05 BTC + 100 MEZO testnet drip.
+2. Open `/integrations/mezo` and connect; the page prompts for the chain switch.
+3. Stack tab: tweak collateral / debt / save / lock sliders. The "Before → After" panel updates from simulated state on each change.
+4. Build Stack executes all 5 legs sequentially with Blockscout tx links per leg.
+
+`scripts/mezo-day-0-smoke.sh` runs the full write sequence (openTrove → MUSD.approve → sMUSD.deposit → MEZO.approve → VotingEscrow.createLock) against a throwaway wallet and emits testnet tx hashes for every leg.
+
+Integrations:
+
+- **MUSD**: open trove (mint canonical MUSD), `sMUSD.deposit` (savings vault), MUSD/BTC pool reads.
+- **MEZO**: MEZO precompile reads, `VotingEscrow.createLock` to mint a veMEZO governance NFT.
+
 #### Yield Concierge (AI-powered)
 
 An AI assistant that translates natural language yield goals into actionable vault recommendations:

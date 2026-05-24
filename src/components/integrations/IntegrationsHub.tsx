@@ -8,6 +8,9 @@ const LifiEarnPage = React.lazy(
 const SparkleShowcase = React.lazy(
   () => import("./lifi-earn/SparkleShowcase")
 );
+const MezoLensPage = React.lazy(
+  () => import("./mezo/MezoLensPage")
+);
 
 const IntegrationsHub: React.FC = () => {
   const { pathname } = useLocation();
@@ -22,6 +25,7 @@ const IntegrationsHub: React.FC = () => {
     <Suspense fallback={<LoadingSpinner text="Loading integration" />}>
       {segment === "sparkle-test" && <SparkleShowcase />}
       {segment === "lifi-earn" && <LifiEarnPage />}
+      {segment === "mezo" && <MezoLensPage />}
     </Suspense>
   );
 };

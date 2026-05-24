@@ -51,6 +51,7 @@ const TOOLS = [
     icon: Stack,
     subTabs: [
       { id: "lifi-earn", label: "LI.FI Earn", paramKey: "route" },
+      { id: "mezo", label: "Mezo Lens", paramKey: "route" },
     ],
   },
 ];
