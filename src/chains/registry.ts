@@ -310,6 +310,22 @@ const EXPLORER_APIS: Record<number, { explorerUrl: string; blockExplorer: string
       { name: "BscScan Testnet", url: "https://api-testnet.bscscan.com/api", type: "etherscan" },
     ],
   },
+  31611: {
+    explorerUrl: "https://explorer.test.mezo.org",
+    blockExplorer: "https://explorer.test.mezo.org",
+    apiUrl: "https://api.explorer.test.mezo.org/api/v2",
+    explorers: [
+      { name: "Mezo Testnet Blockscout", url: "https://api.explorer.test.mezo.org/api/v2", type: "blockscout" },
+    ],
+  },
+  31612: {
+    explorerUrl: "https://explorer.mezo.org",
+    blockExplorer: "https://explorer.mezo.org",
+    apiUrl: "https://api.explorer.mezo.org/api/v2",
+    explorers: [
+      { name: "Mezo Blockscout", url: "https://api.explorer.mezo.org/api/v2", type: "blockscout" },
+    ],
+  },
 };
 
 
@@ -391,6 +407,8 @@ const PUBLIC_RPCS: Record<number, string> = {
   421614: "https://arbitrum-sepolia.drpc.org",
   11155420: "https://sepolia.optimism.io",
   97: "https://bsc-testnet.drpc.org",
+  31611: "https://rpc.test.mezo.org",
+  31612: "https://mainnet.mezo.public.validationcloud.io",
 };
 
 
@@ -478,6 +496,7 @@ export const CHAIN_REGISTRY: Chain[] = [
   makeChain(98866, "Plume", { name: "PLUME", symbol: "PLUME", decimals: 18 }),
   makeChain(167000, "Taiko", eth18()),
   makeChain(747474, "Katana", eth18()),
+  makeChain(31612, "Mezo", { name: "Bitcoin", symbol: "BTC", decimals: 18 }),
 
   // ── Testnets ──
   makeChain(11155111, "Ethereum Sepolia", { name: "Sepolia Ether", symbol: "ETH", decimals: 18 }),
@@ -488,6 +507,7 @@ export const CHAIN_REGISTRY: Chain[] = [
   makeChain(421614, "Arbitrum Sepolia", eth18()),
   makeChain(11155420, "Optimism Sepolia", eth18()),
   makeChain(97, "BNB Testnet", { name: "BNB", symbol: "tBNB", decimals: 18 }),
+  makeChain(31611, "Mezo Testnet", { name: "Bitcoin", symbol: "BTC", decimals: 18 }),
 ];
 
 // ── Lookup helpers ───────────────────────────────────────────────────────────
@@ -497,7 +517,7 @@ const CHAIN_BY_ID = new Map(CHAIN_REGISTRY.map((c) => [c.id, c]));
 export const getChainById = (id: number): Chain | undefined => CHAIN_BY_ID.get(id);
 
 /** IDs of testnet chains */
-const TESTNET_IDS = new Set([11155111, 84532, 17000, 4202, 80002, 421614, 11155420, 97]);
+const TESTNET_IDS = new Set([11155111, 84532, 17000, 4202, 80002, 421614, 11155420, 97, 31611]);
 
 export const isTestnet = (chainId: number): boolean => TESTNET_IDS.has(chainId);
 
