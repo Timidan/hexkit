@@ -47,7 +47,9 @@ export function useMezoLegPipeline() {
         updateLeg(run.id, { status: "signing" });
         const txHash = await executeLeg(config, address, run.spec);
         updateLeg(run.id, { status: "confirming", txHash });
-        await wagmiWaitForReceipt(config, { hash: txHash });
+        // 90s timeout — Mezo testnet blocks ~2s, so this is generous; without
+        // a ceiling a stuck receipt poll would halt the whole stack.
+        await wagmiWaitForReceipt(config, { hash: txHash, timeout: 90_000 });
         updateLeg(run.id, { status: "confirmed" });
         // Tx landed — bust wagmi's read cache so wallet balances, trove state,
         // veMEZO views, and pool reserves all refresh on the next tick.
@@ -70,6 +72,9 @@ export function useMezoLegPipeline() {
   const executeAll = useCallback(async () => {
     const queue = runsRef.current.slice();
     for (const run of queue) {
+      // Skip already-confirmed legs so a second Build Stack click resumes
+      // from the first non-confirmed step instead of replaying the bundle.
+      if (run.status === "confirmed") continue;
       try {
         await runOne(run);
       } catch {

@@ -19,6 +19,12 @@ export interface StackParams {
    * list correctly.
    */
   troveInsertHint?: Address;
+  /**
+   * Skip the openTrove leg when the user already has an active trove.
+   * The remaining legs (sMUSD deposit, veMEZO lock) execute against
+   * existing balances instead of freshly minted MUSD/MEZO.
+   */
+  skipOpenTrove?: boolean;
 }
 
 /**
@@ -31,14 +37,17 @@ export function buildStackBundle(params: StackParams): {
   priceFeedViewIdx: number;
 } {
   const hint = params.troveInsertHint ?? ZERO_ADDR;
-  const legs: MezoLegSpec[] = [
-    {
+  const legs: MezoLegSpec[] = [];
+  if (!params.skipOpenTrove) {
+    legs.push({
       type: "openTrove",
       debtAmount: params.debtMusd,
       collateralWei: params.collateralBtcWei,
       upperHint: hint,
       lowerHint: hint,
-    },
+    });
+  }
+  legs.push(
     {
       type: "approveErc20",
       token: MEZO_CONTRACTS.MUSD,
@@ -62,7 +71,7 @@ export function buildStackBundle(params: StackParams): {
       amount: params.mezoLockAmount,
       lockDuration: params.lockDurationSeconds,
     },
-  ];
+  );
 
   const views: ViewCallSpec[] = [
     { kind: "priceFeedFetch" },

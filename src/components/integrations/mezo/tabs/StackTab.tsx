@@ -100,6 +100,24 @@ export function StackTab() {
   });
   const troveInsertHint = sortedTrovesHead.data as Address | undefined;
 
+  // Detect whether the user already has an active trove. If so, the bundle
+  // skips openTrove so re-running Build Stack doesn't error out trying to
+  // re-open. status === 1 means Active in the Liquity fork.
+  const existingTrove = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.TroveManager,
+    abi: MEZO_ABIS.TroveManager,
+    functionName: "Troves",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+  const troveActive = useMemo(() => {
+    const data = existingTrove.data as
+      | readonly [bigint, bigint, bigint, bigint, number, bigint, bigint, bigint, bigint]
+      | undefined;
+    return data ? data[4] === 1 : false;
+  }, [existingTrove.data]);
+
   const params = useMemo(() => {
     if (!address) return null;
     try {
@@ -111,11 +129,12 @@ export function StackTab() {
         mezoLockAmount: parseUnits(mezoInput || "0", 18),
         lockDurationSeconds: ONE_WEEK_SECONDS,
         troveInsertHint,
+        skipOpenTrove: troveActive,
       };
     } catch {
       return null;
     }
-  }, [address, btcInput, musdInput, sMusdInput, mezoInput, troveInsertHint]);
+  }, [address, btcInput, musdInput, sMusdInput, mezoInput, troveInsertHint, troveActive]);
 
   const bundle = useMemo(() => (params ? buildStackBundle(params) : null), [
     params,
@@ -143,7 +162,14 @@ export function StackTab() {
   const onBuildStack = async () => {
     if (!bundle || !sim.data) return;
     const summaries = sim.data.legs.map((l) => l.decodedSummary);
-    pipeline.start(bundle.legs, summaries);
+    // If a prior run already started (possibly with confirmed legs), resume
+    // instead of clobbering progress with a fresh start. The user can hit
+    // Reset to force a clean rebuild.
+    const hasExistingRun = pipeline.runs.length > 0;
+    const hasConfirmedLeg = pipeline.runs.some((r) => r.status === "confirmed");
+    if (!hasExistingRun || !hasConfirmedLeg) {
+      pipeline.start(bundle.legs, summaries);
+    }
     await pipeline.executeAll();
   };
 
@@ -258,6 +284,12 @@ export function StackTab() {
                 </code>
               </AlertDescription>
             </Alert>
+          )}
+          {troveActive && (
+            <div className="inline-flex max-w-md items-center gap-2 rounded-md border border-sky-500/25 bg-sky-500/[0.04] px-2.5 py-1.5 text-[11px] text-sky-200/90">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-sky-300/80">Trove active</span>
+              <span className="text-sky-100/70">— openTrove leg skipped; stack continues from sMUSD deposit.</span>
+            </div>
           )}
         </div>
       }

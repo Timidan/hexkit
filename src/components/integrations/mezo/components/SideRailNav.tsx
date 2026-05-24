@@ -67,6 +67,55 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
     query: { enabled: onMezo, refetchInterval },
   });
 
+  const trove = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.TroveManager,
+    abi: MEZO_ABIS.TroveManager,
+    functionName: "Troves",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+
+  // veMEZO is an ERC-721 — read NFT count, then lock data for the first token.
+  const veMezoCount = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const veMezoTokenId = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "tokenOfOwnerByIndex",
+    args: address ? [address as Address, 0n] : undefined,
+    query: {
+      enabled: onMezo && (veMezoCount.data as bigint | undefined) !== undefined && (veMezoCount.data as bigint) > 0n,
+      refetchInterval,
+    },
+  });
+  const veMezoLock = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "locked",
+    args: veMezoTokenId.data !== undefined ? [veMezoTokenId.data as bigint] : undefined,
+    query: { enabled: onMezo && veMezoTokenId.data !== undefined, refetchInterval },
+  });
+
+  const troveData = trove.data as
+    | readonly [bigint, bigint, bigint, bigint, number, bigint, bigint, bigint, bigint]
+    | undefined;
+  const troveActive = troveData ? troveData[4] === 1 : false; // status === 1 (Active)
+  const troveColl = troveData?.[0];
+  const trovePrincipal = troveData?.[1];
+
+  const lockData = veMezoLock.data as { amount: bigint; end: bigint } | undefined;
+  const lockAmount = lockData?.amount;
+  const lockEnd = lockData?.end;
+
   return (
     <aside className="flex flex-col gap-1 border-r border-white/[0.05] bg-zinc-950/30 py-3 px-2 text-[12px]">
       <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
@@ -147,12 +196,30 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
       <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
         Trove
       </div>
-      <div className="px-2.5 py-1 text-[11px] text-zinc-500">No trove yet</div>
+      {troveActive ? (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-300 font-mono leading-tight">
+          <div>{fmt(troveColl, 18, 6)} BTC</div>
+          <div className="text-zinc-500">{fmt(trovePrincipal, 18, 2)} MUSD debt</div>
+        </div>
+      ) : (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-500">No trove yet</div>
+      )}
 
       <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
         veMEZO
       </div>
-      <div className="px-2.5 py-1 text-[11px] text-zinc-500">No lock</div>
+      {lockAmount && lockAmount > 0n ? (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-300 font-mono leading-tight">
+          <div>{fmt(lockAmount, 18, 2)} MEZO</div>
+          {lockEnd && lockEnd > 0n && (
+            <div className="text-zinc-500">
+              unlocks {new Date(Number(lockEnd) * 1000).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-500">No lock</div>
+      )}
     </aside>
   );
 }
