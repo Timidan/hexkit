@@ -392,6 +392,12 @@ setTokenMetadataCache("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", { symbol: "U
 setTokenMetadataCache("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", { symbol: "USDT", name: "Tether USD", decimals: 6 });
 setTokenMetadataCache("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", { symbol: "WETH", name: "Wrapped Ether", decimals: 18 });
 
+// Mezo (Testnet 31611 + Mainnet 31612)
+setTokenMetadataCache("0x7B7c000000000000000000000000000000000001", { symbol: "MEZO", name: "Mezo", decimals: 18 });
+setTokenMetadataCache("0x7b7C000000000000000000000000000000000000", { symbol: "BTC", name: "Bitcoin", decimals: 18 });
+setTokenMetadataCache("0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", { symbol: "MUSD", name: "Mezo USD", decimals: 18 });
+setTokenMetadataCache("0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16", { symbol: "sMUSD", name: "Savings MUSD", decimals: 18 });
+
 /**
  * Parse a log event to detect token transfers
  */

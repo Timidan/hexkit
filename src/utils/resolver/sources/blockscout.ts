@@ -37,9 +37,42 @@ const CHAIN_PROXIES: Record<number, string> = {
   1135: '/api/lisk-blockscout',
   4202: '/api/lisk-sepolia-blockscout',
   8453: '/api/blockscout', // Base mainnet uses default blockscout proxy
+  31611: '/api/mezo-testnet-blockscout',
+  31612: '/api/mezo-blockscout',
 };
 
 const getProxy = (chainId: number): string => CHAIN_PROXIES[chainId] || '/api/blockscout';
+
+const normalizeBase = (base: string): string => base.replace(/\/+$/, '');
+
+const buildV2SmartContractUrl = (base: string, address: string): string => {
+  const cleanBase = normalizeBase(base);
+
+  if (/\/api\/v2$/i.test(cleanBase)) {
+    return `${cleanBase}/smart-contracts/${address}`;
+  }
+
+  if (/\/api$/i.test(cleanBase) || cleanBase.startsWith('/api/')) {
+    return `${cleanBase}/v2/smart-contracts/${address}`;
+  }
+
+  return `${cleanBase}/api/v2/smart-contracts/${address}`;
+};
+
+const buildV1SourceUrl = (base: string, address: string): string => {
+  const cleanBase = normalizeBase(base);
+  let apiBase: string;
+
+  if (/\/api\/v2$/i.test(cleanBase)) {
+    apiBase = cleanBase.replace(/\/v2$/i, '');
+  } else if (/\/api$/i.test(cleanBase) || cleanBase.startsWith('/api/')) {
+    apiBase = cleanBase;
+  } else {
+    apiBase = `${cleanBase}/api`;
+  }
+
+  return `${apiBase}?module=contract&action=getsourcecode&address=${address}`;
+};
 
 const extractContractName = (data: unknown): string | null => {
   if (!data || typeof data !== 'object') return null;
@@ -227,7 +260,7 @@ export async function fetchBlockscout(
       return { success: false, error: 'Aborted' };
     }
 
-    const v2Url = `${base.replace(/\/$/, '')}/v2/smart-contracts/${normalizedAddress}`;
+    const v2Url = buildV2SmartContractUrl(base, normalizedAddress);
 
     try {
       const response = await fetch(v2Url, {
@@ -258,7 +291,7 @@ export async function fetchBlockscout(
       lastError = error instanceof Error ? error.message : String(error);
     }
 
-    const v1Url = `${base.replace(/\/$/, '')}?module=contract&action=getsourcecode&address=${normalizedAddress}`;
+    const v1Url = buildV1SourceUrl(base, normalizedAddress);
 
     try {
       const response = await fetch(v1Url, {

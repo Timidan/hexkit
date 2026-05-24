@@ -209,13 +209,23 @@ export const buildOpcodeTraceFromTraceLiteRows = (
 
 // ---- EDB trace  ->  artifacts -----------------------------------------
 
+export interface ConvertEdbTraceOptions {
+  /** Native asset symbol for this chain (e.g. "BTC" on Mezo). Defaults to "ETH". */
+  nativeSymbol?: string;
+  /** Native asset full name (e.g. "Bitcoin" on Mezo). Defaults to "Ether". */
+  nativeName?: string;
+}
+
 export const convertEdbTraceToArtifacts = (
   traceEntries: any[],
+  options: ConvertEdbTraceOptions = {},
 ): {
   callTree: SimulationCallNode[];
   events: SimulationEventEntry[];
   assetChanges: SimulationAssetChangeEntry[];
 } => {
+  const nativeSymbol = options.nativeSymbol || "ETH";
+  const nativeName = options.nativeName || "Ether";
   type InternalNode = SimulationCallNode & {
     __internalId: number;
     __children?: InternalNode[];
@@ -224,9 +234,18 @@ export const convertEdbTraceToArtifacts = (
   const nodes = new Map<number, InternalNode>();
   const childrenBucket = new Map<number, InternalNode[]>();
   const events: SimulationEventEntry[] = [];
+  const seenEventKeys = new Set<string>();
   const assetChanges: SimulationAssetChangeEntry[] = [];
+  const nativeDeltas = new Map<
+    string,
+    {
+      address: string;
+      delta: bigint;
+      counterparties: Set<string>;
+    }
+  >();
 
-  const recordEthTransfer = (
+  const recordNativeDelta = (
     address: string | undefined,
     value: ethers.BigNumber,
     direction: "in" | "out",
@@ -235,17 +254,75 @@ export const convertEdbTraceToArtifacts = (
     if (!address || value.isZero()) {
       return;
     }
-    const formatted = ethers.utils.formatEther(value);
-    const prefix = direction === "in" ? "+" : "-";
-    assetChanges.push({
-      address,
-      symbol: "ETH",
-      name: "Ether",
-      amount: `${prefix}${formatted}`,
-      rawAmount: value.toString(),
-      direction,
-      counterparty,
-    });
+    const normalized = normalizeTraceAddress(address) ?? address;
+    const key = normalized.toLowerCase();
+    const current =
+      nativeDeltas.get(key) ??
+      {
+        address: normalized,
+        delta: 0n,
+        counterparties: new Set<string>(),
+      };
+    const amount = BigInt(value.toString());
+    current.delta += direction === "in" ? amount : -amount;
+    if (counterparty) {
+      current.counterparties.add(counterparty);
+    }
+    nativeDeltas.set(key, current);
+  };
+
+  const eventTopics = (evt: any): string[] => {
+    const topics = evt?.topics ?? evt?.data?.topics ?? evt?.logInfo?.topics ?? [];
+    return Array.isArray(topics)
+      ? topics.map((topic) => {
+          const hex = String(topic ?? "").replace(/^0x/i, "");
+          return `0x${hex.padStart(64, "0")}`.toLowerCase();
+        })
+      : [];
+  };
+
+  const eventData = (evt: any): string => {
+    const data =
+      evt?.data?.data ??
+      (typeof evt?.data === "string" ? evt.data : undefined) ??
+      evt?.rawData ??
+      "0x";
+    return String(data).toLowerCase();
+  };
+
+  const eventIdentity = (
+    evt: any,
+    address: string | undefined,
+    frameId: number | undefined,
+    fallbackIndex: number,
+  ): string => {
+    const txHash = evt?.transactionHash ?? evt?.txHash ?? evt?.transaction_hash;
+    const logIndex = evt?.logIndex ?? evt?.log_index;
+    const blockNumber = evt?.blockNumber ?? evt?.block_number;
+    if (txHash !== undefined && logIndex !== undefined) {
+      return [
+        "indexed",
+        String(blockNumber ?? ""),
+        String(txHash).toLowerCase(),
+        String(logIndex),
+      ].join("|");
+    }
+    // Always include the emitting call-frame id and the event's position
+    // within that frame. Without these two coordinates, identical Transfers
+    // from a bulk-transfer loop collapse to one row.
+    const topics = eventTopics(evt).join(",");
+    const data = eventData(evt);
+    if (!address && !topics && data === "0x") {
+      return `fallback|${frameId ?? "?"}|${fallbackIndex}`;
+    }
+    return [
+      "content",
+      String(frameId ?? "?"),
+      String(fallbackIndex),
+      (address ?? "").toLowerCase(),
+      topics,
+      data,
+    ].join("|");
   };
 
   traceEntries.forEach((entryRaw: any) => {
@@ -325,12 +402,21 @@ export const convertEdbTraceToArtifacts = (
     const entryEvents = ensureArray(
       entryRaw.events ?? entryRaw.logs ?? entryRaw.event_logs,
     );
-    entryEvents.forEach((evt: any) => {
+    entryEvents.forEach((evt: any, eventIndex: number) => {
+      const eventAddress = normalizeTraceAddress(
+        evt?.address ?? evt?.data?.address ?? evt?.logInfo?.address ?? node.to,
+      );
+      const key = eventIdentity(evt, eventAddress, id, eventIndex);
+      if (seenEventKeys.has(key)) {
+        return;
+      }
+      seenEventKeys.add(key);
       events.push({
         name: evt?.name ?? evt?.event,
         signature: evt?.signature,
-        address: evt?.address ?? node.to,
+        address: eventAddress,
         decoded: evt?.args ?? evt?.decoded,
+        topics: eventTopics(evt),
         data: evt,
       });
     });
@@ -339,9 +425,30 @@ export const convertEdbTraceToArtifacts = (
       entryRaw.value ?? entryRaw.transfer_value ?? entryRaw.amount;
     const valueBigNumber = parseTraceValue(transferValue);
     if (valueBigNumber && !valueBigNumber.isZero()) {
-      recordEthTransfer(fromAddress, valueBigNumber, "out", toAddress);
-      recordEthTransfer(toAddress, valueBigNumber, "in", fromAddress);
+      recordNativeDelta(fromAddress, valueBigNumber, "out", toAddress);
+      recordNativeDelta(toAddress, valueBigNumber, "in", fromAddress);
     }
+  });
+
+  nativeDeltas.forEach(({ address, delta, counterparties }) => {
+    if (delta === 0n) {
+      return;
+    }
+    const direction = delta > 0n ? "in" : "out";
+    const absolute = delta > 0n ? delta : -delta;
+    const rawAmount = absolute.toString();
+    const formatted = ethers.utils.formatEther(rawAmount);
+    const prefix = direction === "in" ? "+" : "-";
+    assetChanges.push({
+      address,
+      symbol: nativeSymbol,
+      name: nativeName,
+      amount: `${prefix}${formatted}`,
+      rawAmount,
+      direction,
+      counterparty:
+        counterparties.size === 1 ? Array.from(counterparties)[0] : undefined,
+    });
   });
 
   traceEntries.forEach((entryRaw: any) => {

@@ -233,9 +233,63 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const events = useMemo(() => artifacts?.events ?? [], [artifacts?.events]);
   const storageDiffs = useMemo(() => artifacts?.storageDiffs ?? [], [artifacts?.storageDiffs]);
 
+  // ---- Persist decoded trace ----
+  const persistDecodedTrace = useCallback(
+    async (decoded: any, simulationId: string) => {
+      const hasJumpRows = decoded?.rows?.some((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall);
+      const jumpRowCount = decoded?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
+
+      try {
+        const existingTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: false });
+        const existingJumpCount = existingTrace?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
+
+        if (existingJumpCount > 0 && jumpRowCount === 0) return;
+
+        const saved = await traceVaultService.saveDecodedTrace(simulationId, decoded);
+        const rowsToStore = saved?.lite?.rows ?? decoded.rows;
+        const { simulationHistoryService } = await import("../../services/SimulationHistoryService");
+        await simulationHistoryService.updateSimulationDecodedRows(simulationId, rowsToStore, {
+          maxRetries: 6, delayMs: 150,
+        });
+      } catch (err) {
+        console.error("[SimulationResults] Failed to persist trace:", err);
+      }
+    },
+    []
+  );
+
+  const { decodedTrace, isDecoding: isTraceDecoding } = useDecodedTrace({
+    result, id, contextDecodedTraceRows, contractContext,
+    traceMeta: decodedTraceMeta, onDecoded: persistDecodedTrace,
+    decodeMode: "lite",
+  });
+
+  const eventLookupCandidates = useMemo<any[]>(() => {
+    const candidates: any[] = [...events];
+
+    if (Array.isArray(decodedTrace?.rawEvents)) {
+      candidates.push(...decodedTrace.rawEvents);
+    }
+
+    if (Array.isArray(decodedTrace?.rows)) {
+      decodedTrace.rows.forEach((row: any) => {
+        if (!row?.name?.startsWith("LOG") || !row?.logInfo?.topics?.length) {
+          return;
+        }
+        candidates.push({
+          topics: row.logInfo.topics,
+          logInfo: row.logInfo,
+          rawData: "0x",
+        });
+      });
+    }
+
+    return candidates;
+  }, [decodedTrace?.rawEvents, decodedTrace?.rows, events]);
+
   // ---- Event signature lookup ----
   useEffect(() => {
-    if (activeTab !== 'events' || events.length === 0) return;
+    if (activeTab !== 'events' || eventLookupCandidates.length === 0) return;
 
     const lookupUnknownEvents = async () => {
       const cachedSignatures = getCachedSignatures('event');
@@ -247,7 +301,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       }
       const unknownTopics: string[] = [];
 
-      events.forEach((event: any) => {
+      eventLookupCandidates.forEach((event: any) => {
         if (event.name && event.name !== 'Anonymous Event') return;
         let topic0: string | null = null;
         if (event.data?.topics?.[0]) topic0 = String(event.data.topics[0]);
@@ -294,38 +348,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     };
 
     lookupUnknownEvents();
-  }, [activeTab, events, contractContext, lookedUpEventNames]);
-
-  // ---- Persist decoded trace ----
-  const persistDecodedTrace = useCallback(
-    async (decoded: any, simulationId: string) => {
-      const hasJumpRows = decoded?.rows?.some((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall);
-      const jumpRowCount = decoded?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
-      try {
-        const existingTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: false });
-        const existingJumpCount = existingTrace?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
-        if (existingJumpCount > 0 && jumpRowCount === 0) return;
-
-        const saved = await traceVaultService.saveDecodedTrace(simulationId, decoded);
-        const rowsToStore = saved?.lite?.rows ?? decoded.rows;
-        const { simulationHistoryService } = await import("../../services/SimulationHistoryService");
-        await simulationHistoryService.updateSimulationDecodedRows(simulationId, rowsToStore, {
-          maxRetries: 6, delayMs: 150,
-        });
-      } catch (err) {
-        console.error("[SimulationResults] Failed to persist trace:", err);
-      }
-    },
-    []
-  );
-
-  const { decodedTrace, isDecoding: isTraceDecoding } = useDecodedTrace({
-    result, id, contextDecodedTraceRows, contractContext,
-    traceMeta: decodedTraceMeta, onDecoded: persistDecodedTrace,
-    decodeMode: "lite",
-  });
+  }, [activeTab, eventLookupCandidates, contractContext, lookedUpEventNames]);
 
   const buildReplayDebugPrepRequest = useCallback(() => {
     const resultWithExtras = result as (typeof result & SimulationResultExtras) | null;

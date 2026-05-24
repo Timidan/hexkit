@@ -36,6 +36,48 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     const n = Number(value);
     return Number.isFinite(n) ? n : undefined;
   };
+  const normalizeTopic = (topic: unknown): string => {
+    const hex = String(topic ?? "").replace(/^0x/, "");
+    return "0x" + hex.padStart(64, "0");
+  };
+  const rawDataFromMemory = (row: any): string => {
+    if (!row?.logInfo || !Array.isArray(row?.memory)) return "0x";
+    const off = Number(BigInt(row.logInfo.offset || 0));
+    const len = Number(BigInt(row.logInfo.size || 0));
+    const start = Math.max(0, off);
+    const end = Math.min(row.memory.length, start + len);
+    if (end <= start) return "0x";
+    return (
+      "0x" +
+      row.memory
+        .slice(start, end)
+        .map((b: any) => {
+          const n = Number(b) & 0xff;
+          return n.toString(16).padStart(2, "0");
+        })
+        .join("")
+    );
+  };
+  const eventTopics = (event: any): string[] => {
+    const topics =
+      event?.data?.topics ||
+      event?.topics ||
+      event?.logInfo?.topics ||
+      [];
+    return Array.isArray(topics) ? topics.map(normalizeTopic) : [];
+  };
+  const eventData = (event: any): string =>
+    event?.data?.data ||
+    (typeof event?.data === "string" ? event.data : undefined) ||
+    event?.rawData ||
+    "0x";
+  const eventKey = (event: any, fallbackIndex: number): string => {
+    const address = firstAddress(event?.address, event?.data?.address, event?.logInfo?.address) || "";
+    const topics = eventTopics(event).join(",");
+    const data = eventData(event);
+    if (!address && !topics && !data) return `event-${fallbackIndex}`;
+    return `${address.toLowerCase()}|${topics}|${data}`;
+  };
   const resolveTraceId = (row: any): number | undefined => {
     if (typeof row?.traceId === "number") return row.traceId;
     if (Array.isArray(row?.frame_id) && row.frame_id.length > 0) {
@@ -99,33 +141,33 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     });
   }
 
-  // Extract events from decoded trace rows (LOG opcodes with decodedLog)
+  // Collect all ABIs for fallback decoding
+  const allAbis: any[] = [];
+  if (contractContext?.abi) {
+    allAbis.push(contractContext.abi);
+  }
+  if (contractContext?.diamondFacets) {
+    contractContext.diamondFacets.forEach((facet: any) => {
+      if (facet.abi) {
+        allAbis.push(facet.abi);
+      }
+    });
+  }
+
+  // Extract events from decoded trace rows. Even without ABI/source metadata,
+  // LOG rows still carry topics and sometimes data; surface those as raw events.
   const traceEvents: any[] = [];
   if (decodedTrace?.rows) {
     decodedTrace.rows.forEach((row: any) => {
-      if (row.name?.startsWith("LOG") && row.decodedLog) {
-        const rawTopics = (row.logInfo?.topics || []).map((t: any) => {
-          const hex = String(t).replace(/^0x/, "");
-          return "0x" + hex.padStart(64, "0");
-        });
-
-        let rawData = "";
-        if (row.logInfo && row.memory) {
-          const memArr = Array.isArray(row.memory) ? row.memory : [];
-          const off = Number(BigInt(row.logInfo.offset || 0));
-          const len = Number(BigInt(row.logInfo.size || 0));
-          const start = Math.max(0, off);
-          const end = Math.min(memArr.length, start + len);
-          const slice = memArr.slice(start, end);
-          rawData =
-            "0x" +
-            slice
-              .map((b: any) => {
-                const n = Number(b) & 0xff;
-                return n.toString(16).padStart(2, "0");
-              })
-              .join("");
-        }
+      if (row.name?.startsWith("LOG") && row.logInfo) {
+        const rawTopics = (row.logInfo?.topics || []).map(normalizeTopic);
+        const rawData = rawDataFromMemory(row);
+        const decoded =
+          row.decodedLog ||
+          decodeRawEvent(
+            { topics: rawTopics, rawData, logInfo: row.logInfo },
+            allAbis,
+          );
 
         const traceId = resolveTraceId(row);
         const frameMeta = traceId !== undefined ? traceMetaByTraceId.get(traceId) : undefined;
@@ -153,12 +195,16 @@ export const EventsTab: React.FC<EventsTabProps> = ({
             : frameMeta?.targetContractName || frameMeta?.codeContractName);
 
         traceEvents.push({
-          eventName: row.decodedLog.name || "Event",
-          eventArgs: row.decodedLog.args,
+          eventName:
+            decoded?.name ||
+            row.eventFallback?.name ||
+            (rawTopics[0] ? "Anonymous Event" : "Event"),
+          eventArgs: decoded?.args || row.decodedLog?.args,
+          eventSignature: decoded?.signature,
           address: eventAddress,
           logInfo: row.logInfo,
           contractName: eventContractName,
-          source: row.decodedLog.source,
+          source: row.decodedLog?.source || (decoded ? "abi" : "raw-log"),
           topics: rawTopics,
           rawData: rawData,
         });
@@ -166,21 +212,41 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     });
   }
 
-  const sourceEvents =
-    traceEvents.length > 0 ? traceEvents : artifacts?.events || [];
+  const rawTraceEvents = Array.isArray(decodedTrace?.rawEvents)
+    ? decodedTrace.rawEvents.map((event: any) => {
+        const normalizedAddress = event?.address?.toLowerCase();
+        const displayContractName =
+          event?.contractName ||
+          (normalizedAddress ? contractNameByAddress.get(normalizedAddress) : undefined) ||
+          (normalizedAddress && proxyAddress && normalizedAddress === proxyAddress
+            ? contractContext?.name
+            : undefined);
 
-  // Collect all ABIs for fallback decoding
-  const allAbis: any[] = [];
-  if (contractContext?.abi) {
-    allAbis.push(contractContext.abi);
-  }
-  if (contractContext?.diamondFacets) {
-    contractContext.diamondFacets.forEach((facet: any) => {
-      if (facet.abi) {
-        allAbis.push(facet.abi);
-      }
-    });
-  }
+        return {
+          ...event,
+          address: event?.address,
+          contractName: displayContractName,
+          topics: eventTopics(event),
+          rawData: eventData(event),
+          data: {
+            ...(event && typeof event === "object" ? event : {}),
+            topics: eventTopics(event),
+            data: eventData(event),
+          },
+        };
+      })
+    : [];
+
+  const sourceEvents = [
+    ...traceEvents,
+    ...rawTraceEvents,
+    ...(Array.isArray(artifacts?.events) ? artifacts.events : []),
+  ].filter((event, index, allEvents) => {
+    const key = eventKey(event, index);
+    return allEvents.findIndex((candidate, candidateIndex) =>
+      eventKey(candidate, candidateIndex) === key
+    ) === index;
+  });
 
   // Process events
   const processedEvents = sourceEvents.map((event: any, index: number) => {

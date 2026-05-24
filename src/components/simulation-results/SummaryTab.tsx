@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import { Info } from "@phosphor-icons/react";
 import type { SimulationResult } from "../../types/transaction";
 import type { TraceRow, TraceFilters } from "../ExecutionStackTrace";
 import LoadingSpinner from "../shared/LoadingSpinner";
@@ -55,28 +56,36 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
 }) => {
   return (
     <>
-      {/* Warnings from EDB */}
+      {/* Simulator notes (methodology disclosures from EDB local replay) */}
       {result?.warnings && result.warnings.length > 0 && (
-        <div className="sim-warning-banner" style={{
-          marginBottom: "20px",
-          padding: "12px 16px",
-          background: "rgba(234, 179, 8, 0.1)",
-          border: "1px solid rgba(234, 179, 8, 0.3)",
-          borderRadius: "8px"
-        }}>
-          <strong style={{ color: "#eab308" }}>Warning: Simulation Warnings:</strong>
-          <ul style={{ margin: "8px 0 0 16px", paddingLeft: "0", fontSize: "14px", color: "#888" }}>
-            {result.warnings.map((warning: any, i: number) => (
-              <li key={i} style={{ marginBottom: "4px" }}>
-                {typeof warning === "string"
-                  ? warning.length > 200
-                    ? warning.slice(0, 200) + "\u2026"
+        <section className="mb-5 max-w-3xl rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+          <div className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-amber-300/85">
+            <Info weight="fill" className="h-3 w-3" />
+            Simulator notes
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {result.warnings.map((warning: any, i: number) => {
+              const text =
+                typeof warning === "string"
+                  ? warning.length > 240
+                    ? warning.slice(0, 240) + "\u2026"
                     : warning
-                  : JSON.stringify(warning)}
-              </li>
-            ))}
+                  : JSON.stringify(warning);
+              return (
+                <li
+                  key={i}
+                  className="flex items-start gap-2 text-[12px] leading-snug text-zinc-300"
+                >
+                  <span
+                    aria-hidden
+                    className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-400/70"
+                  />
+                  <span>{text}</span>
+                </li>
+              );
+            })}
           </ul>
-        </div>
+        </section>
       )}
       {/* Stack Trace - Rich Error Display */}
       {errorMessage && (

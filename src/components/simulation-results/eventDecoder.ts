@@ -67,6 +67,8 @@ export function decodeRawEvent(
     } catch {
       // Not JSON, use as-is
     }
+  } else if (typeof event.data === 'string') {
+    rawData = event.data;
   }
 
   if (!rawTopics && event.topics) {

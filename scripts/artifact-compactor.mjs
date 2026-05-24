@@ -297,6 +297,14 @@ export function buildCompactArtifactMap(artifacts, opcodeLines) {
     const compactOutputContracts = buildCompactOutputContracts(artifact);
 
     const compactArtifact = {};
+    const sourceProvider = artifact.sourceProvider || artifact.source;
+    if (
+      sourceProvider === "sourcify" ||
+      sourceProvider === "etherscan" ||
+      sourceProvider === "blockscout"
+    ) {
+      compactArtifact.sourceProvider = sourceProvider;
+    }
     if (compactSources) {
       compactArtifact.input = { sources: compactSources };
     }

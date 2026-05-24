@@ -32,6 +32,9 @@ const explorerBase: Record<number, ExplorerConfig> = {
   100: { etherscan: 'https://gnosisscan.io', etherscanName: 'Gnosisscan', blockscout: 'https://gnosis.blockscout.com', blockscoutName: 'Blockscout' },
 };
 
+const isSourceProvider = (value: unknown): value is Exclude<SourceProvider, null> =>
+  value === 'sourcify' || value === 'etherscan' || value === 'blockscout';
+
 export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractContext }) => {
   const navigate = useNavigate();
 
@@ -80,11 +83,18 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
     const hasOpcodeLines = !!(traceOpcodeLines[addr] || traceOpcodeLines[normalized]);
 
     if (hasOpcodeLines || (artifact && (artifact.sourceProvider || artifact.meta || (artifact.sources && typeof artifact.sources === 'object' && Object.keys(artifact.sources).length > 0) || (artifact.input?.sources && typeof artifact.input.sources === 'object' && Object.keys(artifact.input.sources).length > 0)))) {
-      // Determine source provider
-      if (artifact?.sourceProvider && (artifact.sourceProvider === 'sourcify' || artifact.sourceProvider === 'etherscan' || artifact.sourceProvider === 'blockscout')) {
+      if (isSourceProvider(artifact?.sourceProvider)) {
         return { verified: true, sourceProvider: artifact.sourceProvider };
       }
+      if (isSourceProvider(artifact?.source)) {
+        return { verified: true, sourceProvider: artifact.source };
+      }
       if (artifact?.meta) {
+        const metaProvider =
+          artifact.meta.SourceProvider || artifact.meta.sourceProvider || artifact.meta.source;
+        if (isSourceProvider(metaProvider)) {
+          return { verified: true, sourceProvider: metaProvider };
+        }
         if (artifact.meta.CompilerVersion || artifact.meta.SwarmSource !== undefined) {
           return { verified: true, sourceProvider: 'etherscan' };
         }
@@ -109,10 +119,13 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ result, contractCont
 
   // Patch contracts: re-derive verification from trace artifacts when saved data is stale
   const simulationContracts = rawSimulationContracts.map(c => {
-    if (c.verified) return c;
     const derived = deriveVerificationFromArtifacts(c.address);
     if (derived.verified) {
-      return { ...c, verified: true, sourceProvider: derived.sourceProvider };
+      return {
+        ...c,
+        verified: true,
+        sourceProvider: derived.sourceProvider ?? c.sourceProvider,
+      };
     }
     return c;
   });
