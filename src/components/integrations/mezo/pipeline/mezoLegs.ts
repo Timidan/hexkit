@@ -63,6 +63,17 @@ export type MezoLegSpec =
       deadline: bigint;
     }
   | {
+      type: "routerRemoveLiquidity";
+      tokenA: Address;
+      tokenB: Address;
+      stable: boolean;
+      liquidity: bigint;
+      amountAMin: bigint;
+      amountBMin: bigint;
+      to: Address;
+      deadline: bigint;
+    }
+  | {
       type: "redeemCollateral";
       musdAmount: bigint;
       firstRedemptionHint: Address;

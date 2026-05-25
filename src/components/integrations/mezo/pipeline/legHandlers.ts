@@ -142,6 +142,25 @@ export async function executeLeg(
         account,
       });
 
+    case "routerRemoveLiquidity":
+      return writeContract(config, {
+        chainId: MEZO_TESTNET_CHAIN_ID,
+        address: MEZO_CONTRACTS.Router,
+        abi: MEZO_ABIS.Router,
+        functionName: "removeLiquidity",
+        args: [
+          leg.tokenA,
+          leg.tokenB,
+          leg.stable,
+          leg.liquidity,
+          leg.amountAMin,
+          leg.amountBMin,
+          leg.to,
+          leg.deadline,
+        ],
+        account,
+      });
+
     case "repayMUSD":
       return writeContract(config, {
         chainId: MEZO_TESTNET_CHAIN_ID,
@@ -163,6 +182,15 @@ export async function executeLeg(
       });
 
     case "sMusdWithdraw":
+      return writeContract(config, {
+        chainId: MEZO_TESTNET_CHAIN_ID,
+        address: MEZO_CONTRACTS.sMUSD,
+        abi: MEZO_ABIS.sMUSD,
+        functionName: "withdraw",
+        args: [leg.amount],
+        account,
+      });
+
     case "gaugeWithdraw":
     case "gaugeClaim":
     case "redeemCollateral":

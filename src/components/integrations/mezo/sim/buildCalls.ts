@@ -66,6 +66,15 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
       return { from: account, to: MEZO_CONTRACTS.sMUSD, input };
     }
 
+    case "sMusdWithdraw": {
+      const input = encodeFunctionData({
+        abi: MEZO_ABIS.sMUSD,
+        functionName: "withdraw",
+        args: [leg.amount],
+      });
+      return { from: account, to: MEZO_CONTRACTS.sMUSD, input };
+    }
+
     case "gaugeDeposit": {
       const input = encodeFunctionData({
         abi: MEZO_ABIS.Gauge,
@@ -151,6 +160,29 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
       };
     }
 
+    case "routerRemoveLiquidity": {
+      const input = encodeFunctionData({
+        abi: MEZO_ABIS.Router,
+        functionName: "removeLiquidity",
+        args: [
+          leg.tokenA,
+          leg.tokenB,
+          leg.stable,
+          leg.liquidity,
+          leg.amountAMin,
+          leg.amountBMin,
+          leg.to,
+          leg.deadline,
+        ],
+      });
+      return {
+        from: account,
+        to: MEZO_CONTRACTS.Router,
+        input,
+        gas: "0x1e8480" as `0x${string}`, // 2,000,000
+      };
+    }
+
     case "repayMUSD": {
       const input = encodeFunctionData({
         abi: MEZO_ABIS.BorrowerOperations,
@@ -169,7 +201,6 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
       return { from: account, to: MEZO_CONTRACTS.BorrowerOperations, input };
     }
 
-    case "sMusdWithdraw":
     case "gaugeWithdraw":
     case "gaugeClaim":
     case "redeemCollateral":

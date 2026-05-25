@@ -27,6 +27,7 @@ import { useMezoLegPipeline } from "../pipeline/useMezoLegPipeline";
 import { MezoLegTimeline } from "../pipeline/MezoLegTimeline";
 import { AssetInput } from "./AssetInput";
 import { AssetIcon } from "./AssetIcon";
+import { BalanceDeltaPreview } from "./BalanceDeltaPreview";
 
 interface ManageTroveDialogProps {
   open: boolean;
@@ -152,11 +153,29 @@ export function ManageTroveDialog({
     (r) => r.status === "signing" || r.status === "confirming",
   );
 
+  // Reset the pipeline on every fresh open so a stale set of `runs` from a
+  // prior session can't be auto-resumed against the current legs.
+  useEffect(() => {
+    if (open) pipeline.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Fingerprint the current bundle legs. If the user changes inputs after a
+  // partial run, the legs no longer match — reset before executing.
+  const legsFingerprint = useMemo(
+    () => (bundle ? JSON.stringify(bundle.legs, bigintReplacer) : ""),
+    [bundle],
+  );
+
   const onExecute = async () => {
     if (!bundle || !sim.data) return;
     const summaries = sim.data.legs.map((l) => l.decodedSummary);
+    const existingFp = pipeline.runs.length
+      ? JSON.stringify(pipeline.runs.map((r) => r.spec), bigintReplacer)
+      : "";
+    const fpMatches = existingFp === legsFingerprint;
     const hasConfirmedLeg = pipeline.runs.some((r) => r.status === "confirmed");
-    if (pipeline.runs.length === 0 || !hasConfirmedLeg) {
+    if (!fpMatches || pipeline.runs.length === 0 || !hasConfirmedLeg) {
       pipeline.start(bundle.legs, summaries);
     }
     await pipeline.executeAll();
@@ -263,9 +282,12 @@ export function ManageTroveDialog({
           </div>
         )}
         {sim.data && (
-          <div className="rounded-md border border-emerald-500/15 bg-emerald-500/[0.03] px-2.5 py-1.5 text-[11px] text-emerald-200/85">
-            Simulation passed — {sim.data.legs.length} leg{sim.data.legs.length === 1 ? "" : "s"} ready.
-          </div>
+          <BalanceDeltaPreview
+            balances={sim.data.outcome.balances}
+            troveBefore={debtMusd && collateralBtc ? { debt: debtMusd, coll: collateralBtc } : null}
+            troveAfter={sim.data.outcome.trove}
+            legsCount={sim.data.legs.length}
+          />
         )}
 
         {pipeline.runs.length > 0 && (
@@ -294,4 +316,8 @@ export function ManageTroveDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function bigintReplacer(_key: string, value: unknown) {
+  return typeof value === "bigint" ? value.toString() : value;
 }

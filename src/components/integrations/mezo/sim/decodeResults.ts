@@ -263,6 +263,8 @@ function summarizeLeg(leg: MezoLegSpec): string {
       return `Swap ${formatBn(leg.amountIn)} (min out ${formatBn(leg.amountOutMin)})`;
     case "routerAddLiquidity":
       return `Add liquidity to ${leg.stable ? "stable" : "volatile"} pool`;
+    case "routerRemoveLiquidity":
+      return `Remove ${formatBn(leg.liquidity)} LP from ${leg.stable ? "stable" : "volatile"} pool`;
     case "redeemCollateral":
       return `Redeem ${formatBn(leg.musdAmount)} MUSD for BTC`;
     case "veMezoCreateLock": {

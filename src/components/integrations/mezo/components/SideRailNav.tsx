@@ -13,6 +13,9 @@ import { MEZO_ABIS } from "../abi";
 import { MEZO_TESTNET_CHAIN_ID } from "../constants";
 import { MEZO_GLOSSARY, type GlossaryKey } from "../glossary";
 import { ManageTroveDialog } from "./ManageTroveDialog";
+import { ManageLockDialog } from "./ManageLockDialog";
+import { ManageSavingsDialog } from "./ManageSavingsDialog";
+import { ManageLiquidityDialog } from "./ManageLiquidityDialog";
 
 interface SideRailNavProps {
   active: MezoTabId;
@@ -113,12 +116,38 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
   const troveActive = troveData ? troveData[4] === 1 : false; // status === 1 (Active)
   const troveColl = troveData?.[0];
   const trovePrincipal = troveData?.[1];
+  const troveInterestOwed = troveData?.[2];
+  // Liquity-fork Trove debt = principal + interestOwed. closeTrove pulls
+  // (totalDebt - gasComp) from the wallet, so the dialog must size the
+  // approve off the total, not just the principal.
+  const troveTotalDebt =
+    trovePrincipal !== undefined && troveInterestOwed !== undefined
+      ? trovePrincipal + troveInterestOwed
+      : trovePrincipal;
 
   const lockData = veMezoLock.data as { amount: bigint; end: bigint } | undefined;
   const lockAmount = lockData?.amount;
   const lockEnd = lockData?.end;
 
   const [manageOpen, setManageOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
+  const [savingsOpen, setSavingsOpen] = useState(false);
+  const [liquidityOpen, setLiquidityOpen] = useState(false);
+
+  // LP balance for MUSD/BTC pool
+  const lpBalance = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.MUSD_BTC_Pool,
+    abi: MEZO_ABIS.MUSD,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const lpBalanceValue = lpBalance.data as bigint | undefined;
+  const hasLp = lpBalanceValue !== undefined && lpBalanceValue > 0n;
+  const sMusdBalanceValue = sMusd.data as bigint | undefined;
+  const hasSavings = sMusdBalanceValue !== undefined && sMusdBalanceValue > 0n;
+  const hasLock = lockAmount !== undefined && lockAmount > 0n;
 
   return (
     <aside className="flex flex-col gap-1 border-r border-white/[0.05] bg-zinc-950/30 py-3 px-2 text-[12px]">
@@ -208,7 +237,7 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
           aria-label="Manage trove"
         >
           <div>{fmt(troveColl, 18, 6)} BTC</div>
-          <div className="text-zinc-500">{fmt(trovePrincipal, 18, 2)} MUSD debt</div>
+          <div className="text-zinc-500">{fmt(troveTotalDebt, 18, 2)} MUSD debt</div>
           <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
         </button>
       ) : (
@@ -218,24 +247,95 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
       <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
         veMEZO
       </div>
-      {lockAmount && lockAmount > 0n ? (
-        <div className="px-2.5 py-1 text-[11px] text-zinc-300 font-mono leading-tight">
+      {hasLock ? (
+        <button
+          type="button"
+          onClick={() => setLockOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage veMEZO lock"
+        >
           <div>{fmt(lockAmount, 18, 2)} MEZO</div>
           {lockEnd && lockEnd > 0n && (
             <div className="text-zinc-500">
               unlocks {new Date(Number(lockEnd) * 1000).toLocaleDateString()}
             </div>
           )}
-        </div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
       ) : (
         <div className="px-2.5 py-1 text-[11px] text-zinc-500">No lock</div>
+      )}
+
+      <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        sMUSD savings
+      </div>
+      {hasSavings ? (
+        <button
+          type="button"
+          onClick={() => setSavingsOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage sMUSD savings"
+        >
+          <div>{fmt(sMusdBalanceValue, 18, 2)} sMUSD</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSavingsOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-dashed border-white/[0.06] px-1.5 py-1 text-left text-[11px] text-zinc-500 leading-tight transition-colors hover:border-white/15 hover:text-zinc-300"
+        >
+          <div>No deposit</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Deposit →</div>
+        </button>
+      )}
+
+      <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        MUSD/BTC LP
+      </div>
+      {hasLp ? (
+        <button
+          type="button"
+          onClick={() => setLiquidityOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage liquidity"
+        >
+          <div>{fmt(lpBalanceValue, 18, 6)} LP</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setLiquidityOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-dashed border-white/[0.06] px-1.5 py-1 text-left text-[11px] text-zinc-500 leading-tight transition-colors hover:border-white/15 hover:text-zinc-300"
+        >
+          <div>No position</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Add →</div>
+        </button>
       )}
 
       <ManageTroveDialog
         open={manageOpen}
         onOpenChange={setManageOpen}
         collateralBtc={troveColl}
-        debtMusd={trovePrincipal}
+        debtMusd={troveTotalDebt}
+      />
+      <ManageLockDialog
+        open={lockOpen}
+        onOpenChange={setLockOpen}
+        tokenId={veMezoTokenId.data as bigint | undefined}
+        lockedAmount={lockAmount}
+        lockEnd={lockEnd}
+      />
+      <ManageSavingsDialog
+        open={savingsOpen}
+        onOpenChange={setSavingsOpen}
+        sMusdBalance={sMusdBalanceValue}
+      />
+      <ManageLiquidityDialog
+        open={liquidityOpen}
+        onOpenChange={setLiquidityOpen}
+        lpBalance={lpBalanceValue}
       />
     </aside>
   );
