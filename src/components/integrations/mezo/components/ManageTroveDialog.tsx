@@ -11,7 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { MEZO_CONTRACTS } from "../../../../../data/mezoContracts";
+import {
+  MEZO_CONTRACTS,
+  MUSD_GAS_COMPENSATION,
+} from "../../../../../data/mezoContracts";
 import { MEZO_ABIS } from "../abi";
 import { MEZO_TESTNET_CHAIN_ID } from "../constants";
 import {
@@ -174,7 +177,13 @@ export function ManageTroveDialog({
 
   const musdBalanceValue = (musdBalance.data as bigint | undefined) ?? 0n;
   const repayingMore = mode === "adjust" && debtDeltaWei < 0n && -debtDeltaWei > musdBalanceValue;
-  const closeShort = mode === "close" && debtMusd !== undefined && musdBalanceValue < debtMusd;
+  // Liquity model: closeTrove pulls (debt - gas comp) from the user. The 200
+  // MUSD gas comp lives in the protocol's Gas Pool and is burned automatically.
+  const closeRepayAmount =
+    debtMusd !== undefined && debtMusd > MUSD_GAS_COMPENSATION
+      ? debtMusd - MUSD_GAS_COMPENSATION
+      : 0n;
+  const closeShort = mode === "close" && musdBalanceValue < closeRepayAmount;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -232,12 +241,13 @@ export function ManageTroveDialog({
 
         {mode === "close" && (
           <div className="rounded-md border border-rose-500/20 bg-rose-500/[0.04] px-3 py-2.5 text-[12px] text-rose-200/90">
-            Burns the trove, repays {debtText} MUSD from your wallet, returns all collateral
-            ({collText} BTC) plus the 200 MUSD gas-comp refund.
+            Repays {Number(formatUnits(closeRepayAmount, 18)).toFixed(2)} MUSD from your wallet
+            ({debtText} debt − 200 gas comp held by the protocol) and returns {collText} BTC
+            collateral. The 200 MUSD in the Gas Pool is burned on clean close — never your cost.
             {closeShort && (
               <div className="mt-1.5 text-rose-300">
                 Wallet has {Number(formatUnits(musdBalanceValue, 18)).toFixed(2)} MUSD —
-                short by {Number(formatUnits((debtMusd ?? 0n) - musdBalanceValue, 18)).toFixed(2)} MUSD.
+                short by {Number(formatUnits(closeRepayAmount - musdBalanceValue, 18)).toFixed(2)} MUSD.
               </div>
             )}
           </div>

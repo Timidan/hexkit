@@ -1,5 +1,8 @@
 import type { Address } from "viem";
-import { MEZO_CONTRACTS } from "../../../../../../data/mezoContracts";
+import {
+  MEZO_CONTRACTS,
+  MUSD_GAS_COMPENSATION,
+} from "../../../../../../data/mezoContracts";
 import type { MezoLegSpec } from "../../pipeline/mezoLegs";
 import type { ViewCallSpec } from "../types";
 
@@ -102,20 +105,25 @@ export interface BorrowCloseParams {
 }
 
 /**
- * closeTrove bundle. Approves MUSD up to the current debt so
- * BorrowerOperations can pull the repayment, then calls closeTrove which
- * burns the trove, refunds the 200 MUSD gas comp, and returns the BTC.
+ * closeTrove bundle. BorrowerOperations only pulls `debt - GAS_COMP` from
+ * the user (the 200 MUSD gas comp lives in the protocol's Gas Pool and is
+ * burned automatically on clean close — never the user's cost). So we
+ * approve exactly the pull amount, then call closeTrove.
  */
 export function buildBorrowCloseBundle(params: BorrowCloseParams): {
   legs: MezoLegSpec[];
   views: ViewCallSpec[];
 } {
+  const repayAmount =
+    params.debtMusd > MUSD_GAS_COMPENSATION
+      ? params.debtMusd - MUSD_GAS_COMPENSATION
+      : 0n;
   const legs: MezoLegSpec[] = [
     {
       type: "approveErc20",
       token: MEZO_CONTRACTS.MUSD,
       spender: MEZO_CONTRACTS.BorrowerOperations,
-      amount: params.debtMusd,
+      amount: repayAmount,
       tokenLabel: "MUSD",
     },
     { type: "closeTrove" },
