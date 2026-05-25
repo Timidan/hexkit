@@ -151,8 +151,24 @@ export function encodeWrite(account: Address, leg: MezoLegSpec): SimCall {
       };
     }
 
-    case "repayMUSD":
-    case "closeTrove":
+    case "repayMUSD": {
+      const input = encodeFunctionData({
+        abi: MEZO_ABIS.BorrowerOperations,
+        functionName: "repayMUSD",
+        args: [leg.amount, leg.upperHint, leg.lowerHint],
+      });
+      return { from: account, to: MEZO_CONTRACTS.BorrowerOperations, input };
+    }
+
+    case "closeTrove": {
+      const input = encodeFunctionData({
+        abi: MEZO_ABIS.BorrowerOperations,
+        functionName: "closeTrove",
+        args: [],
+      });
+      return { from: account, to: MEZO_CONTRACTS.BorrowerOperations, input };
+    }
+
     case "sMusdWithdraw":
     case "gaugeWithdraw":
     case "gaugeClaim":
