@@ -143,7 +143,25 @@ export async function executeLeg(
       });
 
     case "repayMUSD":
+      return writeContract(config, {
+        chainId: MEZO_TESTNET_CHAIN_ID,
+        address: MEZO_CONTRACTS.BorrowerOperations,
+        abi: MEZO_ABIS.BorrowerOperations,
+        functionName: "repayMUSD",
+        args: [leg.amount, leg.upperHint, leg.lowerHint],
+        account,
+      });
+
     case "closeTrove":
+      return writeContract(config, {
+        chainId: MEZO_TESTNET_CHAIN_ID,
+        address: MEZO_CONTRACTS.BorrowerOperations,
+        abi: MEZO_ABIS.BorrowerOperations,
+        functionName: "closeTrove",
+        args: [],
+        account,
+      });
+
     case "sMusdWithdraw":
     case "gaugeWithdraw":
     case "gaugeClaim":

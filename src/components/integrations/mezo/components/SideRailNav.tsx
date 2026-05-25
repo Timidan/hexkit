@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import {
@@ -11,6 +12,7 @@ import { MEZO_CONTRACTS } from "../../../../../data/mezoContracts";
 import { MEZO_ABIS } from "../abi";
 import { MEZO_TESTNET_CHAIN_ID } from "../constants";
 import { MEZO_GLOSSARY, type GlossaryKey } from "../glossary";
+import { ManageTroveDialog } from "./ManageTroveDialog";
 
 interface SideRailNavProps {
   active: MezoTabId;
@@ -116,6 +118,8 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
   const lockAmount = lockData?.amount;
   const lockEnd = lockData?.end;
 
+  const [manageOpen, setManageOpen] = useState(false);
+
   return (
     <aside className="flex flex-col gap-1 border-r border-white/[0.05] bg-zinc-950/30 py-3 px-2 text-[12px]">
       <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
@@ -197,10 +201,16 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
         Trove
       </div>
       {troveActive ? (
-        <div className="px-2.5 py-1 text-[11px] text-zinc-300 font-mono leading-tight">
+        <button
+          type="button"
+          onClick={() => setManageOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage trove"
+        >
           <div>{fmt(troveColl, 18, 6)} BTC</div>
           <div className="text-zinc-500">{fmt(trovePrincipal, 18, 2)} MUSD debt</div>
-        </div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
       ) : (
         <div className="px-2.5 py-1 text-[11px] text-zinc-500">No trove yet</div>
       )}
@@ -220,6 +230,13 @@ export function SideRailNav({ active, onChange }: SideRailNavProps) {
       ) : (
         <div className="px-2.5 py-1 text-[11px] text-zinc-500">No lock</div>
       )}
+
+      <ManageTroveDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        collateralBtc={troveColl}
+        debtMusd={trovePrincipal}
+      />
     </aside>
   );
 }
