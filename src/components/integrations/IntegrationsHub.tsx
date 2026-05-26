@@ -11,6 +11,13 @@ const SparkleShowcase = React.lazy(
 
 const IntegrationsHub: React.FC = () => {
   const { pathname } = useLocation();
+
+  // PersistentTools keeps this component mounted (within a TTL) after the user
+  // navigates to a different top-level tool. Bail before the redirect check
+  // so we don't bounce the user back to /integrations/lifi-earn from /database
+  // (or any other route) just because they once visited Integrations.
+  if (!pathname.startsWith("/integrations")) return null;
+
   const segment = pathname.replace(/^\/integrations\/?/, "").split("/")[0] || "";
 
   // Default: redirect bare /integrations to /integrations/lifi-earn
