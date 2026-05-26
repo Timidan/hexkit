@@ -174,19 +174,37 @@ async function scanSingleChain(args: {
     args: [address] as const,
   }));
 
+  // Multicall in chunks. Chains with many underlyings (Base has ~300) blow
+  // past public-RPC per-eth_call gas limits when aggregate3 fans out in a
+  // single request: the call returns ALL-failure rather than throwing, so
+  // every ERC-20 balance silently drops out (native getBalance still works,
+  // which is why ETH on Base would show but USDC wouldn't). Chunking caps
+  // each multicall at ~50 sub-calls and fans the chunks out in parallel.
+  const MULTICALL_CHUNK = 50;
+  async function multicallChunked(): Promise<any[]> {
+    if (multicallCalls.length === 0) return [];
+    const chunks: (typeof multicallCalls)[] = [];
+    for (let i = 0; i < multicallCalls.length; i += MULTICALL_CHUNK) {
+      chunks.push(multicallCalls.slice(i, i + MULTICALL_CHUNK));
+    }
+    const chunkResults = await Promise.all(
+      chunks.map((chunk) =>
+        client
+          .multicall({
+            contracts: chunk,
+            allowFailure: true,
+            multicallAddress: MULTICALL3_ADDRESS,
+          })
+          .catch(() => chunk.map(() => ({ status: "failure" as const }))),
+      ),
+    );
+    return chunkResults.flat();
+  }
+
   // Always fetch native balance — the user may hold native tokens on chains
   // where no vault explicitly lists the native sentinel as an underlying.
   const [erc20Results, nativeBalance] = await Promise.all([
-    multicallCalls.length > 0
-      ? withTimeout(
-          client.multicall({
-            contracts: multicallCalls,
-            allowFailure: true,
-            multicallAddress: MULTICALL3_ADDRESS,
-          }),
-          timeoutMs
-        )
-      : Promise.resolve([] as any[]),
+    withTimeout(multicallChunked(), timeoutMs * 2),
     withTimeout(client.getBalance({ address }), timeoutMs),
   ]);
 
