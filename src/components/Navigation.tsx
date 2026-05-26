@@ -94,9 +94,13 @@ function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): str
   ) {
     return "simulation";
   }
-  // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn)
+  // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn).
+  // Return null when URL has no segment yet so handleSubTabClick doesn't
+  // falsely short-circuit on the first subtab and leave the user on a blank
+  // parent route (e.g. /integrations with no body).
   if (tool.subTabs[0]?.paramKey === "route") {
     const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+    if (!segment) return null;
     for (const sub of tool.subTabs) {
       if (sub.id === segment) return sub.id;
     }
