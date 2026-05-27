@@ -113,10 +113,13 @@ export default async function handler(
       return res.status(403).json({ error: "Forbidden" });
     }
   } else {
-    // Without PROXY_SECRET we require a known Origin — rejecting missing-Origin
-    // requests (curl, server-to-server) keeps the public endpoint scrape-resistant.
-    if (!allowedOrigin || !req.headers.origin) {
-      return res.status(403).json({ error: "Origin required" });
+    // No PROXY_SECRET: allow same-origin requests (browser omits Origin on
+    // many same-origin fetches, especially GETs to `/routes`, `/orders/status`,
+    // `/chains/supported`) and requests with a matching Origin. Mirrors the
+    // lifi-composer proxy contract — see api/lifi-composer.ts.
+    const origin = req.headers.origin;
+    if (origin && !allowedOrigin) {
+      return res.status(403).json({ error: "Origin not allowed" });
     }
   }
 

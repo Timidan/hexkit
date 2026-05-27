@@ -135,11 +135,18 @@ export async function safeApproveErc20(args: {
       to: token,
       data: resetData,
     });
-    await wagmiWaitForReceipt(wagmiConfig, {
+    const resetReceipt = await wagmiWaitForReceipt(wagmiConfig, {
       hash: resetHash,
       chainId,
       timeout: timeoutMs,
     });
+    // wagmi's waitForTransactionReceipt resolves even on reverted txs — without
+    // this check the helper would silently proceed and the next approve would
+    // hit a still-nonzero allowance (USDT pattern) or the caller would open()
+    // expecting an allowance that was never granted.
+    if (resetReceipt.status === "reverted") {
+      throw new Error(`approve(0) reverted: ${resetHash}`);
+    }
   }
 
   const approveData = encodeFunctionData({
@@ -151,9 +158,12 @@ export async function safeApproveErc20(args: {
     to: token,
     data: approveData,
   });
-  await wagmiWaitForReceipt(wagmiConfig, {
+  const receipt = await wagmiWaitForReceipt(wagmiConfig, {
     hash,
     chainId,
     timeout: timeoutMs,
   });
+  if (receipt.status === "reverted") {
+    throw new Error(`approve(${amount}) reverted: ${hash}`);
+  }
 }
