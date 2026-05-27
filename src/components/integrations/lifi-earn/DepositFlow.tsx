@@ -1424,7 +1424,7 @@ export function DepositFlow({
                 {crossChainHoldings.length > 0 && (
                   <>
                     <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                      Bridge via LI.FI Intent
+                      Bridge via Composer or LI.FI Intent
                     </div>
                     {crossChainHoldings.map((t) => {
                       const available = isIntentRouteAvailable(t);
