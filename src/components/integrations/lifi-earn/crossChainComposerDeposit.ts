@@ -95,10 +95,12 @@ export type CrossChainDepositState =
   | {
       phase: "bridge-settled";
       bridgeTxHash: string;
+      // Always the on-chain delta (post − pre) snapshotted around the bridge
+      // tx, never the bridge-quote toAmountMin. If the post-bridge balance
+      // read fails, we surface "failed" with `failedAfterBridge` instead of
+      // optimistically emitting bridge-settled with a fabricated amount —
+      // depositing unrelated pre-existing destination funds is the bug.
       destinationAmountRaw: string;
-      // If the destination amount is zero or unreadable, callers can still
-      // attempt the deposit step with the bridge-quoted toAmountMin as a
-      // fallback. We expose both so the UI can warn.
       destinationToken: EarnToken;
     }
   | {
@@ -212,7 +214,11 @@ async function readBalance(
   chainId: number,
 ): Promise<ethers.BigNumber> {
   const provider = chainRpcProvider(chainId);
-  if (!provider) return ethers.BigNumber.from(0);
+  if (!provider) {
+    // CRITICAL: never return 0 silently. Callers compute `post - pre` deltas
+    // and a phantom-zero pre-balance would silently deposit unrelated funds.
+    throw new Error(`No RPC provider available for chain ${chainId}`);
+  }
   if (isNativeToken(tokenAddress)) return provider.getBalance(owner);
   const erc20 = new ethers.Contract(tokenAddress, ERC20_READ_ABI, provider);
   return erc20.balanceOf(owner);
@@ -367,10 +373,12 @@ export async function executeCrossChainComposerDeposit(
 
   // Helper: build a "failed" state with the right recoverability flag.
   // `failedAfterBridge` means "the bridge tx already landed" — funds may be
-  // on the destination chain. Only `bridgeTxHash` matters; we used to also
-  // require `destinationAmountRaw`, but post-bridge balance-read failures
-  // happen BEFORE we can assign that, and they're still recoverable (user
-  // can retry the deposit step once the RPC catches up).
+  // on the destination chain. Recovery via the resume path additionally
+  // requires `destinationAmountRaw` to be set (see the else-branch below at
+  // ~L595): without a known bridged amount we refuse to deposit, since the
+  // live balance may include unrelated pre-existing funds. So the failure is
+  // surfaced with both fields when known, but `bridgeTxHash` alone is enough
+  // to mark the failure post-bridge for UI labeling purposes.
   const fail = (err: unknown): never => {
     const msg = formatTxError(err);
     onStateChange({
@@ -571,7 +579,12 @@ export async function executeCrossChainComposerDeposit(
       ));
       return;
     }
-    const delta = postBridgeDestBalance.sub(preBridgeDestBalance);
+    // Compare before subtracting: ethers BigNumber.sub on (post < pre) returns
+    // a negative value that `lte(0)` would catch, but defensive clamping makes
+    // the intent explicit and survives any version of the underlying math lib.
+    const delta = postBridgeDestBalance.gt(preBridgeDestBalance)
+      ? postBridgeDestBalance.sub(preBridgeDestBalance)
+      : ethers.BigNumber.from(0);
     if (delta.lte(0)) {
       fail(new Error(
         "Bridge settled but destination balance hasn't increased yet (RPC lag). Wait a moment and retry the deposit step.",
@@ -587,13 +600,23 @@ export async function executeCrossChainComposerDeposit(
       destinationToken: destinationUnderlying,
     });
   } else {
-    // Resuming after a post-bridge failure. Trust on-chain reality, not the
-    // stored destinationAmountRaw — the user may have spent / received more
-    // of the destination token, or the original delta may have been 0 due to
-    // RPC lag at first read. Re-read and treat the live balance as the
-    // depositable amount (capped at "what arrived" by reading the bridge
-    // status's `receiving.amount` when available, so we don't grab unrelated
-    // pre-existing balance).
+    // Resuming after a post-bridge failure. We must NEVER deposit the live
+    // balance directly — that would grab any unrelated destination-chain
+    // funds the user already held. Require a known bridged amount; cap at
+    // min(live, original) so a user who moved some funds out still resumes
+    // safely.
+    let originalBridged: ethers.BigNumber;
+    try {
+      originalBridged = ethers.BigNumber.from(destinationAmountRaw ?? "0");
+    } catch {
+      originalBridged = ethers.BigNumber.from(0);
+    }
+    if (originalBridged.lte(0)) {
+      fail(new Error(
+        "Can't determine how much was originally bridged — refusing to deposit live balance which may include unrelated funds. Start a fresh deposit instead of resuming.",
+      ));
+      return;
+    }
     let liveBalance: ethers.BigNumber;
     try {
       liveBalance = await readBalance(
@@ -609,19 +632,7 @@ export async function executeCrossChainComposerDeposit(
       fail(new Error("Destination balance is zero. Bridge may still be settling, or funds were already deposited."));
       return;
     }
-    // Cap retry amount at the originally-bridged amount when known. If the
-    // stored value is "0" (the old broken case), fall back to the live
-    // balance — risky but only reachable from a recoverable-fail state the
-    // user explicitly retried.
-    let chosen = liveBalance;
-    try {
-      const original = ethers.BigNumber.from(destinationAmountRaw ?? "0");
-      if (original.gt(0) && liveBalance.gte(original)) {
-        chosen = original;
-      }
-    } catch {
-      /* keep liveBalance */
-    }
+    const chosen = liveBalance.gte(originalBridged) ? originalBridged : liveBalance;
     destinationAmountRaw = chosen.toString();
 
     onStateChange({

@@ -299,11 +299,17 @@ export function WithdrawIntentRouteStep({
         to: INPUT_SETTLER_ESCROW,
         data,
       });
-      await wagmiWaitForReceipt(config, {
+      const receipt = await wagmiWaitForReceipt(config, {
         hash,
         chainId: sourceChainId,
         timeout: 120_000,
       });
+      // wagmiWaitForReceipt resolves on reverted txs — without this check the
+      // withdraw flow would offer "Keep underlying" while the escrow is still
+      // open.
+      if (receipt.status === "reverted") {
+        throw new Error(`refund() reverted: ${hash}`);
+      }
       setStage("refunded");
       onRefunded?.();
     } catch (err) {

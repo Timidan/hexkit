@@ -381,11 +381,17 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
           to: INPUT_SETTLER_ESCROW,
           data,
         });
-        await wagmiWaitForReceipt(config, {
+        const receipt = await wagmiWaitForReceipt(config, {
           hash,
           chainId,
           timeout: 120_000,
         });
+        // wagmiWaitForReceipt resolves on reverted txs — without this check
+        // the rebalance plan would mark the leg refunded even though the
+        // escrow is still open.
+        if (receipt.status === "reverted") {
+          throw new Error(`refund() reverted: ${hash}`);
+        }
         patch(id, { status: "refunded", refundTxHash: hash });
       } catch (err) {
         patch(id, {
@@ -430,132 +436,141 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
         return;
       }
       depositInFlight.current.add(id);
+      // Outer try/finally covers EVERY exit path below — including the silent
+      // early returns during balance-delta validation (`predeliveryBalance`
+      // missing, zero delta, post-balance read failure, etc). Without it,
+      // those returns leave the lock set forever and depositInFlight.size>0
+      // permanently blocks all future deposit attempts (the global gate at
+      // the top of this callback).
+      try {
+        const chainId = current.spec.destination.chainId;
+        const outputToken = current.spec.destination.outputToken;
+        const vault = current.spec.destination.vault;
+        const recipient = current.spec.destination.recipient;
 
-      const chainId = current.spec.destination.chainId;
-      const outputToken = current.spec.destination.outputToken;
-      const vault = current.spec.destination.vault;
-      const recipient = current.spec.destination.recipient;
-
-      // Re-read the post-delivery balance now in case the user fired this
-      // before `markLegDelivered` landed. CRITICAL: never fall back to
-      // quote preview or `post` (without delta) — that risks depositing
-      // pre-existing balance the user holds on the destination chain.
-      let amount = current.deliveredAmount;
-      if (amount === undefined || amount === 0n) {
-        if (current.predeliveryBalance === undefined) {
-          patch(id, {
-            status: "deposit-failed",
-            depositError:
-              "Pre-delivery balance was never captured — open the vault drawer to deposit manually.",
-          });
-          return;
-        }
-        try {
-          const post = (await wagmiReadContract(config, {
-            address: outputToken,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [recipient],
-            chainId,
-          })) as bigint;
-          const delta = post > current.predeliveryBalance
-            ? post - current.predeliveryBalance
-            : 0n;
-          if (delta === 0n) {
+        // Re-read the post-delivery balance now in case the user fired this
+        // before `markLegDelivered` landed. CRITICAL: never fall back to
+        // quote preview or `post` (without delta) — that risks depositing
+        // pre-existing balance the user holds on the destination chain.
+        let amount = current.deliveredAmount;
+        if (amount === undefined || amount === 0n) {
+          if (current.predeliveryBalance === undefined) {
             patch(id, {
               status: "deposit-failed",
               depositError:
-                "Solver fill not yet visible on-chain (RPC may be lagging). Retry in a moment.",
+                "Pre-delivery balance was never captured — open the vault drawer to deposit manually.",
             });
             return;
           }
-          amount = delta;
-        } catch {
+          try {
+            const post = (await wagmiReadContract(config, {
+              address: outputToken,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [recipient],
+              chainId,
+            })) as bigint;
+            const delta = post > current.predeliveryBalance
+              ? post - current.predeliveryBalance
+              : 0n;
+            if (delta === 0n) {
+              patch(id, {
+                status: "deposit-failed",
+                depositError:
+                  "Solver fill not yet visible on-chain (RPC may be lagging). Retry in a moment.",
+              });
+              return;
+            }
+            amount = delta;
+          } catch {
+            patch(id, {
+              status: "deposit-failed",
+              depositError:
+                "Couldn't read destination balance after delivery — retry the deposit step.",
+            });
+            return;
+          }
+        }
+
+        if (!amount || amount === 0n) {
           patch(id, {
             status: "deposit-failed",
             depositError:
-              "Couldn't read destination balance after delivery — retry the deposit step.",
+              "Delivered amount not yet visible on-chain — wait and retry.",
           });
           return;
         }
-      }
 
-      if (!amount || amount === 0n) {
-        patch(id, {
-          status: "deposit-failed",
-          depositError:
-            "Delivered amount not yet visible on-chain — wait and retry.",
-        });
-        return;
-      }
+        try {
+          patch(id, { status: "deposit-quoting", depositError: undefined });
 
-      try {
-        patch(id, { status: "deposit-quoting", depositError: undefined });
+          const composer = await fetchComposerQuote({
+            fromChain: chainId,
+            toChain: chainId,
+            fromToken: outputToken,
+            toToken: vault.address,
+            fromAddress: recipient,
+            toAddress: recipient,
+            fromAmount: amount.toString(),
+            underlyingSymbols: current.spec.destination.outputSymbol
+              ? [current.spec.destination.outputSymbol]
+              : undefined,
+          });
 
-        const composer = await fetchComposerQuote({
-          fromChain: chainId,
-          toChain: chainId,
-          fromToken: outputToken,
-          toToken: vault.address,
-          fromAddress: recipient,
-          toAddress: recipient,
-          fromAmount: amount.toString(),
-          underlyingSymbols: current.spec.destination.outputSymbol
-            ? [current.spec.destination.outputSymbol]
-            : undefined,
-        });
+          const currentChain = wagmiGetAccount(config).chainId;
+          if (currentChain !== chainId) {
+            await wagmiSwitchChain(config, { chainId });
+          }
+          const walletClient = await getWagmiWalletClient(config, { chainId });
+          if (!walletClient) {
+            throw new Error("No wallet client for destination chain");
+          }
 
-        const currentChain = wagmiGetAccount(config).chainId;
-        if (currentChain !== chainId) {
-          await wagmiSwitchChain(config, { chainId });
+          const spender = composer.estimate.approvalAddress as Address;
+          patch(id, { status: "deposit-approving" });
+          await safeApproveErc20({
+            wagmiConfig: config,
+            walletClient,
+            token: outputToken,
+            spender,
+            amount,
+            owner: recipient,
+            chainId,
+          });
+
+          patch(id, { status: "deposit-signing" });
+          const depositHash = await walletClient.sendTransaction({
+            to: composer.transactionRequest.to as Address,
+            data: composer.transactionRequest.data as Hex,
+            value: composer.transactionRequest.value
+              ? BigInt(composer.transactionRequest.value)
+              : undefined,
+            gas: composer.transactionRequest.gasLimit
+              ? BigInt(composer.transactionRequest.gasLimit)
+              : undefined,
+          });
+          const receipt = await wagmiWaitForReceipt(config, {
+            hash: depositHash,
+            chainId,
+            timeout: 120_000,
+          });
+          if (receipt.status === "reverted") {
+            throw new Error("Deposit transaction reverted on-chain");
+          }
+          patch(id, {
+            status: "deposit-done",
+            depositTxHash: depositHash,
+            deliveredAmount: amount,
+          });
+        } catch (err) {
+          patch(id, {
+            status: "deposit-failed",
+            depositError: err instanceof Error ? err.message : String(err),
+          });
         }
-        const walletClient = await getWagmiWalletClient(config, { chainId });
-        if (!walletClient) {
-          throw new Error("No wallet client for destination chain");
-        }
-
-        const spender = composer.estimate.approvalAddress as Address;
-        patch(id, { status: "deposit-approving" });
-        await safeApproveErc20({
-          wagmiConfig: config,
-          walletClient,
-          token: outputToken,
-          spender,
-          amount,
-          owner: recipient,
-          chainId,
-        });
-
-        patch(id, { status: "deposit-signing" });
-        const depositHash = await walletClient.sendTransaction({
-          to: composer.transactionRequest.to as Address,
-          data: composer.transactionRequest.data as Hex,
-          value: composer.transactionRequest.value
-            ? BigInt(composer.transactionRequest.value)
-            : undefined,
-          gas: composer.transactionRequest.gasLimit
-            ? BigInt(composer.transactionRequest.gasLimit)
-            : undefined,
-        });
-        const receipt = await wagmiWaitForReceipt(config, {
-          hash: depositHash,
-          chainId,
-          timeout: 120_000,
-        });
-        if (receipt.status === "reverted") {
-          throw new Error("Deposit transaction reverted on-chain");
-        }
-        patch(id, {
-          status: "deposit-done",
-          depositTxHash: depositHash,
-          deliveredAmount: amount,
-        });
-      } catch (err) {
-        patch(id, {
-          status: "deposit-failed",
-          depositError: err instanceof Error ? err.message : String(err),
-        });
       } finally {
+        // Outer finally: releases the global in-flight lock for every code
+        // path above (validation early returns AND the deposit try/catch).
         depositInFlight.current.delete(id);
       }
     },

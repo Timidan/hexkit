@@ -380,11 +380,17 @@ export function IntentBridgeStep({
         to: INPUT_SETTLER_ESCROW,
         data,
       });
-      await wagmiWaitForReceipt(config, {
+      const receipt = await wagmiWaitForReceipt(config, {
         hash,
         chainId: sourceChainId,
         timeout: 120_000,
       });
+      // wagmiWaitForReceipt resolves on reverted txs — without this check the
+      // UI would advance to "refunded" even though the funds are still
+      // escrowed on-chain.
+      if (receipt.status === "reverted") {
+        throw new Error(`refund() reverted: ${hash}`);
+      }
       setStage("refunded");
       // ONLY emit the intent-status — the reducer maps "Refunded" to the
       // terminal-good "refunded" leg status. Emitting a separate `failed`

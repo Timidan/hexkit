@@ -258,7 +258,11 @@ function LegRow({
         })) as bigint;
         if (cancelled) return;
         const pre = run.predeliveryBalance ?? 0n;
-        const delta = post > pre ? post - pre : post;
+        // CRITICAL: never fall back to `post` — that would deposit the user's
+        // entire destination balance, including unrelated pre-existing funds.
+        // If post <= pre, treat the delivery as not-yet-detected and let the
+        // deposit click re-read on its own.
+        const delta = post > pre ? post - pre : 0n;
         if (delta > 0n) onMarkDelivered(spec.id, delta);
       } catch {
         // Best-effort. The deposit handler will re-read balance on click.
