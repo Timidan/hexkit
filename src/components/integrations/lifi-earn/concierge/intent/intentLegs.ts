@@ -51,13 +51,16 @@ export interface RoutesIndex {
   isEmpty: boolean;
 }
 
-// Distinguishes two states that the previous version conflated:
-//   - `undefined`  → fetch hasn't completed / errored; we don't know coverage,
-//     so optimistically allow legs (caller may surface "coverage unknown").
-//   - `[]`         → the upstream genuinely reports no active routes; mark
-//     everything unroutable so users see honest "no route" reasons.
+// Treat both `undefined` (fetch hasn't resolved) AND `[]` (resolved empty
+// — either a transient cache state or a genuinely empty upstream response)
+// as "coverage unknown" and optimistically allow every leg. The earlier
+// stricter "`[]` means definitely empty" semantics caused the deposit-flow
+// picker to disable every cross-chain source for ~200ms during the brief
+// window where React Query had cached an empty result before the populated
+// fetch completed. The downstream "No quote available" panel in
+// `IntentBridgeStep` is the authoritative runtime gate.
 export function buildRoutesIndex(routes: IntentRoute[] | undefined): RoutesIndex {
-  if (routes === undefined) {
+  if (routes === undefined || routes.length === 0) {
     return { isEmpty: true, has: () => true };
   }
   const set = new Set<string>();

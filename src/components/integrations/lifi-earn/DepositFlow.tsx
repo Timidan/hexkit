@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useAccount, useConfig, useSwitchChain } from "wagmi";
 import {
   getWalletClient as getWagmiWalletClient,
@@ -39,6 +39,9 @@ import {
   executeCrossChainComposerDeposit,
   type CrossChainDepositState,
 } from "./crossChainComposerDeposit";
+import { fetchIntentRoutes } from "./intentsApi";
+import { buildRoutesIndex } from "./concierge/intent/intentLegs";
+import { useQuery } from "@tanstack/react-query";
 import { getAccount as wagmiGetAccount } from "@wagmi/core";
 import type { Address } from "viem";
 import type { DepositExecutionEvent } from "./concierge/types";
@@ -251,6 +254,39 @@ export function DepositFlow({
     return [...underlyingTokens, ...extras];
   }, [underlyingTokens, vault.chainId]);
 
+  // LI.FI Intent routes — same queryKey as IntentPanel so React Query shares
+  // the cache automatically. While the request is pending, `buildRoutesIndex`
+  // returns an optimistic index (`has()` always true) so cross-chain sources
+  // don't false-negative during initial load. After resolution, sources whose
+  // (srcChain, srcAddr → vault.chainId, vault.underlyingTokens[0]) tuple is
+  // missing from the registry render as disabled in the picker.
+  const intentRoutesQuery = useQuery({
+    queryKey: ["lifi-intent-routes"],
+    queryFn: fetchIntentRoutes,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const routesIndex = useMemo(
+    () => buildRoutesIndex(intentRoutesQuery.data?.routes),
+    [intentRoutesQuery.data],
+  );
+  // `intentRoutesKnown` flags that the query has produced a response (even
+  // an empty one). Used by the selection guard so we don't reset the user's
+  // current pick until we've actually heard back from the routes endpoint.
+  // `routesIndex.isEmpty` is true during BOTH the initial `undefined` state
+  // and a resolved-but-empty `[]` response (per buildRoutesIndex's optimistic
+  // semantics), so it can't be used alone for guard sequencing.
+  const intentRoutesKnown = intentRoutesQuery.data?.routes !== undefined;
+  const destIntentUnderlying = vault.underlyingTokens?.[0]?.address;
+  const isIntentRouteAvailable = useCallback(
+    (t: EarnToken): boolean => {
+      if (!destIntentUnderlying) return false;
+      const srcChain = t.chainId ?? vault.chainId;
+      return routesIndex.has(srcChain, t.address, vault.chainId, destIntentUnderlying);
+    },
+    [routesIndex, destIntentUnderlying, vault.chainId],
+  );
+
   const tokens = useMemo(
     () => [...sameChainTokens, ...crossChainHoldings],
     [sameChainTokens, crossChainHoldings],
@@ -312,6 +348,34 @@ export function DepositFlow({
   useEffect(() => {
     setUseIntents(isCrossChain);
   }, [isCrossChain]);
+
+  // Selection guard: while routes are loading, every cross-chain source looks
+  // available (optimistic). Once the registry resolves and reveals a missing
+  // route, bounce the user back to a safe DIRECT source so they don't sit on
+  // a disabled item with a quote that's about to fail. Skip when override is
+  // active (caller is forcing the token) and while we don't yet have route
+  // data (still in the optimistic-no-data state).
+  useEffect(() => {
+    if (override) return;
+    if (intentRoutesQuery.isLoading || intentRoutesQuery.isPending) return;
+    if (!intentRoutesKnown) return;
+    if (!selectedToken) return;
+    const srcChain = selectedToken.chainId ?? vault.chainId;
+    if (srcChain === vault.chainId) return;
+    if (isIntentRouteAvailable(selectedToken)) return;
+    setSelectedToken(firstToken);
+    setAmount("");
+    setSimResult(null);
+  }, [
+    intentRoutesQuery.isLoading,
+    intentRoutesQuery.isPending,
+    intentRoutesKnown,
+    isIntentRouteAvailable,
+    firstToken,
+    selectedToken,
+    vault.chainId,
+    override,
+  ]);
 
   // Reset state when vault/override changes so reopening the drawer for a
   // different vault doesn't leak stale state.
@@ -1362,15 +1426,24 @@ export function DepositFlow({
                     <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
                       Bridge via LI.FI Intent
                     </div>
-                    {crossChainHoldings.map((t) => (
-                      <SelectItem key={tokenKey(t)} value={tokenKey(t)}>
-                        <TokenSelectRow
-                          token={t}
-                          chainId={t.chainId ?? vault.chainId}
-                          ownerAddress={address ?? null}
-                        />
-                      </SelectItem>
-                    ))}
+                    {crossChainHoldings.map((t) => {
+                      const available = isIntentRouteAvailable(t);
+                      return (
+                        <SelectItem
+                          key={tokenKey(t)}
+                          value={tokenKey(t)}
+                          disabled={!available}
+                          className={!available ? "opacity-50" : undefined}
+                        >
+                          <TokenSelectRow
+                            token={t}
+                            chainId={t.chainId ?? vault.chainId}
+                            ownerAddress={address ?? null}
+                            trailing={!available ? "no Intent route" : undefined}
+                          />
+                        </SelectItem>
+                      );
+                    })}
                   </>
                 )}
               </SelectContent>
@@ -2415,10 +2488,16 @@ function TokenSelectRow({
   token,
   chainId,
   ownerAddress,
+  trailing,
 }: {
   token: EarnToken;
   chainId: number;
   ownerAddress: string | null;
+  /** Optional muted suffix rendered after the balance (e.g. "no Intent route"
+   *  when the option is disabled). Radix `data-[disabled]:pointer-events-none`
+   *  swallows hover events on disabled SelectItems, so tooltips no-op there —
+   *  this is the inline alternative. */
+  trailing?: string;
 }) {
   const { data: rawBalance } = useTokenBalance({
     tokenAddress: token.address,
@@ -2459,6 +2538,12 @@ function TokenSelectRow({
       </span>
       {displayBal && (
         <span className="text-[10px] text-muted-foreground">{displayBal}</span>
+      )}
+      {trailing && (
+        <span className="text-[10px] text-muted-foreground/60">
+          <span aria-hidden="true">· </span>
+          {trailing}
+        </span>
       )}
     </span>
   );
