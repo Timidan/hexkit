@@ -196,7 +196,17 @@ export default defineConfig(({ mode }) => {
       watch: {
         usePolling: false,
         interval: 100,
-        ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/dist/**",
+          // edb submodule has a 15GB Rust target/ dir; watching it instantly
+          // blows the inotify per-process instance cap on Linux.
+          "**/edb/**",
+          "**/starknet-sim/**",
+          "**/.claude/**",
+          "**/.vercel/**",
+        ],
       },
       proxy: {
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
