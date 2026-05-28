@@ -19,7 +19,6 @@ import type { DecodedSlotField } from '../../../types/debug';
 
 interface PackingVisualizerProps {
   fields: DecodedSlotField[];
-  rawHex?: string;
 }
 
 /** Color palette for Solidity types */
@@ -50,7 +49,7 @@ interface ByteSegment {
   isGap: boolean;
 }
 
-const PackingVisualizer: React.FC<PackingVisualizerProps> = ({ fields, rawHex }) => {
+const PackingVisualizer: React.FC<PackingVisualizerProps> = ({ fields }) => {
   /** Build segments for the 32-byte lane */
   const segments = useMemo((): ByteSegment[] => {
     if (fields.length === 0) return [];

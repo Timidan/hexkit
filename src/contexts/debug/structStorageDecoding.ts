@@ -481,7 +481,7 @@ export async function fillUnreadFieldsFromStorage(
         }
 
         const elementType = child.type.replace('[]', '');
-        const elementSize = elementType === 'address' ? 1 : 1;
+        const elementSize = 1;
         const arrayChildren: DebugVariable[] = [];
         const readBatchSize = 8;
         for (let start = 0; start < maxElements; start += readBatchSize) {

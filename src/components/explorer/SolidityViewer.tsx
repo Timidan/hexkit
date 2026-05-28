@@ -26,14 +26,8 @@ export interface SolidityViewerProps {
   selectedFile: string | null;
   /** Callback when file selection changes */
   onFileSelect?: (path: string) => void;
-  /** Optional: Highlight specific line (1-indexed) */
-  highlightLine?: number;
-  /** Optional: Scroll to line on mount/change */
-  scrollToLine?: number;
   /** Optional: Show/hide the built-in file tree sidebar */
   showFileTree?: boolean;
-  /** Optional: Custom theme */
-  theme?: 'vs-dark' | 'vs-light' | 'hc-black';
   /** Optional: Additional CSS class */
   className?: string;
   /** Optional: Height (default: 100%) */
@@ -44,15 +38,11 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
   files,
   selectedFile,
   onFileSelect,
-  highlightLine,
-  scrollToLine,
   showFileTree = true,
-  theme = 'vs-dark',
   className,
   height = '100%',
 }) => {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const decorationsRef = useRef<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Force Monaco to remount when container becomes visible after display:none toggle.
@@ -116,32 +106,6 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
     setupSolidityMonaco(monaco);
   }, []);
 
-  useEffect(() => {
-    if (!editorRef.current || !highlightLine) return;
-
-    const editor = editorRef.current;
-    const monaco = (window as { monaco?: typeof import('monaco-editor') }).monaco;
-    if (!monaco) return;
-
-    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
-    decorationsRef.current = editor.deltaDecorations([], [
-      {
-        range: new monaco.Range(highlightLine, 1, highlightLine, 1),
-        options: {
-          isWholeLine: true,
-          className: 'highlighted-line',
-          linesDecorationsClassName: 'highlighted-line-gutter',
-        },
-      },
-    ]);
-  }, [highlightLine, currentContent]);
-
-  useEffect(() => {
-    if (!editorRef.current || !scrollToLine) return;
-
-    editorRef.current.revealLineInCenter(scrollToLine);
-  }, [scrollToLine, currentContent]);
-
   const handleFileSelect = useCallback(
     (path: string) => {
       onFileSelect?.(path);
@@ -155,7 +119,7 @@ export const SolidityViewer: React.FC<SolidityViewerProps> = ({
       height={height}
       language={getLanguageFromPath(selectedFile)}
       value={currentContent}
-      theme={theme === 'vs-dark' ? SOLIDITY_THEME_NAME : theme}
+      theme={SOLIDITY_THEME_NAME}
       options={SOLIDITY_EDITOR_OPTIONS}
       onMount={handleEditorMount}
       loading={

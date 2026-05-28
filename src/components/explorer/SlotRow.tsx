@@ -239,7 +239,7 @@ const InlineInspector: React.FC<InlineInspectorProps> = ({ slot }) => {
             Slot Packing Layout
           </div>
           <div className="bg-muted/10 rounded border border-border/20 p-2">
-            <PackingVisualizer fields={slot.decodedFields!} rawHex={slot.value} />
+            <PackingVisualizer fields={slot.decodedFields!} />
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ export const config = {
 
 const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB (artifacts_inline can be large)
 const FETCH_TIMEOUT_MS = 120_000; // 2 min for regular requests
-const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS", "HEAD"]);
+const ALLOWED_METHODS = new Set(["GET", "POST", "OPTIONS"]);
 
 // CORS allowlist — dev servers by default; extend via EDB_CORS_ALLOWED_ORIGINS (comma-separated).
 const DEFAULT_ALLOWED_ORIGINS = new Set([

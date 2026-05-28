@@ -53,9 +53,6 @@ const parseTraceValue = (value: unknown): ethers.BigNumber | null => {
       return null;
     }
     try {
-      if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
-        return ethers.BigNumber.from(trimmed);
-      }
       return ethers.BigNumber.from(trimmed);
     } catch {
       return null;

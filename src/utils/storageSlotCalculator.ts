@@ -86,9 +86,5 @@ export const DIAMOND_NAMESPACES = [
 export function parseSlotInput(input: string): bigint {
   const trimmed = input.trim();
   if (!trimmed) throw new Error('Empty slot input');
-  if (trimmed.startsWith('0x') || trimmed.startsWith('0X')) {
-    return BigInt(trimmed);
-  }
-  // Try decimal
   return BigInt(trimmed);
 }
