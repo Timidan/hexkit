@@ -8,6 +8,8 @@ import { useNativeTokenPrice } from "../../hooks/useNativeTokenPrice";
 
 interface TransactionSummaryProps {
   hash: string;
+  /** Original on-chain transaction hash when this simulation is a tx-hash replay. */
+  refHash?: string;
   network: string;
   statusColor: string;
   statusIcon: string;
@@ -34,6 +36,7 @@ interface TransactionSummaryProps {
 
 export const TransactionSummary: React.FC<TransactionSummaryProps> = ({
   hash,
+  refHash,
   network,
   statusColor,
   statusIcon,
@@ -120,6 +123,16 @@ export const TransactionSummary: React.FC<TransactionSummaryProps> = ({
               )}
             </div>
           </div>
+
+          {refHash && (
+            <div className="sim-summary-row">
+              <span className="sim-summary-label">Ref Hash</span>
+              <div className="sim-summary-value">
+                <span className="sim-summary-mono">{refHash}</span>
+                <CopyButton value={refHash} className="sim-copy-btn" iconSize={12} />
+              </div>
+            </div>
+          )}
 
           <div className="sim-summary-row">
             <span className="sim-summary-label">Network</span>

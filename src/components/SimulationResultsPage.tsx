@@ -97,6 +97,9 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const statusIcon = result.success ? "\u2713" : "\u2717";
 
   const hash = id || Date.now().toString();
+  const isTxHashReplay = contractContext?.simulationOrigin === "tx-hash-replay";
+  const replayedHash = isTxHashReplay ? contractContext?.replayTxHash : undefined;
+  const refHash = replayedHash && replayedHash !== hash ? replayedHash : undefined;
   const network = contractContext?.networkName || "Ethereum";
   const blockNumber = result.blockNumber ? String(result.blockNumber) : "\u2014";
 
@@ -139,6 +142,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
 
           <TransactionSummary
             hash={hash}
+            refHash={refHash}
             network={network}
             statusColor={statusColor}
             statusIcon={statusIcon}
