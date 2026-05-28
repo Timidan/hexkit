@@ -130,6 +130,7 @@ function serializeBreakpoint(breakpoint: GetBreakpointHitsRequest['breakpoints']
 
 class DebugBridgeService {
   private storageValueCache = new Map<string, string>();
+  private sessionChainIds = new Map<string, number>();
 
   private putStorageCache(cacheKey: string, value: string): void {
     if (this.storageValueCache.has(cacheKey)) {
@@ -155,14 +156,26 @@ class DebugBridgeService {
     }
   }
 
+  rememberSessionChain(sessionId: string, chainId: number): void {
+    if (sessionId && Number.isInteger(chainId)) {
+      this.sessionChainIds.set(sessionId, chainId);
+    }
+  }
+
   /**
    * Make a raw RPC call to the debug session
    */
   private async rpcCall(sessionId: string, method: string, params: unknown[] = []): Promise<unknown> {
+    const chainId = this.sessionChainIds.get(sessionId);
     const response = await fetch(`${getBridgeUrl()}/debug/rpc`, {
       method: 'POST',
       headers: getBridgeHeaders(),
-      body: JSON.stringify({ sessionId, method, params }),
+      body: JSON.stringify({
+        sessionId,
+        method,
+        params,
+        ...(chainId ? { chainId } : {}),
+      }),
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -323,6 +336,7 @@ class DebugBridgeService {
         sourceFiles = data.sourceFiles || {};
 
         if (!sessionId) return false;
+        this.rememberSessionChain(sessionId, request.chainId);
 
         const hasHookSnapshots = await this.sessionHasHookSnapshots(sessionId, snapshotCount);
         if (!hasHookSnapshots) {
@@ -383,6 +397,7 @@ class DebugBridgeService {
         sourceFiles = simData.sourceFiles || {};
 
         if (!sessionId) return false;
+        this.rememberSessionChain(sessionId, request.chainId);
 
         // Verify the /simulate session has hook snapshots (same as /debug/start path)
         const hasHookSnapshots = await this.sessionHasHookSnapshots(sessionId, snapshotCount);
@@ -781,10 +796,14 @@ class DebugBridgeService {
    * End a debug session
    */
   async endSession(request: EndDebugSessionRequest): Promise<EndDebugSessionResponse> {
+    const chainId = this.sessionChainIds.get(request.sessionId);
     const response = await fetch(`${getBridgeUrl()}/debug/end`, {
       method: 'POST',
       headers: getBridgeHeaders(),
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        ...request,
+        ...(chainId ? { chainId } : {}),
+      }),
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -793,6 +812,7 @@ class DebugBridgeService {
     }
 
     this.clearStorageCacheForSession(request.sessionId);
+    this.sessionChainIds.delete(request.sessionId);
     return response.json();
   }
 
@@ -930,13 +950,15 @@ class DebugBridgeService {
   }
 
   /** Connect to SSE stream for debug preparation progress. */
-  connectPrepareEvents(prepareId: string): EventSource {
-    return new EventSource(`${getBridgeUrl()}/debug/prepare/${prepareId}/events`);
+  connectPrepareEvents(prepareId: string, chainId?: number): EventSource {
+    const suffix = chainId ? `?chainId=${encodeURIComponent(String(chainId))}` : '';
+    return new EventSource(`${getBridgeUrl()}/debug/prepare/${prepareId}/events${suffix}`);
   }
 
   /** Poll debug preparation status (fallback when SSE is unavailable). */
-  async getPrepareStatus(prepareId: string): Promise<PrepareStatusResponse> {
-    const response = await fetch(`${getBridgeUrl()}/debug/prepare/${prepareId}`, {
+  async getPrepareStatus(prepareId: string, chainId?: number): Promise<PrepareStatusResponse> {
+    const suffix = chainId ? `?chainId=${encodeURIComponent(String(chainId))}` : '';
+    const response = await fetch(`${getBridgeUrl()}/debug/prepare/${prepareId}${suffix}`, {
       headers: getBridgeHeaders(),
       signal: AbortSignal.timeout(30_000),
     });

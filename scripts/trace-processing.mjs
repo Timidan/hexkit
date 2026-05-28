@@ -422,7 +422,9 @@ export function parseSimulationResult(raw) {
               const meta = artifact.meta || null;
               const cName = meta?.ContractName || meta?.Name || null;
               const storageLayout = extractStorageLayoutFromArtifact(artifact, cName);
+              const sourceProvider = artifact.sourceProvider || artifact.source || null;
               rawTrace.artifacts[addr] = {
+                ...(sourceProvider ? { sourceProvider } : {}),
                 ...(meta ? { meta } : {}),
                 ...(storageLayout ? { storageLayout } : {}),
               };

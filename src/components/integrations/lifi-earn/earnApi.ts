@@ -96,6 +96,30 @@ function toComposerAddress(addr: string): string {
   return addr.trim().toLowerCase();
 }
 
+function buildComposerQuoteUrl(params: {
+  fromChain: number;
+  toChain: number;
+  fromToken: string;
+  toToken: string;
+  fromAddress: string;
+  toAddress: string;
+  fromAmount: string;
+}): string {
+  const url = new URL(`${window.location.origin}${COMPOSER_PROXY}/v1/quote`);
+  url.searchParams.set("fromChain", String(params.fromChain));
+  url.searchParams.set("toChain", String(params.toChain));
+  url.searchParams.set("fromToken", toComposerAddress(params.fromToken));
+  url.searchParams.set("toToken", toComposerAddress(params.toToken));
+  url.searchParams.set("fromAddress", toComposerAddress(params.fromAddress));
+  url.searchParams.set("toAddress", toComposerAddress(params.toAddress));
+  url.searchParams.set("fromAmount", params.fromAmount);
+  // LiFi requires an integrator param to complete tx generation; without it the
+  // composer returns 1001 "None of the available routes could successfully
+  // generate a tx". `hexkit` is our registered integrator in the LiFi portal.
+  url.searchParams.set("integrator", "hexkit");
+  return url.toString();
+}
+
 export async function fetchComposerQuote(params: {
   fromChain: number;
   toChain: number;
@@ -109,20 +133,7 @@ export async function fetchComposerQuote(params: {
   /** Vault's underlying token symbols — used for clearer error messages. */
   underlyingSymbols?: string[];
 }): Promise<ComposerQuoteResponse> {
-  const url = new URL(`${window.location.origin}${COMPOSER_PROXY}/v1/quote`);
-  url.searchParams.set("fromChain", String(params.fromChain));
-  url.searchParams.set("toChain", String(params.toChain));
-  url.searchParams.set("fromToken", toComposerAddress(params.fromToken));
-  url.searchParams.set("toToken", toComposerAddress(params.toToken));
-  url.searchParams.set("fromAddress", toComposerAddress(params.fromAddress));
-  url.searchParams.set("toAddress", toComposerAddress(params.toAddress));
-  url.searchParams.set("fromAmount", params.fromAmount);
-  // LiFi requires an integrator param to complete tx generation; without it the
-  // composer returns 1001 "None of the available routes could successfully
-  // generate a tx". `hexkit` is our registered integrator in the LiFi portal.
-  url.searchParams.set("integrator", "hexkit");
-
-  const res = await fetch(url.toString(), {
+  const res = await fetch(buildComposerQuoteUrl(params), {
     headers: proxyHeaders(),
     signal: AbortSignal.timeout(30000),
   });
@@ -133,17 +144,29 @@ export async function fetchComposerQuote(params: {
     try {
       const parsed = JSON.parse(body);
       if (parsed.code === 1002) {
+        // Composer code 1002 = no route found at all. Don't speculate on the
+        // cause (could be amount, liquidity, vendor outage, or a missing
+        // token mapping) — just point at the most common workaround.
         const syms = params.underlyingSymbols;
         const hint = syms?.length
-          ? ` Try depositing with ${syms.join("/")} directly — Composer can't always swap into this vault's underlying token in one step.`
+          ? ` Try depositing with ${syms.join("/")} directly — Composer can't always swap into this vault's underlying token.`
           : "";
+        const isCrossChain = params.fromChain !== params.toChain;
         throw new Error(
-          `No route available for this deposit. The amount may be too small or there's no liquidity path.${hint}`
+          isCrossChain
+            ? `No bridge route available for this pair right now.${hint} Picking a vault on the same chain as your source token is the most reliable workaround.`
+            : `No route available for this deposit.${hint}`
         );
       }
       if (parsed.code === 1001) {
+        // Composer 1001 = "no route generated a tx". Cross-chain success is
+        // non-monotonic and unstable hour-to-hour, so we don't speculate —
+        // we surface the failure fast and let the user adjust.
+        const isCrossChain = params.fromChain !== params.toChain;
         throw new Error(
-          "Route found but transaction couldn't be generated. Try a larger amount."
+          isCrossChain
+            ? "Cross-chain bridge couldn't price this route right now. Try a different amount, or pick a vault on the same chain as your source token."
+            : "Route exists but no available solver could quote it. Try adjusting the amount slightly."
         );
       }
       if (parsed.message) {

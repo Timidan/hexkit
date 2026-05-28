@@ -84,6 +84,48 @@ const CHAIN_ID_TO_ZAPPER: Record<number, string> = {
   1101: "polygon-zkevm",
 };
 
+// Mezo ecosystem icons. Zapper/1inch/Trust Wallet don't index chain 31611/31612,
+// and cross-chain NTT bridge traces reference Ethereum/Base twins that 1inch
+// also misses. Point at CoinGecko's CDN where possible, fall back to a bundled
+// SVG only where no CDN entry exists.
+// Keyed by address (lower-case); covers both the Mezo and Ethereum/Base sides.
+const MEZO_TOKEN_ICONS: Record<string, { cdn?: string; local?: string }> = {
+  // MEZO precompile (CoinGecko id "mezo")
+  "0x7b7c000000000000000000000000000000000001": {
+    cdn: "https://coin-images.coingecko.com/coins/images/71716/large/KnBgdkXh_400x400_%281%29.jpg",
+    local: "/logos/mezo.svg",
+  },
+  // MEZO on Ethereum/Base (NTT bridge twin)
+  "0x8e4cbbcc33db6c0a18561fde1f6ba35906d4848b": {
+    cdn: "https://coin-images.coingecko.com/coins/images/71716/large/KnBgdkXh_400x400_%281%29.jpg",
+    local: "/logos/mezo.svg",
+  },
+  // BTC ERC-20 surface (use canonical bitcoin image)
+  "0x7b7c000000000000000000000000000000000000": {
+    cdn: "https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png",
+  },
+  // Canonical MUSD on Mezo (CoinGecko id "mezo-usd")
+  "0x118917a40faf1cd7a13db0ef56c86de7973ac503": {
+    cdn: "https://coin-images.coingecko.com/coins/images/66938/large/37163_%281%29.png",
+  },
+  // MUSD on Ethereum (NTT bridge twin)
+  "0xdd468a1ddc392dcdbef6db6e34e89aa338f9f186": {
+    cdn: "https://coin-images.coingecko.com/coins/images/66938/large/37163_%281%29.png",
+  },
+  // sMUSD savings vault — not indexed by any public CDN
+  "0x6f461c68b2c5492c0f5ccec5a264d692aa7a8e16": {
+    local: "/logos/smusd.svg",
+  },
+  // Mezo Bridged USDC (CoinGecko id "mezo-bridged-usdc-mezo")
+  "0x04671c72aab5ac02a03c1098314b1bb6b560c197": {
+    cdn: "https://coin-images.coingecko.com/coins/images/68245/large/usdc.jpg",
+  },
+  // Mezo Bridged USDT (CoinGecko id "mezo-bridged-usdt-mezo")
+  "0xeb5a5d39de4ea42c2aa6a57eca2894376683bb8e": {
+    cdn: "https://coin-images.coingecko.com/coins/images/68246/large/usdt.jpg",
+  },
+};
+
 /**
  * Get token icon URL
  * Uses 1inch for Ethereum (supports lowercase), Trust Wallet for other chains
@@ -92,6 +134,12 @@ const CHAIN_ID_TO_ZAPPER: Record<number, string> = {
  */
 export function getTokenIconUrl(tokenAddress: string, chainId: number = 1): string {
   const addr = tokenAddress.toLowerCase();
+
+  const mezo = MEZO_TOKEN_ICONS[addr];
+  if (mezo) {
+    const url = mezo.cdn ?? mezo.local;
+    if (url) return url;
+  }
 
   // For Ethereum mainnet, use 1inch direct URL (avoids redirect)
   if (chainId === 1) {
@@ -121,6 +169,13 @@ export function getTokenIconUrl(tokenAddress: string, chainId: number = 1): stri
 export function getTokenIconUrls(tokenAddress: string, chainId: number = 1): string[] {
   const addr = tokenAddress.toLowerCase();
   const urls: string[] = [];
+
+  const mezo = MEZO_TOKEN_ICONS[addr];
+  if (mezo) {
+    if (mezo.cdn) urls.push(mezo.cdn);
+    if (mezo.local) urls.push(mezo.local);
+    if (urls.length) return urls;
+  }
 
   // 1. Zapper (good coverage of DeFi/vault tokens)
   const zapperChain = CHAIN_ID_TO_ZAPPER[chainId];
@@ -391,6 +446,16 @@ setTokenMetadataCache("0x4200000000000000000000000000000000000006", { symbol: "W
 setTokenMetadataCache("0xaf88d065e77c8cC2239327C5EDb3A432268e5831", { symbol: "USDC", name: "USD Coin", decimals: 6 });
 setTokenMetadataCache("0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", { symbol: "USDT", name: "Tether USD", decimals: 6 });
 setTokenMetadataCache("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", { symbol: "WETH", name: "Wrapped Ether", decimals: 18 });
+
+// Mezo (Testnet 31611 + Mainnet 31612)
+setTokenMetadataCache("0x7B7c000000000000000000000000000000000001", { symbol: "MEZO", name: "Mezo", decimals: 18 });
+setTokenMetadataCache("0x7b7C000000000000000000000000000000000000", { symbol: "BTC", name: "Bitcoin", decimals: 18 });
+setTokenMetadataCache("0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503", { symbol: "MUSD", name: "Mezo USD", decimals: 18 });
+setTokenMetadataCache("0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16", { symbol: "sMUSD", name: "Savings MUSD", decimals: 18 });
+setTokenMetadataCache("0x04671c72aab5aC02a03C1098314b1bB6B560C197", { symbol: "mUSDC", name: "Mezo Bridged USDC", decimals: 6 });
+setTokenMetadataCache("0xeb5a5d39DE4Ea42c2Aa6A57Eca2894376683bb8E", { symbol: "mUSDT", name: "Mezo Bridged USDT", decimals: 6 });
+setTokenMetadataCache("0xB63fcCd03521Cf21907627bd7fA465C129479231", { symbol: "veBTC", name: "Mezo Vote-Escrowed BTC", decimals: 18 });
+setTokenMetadataCache("0xaCE816CA2bcc9b12C59799dcC5A959Fb9b98111b", { symbol: "veMEZO", name: "Mezo Vote-Escrowed MEZO", decimals: 18 });
 
 /**
  * Parse a log event to detect token transfers

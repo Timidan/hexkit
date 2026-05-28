@@ -209,7 +209,7 @@ function shouldKeepExistingTraceRows(
 }
 
 const DB_NAME = 'web3-toolkit-simulations';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'simulations';
 const META_STORE_NAME = 'simulations-meta';
 const MAX_SIMULATIONS = 100; // Keep last 100 simulations
@@ -234,6 +234,10 @@ class SimulationHistoryService {
         reject(request.error);
       };
 
+      request.onblocked = () => {
+        reject(new Error('IndexedDB upgrade blocked by another open HexKit tab'));
+      };
+
       request.onsuccess = () => {
         this.db = request.result;
         // Handle version change from another tab
@@ -249,31 +253,34 @@ class SimulationHistoryService {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        const oldVersion = event.oldVersion;
+        const tx = (event.target as IDBOpenDBRequest).transaction;
 
-        // V1: Create simulations store
-        if (oldVersion < 1) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          store.createIndex('timestamp', 'timestamp', { unique: false });
-          store.createIndex('status', 'status', { unique: false });
-          store.createIndex('networkId', 'networkId', { unique: false });
-          store.createIndex('contractAddress', 'contractAddress', { unique: false });
-          store.createIndex('from', 'from', { unique: false });
-          store.createIndex('to', 'to', { unique: false });
-          store.createIndex('functionName', 'functionName', { unique: false });
-        }
+        const ensureIndex = (
+          store: IDBObjectStore,
+          name: string,
+          keyPath: string,
+        ) => {
+          if (!store.indexNames.contains(name)) {
+            store.createIndex(name, keyPath, { unique: false });
+          }
+        };
 
-        // V2: Create simulations-meta store for fast lightweight queries
-        if (oldVersion < 2) {
-          const metaStore = db.createObjectStore(META_STORE_NAME, { keyPath: 'id' });
-          metaStore.createIndex('timestamp', 'timestamp', { unique: false });
-          metaStore.createIndex('status', 'status', { unique: false });
-          metaStore.createIndex('networkId', 'networkId', { unique: false });
-          metaStore.createIndex('contractAddress', 'contractAddress', { unique: false });
-          metaStore.createIndex('from', 'from', { unique: false });
-          metaStore.createIndex('to', 'to', { unique: false });
-          metaStore.createIndex('functionName', 'functionName', { unique: false });
-        }
+        const ensureSimulationStore = (storeName: string) => {
+          const store = db.objectStoreNames.contains(storeName)
+            ? tx!.objectStore(storeName)
+            : db.createObjectStore(storeName, { keyPath: 'id' });
+
+          ensureIndex(store, 'timestamp', 'timestamp');
+          ensureIndex(store, 'status', 'status');
+          ensureIndex(store, 'networkId', 'networkId');
+          ensureIndex(store, 'contractAddress', 'contractAddress');
+          ensureIndex(store, 'from', 'from');
+          ensureIndex(store, 'to', 'to');
+          ensureIndex(store, 'functionName', 'functionName');
+        };
+
+        ensureSimulationStore(STORE_NAME);
+        ensureSimulationStore(META_STORE_NAME);
       };
     }).then(() => this.migrateMetaStore());
 
@@ -561,9 +568,9 @@ class SimulationHistoryService {
       filtered = sims.filter(sim => {
         if (filter.status && sim.status !== filter.status) return false;
         if (filter.networkId && sim.networkId !== filter.networkId) return false;
-        if (filter.contractAddress && sim.contractAddress.toLowerCase() !== filter.contractAddress.toLowerCase()) return false;
-        if (filter.from && sim.from.toLowerCase() !== filter.from.toLowerCase()) return false;
-        if (filter.to && sim.to.toLowerCase() !== filter.to.toLowerCase()) return false;
+        if (filter.contractAddress && String(sim.contractAddress || '').toLowerCase() !== filter.contractAddress.toLowerCase()) return false;
+        if (filter.from && String(sim.from || '').toLowerCase() !== filter.from.toLowerCase()) return false;
+        if (filter.to && String(sim.to || '').toLowerCase() !== filter.to.toLowerCase()) return false;
         if (filter.functionName && sim.functionName !== filter.functionName) return false;
         if (filter.fromTimestamp && sim.timestamp < filter.fromTimestamp) return false;
         if (filter.toTimestamp && sim.timestamp > filter.toTimestamp) return false;
@@ -610,9 +617,9 @@ class SimulationHistoryService {
           if (filter) {
             if (filter.status && sim.status !== filter.status) include = false;
             if (filter.networkId && sim.networkId !== filter.networkId) include = false;
-            if (filter.contractAddress && sim.contractAddress.toLowerCase() !== filter.contractAddress.toLowerCase()) include = false;
-            if (filter.from && sim.from.toLowerCase() !== filter.from.toLowerCase()) include = false;
-            if (filter.to && sim.to.toLowerCase() !== filter.to.toLowerCase()) include = false;
+            if (filter.contractAddress && String(sim.contractAddress || '').toLowerCase() !== filter.contractAddress.toLowerCase()) include = false;
+            if (filter.from && String(sim.from || '').toLowerCase() !== filter.from.toLowerCase()) include = false;
+            if (filter.to && String(sim.to || '').toLowerCase() !== filter.to.toLowerCase()) include = false;
             if (filter.functionName && sim.functionName !== filter.functionName) include = false;
             if (filter.fromTimestamp && sim.timestamp < filter.fromTimestamp) include = false;
             if (filter.toTimestamp && sim.timestamp > filter.toTimestamp) include = false;

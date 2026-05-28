@@ -1,0 +1,390 @@
+import { useState } from "react";
+import { useAccount, useBalance, useReadContract } from "wagmi";
+import { formatUnits, type Address } from "viem";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { MEZO_TABS, type MezoTabId } from "../TabBar";
+import { MEZO_CONTRACTS } from "../../../../../data/mezoContracts";
+import { MEZO_ABIS } from "../abi";
+import { MEZO_TESTNET_CHAIN_ID } from "../constants";
+import { MEZO_GLOSSARY, type GlossaryKey } from "../glossary";
+import { ManageTroveDialog } from "./ManageTroveDialog";
+import { ManageLockDialog } from "./ManageLockDialog";
+import { ManageSavingsDialog } from "./ManageSavingsDialog";
+import { ManageLiquidityDialog } from "./ManageLiquidityDialog";
+
+interface SideRailNavProps {
+  active: MezoTabId;
+  onChange: (id: MezoTabId) => void;
+}
+
+function fmt(value: bigint | undefined, decimals = 18, precision = 4): string {
+  if (value === undefined) return "—";
+  const n = Number(formatUnits(value, decimals));
+  if (n === 0) return "0.00";
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: precision,
+  });
+}
+
+export function SideRailNav({ active, onChange }: SideRailNavProps) {
+  const { address, isConnected, chainId } = useAccount();
+  const onMezo = isConnected && chainId === MEZO_TESTNET_CHAIN_ID;
+
+  // 6-second background refetch keeps the wallet rail fresh even when txs
+  // land outside Mezo Lens (e.g. user using testnet.mezo.org in another tab).
+  // Txs sent through useMezoLegPipeline invalidate the cache on confirm, so
+  // intra-Lens updates land within ~1 block (≈ 2s) regardless.
+  const refetchInterval = onMezo ? 6_000 : false;
+
+  const btc = useBalance({
+    address: onMezo ? (address as Address) : undefined,
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const musd = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.MUSD,
+    abi: MEZO_ABIS.MUSD,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const sMusd = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.sMUSD,
+    abi: MEZO_ABIS.sMUSD,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const mezo = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.MEZO,
+    abi: MEZO_ABIS.MEZO,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+
+  const trove = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.TroveManager,
+    abi: MEZO_ABIS.TroveManager,
+    functionName: "Troves",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+
+  // veMEZO is an ERC-721 — read NFT count, then lock data for the first token.
+  const veMezoCount = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const veMezoTokenId = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "tokenOfOwnerByIndex",
+    args: address ? [address as Address, 0n] : undefined,
+    query: {
+      enabled: onMezo && (veMezoCount.data as bigint | undefined) !== undefined && (veMezoCount.data as bigint) > 0n,
+      refetchInterval,
+    },
+  });
+  const veMezoLock = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.veMEZO,
+    abi: MEZO_ABIS.VotingEscrow,
+    functionName: "locked",
+    args: veMezoTokenId.data !== undefined ? [veMezoTokenId.data as bigint] : undefined,
+    query: { enabled: onMezo && veMezoTokenId.data !== undefined, refetchInterval },
+  });
+
+  const troveData = trove.data as
+    | readonly [bigint, bigint, bigint, bigint, number, bigint, bigint, bigint, bigint]
+    | undefined;
+  const troveActive = troveData ? troveData[4] === 1 : false; // status === 1 (Active)
+  const troveColl = troveData?.[0];
+  const trovePrincipal = troveData?.[1];
+  const troveInterestOwed = troveData?.[2];
+  // Liquity-fork Trove debt = principal + interestOwed. closeTrove pulls
+  // (totalDebt - gasComp) from the wallet, so the dialog must size the
+  // approve off the total, not just the principal.
+  const troveTotalDebt =
+    trovePrincipal !== undefined && troveInterestOwed !== undefined
+      ? trovePrincipal + troveInterestOwed
+      : trovePrincipal;
+
+  const lockData = veMezoLock.data as { amount: bigint; end: bigint } | undefined;
+  const lockAmount = lockData?.amount;
+  const lockEnd = lockData?.end;
+
+  const [manageOpen, setManageOpen] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
+  const [savingsOpen, setSavingsOpen] = useState(false);
+  const [liquidityOpen, setLiquidityOpen] = useState(false);
+
+  // LP balance for MUSD/BTC pool
+  const lpBalance = useReadContract({
+    chainId: MEZO_TESTNET_CHAIN_ID,
+    address: MEZO_CONTRACTS.MUSD_BTC_Pool,
+    abi: MEZO_ABIS.MUSD,
+    functionName: "balanceOf",
+    args: address ? [address as Address] : undefined,
+    query: { enabled: onMezo, refetchInterval },
+  });
+  const lpBalanceValue = lpBalance.data as bigint | undefined;
+  const hasLp = lpBalanceValue !== undefined && lpBalanceValue > 0n;
+  const sMusdBalanceValue = sMusd.data as bigint | undefined;
+  const hasSavings = sMusdBalanceValue !== undefined && sMusdBalanceValue > 0n;
+  const hasLock = lockAmount !== undefined && lockAmount > 0n;
+
+  return (
+    <aside className="flex flex-col gap-1 border-r border-white/[0.05] bg-zinc-950/30 py-3 px-2 text-[12px]">
+      <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        Actions
+      </div>
+      {MEZO_TABS.map((tab) => {
+        const isActive = tab.id === active;
+        const TabIcon = tab.icon;
+        const entry = MEZO_GLOSSARY[tab.glossaryKey];
+        return (
+          <Tooltip key={tab.id}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onChange(tab.id)}
+                aria-label={tab.label}
+                className={cn(
+                  "h-8 w-full inline-flex items-center gap-2 px-2.5 rounded-md text-left transition-colors",
+                  isActive
+                    ? "border border-white/10 bg-white/[0.06] text-zinc-50"
+                    : "border border-transparent text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.03]",
+                )}
+              >
+                <TabIcon
+                  weight={isActive ? "duotone" : "regular"}
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0",
+                    isActive ? "text-zinc-100" : "text-zinc-500",
+                  )}
+                />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="right"
+              align="start"
+              sideOffset={8}
+              className="max-w-[240px] border-white/10 bg-zinc-950/95 text-zinc-100 backdrop-blur"
+            >
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+                {entry.title}
+              </div>
+              <div className="text-[12px] leading-snug text-zinc-200">
+                {entry.body}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
+
+      <div className="my-3 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+
+      <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        Wallet
+      </div>
+      <TokenRow symbol="BTC" glossaryKey="btc" value={btc.data?.value} />
+      <TokenRow
+        symbol="MUSD"
+        glossaryKey="musd"
+        value={musd.data as bigint | undefined}
+        precision={2}
+      />
+      <TokenRow
+        symbol="sMUSD"
+        glossaryKey="smusd"
+        value={sMusd.data as bigint | undefined}
+        precision={2}
+      />
+      <TokenRow
+        symbol="MEZO"
+        glossaryKey="mezo"
+        value={mezo.data as bigint | undefined}
+        precision={2}
+      />
+
+      <div className="my-3 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+
+      <div className="px-2.5 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        Trove
+      </div>
+      {troveActive ? (
+        <button
+          type="button"
+          onClick={() => setManageOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage trove"
+        >
+          <div>{fmt(troveColl, 18, 6)} BTC</div>
+          <div className="text-zinc-500">{fmt(troveTotalDebt, 18, 2)} MUSD debt</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-500">No trove yet</div>
+      )}
+
+      <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        veMEZO
+      </div>
+      {hasLock ? (
+        <button
+          type="button"
+          onClick={() => setLockOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage veMEZO lock"
+        >
+          <div>{fmt(lockAmount, 18, 2)} MEZO</div>
+          {lockEnd && lockEnd > 0n && (
+            <div className="text-zinc-500">
+              unlocks {new Date(Number(lockEnd) * 1000).toLocaleDateString()}
+            </div>
+          )}
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <div className="px-2.5 py-1 text-[11px] text-zinc-500">No lock</div>
+      )}
+
+      <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        sMUSD savings
+      </div>
+      {hasSavings ? (
+        <button
+          type="button"
+          onClick={() => setSavingsOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage sMUSD savings"
+        >
+          <div>{fmt(sMusdBalanceValue, 18, 2)} sMUSD</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSavingsOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-dashed border-white/[0.06] px-1.5 py-1 text-left text-[11px] text-zinc-500 leading-tight transition-colors hover:border-white/15 hover:text-zinc-300"
+        >
+          <div>No deposit</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Deposit →</div>
+        </button>
+      )}
+
+      <div className="px-2.5 pt-2 pb-1 text-[9px] uppercase tracking-[0.16em] text-zinc-600">
+        MUSD/BTC LP
+      </div>
+      {hasLp ? (
+        <button
+          type="button"
+          onClick={() => setLiquidityOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-1 text-left text-[11px] text-zinc-300 font-mono leading-tight transition-colors hover:border-white/15 hover:bg-white/[0.05]"
+          aria-label="Manage liquidity"
+        >
+          <div>{fmt(lpBalanceValue, 18, 6)} LP</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Manage →</div>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setLiquidityOpen(true)}
+          className="mx-1 my-0.5 rounded-md border border-dashed border-white/[0.06] px-1.5 py-1 text-left text-[11px] text-zinc-500 leading-tight transition-colors hover:border-white/15 hover:text-zinc-300"
+        >
+          <div>No position</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-wider text-zinc-500/80">Add →</div>
+        </button>
+      )}
+
+      <ManageTroveDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        collateralBtc={troveColl}
+        debtMusd={troveTotalDebt}
+      />
+      <ManageLockDialog
+        open={lockOpen}
+        onOpenChange={setLockOpen}
+        tokenId={veMezoTokenId.data as bigint | undefined}
+        lockedAmount={lockAmount}
+        lockEnd={lockEnd}
+      />
+      <ManageSavingsDialog
+        open={savingsOpen}
+        onOpenChange={setSavingsOpen}
+        sMusdBalance={sMusdBalanceValue}
+      />
+      <ManageLiquidityDialog
+        open={liquidityOpen}
+        onOpenChange={setLiquidityOpen}
+        lpBalance={lpBalanceValue}
+      />
+    </aside>
+  );
+}
+
+function TokenRow({
+  symbol,
+  glossaryKey,
+  value,
+  precision = 4,
+  muted,
+}: {
+  symbol: string;
+  glossaryKey: GlossaryKey;
+  value: bigint | undefined;
+  precision?: number;
+  muted?: boolean;
+}) {
+  const isEmpty = muted || value === undefined;
+  const entry = MEZO_GLOSSARY[glossaryKey];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          tabIndex={0}
+          className={cn(
+            "flex cursor-help items-center justify-between gap-2 rounded px-2.5 py-1 text-[11px] outline-none transition-colors focus-visible:bg-white/[0.03]",
+            isEmpty && "opacity-60",
+          )}
+        >
+          <span className="text-zinc-400">{symbol}</span>
+          <span className="font-mono tabular-nums text-zinc-200">
+            {isEmpty ? "—" : fmt(value, 18, precision)}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="start"
+        sideOffset={8}
+        className="max-w-[240px] border-white/10 bg-zinc-950/95 text-zinc-100 backdrop-blur"
+      >
+        <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+          {entry.title}
+        </div>
+        <div className="text-[12px] leading-snug text-zinc-200">
+          {entry.body}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}

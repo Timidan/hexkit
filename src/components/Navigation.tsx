@@ -69,6 +69,7 @@ const TOOLS: ToolDef[] = [
     shortLabel: "Integrate",
     subTabs: [
       { id: "lifi-earn", label: "LI.FI Earn", shortLabel: "LI.FI", paramKey: "route", icon: <img src="/logos/lifi.png" alt="" width={14} height={14} className="opacity-80" /> },
+      { id: "mezo", label: "Mezo Lens", shortLabel: "Mezo", paramKey: "route", icon: <img src="/logos/mezo.svg" alt="" width={14} height={14} className="opacity-80" /> },
     ],
   },
 ];

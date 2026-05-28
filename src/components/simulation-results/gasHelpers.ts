@@ -119,7 +119,8 @@ export function computeGasValues(
   result: any,
   decodedTrace: any,
   rawInput: string,
-  contractContext: any
+  contractContext: any,
+  nativeSymbol = "ETH",
 ) {
   const edbExecutionGas = decodedTrace?.callMeta?.gas_used ?? decodedTrace?.callMeta?.gasUsed;
 
@@ -178,7 +179,7 @@ export function computeGasValues(
   const gasLimit = `${gasLimitNum.toLocaleString()} (${gasPercentage}%)`;
   const gasPrice = result.effectiveGasPrice || result.gasPrice || "\u2014";
   const nonce = result.nonce !== null && result.nonce !== undefined ? String(result.nonce) : "\u2014";
-  const txFee = "0 ETH";
+  const txFee = `0 ${nativeSymbol}`;
   const txType = formatTxType(result.type);
 
   return { gasUsed, gasLimit, gasPrice, nonce, txFee, txType };

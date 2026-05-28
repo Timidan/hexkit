@@ -13,6 +13,31 @@ import {
 } from "./ui/accordion";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 import { extractTokenMovements } from "../utils/tokenMovements";
+import { CurrencyBtc, CurrencyEth, Coin } from "@phosphor-icons/react";
+import { getChainById } from "../chains/registry";
+
+/**
+ * Pick a native-asset glyph for a given chain. Mezo (testnet 31611, mainnet
+ * 31612) is BTC; EVM L1/L2s default to ETH; anything unknown falls back to a
+ * generic coin icon.
+ */
+function NativeAssetIcon({
+  chainId,
+  symbol,
+}: {
+  chainId?: number;
+  symbol?: string | null;
+}) {
+  const resolvedSymbol =
+    symbol ?? (chainId ? getChainById(chainId)?.nativeCurrency.symbol : undefined);
+  if (resolvedSymbol === "BTC") {
+    return <CurrencyBtc weight="fill" className="h-4 w-4 text-amber-400 shrink-0" />;
+  }
+  if (resolvedSymbol === "ETH") {
+    return <CurrencyEth weight="fill" className="h-4 w-4 text-zinc-200 shrink-0" />;
+  }
+  return <Coin weight="fill" className="h-4 w-4 text-zinc-400 shrink-0" />;
+}
 
 // Re-export types for backward compatibility
 export type { TraceRow, TraceFilters, DecodedLogData } from "./execution-trace";
@@ -252,7 +277,13 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                               {change.address ? `${change.address.slice(0, 10)}\u2026${change.address.slice(-8)}` : "\u2014"}
                             </TableCell>
                             <TableCell>
-                              {change.symbol || "Unknown"}
+                              <span className="inline-flex items-center gap-1.5">
+                                <NativeAssetIcon
+                                  chainId={state.contractContext?.networkId}
+                                  symbol={change.symbol}
+                                />
+                                <span>{change.symbol || "Unknown"}</span>
+                              </span>
                             </TableCell>
                             <TableCell className={`text-right ${amountClass}`}>
                               {change.amount || change.rawAmount || "0"}

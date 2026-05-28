@@ -3,7 +3,6 @@ import { CircleNotch, CheckCircle, XCircle, ArrowRight } from "@phosphor-icons/r
 import { Button } from "../../../../components/ui/button";
 import { Card } from "../../../../components/ui/card";
 import { DepositFlow } from "../DepositFlow";
-import { useCrossChainStatus } from "./hooks/useCrossChainStatus";
 import { isCrossChain, type LegAction, type LegState } from "./executionMachine";
 import type { Leg } from "./types";
 
@@ -16,14 +15,15 @@ export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
   if (state.legs.length === 0) return null;
 
   const current = state.currentIndex >= 0 ? state.legs[state.currentIndex] : null;
-  const allDone = state.legs.every(
-    (l) => l.status === "done" || l.status === "failed"
-  );
-  // NEXT must wait for the current step to reach a terminal state — otherwise
-  // the forward-only reducer strands the in-flight step.
-  const canAdvance =
-    current !== null &&
-    (current.status === "done" || current.status === "failed");
+  // Recoverable failures (Intent expired with refund still available;
+  // bridged-but-deposit-failed) keep their in-step affordances, so the queue
+  // must not treat them as terminal. Refunded is terminal-good.
+  const isLegTerminal = (l: Leg) =>
+    l.status === "done" ||
+    l.status === "refunded" ||
+    (l.status === "failed" && !l.recoverable);
+  const allDone = state.legs.every(isLegTerminal);
+  const canAdvance = current !== null && isLegTerminal(current);
 
   const total = state.legs.length;
 
@@ -87,11 +87,13 @@ export function ExecutionQueue({ state, dispatch }: ExecutionQueueProps) {
                 className={`h-1.5 flex-1 rounded-full transition-colors ${
                   leg.status === "done"
                     ? "bg-emerald-500"
-                    : leg.status === "failed"
-                      ? "bg-red-500"
-                      : i === state.currentIndex
-                        ? "bg-blue-500 animate-pulse"
-                        : "bg-muted/40"
+                    : leg.status === "refunded"
+                      ? "bg-amber-500"
+                      : leg.status === "failed"
+                        ? "bg-red-500"
+                        : i === state.currentIndex
+                          ? "bg-amber-500 animate-pulse"
+                          : "bg-muted/40"
                 }`}
               />
             ))}
@@ -121,27 +123,12 @@ function LegCard({
   dispatch: (action: LegAction) => void;
 }) {
   const crossChain = isCrossChain(leg);
-
-  const { data: statusData } = useCrossChainStatus({
-    txHash: leg.sourceTxHash,
-    fromChain: leg.source.asset.chainId,
-    toChain: leg.destination.chainId,
-    enabled: crossChain && leg.sourceTxHash !== null,
-  });
-
-  // INVALID means LI.FI can't track the source tx — treat as terminal failure
-  // so the step doesn't stay stuck in "bridging" forever.
-  useEffect(() => {
-    if (!statusData) return;
-    if (statusData.status === "DONE") {
-      dispatch({ type: "SET_BRIDGE_STATUS", id: leg.id, status: "DONE" });
-    } else if (
-      statusData.status === "FAILED" ||
-      statusData.status === "INVALID"
-    ) {
-      dispatch({ type: "SET_BRIDGE_STATUS", id: leg.id, status: "FAILED" });
-    }
-  }, [statusData, leg.id, dispatch]);
+  const progressDetails = legProgressDetails(leg);
+  const shouldRenderFlow =
+    isCurrent &&
+    leg.status !== "done" &&
+    leg.status !== "refunded" &&
+    (leg.status !== "failed" || leg.recoverable);
 
   return (
     <Card
@@ -157,40 +144,95 @@ function LegCard({
             <ArrowRight className="mx-1.5 inline h-3.5 w-3.5 text-muted-foreground" />
             {leg.destination.name ?? leg.destination.slug}
             {crossChain && (
-              <span className="ml-2 rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] uppercase text-blue-400">
+              <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] uppercase text-emerald-400">
                 cross-chain
               </span>
             )}
           </div>
           <div className="text-xs text-muted-foreground">
-            {leg.status}
-            {leg.bridgeStatus && ` · bridge: ${leg.bridgeStatus}`}
-            {statusData?.substatusMessage && ` · ${statusData.substatusMessage}`}
+            {progressDetails}
           </div>
+          {(leg.sourceTxHash ||
+            leg.intentOrderId ||
+            leg.depositTxHash ||
+            leg.destinationTxHash) && (
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground/70">
+              {leg.sourceTxHash && (
+                <span>source tx: {shortId(leg.sourceTxHash)}</span>
+              )}
+              {leg.intentOrderId && (
+                <span>order: {shortId(leg.intentOrderId)}</span>
+              )}
+              {leg.destinationTxHash && (
+                <span>destination tx: {shortId(leg.destinationTxHash)}</span>
+              )}
+              {leg.depositTxHash && (
+                <span>deposit tx: {shortId(leg.depositTxHash)}</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {leg.errorMessage && (
+      {leg.errorMessage && leg.status !== "refunded" && (
         <div className="rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
           {leg.errorMessage}
+          {leg.recoverable && (
+            <span className="block pt-1 text-red-300/80">
+              {recoverableHint(leg)}
+            </span>
+          )}
         </div>
       )}
 
-      {isCurrent && leg.status !== "done" && leg.status !== "failed" && (
+      {leg.status === "refunded" && (
+        <div className="rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-400">
+          Intent refunded — funds returned to your wallet on the source chain.
+        </div>
+      )}
+
+      {leg.status === "failed" && !leg.recoverable && isCurrent && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "NEXT" })}
+            className="rounded border border-border/40 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          >
+            Skip & continue
+          </button>
+        </div>
+      )}
+
+      {leg.status === "failed" && leg.recoverable && isCurrent && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              const confirmed = window.confirm(
+                "Skip this leg? Funds may still be in escrow / on the destination chain. You can complete this manually from the vault drawer later.",
+              );
+              if (!confirmed) return;
+              dispatch({
+                type: "SET_RECOVERABLE",
+                id: leg.id,
+                recoverable: false,
+              });
+              dispatch({ type: "NEXT" });
+            }}
+            className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-400 transition-colors hover:bg-amber-500/20"
+          >
+            Skip & continue (funds may be stuck)
+          </button>
+        </div>
+      )}
+
+      {shouldRenderFlow && (
         <DepositFlow
           vault={leg.destination}
           override={{
             fromChain: leg.source.asset.chainId,
             fromToken: leg.source.asset.token,
             fromAmountRaw: leg.source.amountRaw,
-          }}
-          onBroadcast={(txHash) => {
-            dispatch({ type: "SET_TX_HASH", id: leg.id, txHash });
-            dispatch({
-              type: "SET_STATUS",
-              id: leg.id,
-              status: crossChain ? "bridging" : "executing",
-            });
           }}
           onConfirmed={() => {
             if (!crossChain) {
@@ -200,6 +242,9 @@ function LegCard({
           onError={(message) => {
             dispatch({ type: "SET_ERROR", id: leg.id, message });
           }}
+          onExecutionEvent={(event) => {
+            dispatch({ type: "EXECUTION_EVENT", id: leg.id, event });
+          }}
         />
       )}
     </Card>
@@ -208,7 +253,79 @@ function LegCard({
 
 function StatusIcon({ status }: { status: Leg["status"] }) {
   if (status === "done") return <CheckCircle className="h-4 w-4 text-emerald-500" />;
+  if (status === "refunded") return <CheckCircle className="h-4 w-4 text-amber-400" />;
   if (status === "failed") return <XCircle className="h-4 w-4 text-red-500" />;
   if (status === "pending") return <div className="h-4 w-4 rounded-full border border-border/40" />;
-  return <CircleNotch className="h-4 w-4 animate-spin text-blue-400" />;
+  return <CircleNotch className="h-4 w-4 animate-spin text-amber-400" />;
+}
+
+function legProgressDetails(leg: Leg): string {
+  const parts = [statusLabel(leg.status)];
+  if (leg.executionMode) parts.push(modeLabel(leg.executionMode));
+  if (leg.bridgeStatus) parts.push(`bridge: ${leg.bridgeStatus}`);
+  if (leg.intentStatus) parts.push(`intent: ${leg.intentStatus}`);
+  if (leg.recoverable) parts.push("recoverable");
+  return parts.join(" · ");
+}
+
+function recoverableHint(leg: Leg): string {
+  const intent = leg.intentStatus?.toLowerCase();
+  if (intent === "expired") {
+    return "Intent expired before solver fill. Funds are still escrowed — use the refund button in the step.";
+  }
+  if (leg.bridgeStatus === "DONE" || leg.destinationTxHash) {
+    return "Funds were delivered on the destination chain. Retry the deposit step to finish.";
+  }
+  // By the time recoverableHint renders, leg.status is "failed". Key the
+  // "intent delivered but deposit failed" branch off intentStatus, which
+  // persists across the status→failed transition.
+  if (leg.intentOrderId && (intent === "delivered" || intent === "settled")) {
+    return "Intent delivered. Retry the deposit step to finish.";
+  }
+  return "This leg failed but funds may be recoverable — see the step for retry / refund options.";
+}
+
+function statusLabel(status: Leg["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "quoting":
+      return "Quoting";
+    case "ready":
+      return "Ready";
+    case "approving":
+      return "Approving";
+    case "executing":
+      return "Executing";
+    case "bridging":
+      return "Bridging";
+    case "intent-open":
+      return "Intent open";
+    case "intent-delivered":
+      return "Intent delivered";
+    case "depositing":
+      return "Depositing";
+    case "done":
+      return "Done";
+    case "refunded":
+      return "Refunded";
+    case "failed":
+      return "Failed";
+  }
+}
+
+function modeLabel(mode: NonNullable<Leg["executionMode"]>): string {
+  switch (mode) {
+    case "composer-same":
+      return "Composer";
+    case "composer-cross":
+      return "Composer bridge";
+    case "intent":
+      return "Intent";
+  }
+}
+
+function shortId(value: string): string {
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }

@@ -38,6 +38,7 @@ export {
 } from "./edbTraceConverter";
 
 import { convertEdbTraceToArtifacts, normalizeAssetChangeEntry, buildOpcodeTraceFromTraceLiteRows } from "./edbTraceConverter";
+import { getChainById } from "../chains/registry";
 
 // ---- shared utilities -------------------------------------------------
 
@@ -155,6 +156,12 @@ export const extractSimulationArtifacts = (
 
   const rawTrace = result.rawTrace;
   const traceLiteRows = ensureArray((result as any)?.traceLite?.rows);
+  const chainId = result.chainId;
+  const chain = typeof chainId === "number" ? getChainById(chainId) : undefined;
+  const convertOptions = {
+    nativeSymbol: chain?.nativeCurrency.symbol,
+    nativeName: chain?.nativeCurrency.name,
+  };
   if (rawTrace === null || rawTrace === undefined) {
     if (traceLiteRows.length > 0) {
       artifacts.opcodeTrace = buildOpcodeTraceFromTraceLiteRows(traceLiteRows);
@@ -176,7 +183,7 @@ export const extractSimulationArtifacts = (
         artifacts.rawPayload = null;
       }
     }
-    const converted = convertEdbTraceToArtifacts(rawTrace);
+    const converted = convertEdbTraceToArtifacts(rawTrace, convertOptions);
     artifacts.callTree = converted.callTree;
     artifacts.events = converted.events;
     artifacts.assetChanges = converted.assetChanges;
@@ -209,7 +216,7 @@ export const extractSimulationArtifacts = (
   }
 
   if (innerTraceEntries.length > 0) {
-    const converted = convertEdbTraceToArtifacts(innerTraceEntries);
+    const converted = convertEdbTraceToArtifacts(innerTraceEntries, convertOptions);
     artifacts.callTree = converted.callTree;
     artifacts.events = converted.events;
     artifacts.assetChanges = converted.assetChanges;

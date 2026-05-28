@@ -25,6 +25,9 @@ const SELECTOR_LOOKUP_TIMEOUT_MS = 3000;
 // Sentinel used to distinguish a timeout result from a genuine null result.
 const TIMEOUT_SENTINEL = Symbol('timeout');
 
+const isSourceProvider = (value: unknown): value is 'sourcify' | 'etherscan' | 'blockscout' =>
+  value === 'sourcify' || value === 'etherscan' || value === 'blockscout';
+
 async function resolveErrorSelectorName(selector: string): Promise<string | null> {
   const normalized = selector.toLowerCase();
   if (errorSelectorNameCache.has(normalized)) {
@@ -97,15 +100,21 @@ export const buildContractsFromTrace = (rawTrace: any): SimulationContract[] => 
   const getSourceProvider = (addr: string): 'sourcify' | 'etherscan' | 'blockscout' | null => {
     const artifact = artifacts[addr] || artifacts[addr.toLowerCase()];
     // Check direct sourceProvider field first (most reliable — set during artifact fetching)
-    if (artifact?.sourceProvider &&
-        (artifact.sourceProvider === 'sourcify' || artifact.sourceProvider === 'etherscan' || artifact.sourceProvider === 'blockscout')) {
+    if (isSourceProvider(artifact?.sourceProvider)) {
       return artifact.sourceProvider;
+    }
+    if (isSourceProvider(artifact?.source)) {
+      return artifact.source;
     }
     if (!artifact?.meta) {
       if (opcodeLinesAddresses.has(addr.toLowerCase())) {
         return 'sourcify';
       }
       return null;
+    }
+    const metaProvider = artifact.meta.SourceProvider || artifact.meta.sourceProvider || artifact.meta.source;
+    if (isSourceProvider(metaProvider)) {
+      return metaProvider;
     }
     // Infer from meta field naming conventions
     if (artifact.meta.CompilerVersion || artifact.meta.SwarmSource !== undefined) {
@@ -228,7 +237,15 @@ export const prewarmCacheFromTrace = (rawTrace: any, chainId: number | null): vo
     } catch { /* ignore parse errors */ }
 
     let source: 'sourcify' | 'etherscan' | 'blockscout' = 'sourcify';
-    if (artifact.meta.CompilerVersion || artifact.meta.SwarmSource !== undefined) {
+    const explicitSource =
+      artifact.sourceProvider ||
+      artifact.source ||
+      artifact.meta.SourceProvider ||
+      artifact.meta.sourceProvider ||
+      artifact.meta.source;
+    if (isSourceProvider(explicitSource)) {
+      source = explicitSource;
+    } else if (artifact.meta.CompilerVersion || artifact.meta.SwarmSource !== undefined) {
       source = 'etherscan';
     } else if (artifact.meta.compiler_version) {
       source = 'blockscout';

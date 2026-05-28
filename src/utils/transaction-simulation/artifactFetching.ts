@@ -21,6 +21,8 @@ export const BLOCKSCOUT_INSTANCES: Record<number, string> = {
   137: 'https://polygon.blockscout.com',
   100: 'https://gnosis.blockscout.com',
   56: 'https://bsc.blockscout.com',
+  31611: 'https://api.explorer.test.mezo.org',
+  31612: 'https://api.explorer.mezo.org',
 };
 
 export const artifactCache = new Map<string, ArtifactCacheEntry>();

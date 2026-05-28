@@ -132,6 +132,7 @@ const pages: PageDefinition[] = [
   { id: 'page-history', name: 'Simulation History', description: 'View past simulation results', icon: 'RotateCcw', route: '/simulations', keywords: ['history', 'past', 'previous'] },
   { id: 'page-integrations', name: 'Integrations', description: 'Protocol integrations with yield vaults', icon: 'Layers', route: '/integrations', keywords: ['yield', 'earn', 'lifi', 'vault', 'defi'] },
   { id: 'page-lifi-earn', name: 'LI.FI Earn', description: 'Browse yield vaults and deposit', icon: 'Layers', route: '/integrations/lifi-earn', keywords: ['yield', 'earn', 'lifi', 'vault', 'apy', 'tvl'] },
+  { id: 'page-mezo-lens', name: 'Mezo Lens', description: 'Bitcoin-native DeFi on Mezo: borrow, save, lock', icon: 'Layers', route: '/integrations/mezo', keywords: ['mezo', 'bitcoin', 'btc', 'musd', 'borrow', 'lock', 'vault', 'trove', 'liquity'] },
 ];
 
 export function useUniversalSearch(): UseUniversalSearchReturn {

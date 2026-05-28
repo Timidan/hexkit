@@ -180,12 +180,17 @@ function statusToBorder(status: LegStatus | "idle"): string {
   switch (status) {
     case "done":
       return "border-emerald-500/70";
+    case "refunded":
+      return "border-amber-500/70";
     case "failed":
       return "border-red-500/70";
     case "quoting":
     case "approving":
     case "executing":
     case "bridging":
+    case "intent-open":
+    case "intent-delivered":
+    case "depositing":
       return "border-amber-500/70";
     case "ready":
       return "border-blue-500/70";
@@ -200,12 +205,17 @@ function statusToEdgeColor(status: LegStatus | "idle"): string {
   switch (status) {
     case "done":
       return "#10b981";
+    case "refunded":
+      return "#f59e0b";
     case "failed":
       return "#ef4444";
     case "quoting":
     case "approving":
     case "executing":
     case "bridging":
+    case "intent-open":
+    case "intent-delivered":
+    case "depositing":
       return "#f59e0b";
     case "ready":
       return "#3b82f6";
@@ -221,7 +231,10 @@ function statusIsAnimating(status: LegStatus | "idle"): boolean {
     status === "quoting" ||
     status === "approving" ||
     status === "executing" ||
-    status === "bridging"
+    status === "bridging" ||
+    status === "intent-open" ||
+    status === "intent-delivered" ||
+    status === "depositing"
   );
 }
 
@@ -559,6 +572,13 @@ function rollupStatus(statuses: Array<LegStatus | "idle">): LegStatus | "idle" {
   if (statuses.some(statusIsAnimating)) return "bridging";
   if (statuses.some((s) => s === "ready")) return "ready";
   if (statuses.some((s) => s === "pending")) return "pending";
-  if (statuses.every((s) => s === "done")) return "done";
+  // Treat "refunded" as terminal alongside "done" so a fully-resolved set of
+  // legs doesn't fall back to "idle" when at least one leg was refunded. If
+  // every leg is refunded we surface that; otherwise (mix of done + refunded)
+  // we treat the rollup as done — the user got funds back on every leg.
+  if (statuses.length > 0 && statuses.every((s) => s === "refunded")) {
+    return "refunded";
+  }
+  if (statuses.every((s) => s === "done" || s === "refunded")) return "done";
   return "idle";
 }

@@ -14,6 +14,9 @@ interface UseWithdrawQuoteParams {
 }
 
 export function useWithdrawQuote(params: UseWithdrawQuoteParams) {
+  // Redeem quote only: vault share token -> underlying on the vault chain.
+  // Cross-chain withdraw routing starts after this tx confirms and the UI has
+  // measured the actual underlying balance delta.
   return useComposerQuote({
     fromChain: params.chainId,
     toChain: params.chainId,

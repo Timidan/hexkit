@@ -22,6 +22,7 @@ const ALIAS_GROUPS: ReadonlyArray<ReadonlySet<string>> = [
 
 function normalizeUnderlyingKey(vault: EarnVault): string {
   const symbols = (vault.underlyingTokens ?? [])
+    .filter((t): t is typeof t & { symbol: string } => Boolean(t.symbol))
     .map((t) => {
       const upper = t.symbol.toUpperCase();
       for (const group of ALIAS_GROUPS) {

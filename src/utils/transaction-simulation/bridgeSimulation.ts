@@ -566,6 +566,7 @@ export const trySimulatorBridge = async (
           : null;
 
         artifactsInline[addr] = {
+          ...(artifact.sourceProvider ? { sourceProvider: artifact.sourceProvider } : {}),
           input: {
             language: "Solidity",
             sources: sourcesObj,

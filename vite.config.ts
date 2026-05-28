@@ -3,6 +3,12 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { handleEtherscanLookup } from "./api/explorer/etherscanShared";
+import {
+  appendEdbBridgeSubPath,
+  extractChainIdFromRawJsonBody,
+  maybeInjectDefaultEtherscanKey,
+  resolveEdbBridgeUrl,
+} from "./api/edbShared";
 
 /**
  * Injects the EDB bridge origin into the CSP connect-src at build time.
@@ -96,6 +102,161 @@ function devExplorerProxy(): Plugin {
   };
 }
 
+function edbBridgeProxyPlugin(envObj: Record<string, string>): Plugin {
+  const MAX_BODY_BYTES = 50 * 1024 * 1024;
+  const FETCH_TIMEOUT_MS = 120_000;
+  const FALLBACK_BRIDGE_URL = "http://127.0.0.1:5789";
+
+  const readRawBody = (req: any): Promise<Buffer> =>
+    new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let totalBytes = 0;
+
+      req.on("data", (chunk: Buffer) => {
+        totalBytes += chunk.length;
+        if (totalBytes > MAX_BODY_BYTES) {
+          req.destroy(new Error("body_too_large"));
+          reject(new Error("body_too_large"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+      req.on("error", reject);
+    });
+
+  return {
+    name: "edb-bridge-proxy",
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const requestUrl = new URL(req.url || "/", "http://localhost");
+        if (
+          requestUrl.pathname !== "/api/edb" &&
+          !requestUrl.pathname.startsWith("/api/edb/")
+        ) {
+          next();
+          return;
+        }
+
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.setHeader("cache-control", "no-store");
+          res.end();
+          return;
+        }
+
+        const subPath = requestUrl.pathname
+          .replace(/^\/api\/edb\/?/, "")
+          .replace(/^\/+/, "");
+
+        try {
+          const rawBody =
+            req.method !== "GET" && req.method !== "HEAD"
+              ? await readRawBody(req)
+              : undefined;
+          const queryChainId = requestUrl.searchParams.get("chainId");
+          const parsedQueryChainId = queryChainId ? Number(queryChainId) : null;
+          const chainId = Number.isInteger(parsedQueryChainId)
+            ? parsedQueryChainId
+            : extractChainIdFromRawJsonBody(rawBody, req.headers["content-type"]);
+          const bridgeUrl = resolveEdbBridgeUrl(
+            chainId,
+            envObj,
+            envObj.EDB_BRIDGE_URL || FALLBACK_BRIDGE_URL,
+          );
+          const target = appendEdbBridgeSubPath(
+            bridgeUrl,
+            subPath,
+            requestUrl.search,
+          );
+          const body = maybeInjectDefaultEtherscanKey(
+            rawBody,
+            req.headers["content-type"],
+            subPath,
+            envObj.ETHERSCAN_API_KEY,
+          );
+
+          const upstreamHeaders: Record<string, string> = {};
+          const apiKey = envObj.EDB_API_KEY || "";
+          if (apiKey) upstreamHeaders["X-API-Key"] = apiKey;
+          const contentType = req.headers["content-type"];
+          if (typeof contentType === "string") {
+            upstreamHeaders["Content-Type"] = contentType;
+          }
+          const accept = req.headers.accept;
+          if (typeof accept === "string") upstreamHeaders.Accept = accept;
+          const acceptEncoding = req.headers["accept-encoding"];
+          if (typeof acceptEncoding === "string") {
+            upstreamHeaders["Accept-Encoding"] = acceptEncoding;
+          }
+
+          const controller = new AbortController();
+          const isSSE = /debug\/prepare\/[^/]+\/events$/.test(subPath);
+          let timer: ReturnType<typeof setTimeout> | null = null;
+          if (isSSE) {
+            req.on("close", () => controller.abort());
+          } else {
+            timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+          }
+
+          const upstream = await fetch(target, {
+            method: req.method || "GET",
+            headers: upstreamHeaders,
+            body:
+              req.method === "GET" || req.method === "HEAD"
+                ? undefined
+                : body,
+            signal: controller.signal,
+            redirect: "error",
+          });
+
+          if (timer) clearTimeout(timer);
+
+          res.statusCode = upstream.status;
+          upstream.headers.forEach((value, key) => {
+            const lowerKey = key.toLowerCase();
+            if (lowerKey !== "content-encoding" && lowerKey !== "content-length") {
+              res.setHeader(key, value);
+            }
+          });
+
+          if (
+            upstream.headers.get("content-type")?.includes("text/event-stream") &&
+            upstream.body
+          ) {
+            res.setHeader("Content-Type", "text/event-stream");
+            res.setHeader("Cache-Control", "no-cache");
+            res.setHeader("Connection", "keep-alive");
+            const reader = upstream.body.getReader();
+            const decoder = new TextDecoder();
+            try {
+              for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                res.write(decoder.decode(value, { stream: true }));
+              }
+            } finally {
+              reader.cancel().catch(() => {});
+              res.end();
+            }
+            return;
+          }
+
+          const responseBody = Buffer.from(await upstream.arrayBuffer());
+          res.end(responseBody);
+        } catch (err) {
+          const isAbort = err instanceof Error && err.name === "AbortError";
+          res.statusCode = isAbort ? 504 : 502;
+          res.setHeader("cache-control", "no-store");
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ error: isAbort ? "bridge_timeout" : "bridge_unreachable" }));
+        }
+      });
+    },
+  };
+}
+
 // ── Gemini AI Studio LLM proxy (dev server) ────────────────────────────────
 
 function llmProxyPlugin(envObj: Record<string, string>): Plugin {
@@ -151,6 +312,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       injectBridgeCsp(),
       devExplorerProxy(),
+      edbBridgeProxyPlugin(env),
       llmProxyPlugin(env),
     ],
     esbuild: {
@@ -183,7 +345,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        buffer: "buffer",
+        buffer: "buffer/",
         "@": path.resolve(__dirname, "./src"),
       },
     },
@@ -196,25 +358,18 @@ export default defineConfig(({ mode }) => {
       watch: {
         usePolling: false,
         interval: 100,
-        ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+        atomic: false,
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/dist/**",
+          "**/target/**",
+          "**/edb/**",
+          "**/starknet-sim/**",
+          "**/*.tmp.*",
+        ],
       },
       proxy: {
-        // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
-        // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev.
-        // Injects X-API-Key server-side so the browser never sees the secret —
-        // mirrors api/edb-proxy.ts behavior for local dev.
-        "/api/edb": {
-          target: env.EDB_BRIDGE_URL || "http://127.0.0.1:5789",
-          changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path.replace(/^\/api\/edb/, ""),
-          configure: (proxy) => {
-            const apiKey = env.EDB_API_KEY || "";
-            proxy.on("proxyReq", (proxyReq) => {
-              if (apiKey) proxyReq.setHeader("X-API-Key", apiKey);
-            });
-          },
-        },
         // Proxy for Sourcify Repository API (must be BEFORE the general /api/sourcify)
         // repo.sourcify.dev now 307-redirects to sourcify.dev/server/repository,
         // so target the new location directly to avoid redirect/CORS issues.
@@ -309,6 +464,20 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) =>
             path.replace(/^\/api\/gnosis-blockscout/, "/api"),
         },
+        "/api/mezo-testnet-blockscout": {
+          target: "https://api.explorer.test.mezo.org",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/mezo-testnet-blockscout/, "/api"),
+        },
+        "/api/mezo-blockscout": {
+          target: "https://api.explorer.mezo.org",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/api\/mezo-blockscout/, "/api"),
+        },
         // Proxy for LI.FI Earn Data API (API key now mandatory — same key as Composer)
         "/api/lifi-earn": {
           target: "https://earn.li.fi",
@@ -328,6 +497,15 @@ export default defineConfig(({ mode }) => {
           headers: {
             "x-lifi-api-key": LIFI_API_KEY,
           },
+        },
+        // LI.FI Intents (order.li.fi) — integrator endpoints are open, no API
+        // key required per docs.li.fi/lifi-intents/authentication. Proxy exists
+        // for CORS parity with the Vercel serverless fn used in prod.
+        "/api/lifi-intents": {
+          target: "https://order.li.fi",
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/lifi-intents/, ""),
         },
         // Gemini is handled by llmProxyPlugin() below — not a static proxy
         // Proxy for Sourcify repo

@@ -362,7 +362,10 @@ const server = http.createServer(async (req, res) => {
                             null;
                           const storageLayout =
                             extractStorageLayoutFromArtifact(artifact, cName);
+                          const sourceProvider =
+                            artifact.sourceProvider || artifact.source || null;
                           rawTrace.artifacts[addr] = {
+                            ...(sourceProvider ? { sourceProvider } : {}),
                             ...(artifact.meta ? { meta: artifact.meta } : {}),
                             ...(storageLayout ? { storageLayout } : {}),
                           };
