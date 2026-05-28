@@ -183,14 +183,3 @@ export interface SimulationContract {
   fileCount?: number;
 }
 
-export interface AssetChange {
-  address: string;
-  symbol: string;
-  name: string;
-  decimals: number;
-  amount: string;
-  changeType: 'RECEIVE' | 'SEND' | 'APPROVE';
-  rawAmount: string;
-  usdValue?: string;
-}
-

@@ -162,7 +162,7 @@ export default defineConfig(({ mode }) => {
       "process.env": "{}",
     },
     optimizeDeps: {
-      include: ["ethers", "buffer"],
+      include: ["ethers"],
     },
     build: {
       chunkSizeWarningLimit: 1200,
@@ -171,11 +171,6 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vendor: ["react", "react-dom", "react-router-dom"],
             wagmi: ["wagmi", "@wagmi/core", "@wagmi/connectors"],
-            walletconnect: [
-              "@walletconnect/ethereum-provider",
-              "@reown/appkit",
-              "@reown/appkit-controllers",
-            ],
             ethers: ["ethers"],
           },
         },
@@ -183,7 +178,6 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        buffer: "buffer",
         "@": path.resolve(__dirname, "./src"),
       },
     },

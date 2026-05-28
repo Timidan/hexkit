@@ -441,7 +441,7 @@ export async function fillUnreadFieldsFromStorage(
         slotValue = slotCache.get(slotKey)!;
         debugLog(`[fillUnreadFieldsFromStorage] Using cached slot value for 0x${slotKey}`);
       } else {
-        let slotValueHex = await debugBridgeService.getStorage(sessionId, snapshotId, absoluteSlot);
+        const slotValueHex = await debugBridgeService.getStorage(sessionId, snapshotId, absoluteSlot);
         if (!slotValueHex) {
           debugLog(`[fillUnreadFieldsFromStorage] No value returned for slot 0x${slotKey}`);
           continue;

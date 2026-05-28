@@ -52,7 +52,7 @@ export function useIntentParser() {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           lastError = msg;
-          // eslint-disable-next-line no-console
+           
           console.warn(`[intent-parser] attempt ${attempt + 1} failed:`, msg);
         }
       }

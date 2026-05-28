@@ -10,7 +10,6 @@ import NetworkSelector, {
   type ExtendedChain,
 } from "../shared/NetworkSelector";
 import type { Chain } from "../../types";
-import "@/styles/ContractComponents.css";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_NATIVE_CURRENCY = {

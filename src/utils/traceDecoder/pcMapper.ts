@@ -197,7 +197,7 @@ export function buildFullPcLineMap(
     pc += 1 + pushLen;
     idx++;
   }
-  let last = ["0", "0", "-1", ""];
+  const last = ["0", "0", "-1", ""];
   const pcMapFull = new Map<number, PcInfo>();
   for (const { idx: opIdx, pc } of opList) {
     const seg = srcMap[opIdx] || "";

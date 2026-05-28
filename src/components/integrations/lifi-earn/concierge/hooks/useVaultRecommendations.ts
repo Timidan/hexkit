@@ -103,16 +103,6 @@ export function useVaultRecommendations(args: {
       const viable = filterByViability(raw, a);
       const capped = viable.slice(0, DEFAULT_CONFIG.maxCandidatesPerAsset);
 
-      // eslint-disable-next-line no-console
-      const routeCounts = { direct: 0, swap: 0, bridge: 0, bridge_and_swap: 0 };
-      for (const v of capped) routeCounts[classifyRoute(a, v)]++;
-      // eslint-disable-next-line no-console
-      console.log(
-        `[concierge] candidates for ${a.token.symbol}@${a.chainName}:`,
-        `raw=${raw.length} viable=${viable.length} sent=${capped.length}`,
-        routeCounts
-      );
-
       map.set(keyOf(a), capped);
     }
     return map;
@@ -219,21 +209,11 @@ async function fetchRecommendationForAsset(
     try {
       const raw = await postLlmRecommend(request);
       const text = extractGeminiText(raw);
-      if (!text) {
-        // eslint-disable-next-line no-console
-        console.warn("[concierge] raw LLM response (no text extracted):", raw);
-        throw new Error("empty LLM response");
-      }
+      if (!text) throw new Error("empty LLM response");
       const json = safeParseJson(text);
-      if (!json) {
-        // eslint-disable-next-line no-console
-        console.warn("[concierge] LLM text (not valid JSON):", text.slice(0, 500));
-        throw new Error("LLM did not return JSON");
-      }
+      if (!json) throw new Error("LLM did not return JSON");
       const result = llmRecommendationSchema.safeParse(json);
       if (!result.success) {
-        // eslint-disable-next-line no-console
-        console.warn("[concierge] schema validation failed:", result.error.issues, "\nparsed JSON:", JSON.stringify(json).slice(0, 800));
         throw new Error(
           `schema: ${result.error.issues[0]?.path.join(".") ?? "?"}: ${result.error.issues[0]?.message ?? "unknown"}`
         );
@@ -244,11 +224,6 @@ async function fetchRecommendationForAsset(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastError = msg;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[concierge] LLM attempt ${attempt + 1} failed for ${keyOf(asset)}:`,
-        msg
-      );
       if (attempt === 1) parsed = null;
     }
   }

@@ -237,7 +237,7 @@ export async function buildRecommendation(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastError = msg;
-      // eslint-disable-next-line no-console
+       
       console.warn(`[intent-rec] LLM attempt ${attempt + 1} failed:`, msg);
     }
   }

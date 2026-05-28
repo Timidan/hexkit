@@ -19,13 +19,3 @@ export function shortenAddress(
   return `${address.slice(0, prefixLength)}\u2026${address.slice(-suffixLength)}`;
 }
 
-/** Pure utility: truncate a hex hash (tx hash, slot, etc.) */
-export function shortenHash(
-  hash: string | null | undefined,
-  prefixLength = 10,
-  suffixLength = 6,
-): string {
-  if (!hash) return '\u2014';
-  if (hash.length <= prefixLength + suffixLength + 2) return hash;
-  return `${hash.slice(0, prefixLength)}\u2026${hash.slice(-suffixLength)}`;
-}

@@ -5,9 +5,6 @@ import LoadingSpinner from "../shared/LoadingSpinner";
 const LifiEarnPage = React.lazy(
   () => import("./lifi-earn/LifiEarnPage")
 );
-const SparkleShowcase = React.lazy(
-  () => import("./lifi-earn/SparkleShowcase")
-);
 
 const IntegrationsHub: React.FC = () => {
   const { pathname } = useLocation();
@@ -25,10 +22,13 @@ const IntegrationsHub: React.FC = () => {
     return <Navigate to="/integrations/lifi-earn" replace />;
   }
 
+  if (segment !== "lifi-earn") {
+    return <Navigate to="/integrations/lifi-earn" replace />;
+  }
+
   return (
     <Suspense fallback={<LoadingSpinner text="Loading integration" />}>
-      {segment === "sparkle-test" && <SparkleShowcase />}
-      {segment === "lifi-earn" && <LifiEarnPage />}
+      <LifiEarnPage />
     </Suspense>
   );
 };

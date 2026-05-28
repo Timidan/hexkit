@@ -264,19 +264,10 @@
 }
 
 /* For string values */
-.exec-io-value:has(> .exec-io-string) {
-  color: #10b981;
-}
 
 /* For numeric values */
-.exec-io-value:has(> .exec-io-number) {
-  color: #f59e0b;
-}
 
 /* For address values */
-.exec-io-value:has(> .exec-io-address) {
-  color: #d4d4d4;
-}
 
 /* Function signature styling */
 .exec-io-function-name {
@@ -328,11 +319,6 @@
   background: #0a0a0f;
   border: 1px solid var(--tst-border);
   border-radius: 10px;
-}
-
-.exec-trace-header {
-  padding: 0 0 12px 0;
-  border-bottom: none;
 }
 
 /* ============================================
@@ -620,9 +606,6 @@
 }
 
 /* In virtualized mode, enforce fixed height */
-.exec-trace-row--virtualized {
-  height: 22px;
-}
 
 .exec-trace-row::before {
   content: "";
@@ -664,19 +647,6 @@
 }
 
 /* Step number - hidden by default, used for reference */
-.exec-trace-row__step {
-  display: none;
-}
-
-.exec-trace-row--current .exec-trace-row__step {
-  color: #4a5fff;
-  font-weight: 700;
-}
-
-.exec-trace-row--error .exec-trace-row__step {
-  color: #ef4444;
-  font-weight: 700;
-}
 
 /* Content - layout with fixed + flexible columns */
 .exec-trace-row__content {
@@ -732,10 +702,6 @@
 
 /* Depth indent - Column 3 (variable width based on depth) */
 /* Comes BEFORE chevron */
-.exec-trace-depth-indent {
-  flex-shrink: 0;
-  margin-right: 0;
-}
 
 /* Chevron - Column 4 (fixed width) */
 /* Details wrapper - Column 5 (flexible content area) */
@@ -820,20 +786,8 @@
 }
 
 /* Rails overlay - positioned behind rows */
-.exec-rails-overlay {
-  position: absolute;
-  top: 0;
-  pointer-events: none; /* Don't block clicks on rows */
-  z-index: 2; /* Above row backgrounds but below sticky columns (z-index: 3) */
-}
 
 /* Individual continuous rail - a single vertical line spanning multiple rows */
-.exec-continuous-rail {
-  position: absolute;
-  width: 1px;
-  background: rgba(100, 116, 139, 0.8); /* More visible gray */
-  border-radius: 1px;
-}
 
 /* Spacer in content flow - reserves space for depth indentation */
 .exec-trace-depth-spacer {
@@ -841,13 +795,6 @@
   flex-shrink: 0;
   height: 22px; /* Match ROW_HEIGHT for SVG lines to render at 100% height */
   position: relative;
-}
-
-.exec-trace-entry-indicator {
-  color: #f59e0b;
-  font-weight: 600;
-  font-size: 13px;
-  margin-right: 4px;
 }
 
 .exec-trace-sender {
@@ -904,12 +851,6 @@
   white-space: nowrap;
 }
 
-.exec-trace-selector {
-  color: #6b7280;
-  font-size: 12px;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
-
 /* Function args display - show full values */
 .exec-trace-args {
   color: #e5e7eb;
@@ -936,25 +877,6 @@
   font-size: 12px;
   background: transparent;
   padding: 0;
-}
-
-.exec-trace-contract {
-  color: #d4d4d4;
-}
-
-.exec-trace-data {
-  color: #9a9aac;
-  font-size: 13px;
-}
-
-.exec-trace-pc {
-  color: #6a6a7a;
-  font-size: 12px;
-}
-
-.exec-trace-slot {
-  color: #f6f6fb;
-  font-size: 13px;
 }
 
 /* ============================================
@@ -984,17 +906,8 @@
 }
 
 /* Destination indicator for JUMP•D */
-.opcode-dest-indicator {
-  color: #22c55e;
-  font-weight: 700;
-  margin-left: 1px;
-}
 
 /* Storage operation badge styling - solid backgrounds for sticky columns */
-.exec-trace-opcode-badge.storage-op {
-  background: #2c1f3f;
-  color: #a855f7;
-}
 
 /* Opcode coloring - BRIGHT distinct colors for visibility */
 
@@ -1122,115 +1035,26 @@
    ============================================ */
 
 /* Address values (0x...) */
-.exec-data-address {
-  color: #d4d4d4;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
 
 /* Numeric values */
-.exec-data-number {
-  color: #a78bfa;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
 
 /* Boolean values */
-.exec-data-bool-true {
-  color: #10b981;
-  font-weight: 600;
-}
-
-.exec-data-bool-false {
-  color: #ef4444;
-  font-weight: 600;
-}
 
 /* Bytes/hex data */
-.exec-data-bytes {
-  color: #9ca3af;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
 
 /* String values */
-.exec-data-string {
-  color: #34d399;
-}
 
 /* Storage slot keys */
-.exec-storage-slot {
-  color: #8b5cf6;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
 
 /* Storage values */
-.exec-storage-value {
-  color: #f59e0b;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
 
 /* Storage writes: before -> after */
-.exec-storage-before {
-  color: #ef4444;
-  text-decoration: line-through;
-  opacity: 0.7;
-}
-
-.exec-storage-after {
-  color: #10b981;
-}
 
 /* Function parameters */
-.exec-param-name {
-  color: #60a5fa;
-  font-style: italic;
-}
-
-.exec-param-value {
-  color: #e5e7eb;
-}
 
 /* Error messages */
-.exec-error-msg {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-  padding: 2px 6px;
-  border-radius: 3px;
-}
 
 /* Gas values */
-.exec-gas-value {
-  color: #fbbf24;
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-}
-.exec-trace-storage-details {
-  font-family: "JetBrains Mono", "SF Mono", Monaco, monospace;
-  font-size: 12px;
-  color: #d4d4d4;
-  margin-left: 4px;
-  flex: 1;
-  white-space: nowrap;
-}
-
-.exec-trace-event-badge {
-  background: rgba(34, 211, 238, 0.15);
-  color: #d4d4d4;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.exec-trace-storage-badge {
-  background: rgba(168, 85, 247, 0.15);
-  color: #a855f7;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
 
 .exec-trace-event-name {
   color: #f6f6fb;
@@ -1374,11 +1198,6 @@
   .exec-trace-row {
     flex-wrap: wrap;
   }
-
-  .exec-trace-row__step {
-    min-width: 50px;
-    padding-right: 12px;
-  }
 }
 
 /* ============================================
@@ -1429,9 +1248,6 @@
 }
 
 /* Equals sign */
-.exec-trace-arg-equals {
-  color: #6b7280;
-}
 
 /* Argument value - purple/violet for values */
 .exec-trace-arg-value {
@@ -1440,17 +1256,8 @@
 }
 
 /* Separator between args */
-.exec-trace-arg-separator {
-  color: #6b7280;
-}
 
 /* Truncated indicator */
-.exec-trace-truncated {
-  color: #f97316;
-  font-size: 11px;
-  font-style: italic;
-  margin-left: 4px;
-}
 
 /* Raw log data when not decoded - show full values */
 .exec-trace-log-raw {

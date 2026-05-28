@@ -7,7 +7,7 @@
 import React from "react";
 import { ethers } from "ethers";
 import { Button } from "../ui/button";
-import { UIIcons } from "../icons/IconMap";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { InlineFacetLoader } from "../InlineFacetLoader";
 import { abbreviateFacet } from "./utils";
 import { useGridContext } from "./GridContext";
@@ -322,7 +322,7 @@ export default function GridLayout(): React.ReactElement {
                           color: "#60a5fa",
                         }}
                       >
-                        <span aria-hidden="true">{UIIcons.loading}</span>
+                        <span aria-hidden="true"><ArrowClockwise size={16} className="animate-spin" /></span>
                         {abbreviateFacet(currentFacetDetail.address)}
                       </span>
                     )}

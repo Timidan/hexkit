@@ -82,7 +82,7 @@ export function useFunctionState(deps: UseFunctionStateDeps) {
 
   // ---------- all / filtered functions ----------
   const allReadFunctions = useMemo(() => {
-    let allReads = [...readFunctions];
+    const allReads = [...readFunctions];
     if (isDiamond) {
       diamondFacets.forEach((facet) => {
         if (Array.isArray(facet.abi)) {
@@ -99,7 +99,7 @@ export function useFunctionState(deps: UseFunctionStateDeps) {
   }, [readFunctions, isDiamond, diamondFacets]);
 
   const allWriteFunctions = useMemo(() => {
-    let allWrites = [...writeFunctions];
+    const allWrites = [...writeFunctions];
     if (isDiamond) {
       diamondFacets.forEach((facet) => {
         if (Array.isArray(facet.abi)) {

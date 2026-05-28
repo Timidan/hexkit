@@ -25,7 +25,6 @@ import { useSimulation } from "../../contexts/SimulationContext";
 import { sanitizeAbiEntries } from "./utils";
 
 import "../../styles/SharedComponents.css";
-import "../../styles/SimulatorWorkbench.css";
 import "../../styles/SimpleGridUI.css";
 
 import { GridProvider } from "./GridContext";

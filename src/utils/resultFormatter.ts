@@ -57,7 +57,7 @@ export class ContractResultFormatter {
     
     if (isCompact) {
       // Line-per-field format for better readability
-      let lines: string[] = [];
+      const lines: string[] = [];
       
       // Handle named tuple fields if we have function output info
       if (functionOutput && functionOutput.components && functionOutput.components.length > 0) {
