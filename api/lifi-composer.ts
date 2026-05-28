@@ -8,7 +8,7 @@ export const config = {
 
 const LIFI_BASE = "https://li.quest";
 const LIFI_API_KEY = process.env.LIFI_API_KEY || "";
-const ALLOWED_METHODS = new Set(["GET", "OPTIONS", "HEAD"]);
+const ALLOWED_METHODS = new Set(["GET", "OPTIONS"]);
 const ALLOWED_ORIGINS = new Set(
   (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
 );

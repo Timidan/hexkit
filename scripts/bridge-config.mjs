@@ -22,7 +22,6 @@ export const TRACE_DETAIL_GZIP_MIN_BYTES = Number(
 );
 export const TRACE_STRIP_OPCODE_LINES = process.env.TRACE_DETAIL_STRIP_OPCODE_LINES === "true";
 export const TRACE_DETAIL_STRIP_OPCODE_TRACE = process.env.TRACE_DETAIL_STRIP_OPCODE_TRACE !== "false";
-export const TRACE_DETAIL_COMPACT_ARTIFACTS = process.env.TRACE_DETAIL_COMPACT_ARTIFACTS !== "false";
 export const TRACE_V2_BRIDGE_JS_FALLBACK = process.env.SIM_TRACE_V2_BRIDGE_JS_FALLBACK === "true";
 export const TRACE_LITE_TRANSPORT_ENABLED =
   process.env.SIM_TRACE_V2_LITE_TRANSPORT !== "false";
