@@ -23,16 +23,3 @@ export function projectEarnings(
   return projectBalance(deposit, apyPercent, days) - (Number.isFinite(deposit) ? deposit : 0);
 }
 
-export function sampleBalanceCurve(
-  deposit: number,
-  apyPercent: number | null | undefined,
-  days: number,
-  samples = 60,
-): number[] {
-  const out: number[] = new Array(samples);
-  for (let i = 0; i < samples; i++) {
-    const d = (days * i) / (samples - 1);
-    out[i] = projectBalance(deposit, apyPercent, d);
-  }
-  return out;
-}

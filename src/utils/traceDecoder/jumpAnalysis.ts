@@ -541,7 +541,7 @@ export function buildJumpRows(
 
       const candidate = allJumpRows[candidateIndex];
       const entrySource = frameEntrySourceByTrace.get(traceId);
-      let promotedSrcFile = entrySource?.file || candidate.srcSourceFile || null;
+      const promotedSrcFile = entrySource?.file || candidate.srcSourceFile || null;
       let promotedSrcLine = entrySource?.line ?? candidate.srcLine ?? null;
 
       if (promotedSrcFile && promotedSrcLine !== null) {

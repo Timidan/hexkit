@@ -508,7 +508,7 @@ export const trySimulatorBridge = async (
         }
 
         const hasSettings = artifact.settings && !artifact.missingSettings;
-        let normalizedLibraries: Record<string, Record<string, string>> = {};
+        const normalizedLibraries: Record<string, Record<string, string>> = {};
         if (
           artifact.settings?.libraries &&
           typeof artifact.settings.libraries === "object"

@@ -63,10 +63,6 @@ const CONFIG_VERSION = 3;
 const DEFAULT_SOURCE_PRIORITY: AbiSourceType[] = ['etherscan', 'sourcify', 'blockscout'];
 const LEGACY_SOURCE_PRIORITY: AbiSourceType[] = ['sourcify', 'etherscan', 'blockscout'];
 
-// Old storage keys for migration
-const OLD_RPC_SETTINGS_KEY = 'web3-toolkit:user-rpc-settings';
-const OLD_UNIVERSAL_API_KEYS_KEY = 'web3-toolkit-universal-api-keys';
-
 // Fields that count as secrets and are stored outside the public config blob.
 const SECRET_FIELDS = [
   'alchemyApiKey',
@@ -332,78 +328,12 @@ const INFURA_ENDPOINTS: Record<number, (key: string) => string> = {
 
 const PUBLIC_RPC_FALLBACKS: Record<number, string> = PUBLIC_RPC_MAP;
 
-interface OldRpcSettings {
-  mode?: RpcProviderMode;
-  alchemyKey?: string;
-  infuraKey?: string;
-  genericUrl?: string;
-  etherscanKey?: string;
-}
-
-interface OldUniversalApiKeys {
-  ETHERSCAN?: string;
-  BLOCKSCOUT?: string;
-}
-
-function migrateFromOldSettings(): NetworkConfig | null {
-  if (typeof window === 'undefined') return null;
-
-  const oldRpcRaw = localStorage.getItem(OLD_RPC_SETTINGS_KEY);
-  const oldApiKeysRaw = localStorage.getItem(OLD_UNIVERSAL_API_KEYS_KEY);
-
-  if (!oldRpcRaw && !oldApiKeysRaw) return null;
-
-  let oldRpc: OldRpcSettings = {};
-  let oldApiKeys: OldUniversalApiKeys = {};
-
-  try {
-    if (oldRpcRaw) oldRpc = JSON.parse(oldRpcRaw);
-  } catch {
-    // ignore parse errors
-  }
-
-  try {
-    if (oldApiKeysRaw) oldApiKeys = JSON.parse(oldApiKeysRaw);
-  } catch {
-    // ignore parse errors
-  }
-
-  // Merge old settings into new format
-  const migrated: NetworkConfig = {
-    ...DEFAULT_CONFIG,
-    rpcMode: oldRpc.mode ?? 'DEFAULT',
-    alchemyApiKey: oldRpc.alchemyKey?.trim() || undefined,
-    infuraProjectId: oldRpc.infuraKey?.trim() || undefined,
-    customRpcUrl: oldRpc.genericUrl?.trim() || undefined,
-    etherscanApiKey: oldRpc.etherscanKey?.trim() || oldApiKeys.ETHERSCAN?.trim() || undefined,
-    etherscanKeyMode:
-      oldRpc.etherscanKey?.trim() || oldApiKeys.ETHERSCAN?.trim()
-        ? 'personal'
-        : 'default',
-    rememberPersonalEtherscanKey: false,
-    blockscoutApiKey: oldApiKeys.BLOCKSCOUT?.trim() || undefined,
-  };
-
-  // Save migrated config: non-sensitive config in localStorage, secrets in mode-specific storage
-  writeSecrets(extractSecrets(migrated), migrated);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stripSecrets(migrated)));
-
-  // Clean up old keys
-  localStorage.removeItem(OLD_RPC_SETTINGS_KEY);
-  localStorage.removeItem(OLD_UNIVERSAL_API_KEYS_KEY);
-
-  return migrated;
-}
-
 function readConfig(): NetworkConfig {
   if (typeof window === 'undefined') return { ...DEFAULT_CONFIG };
 
   const raw = localStorage.getItem(STORAGE_KEY);
 
   if (!raw) {
-    // Try migrating from old settings
-    const migrated = migrateFromOldSettings();
-    if (migrated) return migrated;
     // Even with no config blob, persisted secrets may exist
     const secrets = readSecrets();
     return {
@@ -699,16 +629,6 @@ export const networkConfigManager = {
   isInfuraAvailable(chainId: number): boolean {
     const config = readConfig();
     return !!(config.infuraProjectId?.trim() && INFURA_ENDPOINTS[chainId]);
-  },
-
-  /**
-   * Get supported chain IDs for a provider
-   */
-  getSupportedChains(provider: 'alchemy' | 'infura'): number[] {
-    if (provider === 'alchemy') {
-      return Object.keys(ALCHEMY_ENDPOINTS).map(Number);
-    }
-    return Object.keys(INFURA_ENDPOINTS).map(Number);
   },
 
   /**

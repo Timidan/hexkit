@@ -11,7 +11,7 @@ export function shortHex(hex: string, head = 8, tail = 6): string {
 /** Clean variable labels for display -- keep mapping signatures, strip simple type suffixes */
 export function cleanLabel(label: string): string {
   // Strip "[base slot]" suffix
-  let cleaned = label.replace(/\s*\[base slot\]$/, '');
+  const cleaned = label.replace(/\s*\[base slot\]$/, '');
   // For mappings: "s.foo (mapping(address -> bool))" -> "s.foo(address -> bool)"
   const mappingMatch = cleaned.match(/^(.+?)\s*\(mapping\((.+)\)\)$/);
   if (mappingMatch) return `${mappingMatch[1]}(${mappingMatch[2]})`;

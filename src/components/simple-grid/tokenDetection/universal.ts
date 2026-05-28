@@ -124,7 +124,7 @@ export async function detectTokenTypeUniversal(
   let confidence = 0;
   let detectionMethod = "none";
   let isDiamond = false;
-  let tokenInfo: any = {};
+  const tokenInfo: any = {};
   let error: string | undefined;
 
   try {

@@ -57,15 +57,6 @@ type StorageTouchedResult = Record<string, Array<{
   writes: Array<{ snapshotId: number; before: string; after: string }>;
 }>>;
 
-type StorageProofResult = {
-  storageProof: Array<{ key: string; value: string; proof: string[] }>;
-};
-
-type StorageRangeAtResult = {
-  storage: Record<string, { key: string; value: string }>;
-  nextKey: string | null;
-};
-
 type SerializedBreakpoint =
   | {
       loc: {
@@ -714,34 +705,6 @@ class DebugBridgeService {
     }
   }
 
-  /** Read storage directly from blockchain RPC (bypasses EDB snapshots). */
-  async getStorageFromRpc(
-    rpcUrl: string, address: string, slot: string | bigint, blockTag: string | number = 'latest',
-  ): Promise<string | null> {
-    try {
-      const slotHex = typeof slot === 'bigint'
-        ? '0x' + slot.toString(16).padStart(64, '0')
-        : slot.startsWith('0x') ? slot : '0x' + slot;
-      const blockHex = typeof blockTag === 'number' ? '0x' + blockTag.toString(16) : blockTag;
-      const response = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getStorageAt', params: [address, slotHex, blockHex], id: 1 }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      if (data.error) return null;
-      const result = data.result as string;
-      if (!result) return null;
-      let hex = result.startsWith('0x') ? result.slice(2) : result;
-      hex = hex.padStart(64, '0');
-      return '0x' + hex;
-    } catch {
-      return null;
-    }
-  }
-
   /**
    * Get breakpoint hits
    */
@@ -796,50 +759,6 @@ class DebugBridgeService {
     return response.json();
   }
 
-  /** Generic RPC call to any Ethereum JSON-RPC endpoint. */
-  async callRpcMethod(rpcUrl: string, method: string, params: unknown[] = []): Promise<unknown> {
-    const response = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) throw new Error(`RPC request failed: ${response.statusText}`);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    return data.result;
-  }
-
-  /** Get storage proof via eth_getProof for selected storage keys. */
-  async getStorageProofFromRpc(
-    rpcUrl: string, address: string, storageKeys: string[], blockTag: string | number = 'latest',
-  ): Promise<StorageProofResult | null> {
-    try {
-      const blockHex = typeof blockTag === 'number' ? '0x' + blockTag.toString(16) : blockTag;
-      const result = await this.callRpcMethod(rpcUrl, 'eth_getProof', [address, storageKeys, blockHex]);
-      return result as StorageProofResult;
-    } catch (err) {
-      console.error('[getStorageProofFromRpc] Error:', err);
-      return null;
-    }
-  }
-
-  /** Page through storage via debug_storageRangeAt (Geth-compatible nodes only). */
-  async getStorageRangeAtFromRpc(
-    rpcUrl: string, blockHash: string, txIndex: number,
-    address: string, keyStart: string, maxResult: number,
-  ): Promise<StorageRangeAtResult | null> {
-    try {
-      const result = await this.callRpcMethod(rpcUrl, 'debug_storageRangeAt', [
-        blockHash, txIndex, address, keyStart, maxResult,
-      ]);
-      return result as StorageRangeAtResult;
-    } catch (err) {
-      console.error('[getStorageRangeAtFromRpc] Error:', err);
-      return null;
-    }
-  }
-
   /**
    * Get source code for a contract address
    */
@@ -888,18 +807,6 @@ class DebugBridgeService {
       return { entries, rootId };
     } catch {
       return { entries: [], rootId: 0 };
-    }
-  }
-
-  /**
-   * Get snapshot count for a session
-   */
-  async getSnapshotCount(sessionId: string): Promise<number> {
-    try {
-      const result = await this.rpcCall(sessionId, 'edb_getSnapshotCount', []);
-      return (result as number) || 0;
-    } catch {
-      return 0;
     }
   }
 

@@ -81,7 +81,7 @@ try {
     );
 
     // Enhanced detection specifically for Diamond contracts
-    let enhancedDetection = { ...tokenDetection };
+    const enhancedDetection = { ...tokenDetection };
 
     // If Diamond detected but no token type, try additional detection methods
     if (tokenDetection.isDiamond && tokenDetection.type === "unknown") {

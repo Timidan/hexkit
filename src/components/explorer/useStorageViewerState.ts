@@ -239,7 +239,7 @@ export function useStorageViewerState() {
     // Resolve contract context
     let proxyType: import('../../utils/resolver/types').ProxyType | undefined;
     let diamondFacets: import('../../utils/resolver/types').FacetInfo[] | null = null;
-    let implAddresses: string[] = [];
+    const implAddresses: string[] = [];
     let sourceBundle: { files: Record<string, string>; contractName?: string; compilerVersion?: string } | undefined;
     const chain = getChainById(chainId);
     if (chain) {

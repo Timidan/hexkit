@@ -195,8 +195,8 @@ async function fetchFromBlockscout(
     const keyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
     const tokenParam = apiKey ? `?token=${encodeURIComponent(apiKey)}` : "";
     const endpoints = [
-      `${basePath}/api?module=contract&action=getabi&address=${address}${keyParam}`,
-      `${basePath}/api/v2/smart-contracts/${address}${tokenParam}`, // note: includes /api/v2 to survive proxy rewrite
+      `${basePath}?module=contract&action=getabi&address=${address}${keyParam}`,
+      `${basePath}/v2/smart-contracts/${address}${tokenParam}`,
     ];
 
     let interimAbi: unknown[] | null = null;
@@ -236,8 +236,8 @@ async function fetchFromBlockscout(
     // If we have ABI from v1 but no name, fetch name via v2 or getsourcecode
     if (interimAbi && !interimName) {
       const nameEndpoints = [
-        `${basePath}/api?module=contract&action=getsourcecode&address=${address}${keyParam}`,
-        `${basePath}/api/v2/smart-contracts/${address}${tokenParam}`,
+        `${basePath}?module=contract&action=getsourcecode&address=${address}${keyParam}`,
+        `${basePath}/v2/smart-contracts/${address}${tokenParam}`,
       ];
       for (const nurl of nameEndpoints) {
         try {

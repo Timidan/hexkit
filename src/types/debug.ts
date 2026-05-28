@@ -299,14 +299,6 @@ export interface DiscoveredMappingKey {
 }
 
 
-/** Detected RPC capabilities for storage inspection */
-export interface RpcCapabilities {
-  hasDebugStorageRangeAt: boolean;
-  hasEthGetProof: boolean;
-  hasEdbGetStorageLayout: boolean;
-  checked: boolean;
-}
-
 /** Debug call frame */
 export interface DebugCallFrame {
   traceId: number;

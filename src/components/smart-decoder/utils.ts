@@ -3,7 +3,6 @@ import {
   getCachedSignatures,
   getCustomSignatures,
 } from '../../utils/signatureDatabase';
-import type { AbiSourceType } from './types';
 import { shortenAddress } from '../shared/AddressDisplay';
 
 export { shortenAddress };
@@ -32,88 +31,6 @@ export const sanitizeDecodedValue = (value: any): any => {
   }
 
   return value;
-};
-
-export const formatParameterValue = (
-  value: any,
-  paramType?: string,
-  options?: { full?: boolean }
-): string => {
-  const full = options?.full ?? false;
-  if (value === null || value === undefined) return 'null';
-
-  if (Array.isArray(value)) {
-    if (full) {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return `[${value.map(v => formatParameterValue(v, undefined, { full: true })).join(', ')}]`;
-      }
-    }
-
-    const hasComplexChildren = value.some(
-      (item) =>
-        Array.isArray(item) ||
-        (item && typeof item === 'object' && !item._isBigNumber && !(item instanceof Uint8Array))
-    );
-
-    if (!full && (paramType?.includes('tuple') || hasComplexChildren)) {
-      let preview = '';
-      if (value.length > 0 && Array.isArray(value[0])) {
-        const firstStruct = value[0];
-        if (firstStruct.length >= 3) {
-          preview = ` (e.g., {${firstStruct[0]}, ${firstStruct[1]}, [${firstStruct[2]?.length || 0} items]})`;
-        } else {
-          preview = ` (e.g., {${firstStruct.slice(0, 2).join(', ')}${firstStruct.length > 2 ? ', ...' : ''}})`;
-        }
-      }
-      return `Struct Array[${value.length} items]${preview} - Switch to JSON View for full details`;
-    }
-
-    if (value.length <= 3) {
-      return `[${value.map(v => formatParameterValue(v)).join(', ')}]`;
-    } else {
-      return `[${value.slice(0, 2).map(v => formatParameterValue(v)).join(', ')}, ... +${value.length - 2} more]`;
-    }
-  }
-
-  if (value && typeof value === 'object') {
-    if (full) {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
-    }
-  }
-
-  const str = String(value);
-
-  if (str.match(/^0x[a-fA-F0-9]{40}$/)) {
-    return str;
-  }
-
-  if (str.match(/^\d+$/) && str.length > 10) {
-    const num = BigInt(str);
-    const formatted = num.toLocaleString();
-
-    const timestamp = Number(str);
-    if (timestamp > 946684800 && timestamp < 4102444800) {
-      const date = new Date(timestamp * 1000);
-      return `${formatted} (${date.toISOString().split('T')[0]})`;
-    }
-
-    return formatted;
-  }
-
-  if (str.startsWith('0x') && str.length > 42 && str.match(/^0x[a-fA-F0-9]+$/)) {
-    if (full) {
-      return str;
-    }
-    return `${str.slice(0, 10)}...${str.slice(-8)} (${(str.length - 2) / 2} bytes)`;
-  }
-
-  return str;
 };
 
 export const getParameterType = (value: any): string => {
@@ -164,42 +81,6 @@ export const getParameterType = (value: any): string => {
   }
 
   return 'string';
-};
-
-export const inferValueType = (value: any): string => {
-  if (value === null || value === undefined) return 'null';
-  if (Array.isArray(value)) return `tuple(${value.length})`;
-  if (value && typeof value === 'object') {
-    if (value._isBigNumber) return 'uint';
-    return 'object';
-  }
-  if (typeof value === 'boolean') return 'bool';
-  if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'float';
-  if (typeof value === 'string') {
-    if (/^0x[a-fA-F0-9]+$/.test(value)) {
-      const byteLength = value.length > 2 ? (value.length - 2) / 2 : 0;
-      return byteLength ? `bytes${byteLength}` : 'bytes';
-    }
-    return 'string';
-  }
-  return typeof value;
-};
-
-export const getAbiSourceLabel = (abiSource: AbiSourceType, decodedResult: any): string => {
-  if (!abiSource) {
-    return decodedResult ? 'Signature lookup / heuristic' : '—';
-  }
-
-  const labels: Record<NonNullable<AbiSourceType>, string> = {
-    sourcify: 'Sourcify (verified ABI)',
-    blockscout: 'Blockscout (verified ABI)',
-    etherscan: 'Etherscan (verified ABI)',
-    manual: 'Manual ABI',
-    signatures: 'Signature database',
-    heuristic: 'Heuristic analysis'
-  };
-
-  return labels[abiSource] ?? abiSource;
 };
 
 export const extractFunctionSelector = (calldataHex: string): string | null => {

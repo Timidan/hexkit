@@ -24,7 +24,7 @@ import {
 } from "../ui/input-group";
 import type { ToolSubTab } from "./types";
 
-const SmartDecoder = React.lazy(() => import("../SmartDecoder"));
+const SmartDecoder = React.lazy(() => import("../smart-decoder/SmartDecoder"));
 const CalldataEncoder = React.lazy(() => import("../CalldataEncoder"));
 const HashToolkit = React.lazy(() => import("../HashToolkit"));
 

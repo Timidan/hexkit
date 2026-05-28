@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { LayoutTransitionWrapper } from "./ui/animated-tabs";
 import { ethers } from "ethers";
-import SimpleGridUI from "./SimpleGridUI";
+import SimpleGridUI from "./simple-grid";
 import { EXTENDED_NETWORKS } from "./shared/NetworkSelector";
 import { SUPPORTED_CHAINS } from "../utils/chains";
 import { useSimulation } from "../contexts/SimulationContext";
@@ -13,15 +13,12 @@ import {
   TXHASH_REPLAY_EVENT,
   TXHASH_REPLAY_LAST_INTENT_KEY,
 } from "./transaction-builder/types";
-import { SimulationReplayResults } from "./transaction-builder/SimulationReplayResults";
 import { TransactionReplayView } from "./transaction-builder/TransactionReplayView";
 import { renderModeToggle } from "./transaction-builder/renderModeToggle";
 import { attemptCalldataDecodeNotification } from "./transaction-builder/calldataDecodeNotification";
 import "../styles/SharedComponents.css";
-import "../styles/SimulatorWorkbench.css";
 
 // Re-export public API so existing consumers are not broken
-export { SimulationReplayResults } from "./transaction-builder/SimulationReplayResults";
 export {
   TXHASH_REPLAY_KEY,
   TXHASH_REPLAY_EVENT,

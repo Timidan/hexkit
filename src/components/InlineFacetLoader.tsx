@@ -6,7 +6,7 @@ import {
 } from "../utils/diamondFacetFetcher";
 import { networkConfigManager } from "../config/networkConfig";
 import type { Chain } from "../types";
-import { UIIcons } from "./icons/IconMap";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 
 interface InlineFacetLoaderProps {
@@ -445,7 +445,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
                       color: "#60a5fa",
                     }}
                   >
-                    <span aria-hidden="true">{UIIcons.loading}</span>
+                    <span aria-hidden="true"><ArrowClockwise size={16} className="animate-spin" /></span>
                     {abbreviate(currentFacetEntry.address)}
                   </span>
                 )}

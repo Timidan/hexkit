@@ -13,7 +13,7 @@ type BuilderIntentMode = "live" | "simulation" | "replay";
 
 const TXHASH_REPLAY_KEY = 'web3-toolkit:txhash-replay';
 
-const loadSimpleGridUI = () => import("./SimpleGridUI");
+const loadSimpleGridUI = () => import("./simple-grid");
 const loadTransactionBuilderWagmi = () => import("./TransactionBuilderWagmi");
 
 const SimpleGridUI = React.lazy(loadSimpleGridUI);

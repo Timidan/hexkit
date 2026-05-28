@@ -27,13 +27,13 @@ export async function detectTokenType(
   provider: ethers.providers.Provider,
   address: string
 ): Promise<TokenDetectionResult> {
-  let type: DetectedTokenType = "unknown";
-  let method = "none";
+  const type: DetectedTokenType = "unknown";
+  const method = "none";
   let isDiamond = false;
   let name: string | undefined;
   let symbol: string | undefined;
   let decimals: number | undefined;
-  let confidence = 0;
+  const confidence = 0;
 
   // Step 1: Diamond detection (separate from token detection)
   try {

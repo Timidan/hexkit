@@ -217,6 +217,33 @@ function VaultPill({
     );
   }
 
+  return (
+    <VaultPillBody
+      label={label}
+      pick={pick}
+      isDestination={isDestination}
+      onPick={onPick}
+      sourceTokenSymbol={sourceTokenSymbol}
+      sourceChainId={sourceChainId}
+    />
+  );
+}
+
+function VaultPillBody({
+  label,
+  pick,
+  isDestination,
+  onPick,
+  sourceTokenSymbol,
+  sourceChainId,
+}: {
+  label: string;
+  pick: RecommendationPick;
+  isDestination: boolean;
+  onPick: (v: EarnVault) => void;
+  sourceTokenSymbol?: string | null;
+  sourceChainId?: number;
+}) {
   const apy = pick.vault.analytics.apy.total;
   const apyStr = apy != null ? `${apy.toFixed(2)}%` : "—";
   const vaultName = pick.vault.name ?? pick.vault.slug;
