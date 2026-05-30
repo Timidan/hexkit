@@ -7,15 +7,17 @@ import {
   fetchTokenPrices,
   fetchTokenMetadata,
   getTokenIconUrl,
+  formatMovementAmount,
   type TokenType,
   type BalanceChange,
   type TokenMovement,
   type TokenPrice,
 } from "../utils/tokenMovements";
 import { normalizeValue } from "../utils/displayFormatters";
+import { formatDisplayAmount } from "./simulation-results/formatters";
+import { ArrowCircleUpRight, ArrowCircleDownLeft } from "@phosphor-icons/react";
 import { ZERO_ADDRESS } from "../utils/addressConstants";
 import { Button } from "./ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
 import "../styles/TokenMovementsPanel.css";
 
 interface TokenMovementsPanelProps {
@@ -305,95 +307,54 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
       {/* Balance changes table - different columns for different token types */}
       {groupingMode === "address" && currentChanges.length > 0 && (
         <div className="token-movements-table-wrapper">
-          <Table className="token-movements-table token-movements-table--address">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Address</TableHead>
-                <TableHead>Asset</TableHead>
-                {/* ERC-721 and ERC-1155 have Token ID column, ERC-20 has Value column */}
-                {(currentTab === "ERC-721" || currentTab === "ERC-1155") ? (
-                  <>
-                    <TableHead>Token ID</TableHead>
-                    <TableHead>Balance Change</TableHead>
-                  </>
-                ) : (
-                  <>
-                    <TableHead>Balance Change</TableHead>
-                    <TableHead>Value</TableHead>
-                  </>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentChanges.map((change, idx) => {
-                const prevChange = idx > 0 ? currentChanges[idx - 1] : null;
-                const showDivider = prevChange && prevChange.rawDelta < 0n && change.rawDelta >= 0n;
-                const colCount = (currentTab === "ERC-721" || currentTab === "ERC-1155") ? 4 : 4;
-                return (
-                  <React.Fragment key={idx}>
-                    {showDivider && (
-                      <TableRow className="token-movements-group-divider" aria-hidden="true">
-                        <TableCell colSpan={colCount} />
-                      </TableRow>
-                    )}
-                    <TokenMovementRow
-                      change={change}
-                      formatAddress={formatAddress}
-                      price={prices.get(change.tokenAddress.toLowerCase())}
-                      chainId={chainId}
-                      highlightedValue={highlightedValue}
-                      onHighlightChange={onHighlightChange}
-                      isNft={currentTab === "ERC-721" || currentTab === "ERC-1155"}
-                    />
-                  </React.Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="tm-list">
+            {currentChanges.map((change, idx) => {
+              const prevChange = idx > 0 ? currentChanges[idx - 1] : null;
+              const showDivider = prevChange && prevChange.rawDelta < 0n && change.rawDelta >= 0n;
+              return (
+                <React.Fragment key={idx}>
+                  {showDivider && <div className="tm-divider" aria-hidden="true" />}
+                  <TokenMovementRow
+                    change={change}
+                    formatAddress={formatAddress}
+                    price={prices.get(change.tokenAddress.toLowerCase())}
+                    chainId={chainId}
+                    highlightedValue={highlightedValue}
+                    onHighlightChange={onHighlightChange}
+                    isNft={currentTab === "ERC-721" || currentTab === "ERC-1155"}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {groupingMode === "chronological" && currentMovements.length > 0 && (
         <div className="token-movements-table-wrapper">
-          <Table className="token-movements-table token-movements-table--chronological">
-            <TableHeader>
-              <TableRow>
-                <TableHead>From</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Asset</TableHead>
-                <TableHead>Asset Type</TableHead>
-                <TableHead>Token ID</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentMovements.map((movement, idx) => {
-                const senderLower = senderAddress?.toLowerCase();
-                const prevMovement = idx > 0 ? currentMovements[idx - 1] : null;
-                const showDivider = senderLower && prevMovement &&
-                  prevMovement.from.toLowerCase() === senderLower &&
-                  movement.from.toLowerCase() !== senderLower;
-                return (
-                  <React.Fragment key={`${movement.tokenAddress}-${movement.tokenId || "na"}-${movement.from}-${movement.to}-${idx}`}>
-                    {showDivider && (
-                      <TableRow className="token-movements-group-divider" aria-hidden="true">
-                        <TableCell colSpan={6} />
-                      </TableRow>
-                    )}
-                    <TokenMovementChronologicalRow
-                      movement={movement}
-                      formatAddress={formatAddress}
-                      highlightedValue={highlightedValue}
-                      onHighlightChange={onHighlightChange}
-                      normalizeHighlightValue={normalizeHighlightValue}
-                      senderAddress={senderAddress}
-                      tokenSymbol={mergedSymbols.get(movement.tokenAddress.toLowerCase()) || movement.tokenSymbol}
-                    />
-                  </React.Fragment>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="tm-list">
+            {currentMovements.map((movement, idx) => {
+              const senderLower = senderAddress?.toLowerCase();
+              const prevMovement = idx > 0 ? currentMovements[idx - 1] : null;
+              const showDivider = senderLower && prevMovement &&
+                prevMovement.from.toLowerCase() === senderLower &&
+                movement.from.toLowerCase() !== senderLower;
+              return (
+                <React.Fragment key={`${movement.tokenAddress}-${movement.tokenId || "na"}-${movement.from}-${movement.to}-${idx}`}>
+                  {showDivider && <div className="tm-divider" aria-hidden="true" />}
+                  <TokenMovementChronologicalRow
+                    movement={movement}
+                    formatAddress={formatAddress}
+                    highlightedValue={highlightedValue}
+                    onHighlightChange={onHighlightChange}
+                    normalizeHighlightValue={normalizeHighlightValue}
+                    senderAddress={senderAddress}
+                    tokenSymbol={mergedSymbols.get(movement.tokenAddress.toLowerCase()) || movement.tokenSymbol}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
       )}
     </section>
@@ -420,7 +381,6 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
   isNft = false,
 }) => {
   const isNegative = change.rawDelta < 0n;
-  const deltaClass = isNegative ? "delta-negative" : "delta-positive";
   const [iconError, setIconError] = useState(false);
 
   // Check if we have a real symbol (not a truncated address)
@@ -466,58 +426,44 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
     return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const delta = formatDisplayAmount(change.delta);
+
   return (
-    <TableRow className="token-movement-row">
-      <TableCell className="address-cell">
-        <span className={`address-icon ${isNegative ? "icon-out" : "icon-in"}`}>
-          {isNegative ? "↗" : "↘"}
-        </span>
-        {renderHighlightable(change.address, formatAddress(change.address), "address-value")}
+    <div className={`tm-row ${isNegative ? "tm-out" : "tm-in"}`}>
+      <div className="tm-left">
+        {isNegative ? (
+          <ArrowCircleUpRight weight="fill" size={22} className="tm-dir" aria-hidden="true" />
+        ) : (
+          <ArrowCircleDownLeft weight="fill" size={22} className="tm-dir" aria-hidden="true" />
+        )}
+        {renderHighlightable(change.address, formatAddress(change.address), "tm-addr")}
         {change.label && <span className="address-label">[{change.label}]</span>}
-      </TableCell>
-      <TableCell className="token-cell">
-        <span className="token-cell-content">
+        <span className="tm-asset">
           {!iconError ? (
             <img
               src={iconUrl}
               alt=""
-              className="token-icon-img"
+              className="tm-asset-logo"
               width={16}
               height={16}
               onError={() => setIconError(true)}
               loading="lazy"
             />
           ) : (
-            <span className="token-icon-fallback">●</span>
+            <span className="tm-asset-logo tm-asset-logo--fallback">●</span>
           )}
-          {displaySymbol ? (
-            renderHighlightable(change.tokenAddress, displaySymbol, "token-symbol")
-          ) : (
-            renderHighlightable(change.tokenAddress, displayAddress, "token-address-fallback")
-          )}
+          {displaySymbol
+            ? renderHighlightable(change.tokenAddress, displaySymbol, "token-symbol")
+            : renderHighlightable(change.tokenAddress, displayAddress, "token-address-fallback")}
         </span>
-      </TableCell>
-      {/* NFTs: show Token ID as separate column, then Balance Change (no USD) */}
-      {isNft ? (
-        <>
-          <TableCell className="token-id-cell">
-            {change.tokenId ? `#${change.tokenId}` : "—"}
-          </TableCell>
-          <TableCell className={`delta-cell ${deltaClass}`}>
-            {change.delta}
-          </TableCell>
-        </>
-      ) : (
-        <>
-          <TableCell className={`delta-cell ${deltaClass}`}>
-            {change.delta}
-          </TableCell>
-          <TableCell className={`usd-cell ${usdValue !== null ? deltaClass : ""}`}>
-            {formatUsd(usdValue)}
-          </TableCell>
-        </>
-      )}
-    </TableRow>
+      </div>
+      <div className="tm-right">
+        <span className="tm-delta" title={delta.full || undefined}>{delta.display}</span>
+        <span className="tm-usd">
+          {isNft ? (change.tokenId ? `#${change.tokenId}` : "—") : formatUsd(usdValue)}
+        </span>
+      </div>
+    </div>
   );
 };
 
@@ -574,27 +520,32 @@ const TokenMovementChronologicalRow: React.FC<TokenMovementChronologicalRowProps
     ? tokenSymbol
     : `${movement.tokenAddress.slice(0, 8)}…${movement.tokenAddress.slice(-6)}`;
 
+  // Color the amount relative to the sender: leaving = red, arriving = green.
+  const dirClass = fromLabel ? "tm-out" : toLabel ? "tm-in" : "tm-neutral";
+  const amount = formatDisplayAmount(formatMovementAmount(movement));
+
   return (
-    <TableRow className="token-movement-row">
-      <TableCell className="address-cell">
-        {renderHighlightable(movement.from, formatParty(movement.from, "from"), "address-value")}
-        {fromLabel && <span className="address-label">[{fromLabel}]</span>}
-      </TableCell>
-      <TableCell className="address-cell">
-        {renderHighlightable(movement.to, formatParty(movement.to, "to"), "address-value")}
-        {toLabel && <span className="address-label">[{toLabel}]</span>}
-      </TableCell>
-      <TableCell className="delta-cell">
-        {movement.amount}
-      </TableCell>
-      <TableCell className="token-cell">
-        {renderHighlightable(movement.tokenAddress, displaySymbol, "token-symbol")}
-      </TableCell>
-      <TableCell className="token-id-cell">{movement.tokenType}</TableCell>
-      <TableCell className="token-id-cell">
-        {movement.tokenId ? `#${movement.tokenId}` : "—"}
-      </TableCell>
-    </TableRow>
+    <div className={`tm-row tm-row--chrono ${dirClass}`}>
+      <div className="tm-left">
+        <span className="tm-asset">
+          <span className="tm-asset-logo tm-asset-logo--fallback">●</span>
+          {renderHighlightable(movement.tokenAddress, displaySymbol, "token-symbol")}
+        </span>
+        <span className="tm-flow">
+          {renderHighlightable(movement.from, formatParty(movement.from, "from"), "tm-addr")}
+          {fromLabel && <span className="address-label">[{fromLabel}]</span>}
+          <span className="tm-arrow" aria-hidden="true">→</span>
+          {renderHighlightable(movement.to, formatParty(movement.to, "to"), "tm-addr")}
+          {toLabel && <span className="address-label">[{toLabel}]</span>}
+        </span>
+      </div>
+      <div className="tm-right">
+        <span className="tm-delta" title={amount.full || undefined}>
+          {amount.display.replace(/^\+/, "")}
+        </span>
+        <span className="tm-usd">{movement.tokenId ? `#${movement.tokenId}` : movement.tokenType}</span>
+      </div>
+    </div>
   );
 };
 

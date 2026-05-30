@@ -11,7 +11,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "./ui/accordion";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./ui/table";
+import { formatDisplayAmount } from "./simulation-results/formatters";
+// Anchored asset-change rows share the .tm-* classes defined in TokenMovementsPanel.css
+// (always bundled — this module imports TokenMovementsPanel below).
+import { ArrowCircleUpRight, ArrowCircleDownLeft } from "@phosphor-icons/react";
 import { extractTokenMovements } from "../utils/tokenMovements";
 
 // Re-export types for backward compatibility
@@ -218,51 +221,43 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                 <span className="exec-accordion-count">{orderedAssetChanges.rows.length}</span>
               </AccordionTrigger>
               <AccordionContent>
-                <Table className="sim-balance-changes__table">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Asset</TableHead>
-                      <TableHead className="text-right">Delta Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orderedAssetChanges.rows.map((change: any, idx: number) => {
-                      const direction = normalizeAssetDirection(change);
-                      const isPositive = direction === "in";
-                      const isNegative = direction === "out";
-                      const amountClass = isPositive
-                        ? "sim-amount--positive"
-                        : isNegative
-                          ? "sim-amount--negative"
-                          : "";
-                      const showIncomingDivider =
-                        idx === orderedAssetChanges.outgoingCount &&
-                        orderedAssetChanges.outgoingCount > 0 &&
-                        orderedAssetChanges.incomingCount > 0;
-                      return (
-                        <React.Fragment key={idx}>
-                          {showIncomingDivider && (
-                            <TableRow className="sim-balance-changes__group-divider" aria-hidden="true">
-                              <TableCell colSpan={3} />
-                            </TableRow>
-                          )}
-                          <TableRow>
-                            <TableCell className="sim-address">
+                <div className="tm-list">
+                  {orderedAssetChanges.rows.map((change: any, idx: number) => {
+                    const direction = normalizeAssetDirection(change);
+                    const isPositive = direction === "in";
+                    const isNegative = direction === "out";
+                    const dirClass = isNegative ? "tm-out" : isPositive ? "tm-in" : "tm-neutral";
+                    const showIncomingDivider =
+                      idx === orderedAssetChanges.outgoingCount &&
+                      orderedAssetChanges.outgoingCount > 0 &&
+                      orderedAssetChanges.incomingCount > 0;
+                    const f = formatDisplayAmount(change.amount || change.rawAmount);
+                    return (
+                      <React.Fragment key={idx}>
+                        {showIncomingDivider && <div className="tm-divider" aria-hidden="true" />}
+                        <div className={`tm-row ${dirClass}`}>
+                          <div className="tm-left">
+                            {isNegative ? (
+                              <ArrowCircleUpRight weight="fill" size={22} className="tm-dir" aria-hidden="true" />
+                            ) : isPositive ? (
+                              <ArrowCircleDownLeft weight="fill" size={22} className="tm-dir" aria-hidden="true" />
+                            ) : null}
+                            <span className="tm-addr">
                               {change.address ? `${change.address.slice(0, 10)}\u2026${change.address.slice(-8)}` : "\u2014"}
-                            </TableCell>
-                            <TableCell>
-                              {change.symbol || "Unknown"}
-                            </TableCell>
-                            <TableCell className={`text-right ${amountClass}`}>
-                              {change.amount || change.rawAmount || "0"}
-                            </TableCell>
-                          </TableRow>
-                        </React.Fragment>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </span>
+                            <span className="tm-asset">
+                              <span className="tm-asset-logo tm-asset-logo--fallback">\u25cf</span>
+                              <span className="token-symbol">{change.symbol || "Unknown"}</span>
+                            </span>
+                          </div>
+                          <div className="tm-right">
+                            <span className="tm-delta" title={f.full || undefined}>{f.display}</span>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
               </AccordionContent>
             </AccordionItem>
           )}

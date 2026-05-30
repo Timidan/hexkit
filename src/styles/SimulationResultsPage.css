@@ -526,65 +526,7 @@ body:has(.sim-results-page) > #root {
    RETURN DATA (multi-line)
    ============================================ */
 
-/* ============================================
-   BALANCE CHANGES TABLE (Flat Design)
-   ============================================ */
-
-.sim-balance-changes__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
-}
-
-.sim-balance-changes__table thead tr {
-  border-bottom: 1px solid var(--sim-border);
-}
-
-.sim-balance-changes__table th {
-  padding: 10px 14px;
-  text-align: left;
-  color: var(--sim-text-muted);
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sim-balance-changes__table th.text-right {
-  text-align: right;
-}
-
-.sim-balance-changes__table td {
-  padding: 10px 14px;
-  color: var(--sim-text);
-  border-bottom: 1px solid var(--sim-border);
-}
-
-.sim-balance-changes__table td.text-right {
-  text-align: right;
-}
-
-.sim-balance-changes__table td.sim-address {
-  color: #22d3ee;
-}
-
-.sim-balance-changes__table tr.sim-balance-changes__group-divider td {
-  padding: 0;
-  border-bottom: none;
-  height: 0;
-  border-top: 2px solid rgba(255, 255, 255, 0.2);
-}
-
-.sim-balance-changes__table .sim-amount--positive {
-  color: var(--sim-success);
-  font-weight: 500;
-}
-
-.sim-balance-changes__table .sim-amount--negative {
-  color: var(--sim-error);
-  font-weight: 500;
-}
+/* Native Token Change now uses the shared .tm-* anchored rows (TokenMovementsPanel.css) */
 
 /* ============================================
    SECTION HEADERS (Flat Design)

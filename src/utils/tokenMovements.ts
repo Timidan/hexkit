@@ -371,6 +371,25 @@ export function getCachedTokenMetadata(tokenAddress: string): TokenMetadata | nu
   return tokenMetadataCache.get(tokenAddress.toLowerCase()) ?? null;
 }
 
+/**
+ * Format a movement's raw base-unit `amount` into a human-readable decimal
+ * string, mirroring aggregateBalanceChanges: ERC-20 divides by cached decimals
+ * (default 18); NFTs are whole counts. Returns an unsigned string.
+ */
+export function formatMovementAmount(movement: TokenMovement): string {
+  if (movement.formattedAmount) return movement.formattedAmount;
+  const raw = String(movement.amount ?? "0");
+  const isNft = movement.tokenType === "ERC-721" || movement.tokenType === "ERC-1155";
+  if (isNft) return raw;
+  try {
+    const decimals =
+      movement.decimals ?? getCachedTokenMetadata(movement.tokenAddress)?.decimals ?? 18;
+    return ethers.utils.formatUnits(BigInt(raw === "undefined" || raw === "" ? "0" : raw), decimals);
+  } catch {
+    return raw;
+  }
+}
+
 // Pre-cache common tokens (Ethereum Mainnet)
 setTokenMetadataCache("0xdAC17F958D2ee523a2206206994597C13D831ec7", { symbol: "USDT", name: "Tether USD", decimals: 6 });
 setTokenMetadataCache("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", { symbol: "USDC", name: "USD Coin", decimals: 6 });

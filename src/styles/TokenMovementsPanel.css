@@ -92,141 +92,142 @@
   overflow-x: auto;
 }
 
-/* Direction group divider (between outgoing and incoming rows) */
-.token-movements-table tr.token-movements-group-divider td {
-  padding: 0;
-  border-bottom: none;
+/* ============================================
+   Anchored rows (Address view) — full-width
+   ledger rows: direction pill + address + asset
+   chip on the left; delta over USD pinned right.
+   ============================================ */
+.tm-list {
+  display: flex;
+  flex-direction: column;
+}
+.tm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 52px;
+  padding: 10px 4px;
+}
+.tm-row + .tm-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tm-row:hover {
+  background: rgba(255, 255, 255, 0.022);
+}
+.tm-divider {
   height: 0;
   border-top: 2px solid rgba(255, 255, 255, 0.12);
+  margin: 2px 0;
 }
 
-/* Table styles */
-.token-movements-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  table-layout: fixed;
+.tm-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
-
-.token-movements-table thead th {
-  text-align: left;
-  padding: 4px 10px;
-  color: #666;
-  font-weight: 500;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(15, 15, 20, 0.3);
+/* Direction glyph: Phosphor ArrowCircle (fill) — self-contained, no extra pill */
+.tm-dir {
+  flex: none;
+  display: block;
 }
-
-/* Address-grouped table widths */
-.token-movements-table--address th:nth-child(1),
-.token-movements-table--address td:nth-child(1) {
-  width: 22%;
+.tm-out .tm-dir {
+  color: #ef4444;
 }
-
-.token-movements-table--address th:nth-child(2),
-.token-movements-table--address td:nth-child(2) {
-  width: 18%;
+.tm-in .tm-dir {
+  color: #22c55e;
 }
-
-.token-movements-table--address th:nth-child(3),
-.token-movements-table--address td:nth-child(3) {
-  width: 38%;
-  text-align: right;
+.tm-addr {
+  color: #22d3ee;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 13px;
 }
-
-.token-movements-table--address th:nth-child(4),
-.token-movements-table--address td:nth-child(4) {
-  width: 22%;
-  text-align: right;
-}
-
-/* Chronological table widths */
-.token-movements-table--chronological th:nth-child(1),
-.token-movements-table--chronological td:nth-child(1) {
-  width: 18%;
-}
-
-.token-movements-table--chronological th:nth-child(2),
-.token-movements-table--chronological td:nth-child(2) {
-  width: 18%;
-}
-
-.token-movements-table--chronological th:nth-child(3),
-.token-movements-table--chronological td:nth-child(3) {
-  width: 11%;
-  text-align: right;
-}
-
-.token-movements-table--chronological th:nth-child(4),
-.token-movements-table--chronological td:nth-child(4) {
-  width: 15%;
-}
-
-.token-movements-table--chronological th:nth-child(5),
-.token-movements-table--chronological td:nth-child(5) {
-  width: 11%;
-}
-
-.token-movements-table--chronological th:nth-child(6),
-.token-movements-table--chronological td:nth-child(6) {
-  width: 10%;
-}
-
-.token-movements-table--chronological th:nth-child(7),
-.token-movements-table--chronological td:nth-child(7) {
-  width: 17%;
-}
-
-.token-movements-table tbody tr {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  transition: background 0.1s ease;
-}
-
-.token-movements-table tbody tr:hover {
+.tm-asset {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.02);
 }
-
-.token-movements-table tbody tr:last-child {
-  border-bottom: none;
+.tm-asset-logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
-
-.token-movements-table td {
-  padding: 4px 10px;
-  vertical-align: middle;
-}
-
-/* Address cell */
-.address-cell {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.address-icon {
-  width: 14px;
-  height: 14px;
+.tm-asset-logo--fallback {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  font-size: 10px;
-  margin-right: 6px;
-  vertical-align: middle;
+  color: #6b7280;
+  background: transparent;
+  font-size: 13px;
 }
 
-.address-icon.icon-out {
-  background: rgba(239, 68, 68, 0.15);
+.tm-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: none;
+}
+.tm-delta {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 16px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.tm-usd {
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: #6b7280;
+}
+.tm-out .tm-delta {
   color: #ef4444;
 }
-
-.address-icon.icon-in {
-  background: rgba(34, 197, 94, 0.15);
+.tm-in .tm-delta {
+  color: #22c55e;
+}
+.tm-out .tm-usd,
+.tm-in .tm-usd {
+  opacity: 0.85;
+}
+.tm-out .tm-usd {
+  color: #ef4444;
+}
+.tm-in .tm-usd {
   color: #22c55e;
 }
 
+/* Chronological rows: asset chip + "from → to" flow on the left */
+.tm-row--chrono .tm-left {
+  flex-wrap: wrap;
+}
+.tm-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.tm-flow .tm-addr {
+  font-size: 12px;
+}
+.tm-arrow {
+  color: #6b7280;
+  font-size: 13px;
+}
+.tm-neutral .tm-delta {
+  color: #d4d4d4;
+}
+
+/* address-value is still emitted by resultFormatter.ts */
 .address-value {
   color: #d4d4d4;
   font-family: "Fira Code", "Consolas", monospace;
@@ -242,34 +243,6 @@
   vertical-align: middle;
 }
 
-/* Token cell */
-.token-cell {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.token-cell-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.token-icon-img {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
-}
-
-.token-icon-fallback {
-  color: #6b7280;
-  font-size: 15px;
-  flex-shrink: 0;
-}
-
 .token-symbol {
   color: #e2e8f0;
   font-weight: 500;
@@ -281,53 +254,6 @@
   font-family: "Fira Code", "Consolas", monospace;
   font-size: 11px;
 }
-
-/* Token ID cell (for NFTs) */
-.token-id-cell {
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 11px;
-  color: #d4d4d4;
-  text-align: left;
-  white-space: nowrap;
-}
-
-/* Delta cell */
-.delta-cell {
-  font-family: "Fira Code", "Consolas", monospace;
-  font-weight: 500;
-  font-size: 12px;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.delta-cell.delta-negative {
-  color: #ef4444;
-}
-
-.delta-cell.delta-positive {
-  color: #22c55e;
-}
-
-/* USD value cell */
-.usd-cell {
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 11px;
-  text-align: right;
-  white-space: nowrap;
-  color: #6b7280;
-}
-
-.usd-cell.delta-negative {
-  color: #ef4444;
-}
-
-.usd-cell.delta-positive {
-  color: #22c55e;
-}
-
-/* Empty state */
 
 /* ======================================
    Cross-reference highlighting
@@ -358,14 +284,5 @@
     flex-direction: column;
     gap: 12px;
     align-items: flex-start;
-  }
-
-  .token-movements-table {
-    font-size: 13px;
-  }
-
-  .token-movements-table td,
-  .token-movements-table th {
-    padding: 8px 12px;
   }
 }

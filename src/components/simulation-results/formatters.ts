@@ -90,6 +90,30 @@ export const formatEth = (weiValue?: string | null) => {
   }
 };
 
+/**
+ * Format an already-decimal amount string for compact display while keeping the
+ * full value available (e.g. for a `title` tooltip). Turns the raw float tails
+ * like "-0.08999999999999997" into a readable "−0.0900".
+ */
+export const formatDisplayAmount = (
+  value?: string | null
+): { display: string; full: string } => {
+  const full = String(value ?? "").trim();
+  if (!full) return { display: "—", full: "" };
+  const n = Number(full);
+  if (!Number.isFinite(n) || n === 0) {
+    return { display: n === 0 ? "0" : full, full };
+  }
+  const sign = n > 0 ? "+" : "−"; // U+2212 minus
+  const abs = Math.abs(n);
+  const absStr = Number.isInteger(abs)
+    ? abs.toLocaleString("en-US") // whole counts get thousands separators: 261,000
+    : abs >= 0.001
+      ? abs.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+      : Number(abs.toPrecision(3)).toString();
+  return { display: `${sign}${absStr}`, full };
+};
+
 export const calculateIntrinsicGas = (calldata?: string | null): number => {
   const INTRINSIC_BASE = 21000;
   if (!calldata || calldata === "0x") return INTRINSIC_BASE;
