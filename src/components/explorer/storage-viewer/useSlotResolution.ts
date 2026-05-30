@@ -12,13 +12,14 @@ import {
   buildSlotMap,
   tryResolveMappingSlot,
   tryResolveArraySlot,
+  walkStorageEntries,
 } from '../../../utils/storageLayoutResolver';
 import {
   buildSlotDescriptors,
   decodeSlotValue,
   type SlotDescriptor,
 } from '../../../utils/storageLayoutDecode';
-import { formatSlotHex, PROXY_SLOTS, ZERO_WORD } from '../../../utils/storageSlotCalculator';
+import { formatSlotHex, PROXY_SLOTS, ZERO_WORD, buildScalarDescriptor } from '../../../utils/storageSlotCalculator';
 
 export interface MappingEntry {
   variable: string;
@@ -127,15 +128,7 @@ function typeAwareDecode(
   if (!SAFE_DECODE_TYPES.test(typeLabel)) return undefined;
 
   try {
-    const syntheticDescriptor: SlotDescriptor = {
-      label: '',
-      typeLabel,
-      typeKey: '',
-      offset: 0,
-      size,
-      encoding,
-      entry: { label: '', offset: 0, slot: '0', type: '', astId: 0, contract: '' },
-    };
+    const syntheticDescriptor = buildScalarDescriptor({ typeLabel, size, encoding });
     const decoded = decodeSlotValue(value, syntheticDescriptor);
     return [{ label: '', typeLabel, decoded, offset: 0, size }];
   } catch {
@@ -160,26 +153,14 @@ function findLayoutEntryBySlot(
   slotHex: string,
   layout: StorageLayoutResponse,
 ): StorageLayoutEntry | null {
-  for (const entry of layout.storage) {
-    if (formatSlotHex(BigInt(entry.slot)) === slotHex) {
-      return entry;
-    }
+  let found: StorageLayoutEntry | null = null;
+  walkStorageEntries(layout, ({ entry, slot, slotHex: visitedHex, isMember }) => {
+    if (found) return;
+    if (visitedHex !== slotHex) return;
+    found = isMember ? { ...entry, slot: slot.toString() } : entry;
+  });
 
-    const typeInfo = layout.types[entry.type];
-    if (typeInfo?.encoding === 'inplace' && typeInfo.members) {
-      for (const member of typeInfo.members) {
-        const memberSlot = BigInt(entry.slot) + BigInt(member.slot);
-        if (formatSlotHex(memberSlot) === slotHex) {
-          return {
-            ...member,
-            slot: memberSlot.toString(),
-          };
-        }
-      }
-    }
-  }
-
-  return null;
+  return found;
 }
 
 /**
@@ -271,16 +252,9 @@ export function useSlotResolution(
   const layoutEntryIndex = useMemo(() => {
     const index = new Map<string, StorageLayoutEntry>();
     if (!deferredLayout) return index;
-    for (const entry of deferredLayout.storage) {
-      index.set(formatSlotHex(BigInt(entry.slot)), entry);
-      const typeInfo = deferredLayout.types[entry.type];
-      if (typeInfo?.encoding === 'inplace' && typeInfo.members) {
-        for (const member of typeInfo.members) {
-          const memberSlot = BigInt(entry.slot) + BigInt(member.slot);
-          index.set(formatSlotHex(memberSlot), { ...member, slot: memberSlot.toString() });
-        }
-      }
-    }
+    walkStorageEntries(deferredLayout, ({ entry, slot, slotHex, isMember }) => {
+      index.set(slotHex, isMember ? { ...entry, slot: slot.toString() } : entry);
+    });
     return index;
   }, [deferredLayout]);
 

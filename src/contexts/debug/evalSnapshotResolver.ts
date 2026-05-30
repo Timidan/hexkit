@@ -9,6 +9,7 @@ import type {
   SourceFile,
   HookSnapshotDetail,
 } from '../../types/debug';
+import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import { debugBridgeService } from '../../services/DebugBridgeService';
 import {
   enhanceHookSnapshot,
@@ -18,6 +19,11 @@ import {
   debugLog,
   HOOK_SCAN_CHUNK_SIZE,
 } from './debugHelpers';
+import type { SnapshotCacheWriter } from './snapshotCacheStore';
+import {
+  getTraceRowBytecodeAddress,
+  scoreOpcodeSnapshotCandidate,
+} from './traceRowScoring';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -73,7 +79,7 @@ export interface LiveSessionReadyDeps {
   sessionRef: { current: { sessionId: string; totalSnapshots?: number } | null };
   sourceFilesRef: { current: Map<string, SourceFile> };
   snapshotCache: Map<number, DebugSnapshot>;
-  setSnapshotCache: (updater: (prev: Map<number, DebugSnapshot>) => Map<number, DebugSnapshot>) => void;
+  snapshotCacheWriter: SnapshotCacheWriter;
 }
 
 export async function waitForLiveSessionReady(
@@ -125,15 +131,7 @@ export async function waitForLiveSessionReady(
             snapshotId: candidateId,
           });
           const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-          deps.setSnapshotCache((prev) => {
-            const next = new Map(prev);
-            next.set(candidateId, resolved);
-            if (next.size > 500) {
-              const sortedKeys = [...next.keys()].sort((a, b) => a - b);
-              sortedKeys.slice(0, next.size - 500).forEach((k) => next.delete(k));
-            }
-            return next;
-          });
+          deps.snapshotCacheWriter.set(candidateId, resolved);
           return { ready: true, snapshotId: candidateId };
         } catch (err) {
           if (isSessionNotFoundError(err)) {
@@ -167,7 +165,7 @@ export interface ScanForHookSnapshotDeps {
   session: { totalSnapshots?: number } | null;
   sourceFilesRef: { current: Map<string, SourceFile> };
   snapshotCache: Map<number, DebugSnapshot>;
-  setSnapshotCache: (updater: (prev: Map<number, DebugSnapshot>) => Map<number, DebugSnapshot>) => void;
+  snapshotCacheWriter: SnapshotCacheWriter;
 }
 
 export async function scanForHookSnapshot(
@@ -214,7 +212,7 @@ export async function scanForHookSnapshot(
         snapshotId,
       });
       const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-      deps.setSnapshotCache((prev) => { const next = new Map(prev); next.set(snapshotId, resolved); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+      deps.snapshotCacheWriter.set(snapshotId, resolved);
       if (resolved.type !== 'hook') return null;
       if (!matchesTraceId(resolved.frameId, traceId)) {
         return null;
@@ -291,7 +289,7 @@ export interface ResolveEvalSnapshotDeps {
   currentSnapshotId: number | null;
   currentSnapshot: DebugSnapshot | null;
   snapshotCache: Map<number, DebugSnapshot>;
-  setSnapshotCache: (updater: (prev: Map<number, DebugSnapshot>) => Map<number, DebugSnapshot>) => void;
+  snapshotCacheWriter: SnapshotCacheWriter;
   snapshotList: SnapshotListItem[];
   setSnapshotList: (list: SnapshotListItem[]) => void;
   sourceFilesRef: { current: Map<string, SourceFile> };
@@ -380,7 +378,7 @@ export async function resolveEvalSnapshotId(
             snapshotId: candidateId,
           });
           const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-          deps.setSnapshotCache((prev) => { const next = new Map(prev); next.set(candidateId, resolved); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+          deps.snapshotCacheWriter.set(candidateId, resolved);
           if (resolved.type === 'hook' && matchesTraceId(resolved.frameId, currentTraceId)) {
             return candidateId;
           }
@@ -702,4 +700,86 @@ export async function resolveEvalSnapshotId(
   }
 
   return null;
+}
+
+// ── Resolve live snapshot from trace row ───────────────────────────────
+
+export interface ResolveLiveSnapshotDeps {
+  decodedTraceRowsRef: { current: DecodedTraceRow[] | null };
+  snapshotCache: Map<number, DebugSnapshot>;
+  snapshotCacheWriter: SnapshotCacheWriter;
+  traceToLiveSnapshotCacheRef: { current: Map<string, number> };
+}
+
+export async function resolveLiveSnapshotFromTraceRow(
+  deps: ResolveLiveSnapshotDeps,
+  sessionId: string,
+  traceStepId: number
+): Promise<{ snapshotId: number; snapshot: DebugSnapshot } | null> {
+  const traceRow = deps.decodedTraceRowsRef.current?.find((row) => row.id === traceStepId) ?? null;
+  const bytecodeAddress = getTraceRowBytecodeAddress(traceRow);
+  if (!traceRow || !bytecodeAddress || typeof traceRow.pc !== 'number') {
+    return null;
+  }
+
+  const cacheKey = `${sessionId}:${traceStepId}:${bytecodeAddress}:${traceRow.pc}`;
+  const cachedSnapshotId = deps.traceToLiveSnapshotCacheRef.current.get(cacheKey);
+  if (typeof cachedSnapshotId === 'number') {
+    const cachedSnapshot = deps.snapshotCache.get(cachedSnapshotId);
+    if (cachedSnapshot) {
+      return { snapshotId: cachedSnapshotId, snapshot: cachedSnapshot };
+    }
+  }
+
+  const breakpointHits = await debugBridgeService.getBreakpointHits({
+    sessionId,
+    breakpoints: [
+      {
+        location: {
+          type: 'opcode',
+          bytecodeAddress,
+          pc: traceRow.pc,
+        },
+      },
+    ],
+  });
+
+  const candidateIds = breakpointHits.hits.filter((id) => Number.isInteger(id) && id >= 0);
+  if (candidateIds.length === 0) {
+    return null;
+  }
+
+  let bestMatch:
+    | { snapshotId: number; snapshot: DebugSnapshot; score: number }
+    | null = null;
+
+  for (const candidateId of candidateIds.slice(0, 16)) {
+    try {
+      const response = await debugBridgeService.getSnapshot({
+        sessionId,
+        snapshotId: candidateId,
+      });
+      const candidateSnapshot = response.snapshot;
+      const score = scoreOpcodeSnapshotCandidate(traceRow, candidateSnapshot);
+
+      if (!bestMatch || score > bestMatch.score) {
+        bestMatch = {
+          snapshotId: candidateId,
+          snapshot: candidateSnapshot,
+          score,
+        };
+      }
+    } catch {
+      // Ignore candidate fetch errors and continue scoring remaining hits.
+    }
+  }
+
+  if (!bestMatch) {
+    return null;
+  }
+
+  deps.traceToLiveSnapshotCacheRef.current.set(cacheKey, bestMatch.snapshotId);
+  deps.snapshotCacheWriter.set(bestMatch.snapshotId, bestMatch.snapshot);
+
+  return { snapshotId: bestMatch.snapshotId, snapshot: bestMatch.snapshot };
 }

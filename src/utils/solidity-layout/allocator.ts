@@ -32,6 +32,8 @@ import {
   buildTypeLabel,
   computeStructSlotCount,
   computeFixedArraySlotCount,
+  placeField,
+  type SlotCursor,
 } from './allocatorTypeHelpers';
 
 // Re-export public API from the helpers module so existing consumers
@@ -150,21 +152,18 @@ function allocateVar(
         return;
       }
 
-      // Elementary types and enums -- pack into current slot if they fit
-      if (state.offset > 0 && (32 - state.offset) < size) {
-        // Doesn't fit in remaining space -- move to next slot
-        state.slot += 1;
-        state.offset = 0;
-      }
-
+      // Elementary types and enums -- pack into current slot if they fit.
+      // placeField mutates state (the cursor) to the post-advance position.
+      const fieldOffset = placeField(state, size);
+      const postSlot = state.slot;
+      const postOffset = state.offset;
+      // Place the cursor at the (pre-advance) position so the recorded entry
+      // captures the field's slot/offset, then apply the post-advance cursor.
+      state.slot = fieldOffset + size >= 32 ? postSlot - 1 : postSlot;
+      state.offset = fieldOffset;
       recordEntry(state, name, contractName, typeId);
-      state.offset += size;
-
-      // If we filled the slot exactly, advance
-      if (state.offset >= 32) {
-        state.slot += 1;
-        state.offset = 0;
-      }
+      state.slot = postSlot;
+      state.offset = postOffset;
       return;
     }
 
@@ -252,17 +251,9 @@ function allocateStructMembers(
       continue;
     }
 
-    // Inplace member -- pack
+    // Inplace member -- pack (placeField mutates the state cursor in place)
     if (memberSize !== null) {
-      if (state.offset > 0 && (32 - state.offset) < memberSize) {
-        state.slot += 1;
-        state.offset = 0;
-      }
-      state.offset += memberSize;
-      if (state.offset >= 32) {
-        state.slot += 1;
-        state.offset = 0;
-      }
+      placeField(state, memberSize);
     } else {
       // Unknown size member -- allocate full slot
       advanceToSlotBoundary(state);
@@ -312,15 +303,7 @@ function allocateFixedArray(
     if (elemSize <= 32) {
       // Small elements pack within slots
       for (let i = 0; i < arrayLength; i++) {
-        if (state.offset > 0 && (32 - state.offset) < elemSize) {
-          state.slot += 1;
-          state.offset = 0;
-        }
-        state.offset += elemSize;
-        if (state.offset >= 32) {
-          state.slot += 1;
-          state.offset = 0;
-        }
+        placeField(state, elemSize); // mutates the state cursor; no per-element alloc
       }
     } else {
       // Large elements (e.g. nested fixed arrays) -- each takes ceil(elemSize/32) slots
@@ -399,6 +382,7 @@ function buildStructMemberEntries(
   const entries: StorageLayoutEntry[] = [];
   let memberSlot = 0;
   let memberOffset = 0;
+  const cur: SlotCursor = { slot: 0, offset: 0 }; // reused across members (no per-field alloc)
 
   for (const member of structDef.members) {
     const memberTypeId = buildTypeId(member.typeName, state.symbols);
@@ -471,23 +455,21 @@ function buildStructMemberEntries(
 
     // Inplace packing
     if (memberSize !== null) {
-      if (memberOffset > 0 && (32 - memberOffset) < memberSize) {
-        memberSlot += 1;
-        memberOffset = 0;
-      }
+      cur.slot = memberSlot; cur.offset = memberOffset;
+      const fieldOffset = placeField(cur, memberSize);
+      // Record at the (pre-advance) placement slot/offset, then carry the
+      // post-advance cursor forward.
+      const placementSlot = fieldOffset + memberSize >= 32 ? cur.slot - 1 : cur.slot;
       entries.push({
         astId: state.astIdCounter++,
         contract: structDef.contractName || structDef.name,
         label: member.name,
-        offset: memberOffset,
-        slot: String(memberSlot),
+        offset: fieldOffset,
+        slot: String(placementSlot),
         type: memberTypeId,
       });
-      memberOffset += memberSize;
-      if (memberOffset >= 32) {
-        memberSlot += 1;
-        memberOffset = 0;
-      }
+      memberSlot = cur.slot;
+      memberOffset = cur.offset;
     } else {
       // Unknown size
       if (memberOffset > 0) {

@@ -25,6 +25,7 @@ import {
   isSessionNotFoundError,
   debugLog,
 } from './debugHelpers';
+import { writeSnapshotToCache } from './snapshotCacheStore';
 import type { DebugSharedState, DebugSessionActions } from './types';
 
 const INITIAL_SNAPSHOT_PREFETCH_COUNT = 20;
@@ -154,7 +155,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setStorageDiffs(diffs);
 
     // Cache the snapshot
-    setSnapshotCache(prev => { const next = new Map(prev); next.set(row.id, snapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+    setSnapshotCache(prev => writeSnapshotToCache(prev, row.id, snapshot));
   }, []);
 
   const goToSnapshotInternal = useCallback(async (
@@ -179,7 +180,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         });
         snapshot = response.snapshot;
 
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, snapshot!); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache(prev => writeSnapshotToCache(prev, snapshotId, snapshot!));
       }
 
       const resolvedSnapshot = snapshot ? enhanceHookSnapshot(snapshot, sourceFilesRef.current) : snapshot;
@@ -187,7 +188,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       setCurrentSnapshotId(snapshotId);
       setCurrentSnapshot(resolvedSnapshot || null);
       if (resolvedSnapshot) {
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, resolvedSnapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache(prev => writeSnapshotToCache(prev, snapshotId, resolvedSnapshot));
       }
 
       // Update source location if hook snapshot

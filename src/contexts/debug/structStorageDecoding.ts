@@ -26,6 +26,8 @@ import {
   type SlotDescriptor,
 } from '../../utils/storageLayoutDecode';
 import { reconstructStorageLayout } from '../../utils/solidity-layout';
+import { placeField, elementsPerSlot, type SlotCursor } from '../../utils/solidity-layout/allocatorTypeHelpers';
+import type { StorageLayoutResponse } from '../../types/debug';
 import {
   debugLog,
   resolveSourceContent,
@@ -37,10 +39,10 @@ import {
 import {
   findVariableTypeInFunction,
   findStructFields,
-  buildStructLayout,
   decodeFieldFromSlot,
   parseStorageRead,
   parseStorageWrite,
+  type StructFieldDef,
   type StructFieldLayout,
 } from './solidityStructLayout';
 
@@ -56,6 +58,257 @@ export function getSourceLineText(
   if (!content) return null;
   const lines = content.split('\n');
   return lines[line - 1] ?? null;
+}
+
+// ── AST → StructFieldLayout adapter ─────────────────────────────────────
+
+/**
+ * Derive the scalar `base` used by decodeScalarValue from a type label.
+ * Contract references decode as addresses; everything else uses the label
+ * verbatim (uintN, intN, bool, bytesN, enum X are all handled downstream).
+ */
+function baseFromTypeLabel(label: string): string {
+  if (label === 'address' || label.startsWith('contract ')) return 'address';
+  return label;
+}
+
+/**
+ * Map a single AST storage member (relative to its struct) to a
+ * StructFieldLayout, resolving array/dynamic/mapping shape from the layout
+ * type definitions. `slotBase` is the struct-relative slot of the parent.
+ */
+function memberToFieldLayout(
+  member: { label: string; offset: number; slot: string; type: string },
+  layout: StorageLayoutResponse,
+  slotBase: number,
+): StructFieldLayout {
+  const typeDef = layout.types[member.type];
+  const slotOffset = slotBase + Number(member.slot);
+  const typeLabel = typeDef?.label ?? member.type;
+  const encoding = typeDef?.encoding ?? 'inplace';
+  const sizeBytes = typeDef
+    ? Math.min(parseInt(typeDef.numberOfBytes, 10) || 32, 32)
+    : 32;
+
+  // Mapping member
+  if (encoding === 'mapping') {
+    return {
+      name: member.label,
+      type: typeLabel,
+      base: baseFromTypeLabel(typeLabel),
+      slotOffset,
+      byteOffset: 0,
+      sizeBytes: 32,
+      isDynamic: false,
+      isMapping: true,
+    };
+  }
+
+  // Dynamic bytes/string or dynamic array
+  if (encoding === 'bytes' || encoding === 'dynamic_array') {
+    const elemBaseId = typeDef?.value;
+    const elemDef = elemBaseId ? layout.types[elemBaseId] : undefined;
+    return {
+      name: member.label,
+      type: typeLabel,
+      base: baseFromTypeLabel(typeLabel),
+      slotOffset,
+      byteOffset: 0,
+      sizeBytes: 32,
+      isDynamic: true,
+      isMapping: false,
+      arrayElementBase: elemDef ? baseFromTypeLabel(elemDef.label) : undefined,
+      arrayElementSize: elemDef
+        ? Math.min(parseInt(elemDef.numberOfBytes, 10) || 32, 32)
+        : undefined,
+    };
+  }
+
+  // Fixed array: type id "t_array(<baseId>)<len>_storage"
+  const arrayMatch = member.type.match(/^t_array\((.+)\)(\d+)_storage$/);
+  if (arrayMatch) {
+    const elemId = arrayMatch[1];
+    const arrayLength = Number(arrayMatch[2]);
+    const elemDef = layout.types[elemId];
+    const elemSize = elemDef
+      ? Math.min(parseInt(elemDef.numberOfBytes, 10) || 32, 32)
+      : 1;
+    return {
+      name: member.label,
+      type: typeLabel,
+      base: elemDef ? baseFromTypeLabel(elemDef.label) : 'uint256',
+      slotOffset,
+      byteOffset: member.offset,
+      sizeBytes,
+      isDynamic: false,
+      isMapping: false,
+      arrayLength,
+      arrayElementBase: elemDef ? baseFromTypeLabel(elemDef.label) : undefined,
+      arrayElementSize: elemSize,
+    };
+  }
+
+  // Scalar (elementary / enum / contract) — packed inplace
+  return {
+    name: member.label,
+    type: typeLabel,
+    base: baseFromTypeLabel(typeLabel),
+    slotOffset,
+    byteOffset: member.offset,
+    sizeBytes,
+    isDynamic: false,
+    isMapping: false,
+  };
+}
+
+/**
+ * Adapt the AST allocator's struct member entries (layout.types[structTypeId]
+ * .members) into the flat StructFieldLayout[] the debug decoder consumes.
+ *
+ * Nested structs are flattened: each nested member is emitted with its
+ * absolute (struct-relative) slot offset and a dotted name, fixing the
+ * old regex walker's bug of treating a nested struct as a single 1-slot
+ * dynamic field.
+ */
+export function astStructMembersToFieldLayouts(
+  structTypeId: string,
+  layout: StorageLayoutResponse,
+): StructFieldLayout[] {
+  const result: StructFieldLayout[] = [];
+
+  const walk = (typeId: string, slotBase: number, namePrefix: string) => {
+    const typeDef = layout.types[typeId];
+    if (!typeDef?.members) return;
+    for (const member of typeDef.members) {
+      const nestedDef = layout.types[member.type];
+      // Nested struct: encoding inplace with its own members → flatten
+      if (nestedDef?.encoding === 'inplace' && nestedDef.members) {
+        walk(
+          member.type,
+          slotBase + Number(member.slot),
+          `${namePrefix}${member.label}.`,
+        );
+        continue;
+      }
+      const field = memberToFieldLayout(member, layout, slotBase);
+      field.name = `${namePrefix}${field.name}`;
+      result.push(field);
+    }
+  };
+
+  walk(structTypeId, 0, '');
+  return result;
+}
+
+/**
+ * Fallback adapter: lay out source-scanned struct fields using the
+ * single-sourced packing primitive (placeField / elementsPerSlot) when the
+ * struct is not reachable via the contract AST. Does NOT use the deleted
+ * regex layout walker.
+ */
+export function structFieldsToFieldLayouts(fields: StructFieldDef[]): StructFieldLayout[] {
+  const layouts: StructFieldLayout[] = [];
+  let slot = 0;
+  let offset = 0;
+  const cur: SlotCursor = { slot: 0, offset: 0 }; // reused across fields (no per-field alloc)
+
+  for (const field of fields) {
+    const cleaned = field.type.replace(/\s+/g, ' ').trim();
+    const isMapping = cleaned.startsWith('mapping');
+
+    const arrayDims: Array<number | null> = [];
+    const arrayRegex = /\[[0-9]*\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = arrayRegex.exec(cleaned)) !== null) {
+      const v = m[0].slice(1, -1);
+      arrayDims.push(v ? Number(v) : null);
+    }
+    const base = cleaned.replace(arrayRegex, '').trim();
+    const baseSize = baseTypeSize(base);
+    const isDynamicArray = arrayDims.some((dim) => dim === null);
+    const isDynamic =
+      base === 'string' || base === 'bytes' || isDynamicArray || isMapping || baseSize === null;
+
+    if (isDynamic) {
+      if (offset > 0) { slot += 1; offset = 0; }
+      layouts.push({
+        name: field.name,
+        type: field.type,
+        base,
+        slotOffset: slot,
+        byteOffset: 0,
+        sizeBytes: 32,
+        isDynamic: true,
+        isMapping,
+        arrayElementBase: isDynamicArray ? base : undefined,
+        arrayElementSize: isDynamicArray && baseSize ? baseSize : undefined,
+      });
+      slot += 1;
+      continue;
+    }
+
+    let arrayLength: number | undefined;
+    let arrayElementBase: string | undefined;
+    let arrayElementSize: number | undefined;
+
+    if (arrayDims.length > 0 && baseSize !== null) {
+      arrayLength = arrayDims.reduce((acc: number, dim) => acc * (dim ?? 0), 1);
+      arrayElementBase = base;
+      arrayElementSize = baseSize;
+      // Fixed array starts on a fresh slot; spans ceil(length / per-slot) slots
+      if (offset > 0) { slot += 1; offset = 0; }
+      layouts.push({
+        name: field.name,
+        type: field.type,
+        base,
+        slotOffset: slot,
+        byteOffset: 0,
+        sizeBytes: Math.min(baseSize, 32),
+        isDynamic: false,
+        isMapping,
+        arrayLength,
+        arrayElementBase,
+        arrayElementSize,
+      });
+      const perSlot = elementsPerSlot(baseSize) || 1;
+      slot += Math.max(1, Math.ceil((arrayLength ?? 0) / perSlot));
+      continue;
+    }
+
+    // Scalar — pack via the single-sourced primitive (cursor mutated in place)
+    cur.slot = slot; cur.offset = offset;
+    const fieldOffset = placeField(cur, baseSize);
+    const placementSlot = fieldOffset + baseSize >= 32 ? cur.slot - 1 : cur.slot;
+    layouts.push({
+      name: field.name,
+      type: field.type,
+      base,
+      slotOffset: placementSlot,
+      byteOffset: fieldOffset,
+      sizeBytes: baseSize,
+      isDynamic: false,
+      isMapping,
+    });
+    slot = cur.slot;
+    offset = cur.offset;
+  }
+
+  return layouts;
+}
+
+/** Byte size of an elementary base type, or null if non-elementary. */
+function baseTypeSize(base: string): number | null {
+  if (base === 'bool') return 1;
+  if (base === 'address') return 20;
+  if (base === 'byte') return 1;
+  const bytesMatch = base.match(/^bytes(\d+)$/);
+  if (bytesMatch) return Number(bytesMatch[1]);
+  const intMatch = base.match(/^(u?int)(\d+)?$/);
+  if (intMatch) {
+    const bits = intMatch[2] ? Number(intMatch[2]) : 256;
+    return bits / 8;
+  }
+  return null;
 }
 
 // ── Trace-based struct derivation ──────────────────────────────────────
@@ -118,16 +371,49 @@ export function deriveStructValueFromTrace(params: {
 
   const structName = variableType.split(/\s+/)[0];
   debugLog('[deriveStructValueFromTrace] Struct name:', structName);
-  const fields = findStructFields(structName, sourceFiles);
-  if (!fields) {
-    debugLog('[deriveStructValueFromTrace] FAIL: No struct fields found for', structName);
-    return null;
+
+  // Primary path: reconstruct the contract's storage layout via the AST
+  // allocator and adapt the struct's member entries. The struct must be
+  // reachable from the current row's contract for t_struct(name)_storage to
+  // appear in layout.types.
+  let layout: StructFieldLayout[] | null = null;
+  const currentRow = traceRows.find((row) => row.id === snapshotId) ?? null;
+  const contractName =
+    currentRow?.contract ||
+    currentRow?.entryMeta?.codeContractName ||
+    currentRow?.entryMeta?.targetContractName ||
+    null;
+  if (contractName) {
+    const files: Record<string, string> = {};
+    for (const [path, file] of sourceFiles.entries()) {
+      files[path] = file.content;
+    }
+    const reconstruction = reconstructStorageLayout({ files, contractName });
+    const structTypeId = `t_struct(${structName})_storage`;
+    if (reconstruction.layout.types[structTypeId]) {
+      const astLayout = astStructMembersToFieldLayouts(structTypeId, reconstruction.layout);
+      if (astLayout.length > 0) {
+        layout = astLayout;
+        debugLog('[deriveStructValueFromTrace] AST layout built with', astLayout.length, 'fields');
+      }
+    }
   }
-  debugLog('[deriveStructValueFromTrace] Found fields:', fields.length);
-  const layout = buildStructLayout(fields);
-  if (layout.length === 0) {
-    debugLog('[deriveStructValueFromTrace] FAIL: Empty layout');
-    return null;
+
+  // Fallback: source-scan the struct (all files) and lay it out through the
+  // single-sourced packing primitive when the AST path can't reach it.
+  if (!layout) {
+    const fields = findStructFields(structName, sourceFiles);
+    if (!fields) {
+      debugLog('[deriveStructValueFromTrace] FAIL: No struct fields found for', structName);
+      return null;
+    }
+    debugLog('[deriveStructValueFromTrace] Found fields (fallback):', fields.length);
+    const fallbackLayout = structFieldsToFieldLayouts(fields);
+    if (fallbackLayout.length === 0) {
+      debugLog('[deriveStructValueFromTrace] FAIL: Empty layout');
+      return null;
+    }
+    layout = fallbackLayout;
   }
   debugLog('[deriveStructValueFromTrace] Layout built with', layout.length, 'fields');
   debugLog('[deriveStructValueFromTrace] Field layout:', JSON.stringify(layout.map(f => ({
@@ -164,11 +450,15 @@ export function deriveStructValueFromTrace(params: {
     const lineText = getSourceLineText(sourceFiles, row.sourceFile, row.line);
     if (!lineText) continue;
     const match = lineText.match(
-      new RegExp(`\\b${variableName}\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)`)
+      new RegExp(`\\b${variableName}((?:\\s*\\.\\s*[A-Za-z_][A-Za-z0-9_]*)+)`)
     );
     if (!match) continue;
-    const fieldName = match[1];
-    const fieldLayout = layout.find((entry) => entry.name === fieldName);
+    // Full dotted member path so nested-struct leaves (e.g. "inner.a", emitted by
+    // the AST adapter) resolve; fall back to the first segment for flat layouts.
+    const fieldPath = match[1].replace(/\s+/g, '').replace(/^\./, '');
+    const fieldLayout =
+      layout.find((entry) => entry.name === fieldPath) ||
+      layout.find((entry) => entry.name === fieldPath.split('.')[0]);
     if (!fieldLayout) continue;
     let storageAccess = parseStorageRead(row.storage_read);
     if (!storageAccess) {

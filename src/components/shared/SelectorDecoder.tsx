@@ -40,21 +40,89 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
 
     setIsDecoding(true);
     setProgress({ current: 0, total: selectors.length });
-    const results: DecodedSelector[] = [];
+    const results: (DecodedSelector | null)[] = [];
 
     try {
+      // Pass 1: resolve every selector against local sources (custom + cache)
+      // synchronously. Selectors that need a network lookup are collected as
+      // misses (preserving order via placeholder slots in `results`).
+      const customSignatures = getCustomSignatures();
+      const cachedFunctions = getCachedSignatures('function');
+      const misses: { cleanSelector: string; slot: number }[] = [];
+
       for (let i = 0; i < selectors.length; i++) {
         const selector = selectors[i];
         setProgress({ current: i + 1, total: selectors.length });
 
-        const decoded = await decodeSingleSelector(selector);
-        if (decoded) {
-          results.push(decoded);
+        const local = decodeLocalSelector(selector, customSignatures, cachedFunctions);
+        if (local) {
+          results.push(local);
+        } else {
+          const cleanSelector = selector.startsWith('0x') ? selector : `0x${selector}`;
+          misses.push({ cleanSelector, slot: results.length });
+          results.push(null);
         }
       }
 
-      setDecodedResults(results);
-      onDecoded?.(results);
+      // Pass 2: resolve misses against OpenChain in chunks (comma-joined per
+      // chunk). Chunking bounds the request URL length for large facets, and a
+      // failed chunk falls back to per-selector lookups so one failure can't drop
+      // every result (the pre-batch serial path could partially succeed).
+      if (misses.length > 0) {
+        const SELECTOR_LOOKUP_CHUNK = 50;
+        const CIRCUIT_BREAK_FAILURES = 3; // consecutive failures ⇒ OpenChain is down
+        const functionMap: SignatureResponse['result']['function'] = {};
+        // Circuit breaker: once OpenChain looks down, stop issuing requests so a
+        // failed chunk's per-selector fallback can't fan out into N serial failures.
+        let consecutiveFailures = 0;
+        let circuitOpen = false;
+
+        for (let c = 0; c < misses.length && !circuitOpen; c += SELECTOR_LOOKUP_CHUNK) {
+          const chunk = misses
+            .slice(c, c + SELECTOR_LOOKUP_CHUNK)
+            .map(m => m.cleanSelector);
+          try {
+            const openChainResult = await lookupFunctionSignatures(chunk);
+            Object.assign(functionMap, openChainResult.result?.function ?? {});
+            consecutiveFailures = 0;
+          } catch (error) {
+            console.warn('Batched selector lookup failed; retrying this chunk per-selector:', error);
+            for (const sel of chunk) {
+              if (circuitOpen) break;
+              try {
+                const single = await lookupFunctionSignatures([sel]);
+                Object.assign(functionMap, single.result?.function ?? {});
+                consecutiveFailures = 0;
+              } catch {
+                // leave this selector unresolved
+                consecutiveFailures += 1;
+                if (consecutiveFailures >= CIRCUIT_BREAK_FAILURES) {
+                  circuitOpen = true; // give up the remaining lookups
+                }
+              }
+            }
+          }
+        }
+
+        for (const { cleanSelector, slot } of misses) {
+          const signatures = functionMap[cleanSelector];
+          if (signatures && signatures.length > 0) {
+            const signature = signatures[0];
+            results[slot] = {
+              selector: cleanSelector,
+              signature: typeof signature === 'string' ? signature : signature.name,
+              source: 'openchain',
+              confidence: signatures.length > 1 ? 'medium' : 'high'
+            };
+          }
+        }
+      }
+
+      // Drop unresolved placeholder slots, preserving original order.
+      const finalResults = results.filter((r): r is DecodedSelector => r != null);
+
+      setDecodedResults(finalResults);
+      onDecoded?.(finalResults);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to decode selectors';
       onError?.(errorMessage);
@@ -69,12 +137,17 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
     }
   }, [selectorsKey, decodeSelectors]);
 
-  const decodeSingleSelector = async (selector: string): Promise<DecodedSelector | null> => {
+  // Resolve a single selector against local sources only (no network). Returns
+  // null when the selector must fall through to the batched OpenChain lookup.
+  const decodeLocalSelector = (
+    selector: string,
+    customSignatures: ReturnType<typeof getCustomSignatures>,
+    cachedFunctions: ReturnType<typeof getCachedSignatures>
+  ): DecodedSelector | null => {
     // Ensure selector is properly formatted
     const cleanSelector = selector.startsWith('0x') ? selector : `0x${selector}`;
-    
+
     // 1. Try custom signatures first (highest confidence)
-    const customSignatures = getCustomSignatures();
     const customMatch = customSignatures.find(sig => sig.signature.includes(cleanSelector));
     if (customMatch) {
       return {
@@ -86,7 +159,6 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
     }
 
     // 2. Try cached signatures (medium-high confidence)
-    const cachedFunctions = getCachedSignatures('function');
     if (cachedFunctions[cleanSelector]) {
       const cached = cachedFunctions[cleanSelector];
       return {
@@ -95,25 +167,6 @@ const SelectorDecoder: React.FC<SelectorDecoderProps> = ({
         source: 'cached',
         confidence: 'high'
       };
-    }
-
-    // 3. Try OpenChain lookup (medium confidence)
-    try {
-      const openChainResult: SignatureResponse = await lookupFunctionSignatures([cleanSelector]);
-      const signatures = openChainResult.result?.function?.[cleanSelector];
-      
-      if (signatures && signatures.length > 0) {
-        // Use the first signature (most common)
-        const signature = signatures[0];
-        return {
-          selector: cleanSelector,
-          signature: typeof signature === 'string' ? signature : signature.name,
-          source: 'openchain',
-          confidence: signatures.length > 1 ? 'medium' : 'high'
-        };
-      }
-    } catch (error) {
-      console.warn(`Failed to lookup selector ${cleanSelector}:`, error);
     }
 
     return null;

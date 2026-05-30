@@ -191,32 +191,34 @@ export const recomputeHierarchy = (rows: DecodedTraceRow[]): DecodedTraceRow[] =
 
   // Work on a copy to avoid mutating the original
   const result = rows.map((row) => ({ ...row }));
+  const n = result.length;
+  const depths = result.map((r) => {
+    // Normalize to a finite number: a non-finite depth (NaN) would behave
+    // differently between the old forward-scan and the new stack pass.
+    const d = r.visualDepth ?? (r as any).depth ?? 0;
+    return Number.isFinite(d) ? d : 0;
+  });
 
-  for (let i = 0; i < result.length; i++) {
-    const row = result[i];
-    const rowDepth = row.visualDepth ?? (row as any).depth ?? 0;
-
-    let hasChildren = false;
-    let childEndId: number | undefined = undefined;
-
-    // Look ahead to find children
-    for (let j = i + 1; j < result.length; j++) {
-      const nextRow = result[j];
-      const nextDepth = nextRow.visualDepth ?? (nextRow as any).depth ?? 0;
-
-      // Stop when we return to same or shallower depth
-      if (nextDepth <= rowDepth) {
-        break;
-      }
-
-      // Found a child (higher depth)
-      hasChildren = true;
-      childEndId = nextRow.id;
+  // Single O(n) monotonic-stack pass replacing the old O(n^2) per-row look-ahead.
+  // boundary[i] = the first index j > i whose depth is <= depths[i] (or n).
+  // The old loop included rows i+1..boundary[i]-1 (the contiguous deeper run) and
+  // set childEndId to the last one — identical output, no quadratic scan.
+  const boundary = new Array<number>(n);
+  const stack: number[] = [];
+  for (let i = 0; i < n; i++) {
+    while (stack.length > 0 && depths[stack[stack.length - 1]] >= depths[i]) {
+      boundary[stack.pop() as number] = i;
     }
+    stack.push(i);
+  }
+  while (stack.length > 0) boundary[stack.pop() as number] = n;
 
+  for (let i = 0; i < n; i++) {
+    const row = result[i];
+    const hasChildren = boundary[i] > i + 1; // a deeper run exists at i+1..boundary[i]-1
     if (hasChildren) {
       row.hasChildren = true;
-      (row as any).childEndId = childEndId;
+      (row as any).childEndId = result[boundary[i] - 1].id;
       (row as any).isLeafCall = false;
     } else if (row.hasChildren === undefined) {
       // Only set to false if not already set
@@ -318,6 +320,28 @@ class TraceVaultService {
       rawEvents: metaBundle?.rawEvents ?? [],
       implementationToProxy,
     };
+  }
+
+  async deleteDecodedTrace(simulationId: string): Promise<void> {
+    if (!supportsOpfs()) {
+      return;
+    }
+
+    const root = await navigator.storage.getDirectory();
+    let base: FileSystemDirectoryHandle;
+    try {
+      base = await root.getDirectoryHandle(TRACE_DIR, { create: false });
+    } catch (error: any) {
+      if (error?.name === "NotFoundError") return;
+      throw error;
+    }
+
+    try {
+      await base.removeEntry(simulationId, { recursive: true });
+    } catch (error: any) {
+      if (error?.name === "NotFoundError") return;
+      throw error;
+    }
   }
 }
 

@@ -143,6 +143,49 @@ export function getTypeSize(typeName: ParsedTypeName, symbols: SymbolTable): num
   }
 }
 
+// ---- packing primitive ------------------------------------------------
+
+/**
+ * Canonical EVM 32-byte slot fit/advance rule for an inplace field of `size`
+ * bytes, starting from the current {slot, offset}.
+ *
+ * If the field does not fit in the remaining space of the current slot, it
+ * moves to the next slot. The returned `fieldOffset` is the PRE-advance byte
+ * offset where the field is placed (use this for the emitted entry.offset).
+ * Mutates `cursor` to the position AFTER placing the field (advancing to the
+ * next slot if the current one filled, offset >= 32) and returns the field's
+ * PRE-advance byte offset.
+ *
+ * Allocation-free: callers reuse one cursor across a packing loop instead of
+ * allocating a result object per field. The arithmetic is identical to the
+ * prior pure form.
+ */
+export interface SlotCursor {
+  slot: number;
+  offset: number;
+}
+
+export function placeField(cursor: SlotCursor, size: number): number {
+  if (cursor.offset > 0 && (32 - cursor.offset) < size) {
+    cursor.slot += 1;
+    cursor.offset = 0;
+  }
+  const fieldOffset = cursor.offset;
+  cursor.offset += size;
+  if (cursor.offset >= 32) {
+    cursor.slot += 1;
+    cursor.offset = 0;
+  }
+  return fieldOffset;
+}
+
+/**
+ * Number of `size`-byte elements that pack into a single 32-byte slot.
+ */
+export function elementsPerSlot(size: number): number {
+  return Math.floor(32 / size);
+}
+
 // ---- struct slot count ------------------------------------------------
 
 /**
@@ -154,6 +197,7 @@ export function computeStructSlotCount(
 ): number {
   let slot = 0;
   let offset = 0;
+  const cur: SlotCursor = { slot: 0, offset: 0 }; // reused across members (no per-field alloc)
 
   for (const member of structDef.members) {
     const memberEncoding = getEncoding(member.typeName, symbols);
@@ -183,15 +227,9 @@ export function computeStructSlotCount(
 
     // Inplace
     if (memberSize !== null) {
-      if (offset > 0 && (32 - offset) < memberSize) {
-        slot += 1;
-        offset = 0;
-      }
-      offset += memberSize;
-      if (offset >= 32) {
-        slot += 1;
-        offset = 0;
-      }
+      cur.slot = slot; cur.offset = offset;
+      placeField(cur, memberSize);
+      slot = cur.slot; offset = cur.offset;
     } else {
       if (offset > 0) { slot += 1; offset = 0; }
       slot += 1;
@@ -232,7 +270,7 @@ export function computeFixedArraySlotCount(
   const elemSize = getTypeSize(typeName.base, symbols);
   if (elemSize !== null) {
     if (elemSize <= 32) {
-      const elemsPerSlot = Math.floor(32 / elemSize);
+      const elemsPerSlot = elementsPerSlot(elemSize);
       return Math.ceil(length / elemsPerSlot);
     }
     // Large elements (e.g. nested fixed arrays) -- each takes multiple slots

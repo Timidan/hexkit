@@ -1,9 +1,9 @@
 import React from "react";
+import { List } from "react-window";
 import { SearchIcon } from "../icons/IconLibrary";
 import { CopyButton } from "../ui/copy-button";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
-import { ScrollArea } from "../ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { WarningCircle } from "@phosphor-icons/react";
 import {
@@ -175,117 +175,145 @@ const SearchTab: React.FC<SearchTabProps> = ({
                   value="functions"
                   className="mt-2 responsive-scroll"
                 >
-                  <ScrollArea className="max-h-72">
-                    <div className="space-y-px">
-                      {flattenedFunctionResults.map((item, i) => (
-                        <HoverCard
-                          key={`${item.hash}-${i}`}
-                          openDelay={200}
-                          closeDelay={100}
-                        >
-                          <HoverCardTrigger asChild>
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors cursor-default">
-                              <span
-                                className="font-mono text-xs truncate min-w-0"
-                                title={item.name}
+                  <div className="space-y-px">
+                    <List
+                      style={{
+                        height: Math.min(
+                          288,
+                          flattenedFunctionResults.length * 30,
+                        ),
+                        width: "100%",
+                      }}
+                      rowCount={flattenedFunctionResults.length}
+                      rowHeight={30}
+                      overscanCount={5}
+                      className="scrollbar-thin"
+                      rowProps={{}}
+                      rowComponent={({ index, style }) => {
+                        const item = flattenedFunctionResults[index];
+                        if (!item) return <div style={style} />;
+                        return (
+                          <div style={style}>
+                            <HoverCard openDelay={200} closeDelay={100}>
+                              <HoverCardTrigger asChild>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors cursor-default">
+                                  <span
+                                    className="font-mono text-xs truncate min-w-0"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </span>
+                                </div>
+                              </HoverCardTrigger>
+                              <HoverCardContent
+                                side="bottom"
+                                align="start"
+                                className="w-auto max-w-sm font-mono text-xs p-2 space-y-1.5"
                               >
-                                {item.name}
-                              </span>
-                            </div>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            side="bottom"
-                            align="start"
-                            className="w-auto max-w-sm font-mono text-xs p-2 space-y-1.5"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground text-[10px] uppercase">
-                                Selector
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <code>{item.hash}</code>
-                                <CopyButton
-                                  value={item.hash}
-                                  ariaLabel="Copy hash"
-                                  iconSize={10}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground text-[10px] uppercase">
-                                Signature
-                              </span>
-                              <CopyButton
-                                value={item.name}
-                                ariaLabel="Copy signature"
-                                iconSize={10}
-                              />
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground text-[10px] uppercase">
+                                    Selector
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <code>{item.hash}</code>
+                                    <CopyButton
+                                      value={item.hash}
+                                      ariaLabel="Copy hash"
+                                      iconSize={10}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground text-[10px] uppercase">
+                                    Signature
+                                  </span>
+                                  <CopyButton
+                                    value={item.name}
+                                    ariaLabel="Copy signature"
+                                    iconSize={10}
+                                  />
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
                 </TabsContent>
               )}
 
               {flattenedEventResults.length > 0 && (
                 <TabsContent value="events" className="mt-2 responsive-scroll">
-                  <ScrollArea className="max-h-72">
-                    <div className="space-y-px">
-                      {flattenedEventResults.map((item, i) => (
-                        <HoverCard
-                          key={`${item.hash}-${i}`}
-                          openDelay={200}
-                          closeDelay={100}
-                        >
-                          <HoverCardTrigger asChild>
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors cursor-default">
-                              <span
-                                className="font-mono text-xs truncate min-w-0"
-                                title={item.name}
+                  <div className="space-y-px">
+                    <List
+                      style={{
+                        height: Math.min(
+                          288,
+                          flattenedEventResults.length * 30,
+                        ),
+                        width: "100%",
+                      }}
+                      rowCount={flattenedEventResults.length}
+                      rowHeight={30}
+                      overscanCount={5}
+                      className="scrollbar-thin"
+                      rowProps={{}}
+                      rowComponent={({ index, style }) => {
+                        const item = flattenedEventResults[index];
+                        if (!item) return <div style={style} />;
+                        return (
+                          <div style={style}>
+                            <HoverCard openDelay={200} closeDelay={100}>
+                              <HoverCardTrigger asChild>
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-muted/50 transition-colors cursor-default">
+                                  <span
+                                    className="font-mono text-xs truncate min-w-0"
+                                    title={item.name}
+                                  >
+                                    {item.name}
+                                  </span>
+                                </div>
+                              </HoverCardTrigger>
+                              <HoverCardContent
+                                side="bottom"
+                                align="start"
+                                className="w-auto max-w-sm font-mono text-xs p-2 space-y-1.5"
                               >
-                                {item.name}
-                              </span>
-                            </div>
-                          </HoverCardTrigger>
-                          <HoverCardContent
-                            side="bottom"
-                            align="start"
-                            className="w-auto max-w-sm font-mono text-xs p-2 space-y-1.5"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground text-[10px] uppercase">
-                                Topic Hash
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <code>
-                                  {item.hash.slice(0, 10)}
-                                  {"\u2026"}
-                                  {item.hash.slice(-6)}
-                                </code>
-                                <CopyButton
-                                  value={item.hash}
-                                  ariaLabel="Copy hash"
-                                  iconSize={10}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-muted-foreground text-[10px] uppercase">
-                                Signature
-                              </span>
-                              <CopyButton
-                                value={item.name}
-                                ariaLabel="Copy signature"
-                                iconSize={10}
-                              />
-                            </div>
-                          </HoverCardContent>
-                        </HoverCard>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground text-[10px] uppercase">
+                                    Topic Hash
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <code>
+                                      {item.hash.slice(0, 10)}
+                                      {"\u2026"}
+                                      {item.hash.slice(-6)}
+                                    </code>
+                                    <CopyButton
+                                      value={item.hash}
+                                      ariaLabel="Copy hash"
+                                      iconSize={10}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-muted-foreground text-[10px] uppercase">
+                                    Signature
+                                  </span>
+                                  <CopyButton
+                                    value={item.name}
+                                    ariaLabel="Copy signature"
+                                    iconSize={10}
+                                  />
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          </div>
+                        );
+                      }}
+                    />
+                  </div>
                 </TabsContent>
               )}
             </Tabs>
