@@ -100,18 +100,44 @@ export const formatDisplayAmount = (
 ): { display: string; full: string } => {
   const full = String(value ?? "").trim();
   if (!full) return { display: "—", full: "" };
-  const n = Number(full);
-  if (!Number.isFinite(n) || n === 0) {
-    return { display: n === 0 ? "0" : full, full };
+
+  // Parse the decimal string directly. Going through Number() loses precision on
+  // large token amounts (9007199254740993 → …992) and yields scientific notation
+  // for tiny ones — both showed up in review.
+  const m = full.match(/^([+-]?)(\d+)(?:\.(\d+))?$/);
+  if (!m) return { display: full, full };
+
+  const intRaw = m[2].replace(/^0+(?=\d)/, "");
+  const fracTrimmed = (m[3] ?? "").replace(/0+$/, "");
+  const intIsZero = /^0+$/.test(intRaw);
+  if (intIsZero && !fracTrimmed) return { display: "0", full };
+
+  const sign = m[1] === "-" ? "−" : "+"; // U+2212 minus / + for positive
+  let body: string;
+
+  if (!intIsZero) {
+    // Magnitude ≥ 1.
+    if (intRaw.length <= 15) {
+      // Safe for Number — round to 4dp then regroup.
+      const r = Math.abs(Number(full)).toFixed(4).replace(/\.?0+$/, "");
+      const [ip, fp] = r.split(".");
+      body = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (fp ? `.${fp}` : "");
+    } else {
+      // Too large for Number — group the integer as a string, truncate the fraction.
+      const frac4 = fracTrimmed.slice(0, 4).replace(/0+$/, "");
+      const grouped = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      body = frac4 ? `${grouped}.${frac4}` : grouped;
+    }
+  } else {
+    // Magnitude < 1 — never scientific notation.
+    const firstSig = fracTrimmed.search(/[1-9]/);
+    body =
+      firstSig <= 2
+        ? Math.abs(Number(full)).toFixed(4) // 0.0900, 0.0010 (≥ 0.001)
+        : `0.${fracTrimmed.slice(0, firstSig + 3)}`; // 0.000108 (< 0.001, ~3 sig figs)
   }
-  const sign = n > 0 ? "+" : "−"; // U+2212 minus
-  const abs = Math.abs(n);
-  const absStr = Number.isInteger(abs)
-    ? abs.toLocaleString("en-US") // whole counts get thousands separators: 261,000
-    : abs >= 0.001
-      ? abs.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })
-      : Number(abs.toPrecision(3)).toString();
-  return { display: `${sign}${absStr}`, full };
+
+  return { display: `${sign}${body}`, full };
 };
 
 export const calculateIntrinsicGas = (calldata?: string | null): number => {

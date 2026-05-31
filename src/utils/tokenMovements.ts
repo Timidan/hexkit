@@ -382,8 +382,8 @@ export function formatMovementAmount(movement: TokenMovement): string {
   const isNft = movement.tokenType === "ERC-721" || movement.tokenType === "ERC-1155";
   if (isNft) return raw;
   try {
-    const decimals =
-      movement.decimals ?? getCachedTokenMetadata(movement.tokenAddress)?.decimals ?? 18;
+    // Match aggregateBalanceChanges exactly: cached decimals ?? 18 (it ignores movement.decimals).
+    const decimals = getCachedTokenMetadata(movement.tokenAddress)?.decimals ?? 18;
     return ethers.utils.formatUnits(BigInt(raw === "undefined" || raw === "" ? "0" : raw), decimals);
   } catch {
     return raw;

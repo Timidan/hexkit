@@ -246,7 +246,7 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                               {change.address ? `${change.address.slice(0, 10)}\u2026${change.address.slice(-8)}` : "\u2014"}
                             </span>
                             <span className="tm-asset">
-                              <span className="tm-asset-logo tm-asset-logo--fallback">\u25cf</span>
+                              <span className="tm-asset-logo tm-asset-logo--fallback" aria-hidden="true">\u25cf</span>
                               <span className="token-symbol">{change.symbol || "Unknown"}</span>
                             </span>
                           </div>

@@ -312,7 +312,7 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
               const prevChange = idx > 0 ? currentChanges[idx - 1] : null;
               const showDivider = prevChange && prevChange.rawDelta < 0n && change.rawDelta >= 0n;
               return (
-                <React.Fragment key={idx}>
+                <React.Fragment key={`${change.address}-${change.tokenAddress}-${change.tokenId ?? ""}`}>
                   {showDivider && <div className="tm-divider" aria-hidden="true" />}
                   <TokenMovementRow
                     change={change}
@@ -450,7 +450,7 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
               loading="lazy"
             />
           ) : (
-            <span className="tm-asset-logo tm-asset-logo--fallback">●</span>
+            <span className="tm-asset-logo tm-asset-logo--fallback" aria-hidden="true">●</span>
           )}
           {displaySymbol
             ? renderHighlightable(change.tokenAddress, displaySymbol, "token-symbol")
@@ -528,7 +528,7 @@ const TokenMovementChronologicalRow: React.FC<TokenMovementChronologicalRowProps
     <div className={`tm-row tm-row--chrono ${dirClass}`}>
       <div className="tm-left">
         <span className="tm-asset">
-          <span className="tm-asset-logo tm-asset-logo--fallback">●</span>
+          <span className="tm-asset-logo tm-asset-logo--fallback" aria-hidden="true">●</span>
           {renderHighlightable(movement.tokenAddress, displaySymbol, "token-symbol")}
         </span>
         <span className="tm-flow">
@@ -543,7 +543,7 @@ const TokenMovementChronologicalRow: React.FC<TokenMovementChronologicalRowProps
         <span className="tm-delta" title={amount.full || undefined}>
           {amount.display.replace(/^\+/, "")}
         </span>
-        <span className="tm-usd">{movement.tokenId ? `#${movement.tokenId}` : movement.tokenType}</span>
+        <span className="tm-usd">{movement.tokenType}{movement.tokenId ? ` · #${movement.tokenId}` : ""}</span>
       </div>
     </div>
   );
