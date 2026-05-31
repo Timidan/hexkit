@@ -19,6 +19,7 @@ import { ArrowCircleUpRight, ArrowCircleDownLeft } from "@phosphor-icons/react";
 import { ZERO_ADDRESS } from "../utils/addressConstants";
 import { Button } from "./ui/button";
 import "../styles/TokenMovementsPanel.css";
+import "../styles/asset-rows.css";
 
 interface TokenMovementsPanelProps {
   /** Raw event logs from trace (with address, topics, data) */
@@ -307,7 +308,7 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
       {/* Balance changes table - different columns for different token types */}
       {groupingMode === "address" && currentChanges.length > 0 && (
         <div className="token-movements-table-wrapper">
-          <div className="tm-list">
+          <div className="tm-list" role="list" aria-label="Token balance changes by address">
             {currentChanges.map((change, idx) => {
               const prevChange = idx > 0 ? currentChanges[idx - 1] : null;
               const showDivider = prevChange && prevChange.rawDelta < 0n && change.rawDelta >= 0n;
@@ -332,7 +333,7 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
 
       {groupingMode === "chronological" && currentMovements.length > 0 && (
         <div className="token-movements-table-wrapper">
-          <div className="tm-list">
+          <div className="tm-list" role="list" aria-label="Token movements in chronological order">
             {currentMovements.map((movement, idx) => {
               const senderLower = senderAddress?.toLowerCase();
               const prevMovement = idx > 0 ? currentMovements[idx - 1] : null;
@@ -400,8 +401,11 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
       <span
         className={`${className} highlightable-value${isHighlighted ? " highlighted" : ""}`}
         data-highlight-value={normalized}
+        tabIndex={0}
         onMouseEnter={() => onHighlightChange(normalized)}
         onMouseLeave={() => onHighlightChange(null)}
+        onFocus={() => onHighlightChange(normalized)}
+        onBlur={() => onHighlightChange(null)}
       >
         {displayText}
       </span>
@@ -429,8 +433,9 @@ const TokenMovementRow: React.FC<TokenMovementRowProps> = ({
   const delta = formatDisplayAmount(change.delta);
 
   return (
-    <div className={`tm-row ${isNegative ? "tm-out" : "tm-in"}`}>
+    <div className={`tm-row ${isNegative ? "tm-out" : "tm-in"}`} role="listitem">
       <div className="tm-left">
+        <span className="sr-only">{isNegative ? "Outgoing" : "Incoming"}</span>
         {isNegative ? (
           <ArrowCircleUpRight weight="fill" size={22} className="tm-dir" aria-hidden="true" />
         ) : (
@@ -498,8 +503,11 @@ const TokenMovementChronologicalRow: React.FC<TokenMovementChronologicalRowProps
       <span
         className={`${className} highlightable-value${isHighlighted ? " highlighted" : ""}`}
         data-highlight-value={normalized}
+        tabIndex={0}
         onMouseEnter={() => onHighlightChange(normalized)}
         onMouseLeave={() => onHighlightChange(null)}
+        onFocus={() => onHighlightChange(normalized)}
+        onBlur={() => onHighlightChange(null)}
       >
         {displayText}
       </span>
@@ -525,8 +533,9 @@ const TokenMovementChronologicalRow: React.FC<TokenMovementChronologicalRowProps
   const amount = formatDisplayAmount(formatMovementAmount(movement));
 
   return (
-    <div className={`tm-row tm-row--chrono ${dirClass}`}>
+    <div className={`tm-row tm-row--chrono ${dirClass}`} role="listitem">
       <div className="tm-left">
+        <span className="sr-only">{dirClass === "tm-out" ? "Outgoing" : dirClass === "tm-in" ? "Incoming" : "Transfer"}</span>
         <span className="tm-asset">
           <span className="tm-asset-logo tm-asset-logo--fallback" aria-hidden="true">●</span>
           {renderHighlightable(movement.tokenAddress, displaySymbol, "token-symbol")}

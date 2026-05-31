@@ -1,5 +1,6 @@
 import React from "react";
 import "../styles/ExecutionStackTrace.css";
+import "../styles/asset-rows.css";
 import TokenMovementsPanel from "./TokenMovementsPanel";
 import { CopyButton } from "./ui/copy-button";
 import { Button } from "./ui/button";
@@ -221,7 +222,7 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                 <span className="exec-accordion-count">{orderedAssetChanges.rows.length}</span>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="tm-list">
+                <div className="tm-list" role="list" aria-label="Native token balance changes">
                   {orderedAssetChanges.rows.map((change: any, idx: number) => {
                     const direction = normalizeAssetDirection(change);
                     const isPositive = direction === "in";
@@ -235,8 +236,9 @@ const ExecutionStackTrace: React.FC<StackTraceProps> = (props) => {
                     return (
                       <React.Fragment key={idx}>
                         {showIncomingDivider && <div className="tm-divider" aria-hidden="true" />}
-                        <div className={`tm-row ${dirClass}`}>
+                        <div className={`tm-row ${dirClass}`} role="listitem">
                           <div className="tm-left">
+                            <span className="sr-only">{isNegative ? "Outgoing" : isPositive ? "Incoming" : "Change"}</span>
                             {isNegative ? (
                               <ArrowCircleUpRight weight="fill" size={22} className="tm-dir" aria-hidden="true" />
                             ) : isPositive ? (

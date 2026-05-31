@@ -92,140 +92,8 @@
   overflow-x: auto;
 }
 
-/* ============================================
-   Anchored rows (Address view) — full-width
-   ledger rows: direction pill + address + asset
-   chip on the left; delta over USD pinned right.
-   ============================================ */
-.tm-list {
-  display: flex;
-  flex-direction: column;
-}
-.tm-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 52px;
-  padding: 10px 4px;
-}
-.tm-row + .tm-row {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-.tm-row:hover {
-  background: rgba(255, 255, 255, 0.022);
-}
-.tm-divider {
-  height: 0;
-  border-top: 2px solid rgba(255, 255, 255, 0.12);
-  margin: 2px 0;
-}
-
-.tm-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-/* Direction glyph: Phosphor ArrowCircle (fill) — self-contained, no extra pill */
-.tm-dir {
-  flex: none;
-  display: block;
-}
-.tm-out .tm-dir {
-  color: #ef4444;
-}
-.tm-in .tm-dir {
-  color: #22c55e;
-}
-.tm-addr {
-  color: #22d3ee;
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 13px;
-}
-.tm-asset {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 9px 3px 5px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.tm-asset-logo {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
-}
-.tm-asset-logo--fallback {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #6b7280;
-  background: transparent;
-  font-size: 13px;
-}
-
-.tm-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  flex: none;
-}
-.tm-delta {
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 16px;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.tm-usd {
-  font-family: "Fira Code", "Consolas", monospace;
-  font-size: 12px;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-  color: #6b7280;
-}
-.tm-out .tm-delta {
-  color: #ef4444;
-}
-.tm-in .tm-delta {
-  color: #22c55e;
-}
-.tm-out .tm-usd,
-.tm-in .tm-usd {
-  opacity: 0.85;
-}
-.tm-out .tm-usd {
-  color: #ef4444;
-}
-.tm-in .tm-usd {
-  color: #22c55e;
-}
-
-/* Chronological rows: asset chip + "from → to" flow on the left */
-.tm-row--chrono .tm-left {
-  flex-wrap: wrap;
-}
-.tm-flow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-.tm-flow .tm-addr {
-  font-size: 12px;
-}
-.tm-arrow {
-  color: #6b7280;
-  font-size: 13px;
-}
-.tm-neutral .tm-delta {
-  color: #d4d4d4;
-}
+/* Anchored asset-change rows (.tm-*) live in the shared styles/asset-rows.css,
+   imported by both this panel and ExecutionStackTrace. */
 
 /* address-value is still emitted by resultFormatter.ts */
 .address-value {
@@ -243,11 +111,7 @@
   vertical-align: middle;
 }
 
-.token-symbol {
-  color: #e2e8f0;
-  font-weight: 500;
-  font-size: 12px;
-}
+/* .token-symbol moved to styles/asset-rows.css (shared, with truncation) */
 
 .token-address-fallback {
   color: #6b7280;
