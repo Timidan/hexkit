@@ -69,6 +69,11 @@ edb
 *.spec.js
 *.spec.mjs
 *.spec.mts
+*.bench.ts
+*.bench.tsx
+*.bench.js
+*.bench.mjs
+*.bench.mts
 /tmp
 video/out
 .superpowers
