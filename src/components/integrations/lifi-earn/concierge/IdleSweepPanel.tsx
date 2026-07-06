@@ -10,6 +10,8 @@ import { DestinationPicker } from "./DestinationPicker";
 import { ExecutionQueue } from "./ExecutionQueue";
 import { FlowDiagram, type RoutingMode } from "./FlowDiagram";
 import { LlmErrorAlert } from "./LlmErrorAlert";
+import { BtlRuntimePanel } from "./BtlRuntimePanel";
+import BtlBadge from "@/components/BtlBadge";
 import {
   EXTENDED_NETWORKS,
   type ExtendedChain,
@@ -27,6 +29,7 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import type { IdleAsset, SelectedSource } from "./types";
+import type { BtlRuntimeMeta } from "@/lib/btl/client";
 import type { EarnVault } from "../types";
 
 interface IdleSweepPanelProps {
@@ -113,6 +116,7 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
   });
   const recommendations = recsData?.recommendations ?? [];
   const llmError = recsData?.llmError ?? null;
+  const btlMetas = recommendations.map((r) => r.meta).filter(Boolean) as BtlRuntimeMeta[];
 
   const onToggle = useCallback((asset: IdleAsset, on: boolean) => {
     setSelections((prev) => {
@@ -538,6 +542,10 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
             onRetry={refetchRecs}
             isRetrying={recsFetching}
           />
+          <BtlRuntimePanel metas={btlMetas} />
+          {btlMetas.some((m) => m.customerChargeUsd != null) && (
+            <BtlBadge className="transition-opacity hover:opacity-100" />
+          )}
           <VaultRecommendations
             selections={selections}
             recommendations={recommendations}

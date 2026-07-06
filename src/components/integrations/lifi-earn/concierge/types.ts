@@ -1,4 +1,5 @@
 import type { EarnVault, EarnToken } from "../types";
+import type { BtlRuntimeMeta } from "@/lib/btl/client";
 
 export interface IdleAsset {
   chainId: number;
@@ -23,6 +24,7 @@ export interface VaultRecommendation {
   alternatives: RecommendationPick[];
   source: "ai" | "rules";
   topRationale: string;
+  meta?: BtlRuntimeMeta; // BTL cost/routing for the call that produced this rec
 }
 
 export interface RecommendationPick {

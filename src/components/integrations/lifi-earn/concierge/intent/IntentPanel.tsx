@@ -11,6 +11,11 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import { Textarea } from "../../../../../components/ui/textarea";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "../../../../../components/ui/tooltip";
 import ChainIcon from "../../../../icons/ChainIcon";
 import { VaultRecommendations } from "../VaultRecommendations";
 import { LlmErrorAlert } from "../LlmErrorAlert";
@@ -24,6 +29,10 @@ import { useIdleBalances } from "../hooks/useIdleBalances";
 import { useIntentParser } from "./hooks/useIntentParser";
 import { useVaultsByIntent } from "./hooks/useVaultsByIntent";
 import { useIntentRecommendation, buildRecommendation } from "./hooks/useIntentRecommendation";
+import { BTL_AB_MODELS, BTL_DEFAULT_MODEL } from "@/lib/btl/models";
+import BtlBadge from "@/components/BtlBadge";
+import { AiCostChip } from "@/components/btl/AiCostChip";
+import type { BtlRuntimeMeta } from "@/lib/btl/client";
 import type { ParsedIntent } from "./schema";
 import type { EarnVault } from "../../types";
 import type { IdleAsset, SelectedSource, VaultRecommendation } from "../types";
@@ -224,6 +233,23 @@ interface MultiRecResult {
 }
 
 /**
+ * Fingerprints the parts of a ParsedIntent that shape the LLM prompt/ranking,
+ * so query cache keys invalidate when objective/filters change.
+ */
+function intentFingerprint(intent: ParsedIntent): string {
+  return [
+    intent.objective,
+    intent.target_symbol ?? "",
+    intent.target_chain_id ?? "",
+    intent.min_apy_pct ?? "",
+    intent.max_apy_pct ?? "",
+    intent.min_tvl_usd ?? "",
+    intent.include_protocols.join("+"),
+    intent.exclude_protocols.join("+"),
+  ].join(":");
+}
+
+/**
  * Batches multiple recommendation args into a single React Query call. Each
  * entry in `argsList` produces one independent recommendation (separate LLM
  * round-trip). Null entries are skipped. Returns results in the same order.
@@ -235,7 +261,7 @@ function useMultiAssetRecommendations(
     () =>
       argsList.map((a) =>
         a
-          ? `${a.synthChainId}:${a.synthTokenAddress}:${a.sourceTokenSymbol ?? ""}:${a.rankedVaults.slice(0, 8).map((v) => v.slug).join(",")}`
+          ? `${a.synthChainId}:${a.synthTokenAddress}:${a.sourceTokenSymbol ?? ""}:${a.model ?? ""}:${intentFingerprint(a.intent)}:${a.rankedVaults.map((v) => v.slug).join(",")}`
           : "null",
       ).join("|"),
     [argsList],
@@ -276,6 +302,10 @@ function useMultiAssetRecommendations(
 export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: IntentPanelProps) {
   const [text, setText] = useState("");
   const [intent, setIntent] = useState<ParsedIntent | null>(null);
+  // Cost/routing for the NL intent-parse BTL call (shown on the filters row).
+  const [parseMeta, setParseMeta] = useState<BtlRuntimeMeta | null>(null);
+  // A/B model toggle — re-runs the recommendation on a different BTL provider.
+  const [selectedModel, setSelectedModel] = useState<string>(BTL_DEFAULT_MODEL);
   const { address: walletAddress, isConnected } = useAccount();
   const { data: chains = [] } = useEarnChains();
   const { data: protocols = [] } = useEarnProtocols();
@@ -485,9 +515,10 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
             intent,
             rankedVaults: effectiveRanked,
             walletAssets: idleAssets,
+            model: selectedModel,
           }
         : null,
-    [intent, synthAsset, effectiveRanked, idleAssets],
+    [intent, synthAsset, effectiveRanked, idleAssets, selectedModel],
   );
 
   const {
@@ -512,9 +543,10 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
         walletAssets: idleAssets,
         sourceTokenSymbol: asset.token.symbol.toUpperCase(),
         sourceChainId: asset.chainId,
+        model: selectedModel,
       };
     });
-  }, [isMyAssetsMode, intent, dedupedAssets, perAssetVaults, perAssetIntents, idleAssets]);
+  }, [isMyAssetsMode, intent, dedupedAssets, perAssetVaults, perAssetIntents, idleAssets, selectedModel]);
 
   const perAssetRecs = useMultiAssetRecommendations(perAssetRecArgs);
 
@@ -625,6 +657,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
     try {
       const result = await parser.mutateAsync({ text, chains, protocols });
       setIntent(result.intent);
+      setParseMeta(result.meta);
     } catch {
       // error surfaces via parser.error — nothing else to do here
     }
@@ -637,6 +670,7 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
 
   const handleReset = useCallback(() => {
     setIntent(null);
+    setParseMeta(null);
     parser.reset();
     legDispatch({ type: "RESET" });
     setSelectedConsolidateSlug(null);
@@ -754,6 +788,10 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                 (no specific criteria — ranking entire vault universe)
               </span>
             )}
+            <span className="ml-auto flex items-center gap-2">
+              {parseMeta && <AiCostChip meta={parseMeta} />}
+              <BtlBadge className="transition-opacity hover:opacity-100" />
+            </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <ObjectiveChip objective={intent!.objective} />
@@ -942,6 +980,34 @@ export function IntentPanel({ onSelectVault, targetAddress: externalAddress }: I
                 </>
               ) : (
                 <>
+                  <div className="flex items-center justify-end gap-1.5 px-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-background/40 p-0.5">
+                          <span className="pl-1.5 pr-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                            Model
+                          </span>
+                          {BTL_AB_MODELS.map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setSelectedModel(m.id)}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                selectedModel === m.id
+                                  ? "border border-border/60 bg-foreground/10 text-foreground"
+                                  : "border border-transparent text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {m.provider}
+                            </button>
+                          ))}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        Re-run this recommendation on a different provider via one BTL endpoint
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <VaultRecommendations
                     selections={synthSelections}
                     recommendations={recommendations}

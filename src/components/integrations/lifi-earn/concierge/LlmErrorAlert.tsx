@@ -59,7 +59,7 @@ function classify(rawError: string): Classification {
       category: "timeout",
       title: "Recommender timed out",
       description:
-        "Gemini didn't respond in time. The thinking model is slower on large candidate lists — retrying usually works.",
+        "The BTL Runtime didn't respond in time — retrying usually works.",
       icon: <Clock weight="duotone" className="h-4 w-4" />,
       retryable: true,
     };
@@ -70,7 +70,7 @@ function classify(rawError: string): Classification {
       category: "auth",
       title: "Recommender not authorized",
       description:
-        "The AI proxy rejected our request. This usually means the GEMINI_API_KEY isn't set on the server or the Origin allow-list is misconfigured. Rules-based picks are still safe to use.",
+        "The AI proxy rejected our request. This usually means the BTL_API_KEY isn't set on the server or the Origin allow-list is misconfigured. Rules-based picks are still safe to use.",
       icon: <Shield weight="duotone" className="h-4 w-4" />,
       retryable: false,
     };
@@ -80,14 +80,14 @@ function classify(rawError: string): Classification {
     msg.includes("500") ||
     msg.includes("502") ||
     msg.includes("503") ||
-    msg.includes("gemini_api_key") ||
+    msg.includes("btl_api_key") ||
     msg.includes("upstream")
   ) {
     return {
       category: "upstream",
       title: "Recommender is down",
       description:
-        "Gemini (or our proxy in front of it) returned an error. This usually clears up on its own — you can retry, or keep using the rules-based picks below.",
+        "The BTL Runtime (or our proxy in front of it) returned an error. This usually clears up on its own — you can retry, or keep using the rules-based picks below.",
       icon: <WarningCircle weight="duotone" className="h-4 w-4" />,
       retryable: true,
     };
@@ -103,7 +103,7 @@ function classify(rawError: string): Classification {
       category: "schema",
       title: "Recommender returned something we couldn't parse",
       description:
-        "Gemini's response didn't match the shape we expect. We already retried once and fell back to rules-based picks — they're safe to use. Try again to see if a second call returns clean JSON.",
+        "The model's response didn't match the shape we expect. We already retried once and fell back to rules-based picks — they're safe to use. Try again to see if a second call returns clean JSON.",
       icon: <Robot weight="duotone" className="h-4 w-4" />,
       retryable: true,
     };

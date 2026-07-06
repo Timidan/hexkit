@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { postLlmRecommend } from "../../../earnApi";
+import { buildBtlChatRequest, extractOpenAiText, safeParseJson, type BtlRuntimeMeta } from "@/lib/btl/client";
 import { parsedIntentSchema, type ParsedIntent, DEFAULT_INTENT } from "../schema";
 import type { EarnChainInfo, EarnProtocolInfo } from "../../../types";
 
@@ -17,6 +18,8 @@ export interface ParseIntentArgs {
 export interface ParseIntentResult {
   intent: ParsedIntent;
   rawText: string;
+  /** BTL cost/routing for the parse call (null on the LLM_MODE=off path). */
+  meta: BtlRuntimeMeta | null;
 }
 
 export function useIntentParser() {
@@ -27,7 +30,7 @@ export function useIntentParser() {
         throw new Error("Please describe your yield goal.");
       }
       if (LLM_MODE === "off") {
-        return { intent: DEFAULT_INTENT, rawText: trimmed };
+        return { intent: DEFAULT_INTENT, rawText: trimmed, meta: null };
       }
 
       const request = buildParseRequest(trimmed, chains, protocols);
@@ -35,8 +38,8 @@ export function useIntentParser() {
       let lastError: string | null = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const raw = await postLlmRecommend(request);
-          const responseText = extractGeminiText(raw);
+          const { data: raw, meta } = await postLlmRecommend(request);
+          const responseText = extractOpenAiText(raw);
           if (!responseText) throw new Error("empty LLM response");
           const json = safeParseJson(responseText);
           if (!json) throw new Error("LLM did not return JSON");
@@ -48,7 +51,7 @@ export function useIntentParser() {
               }`
             );
           }
-          return { intent: result.data, rawText: trimmed };
+          return { intent: result.data, rawText: trimmed, meta };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           lastError = msg;
@@ -62,7 +65,7 @@ export function useIntentParser() {
 }
 
 function buildParseRequest(
-  userText: string,
+  rawUserText: string,
   chains: EarnChainInfo[],
   protocols: EarnProtocolInfo[]
 ) {
@@ -142,78 +145,16 @@ If the user gives a clearly non-yield or off-topic message, return all-null/defa
   };
 
   const payload = {
-    user_text: userText,
+    user_text: rawUserText,
     chain_registry: chainRegistry,
     protocol_registry: protocolRegistry,
     required_output_shape: shape,
   };
 
-  return {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: system },
-          {
-            text:
-              "INPUT:\n```json\n" +
-              JSON.stringify(payload, null, 2) +
-              "\n```\n\nReturn ONLY the JSON object.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
-  };
-}
+  const userText =
+    "INPUT:\n```json\n" +
+    JSON.stringify(payload, null, 2) +
+    "\n```\n\nReturn ONLY the JSON object.";
 
-function extractGeminiText(raw: unknown): string | null {
-  // Gemini 3 Pro can return multi-part content with `thought: true` parts
-  // before the answer — concatenate every non-thought text part.
-  try {
-    const r = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string; thought?: boolean }>;
-        };
-      }>;
-    };
-    const parts = r.candidates?.[0]?.content?.parts ?? [];
-    const joined = parts
-      .filter((p) => !p.thought && typeof p.text === "string")
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-    return joined.length > 0 ? joined : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
-  }
+  return buildBtlChatRequest(system, userText, { temperature: 0.1 });
 }

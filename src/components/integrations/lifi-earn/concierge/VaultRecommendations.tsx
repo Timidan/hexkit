@@ -13,6 +13,7 @@ import {
   TooltipContent,
 } from "../../../../components/ui/tooltip";
 import ChainIcon from "../../../icons/ChainIcon";
+import { AiCostChip } from "@/components/btl/AiCostChip";
 import { VaultForecastButton } from "../simulator/VaultPositionSimulator";
 import type {
   VaultRecommendation,
@@ -143,6 +144,7 @@ export function VaultRecommendations({
                 >
                   {rec.source === "ai" ? "AI" : "Rules"}
                 </Badge>
+                {rec.source === "ai" && <AiCostChip meta={rec.meta} />}
               </div>
 
               <div className={maxSlots === 1 ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-2 gap-1.5"}>

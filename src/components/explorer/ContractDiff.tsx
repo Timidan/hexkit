@@ -3,13 +3,33 @@ import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { GitDiff, CircleNotch, Copy, Check } from '@phosphor-icons/react';
+import { GitDiff, CircleNotch, Copy, Check, Sparkle } from '@phosphor-icons/react';
 import { getChainById } from '@/utils/chains';
 import { getSharedProvider } from '@/utils/providerPool';
 import { prepareBytecode, diffHexChars, type NormalizeMode, type DiffChar } from '@/utils/bytecodeDiff';
 import NetworkSelector, { EXTENDED_NETWORKS, type ExtendedChain } from '@/components/shared/NetworkSelector';
+import { resolveContractContext, type ContractContext } from '@/utils/resolver/contractContext';
+import { useBtlExplain } from '@/lib/btl/useBtlExplain';
+import BtlExplanation from '@/components/btl/BtlExplanation';
 import { isAddress } from 'ethers/lib/utils';
 import '@/styles/ContractDiff.css';
+
+const LLM_MODE =
+  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
+  "live";
+
+// Per-side source cap: keeps the combined V1+V2 body well under the 64KB
+// proxy limit even for large contracts (ABI signatures aren't capped here,
+// only the raw source text).
+const SOURCE_CHAR_CAP = 8_000;
+
+function buildSourceSnippet(ctx: ContractContext): string {
+  if (!ctx.metadata?.sources) return '';
+  return Object.entries(ctx.metadata.sources)
+    .map(([path, content]) => `// ${path}\n${content}`)
+    .join('\n\n')
+    .slice(0, SOURCE_CHAR_CAP);
+}
 
 interface BytecodeSide {
   address: string;
@@ -160,6 +180,75 @@ const ContractDiff: React.FC = () => {
     fetchBytecode(right.address, right.network, setRight);
   };
 
+  const [auditFetching, setAuditFetching] = useState(false);
+  const {
+    explain: explainAudit,
+    text: auditText,
+    meta: auditMeta,
+    loading: auditExplainLoading,
+    error: auditError,
+  } = useBtlExplain();
+  const auditLoading = auditFetching || auditExplainLoading;
+
+  const handleAudit = useCallback(async () => {
+    if (!leftPrepared || !rightPrepared || !diff) return;
+    setAuditFetching(true);
+    try {
+      const leftChain = getChainById(left.network.id);
+      const rightChain = getChainById(right.network.id);
+
+      const [leftCtx, rightCtx] = await Promise.all([
+        leftChain
+          ? resolveContractContext(left.address, leftChain, { abi: true })
+          : Promise.resolve(null),
+        rightChain
+          ? resolveContractContext(right.address, rightChain, { abi: true })
+          : Promise.resolve(null),
+      ]);
+
+      const bothVerified =
+        !!leftCtx?.verified && !!leftCtx.metadata?.sources &&
+        !!rightCtx?.verified && !!rightCtx.metadata?.sources;
+
+      let userText: string;
+      if (bothVerified && leftCtx && rightCtx) {
+        const payload = {
+          sourceAvailable: true,
+          v1: {
+            name: leftCtx.name,
+            readFunctions: leftCtx.functions.read.map((f) => f.signature),
+            writeFunctions: leftCtx.functions.write.map((f) => f.signature),
+            source: buildSourceSnippet(leftCtx),
+          },
+          v2: {
+            name: rightCtx.name,
+            readFunctions: rightCtx.functions.read.map((f) => f.signature),
+            writeFunctions: rightCtx.functions.write.map((f) => f.signature),
+            source: buildSourceSnippet(rightCtx),
+          },
+        };
+        userText = JSON.stringify(payload).slice(0, 60_000);
+      } else {
+        const payload = {
+          sourceAvailable: false,
+          diffCount: diff.diffCount,
+          v1ByteLength: leftPrepared.byteLength,
+          v2ByteLength: rightPrepared.byteLength,
+          v1StrippedMetadataBytes: leftPrepared.strippedMetadataBytes,
+          v2StrippedMetadataBytes: rightPrepared.strippedMetadataBytes,
+        };
+        userText = JSON.stringify(payload);
+      }
+
+      await explainAudit(
+        "You are a smart-contract upgrade auditor. Compare V1 and V2 and summarize what changed, flagging risky changes (access-control regressions, fee/param bumps, new privileged or pausable functions, changed ownership). Present the risky changes as a markdown table with columns: Risk | Evidence | Why it matters | Action. If only bytecode is available, say so and keep it structural. Always end with 'AI-assisted — verify before trusting.'",
+        userText,
+      );
+    } finally {
+      setAuditFetching(false);
+    }
+  }, [leftPrepared, rightPrepared, diff, left.address, left.network.id, right.address, right.network.id, explainAudit]);
+
   return (
     <div className="bg-background p-3 max-w-5xl mx-auto space-y-3">
       <div className="flex items-center justify-center gap-2 mb-1">
@@ -240,6 +329,40 @@ const ContractDiff: React.FC = () => {
               <span><span className="cdiff-swatch cdiff-swatch-same" /> same</span>
             </div>
           </div>
+
+          {LLM_MODE !== 'off' && (
+            <div className="pt-1 space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5"
+                onClick={handleAudit}
+                disabled={auditLoading}
+              >
+                {auditLoading ? (
+                  <>
+                    <CircleNotch width={12} height={12} className="animate-spin" />
+                    Auditing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkle width={12} height={12} />
+                    Audit this upgrade with AI
+                  </>
+                )}
+              </Button>
+
+              {(auditText || auditLoading || auditError) && (
+                <BtlExplanation
+                  text={auditText}
+                  meta={auditMeta}
+                  loading={auditLoading}
+                  error={auditError}
+                  title="Upgrade audit"
+                />
+              )}
+            </div>
+          )}
         </div>
       )}
 

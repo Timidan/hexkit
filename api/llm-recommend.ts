@@ -6,8 +6,9 @@ export const config = {
   maxDuration: 60,
 };
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const BTL_MODEL = process.env.BTL_MODEL || "gpt-4o-mini";
+const BTL_API_KEY = process.env.BTL_API_KEY || "";
+const BTL_BASE_URL = process.env.BTL_BASE_URL || "https://api.badtheorylabs.com";
 
 const ALLOWED_METHODS = new Set(["POST", "OPTIONS"]);
 const ALLOWED_ORIGINS = new Set(
@@ -68,8 +69,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Missing JSON body" });
   }
 
-  if (!Array.isArray((body as any).contents)) {
-    return res.status(400).json({ error: "Body must include `contents` array" });
+  if (!Array.isArray((body as any).messages)) {
+    return res.status(400).json({ error: "Body must include `messages` array" });
   }
 
   const serialized = JSON.stringify(body);
@@ -77,32 +78,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(413).json({ error: "Request body too large" });
   }
 
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({ error: "No GEMINI_API_KEY configured" });
+  if (!BTL_API_KEY) {
+    return res.status(500).json({ error: "No BTL_API_KEY configured" });
   }
 
-  const geminiHeaders: Record<string, string> = {
+  const btlHeaders: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-goog-api-key": GEMINI_API_KEY,
+    Authorization: `Bearer ${BTL_API_KEY}`,
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+  const url = `${BTL_BASE_URL}/v1/chat/completions`;
 
   try {
     const upstreamRes = await fetch(url, {
       method: "POST",
-      headers: geminiHeaders,
+      headers: btlHeaders,
       body: serialized,
       signal: AbortSignal.timeout(55_000),
     });
 
     const text = await upstreamRes.text();
 
-    if (allowedOrigin) {
-      res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
-    }
+    if (allowedOrigin) res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Content-Type", "application/json");
-    res.setHeader("X-Gemini-Model", GEMINI_MODEL);
+
+    // Forward BTL cost/routing headers so the browser can render AiCostChip.
+    const BTL_HEADERS = [
+      "x-btl-benchmark-cost",
+      "x-btl-customer-charge",
+      "x-btl-saved",
+      "x-gateway-fee-pct",
+      "x-gateway-cost",
+      "x-request-id",
+    ];
+    for (const h of BTL_HEADERS) {
+      const v = upstreamRes.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    const requestedModel = (body as any)?.model || BTL_MODEL;
+    res.setHeader("X-BTL-Model", String(requestedModel));
+    res.setHeader("Access-Control-Expose-Headers", [...BTL_HEADERS, "x-btl-model"].join(", "));
+
     return res.status(upstreamRes.status).send(text);
   } catch (err: any) {
     console.error("[llm-recommend] upstream error:", err);

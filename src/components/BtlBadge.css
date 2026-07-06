@@ -1,0 +1,31 @@
+.btl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  color: #b8b8b8;
+  transition: color 0.15s ease, opacity 0.15s ease;
+  line-height: 1;
+}
+.btl-badge:hover {
+  color: #f2f2f0;
+}
+.btl-badge-logo {
+  display: block;
+  flex-shrink: 0;
+  border-radius: 5px;
+  /* The mark is a near-black rounded square; a hairline ring defines its
+     edge on HexKit's dark background so it reads as a real logo, not a blob. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+.btl-badge:hover .btl-badge-logo {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.32);
+}
+.btl-badge-label {
+  font-family: ui-monospace, "JetBrains Mono", "Geist Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+}

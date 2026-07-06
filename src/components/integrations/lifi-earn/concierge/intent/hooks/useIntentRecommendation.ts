@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { postLlmRecommend } from "../../../earnApi";
+import { buildBtlChatRequest, extractOpenAiText, safeParseJson } from "@/lib/btl/client";
 import { llmRecommendationSchema } from "../../schema";
 import { DEFAULT_CONFIG } from "../../types";
 import type {
@@ -67,6 +68,8 @@ interface IntentRecommendationArgs {
   sourceTokenSymbol?: string;
   /** Source chain ID for the asset being recommended for. */
   sourceChainId?: number;
+  /** BTL model override (see BTL_AB_MODELS). Defaults to BTL_DEFAULT_MODEL. */
+  model?: string;
 }
 
 interface IntentRecommendationResult {
@@ -91,6 +94,7 @@ export function useIntentRecommendation(
     queryKey: [
       "intent-recommendation",
       LLM_MODE,
+      args?.model ?? "",
       args?.synthChainId ?? 0,
       args?.synthTokenAddress ?? "",
       intentCacheKey(args?.intent),
@@ -143,14 +147,14 @@ export async function buildRecommendation(
     };
   }
 
-  const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets, args.sourceTokenSymbol, args.sourceChainId);
+  const request = buildGeminiIntentRequest(intent, candidates, args.walletAssets, args.sourceTokenSymbol, args.sourceChainId, args.model);
   let lastError: string | null = null;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
     try {
-      const raw = await postLlmRecommend(request);
-      const text = extractGeminiText(raw);
+      const { data: raw, meta } = await postLlmRecommend(request);
+      const text = extractOpenAiText(raw);
       if (!text) throw new Error("empty LLM response");
       const json = safeParseJson(text);
       if (!json) throw new Error("LLM did not return JSON");
@@ -231,6 +235,7 @@ export async function buildRecommendation(
           alternatives: dedupedAlts,
           source: "ai",
           topRationale: rec.best_pick?.rationale ?? "",
+          meta,
         },
         llmError: null,
       };
@@ -308,7 +313,7 @@ function rulesFallback(
   };
 }
 
-function buildGeminiIntentRequest(intent: ParsedIntent, candidates: EarnVault[], walletAssets: IdleAsset[], sourceTokenSymbol?: string, sourceChainId?: number) {
+function buildGeminiIntentRequest(intent: ParsedIntent, candidates: EarnVault[], walletAssets: IdleAsset[], sourceTokenSymbol?: string, sourceChainId?: number, model?: string) {
   const system = `You are a DeFi yield strategist with deep knowledge of vault mechanics, protocol risk, and yield sustainability. You evaluate vaults the way a seasoned DeFi portfolio manager would — not just by raw numbers, but by understanding what drives those numbers and whether they'll last.
 
 You will be given:
@@ -456,26 +461,12 @@ ENTRY COST FRAMEWORK:
     },
   };
 
-  return {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: fullSystem },
-          {
-            text:
-              "INPUT:\n" +
-              JSON.stringify(userPayload) +
-              "\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.2,
-    },
-  };
+  const userText =
+    "INPUT:\n" +
+    JSON.stringify(userPayload) +
+    "\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.";
+
+  return buildBtlChatRequest(fullSystem, userText, { temperature: 0.2, model });
 }
 
 function intentCacheKey(intent: ParsedIntent | undefined): string {
@@ -492,53 +483,6 @@ function intentCacheKey(intent: ParsedIntent | undefined): string {
     intent.exclude_protocols.join("+"),
     intent.result_count ?? "",
   ].join("|");
-}
-
-function extractGeminiText(raw: unknown): string | null {
-  try {
-    const r = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string; thought?: boolean }>;
-        };
-      }>;
-    };
-    const parts = r.candidates?.[0]?.content?.parts ?? [];
-    const joined = parts
-      .filter((p) => !p.thought && typeof p.text === "string")
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-    return joined.length > 0 ? joined : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      // Thinking models sometimes prepend prose before the JSON object.
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
-  }
 }
 
 function formatApy(apy: number | null): string {

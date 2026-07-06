@@ -96,7 +96,7 @@ function devExplorerProxy(): Plugin {
   };
 }
 
-// ── Gemini AI Studio LLM proxy (dev server) ────────────────────────────────
+// ── BTL Runtime LLM proxy (dev server) ────────────────────────────────
 
 function llmProxyPlugin(envObj: Record<string, string>): Plugin {
   return {
@@ -110,19 +110,26 @@ function llmProxyPlugin(envObj: Record<string, string>): Plugin {
         for await (const chunk of req) chunks.push(chunk as Buffer);
         const body = Buffer.concat(chunks).toString("utf-8");
 
-        const model = envObj.GEMINI_MODEL || "gemini-2.5-flash-lite";
-        const apiKey = envObj.GEMINI_API_KEY || "";
-        if (!apiKey) { res.statusCode = 500; res.end('{"error":"No GEMINI_API_KEY"}'); return; }
+        const model = envObj.BTL_MODEL || "gpt-4o-mini";
+        const apiKey = envObj.BTL_API_KEY || "";
+        const baseUrl = envObj.BTL_BASE_URL || "https://api.badtheorylabs.com";
+        if (!apiKey) { res.statusCode = 500; res.end('{"error":"No BTL_API_KEY"}'); return; }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-        const gemHeaders: Record<string, string> = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
+        const url = `${baseUrl}/v1/chat/completions`;
+        const btlHeaders: Record<string, string> = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
 
         try {
-          const upstream = await fetch(url, { method: "POST", headers: gemHeaders, body, signal: AbortSignal.timeout(55_000) });
+          const upstream = await fetch(url, { method: "POST", headers: btlHeaders, body, signal: AbortSignal.timeout(55_000) });
           const text = await upstream.text();
           res.statusCode = upstream.status;
           res.setHeader("Content-Type", "application/json");
-          res.setHeader("X-Gemini-Model", model);
+          for (const h of ["x-btl-benchmark-cost","x-btl-customer-charge","x-btl-saved","x-gateway-fee-pct","x-gateway-cost","x-request-id"]) {
+            const v = upstream.headers.get(h);
+            if (v) res.setHeader(h, v);
+          }
+          let requestedModel = model;
+          try { requestedModel = JSON.parse(body)?.model || model; } catch {}
+          res.setHeader("X-BTL-Model", requestedModel);
           res.end(text);
         } catch (err: any) {
           console.error(`[llm-proxy] ${model} failed:`, err?.message);
@@ -190,7 +197,7 @@ export default defineConfig(({ mode }) => {
       watch: {
         usePolling: false,
         interval: 100,
-        ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**"],
+        ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/edb/**", "**/starknet-sim/**", "**/target/**"],
       },
       proxy: {
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
@@ -323,7 +330,7 @@ export default defineConfig(({ mode }) => {
             "x-lifi-api-key": LIFI_API_KEY,
           },
         },
-        // Gemini is handled by llmProxyPlugin() below — not a static proxy
+        // BTL Runtime is handled by llmProxyPlugin() below — not a static proxy
         // Proxy for Sourcify repo
         "/api/repo": {
           target: "https://repo.sourcify.dev",
