@@ -39,6 +39,21 @@ function hasValidSecret(req: VercelRequest): boolean {
 const MAX_BODY_BYTES = 64 * 1024;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // TEMP debug probe — reports env visibility without leaking the key. Remove after diagnosis.
+  if (req.query?.debug === "1") {
+    const k = process.env.BTL_API_KEY || "";
+    return res.status(200).json({
+      vercelEnv: process.env.VERCEL_ENV || null,
+      gitBranch: process.env.VERCEL_GIT_COMMIT_REF || null,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || null,
+      hasKey: k.length > 0,
+      keyLen: k.length,
+      keyPrefix: k ? k.slice(0, 3) : null,
+      baseUrl: process.env.BTL_BASE_URL || "(default)",
+      btlEnvNames: Object.keys(process.env).filter((n) => n.toUpperCase().includes("BTL")),
+    });
+  }
+
   const allowedOrigin = getAllowedOrigin(req);
 
   if (req.method === "OPTIONS") {
