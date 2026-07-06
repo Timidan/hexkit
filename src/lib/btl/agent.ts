@@ -14,7 +14,9 @@ export async function runBtlAgent(opts: {
   const toolRuns: Array<{ name: string; args: unknown; result: unknown }> = [];
 
   for (let i = 0; i < maxIters; i++) {
-    const { data, meta } = await callBtl({ model, messages, tools: toolSpecs, tool_choice: "auto", temperature: 0.2 });
+    // reasoning_effort:"none" — deepseek-v3.2 thinking mode adds ~50s latency
+    // that trips the proxy timeout; disable it (verified tool-calling still fires).
+    const { data, meta } = await callBtl({ model, messages, tools: toolSpecs, tool_choice: "auto", temperature: 0.2, reasoning_effort: "none" });
     metas.push(meta);
     const choice = (data as any)?.choices?.[0];
     const msg = choice?.message;

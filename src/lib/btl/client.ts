@@ -29,6 +29,11 @@ export function buildBtlChatRequest(
     // max_tokens (finish_reason:"length" → invalid JSON → rules fallback). Set
     // a generous default so recommendation/agent JSON completes.
     max_tokens: opts.maxTokens ?? 2048,
+    // deepseek-v3.2 is a thinking model: left on, it emits ~10k chars of hidden
+    // reasoning per call → 40-55s latency → the proxy's 55s timeout returns 502,
+    // and in json mode it intermittently returns empty content ("empty LLM
+    // response"). "none" disables reasoning; OpenAI models ignore it harmlessly.
+    reasoning_effort: "none",
   };
   if (opts.jsonMode !== false && !opts.tools) body.response_format = { type: "json_object" };
   if (opts.tools) body.tools = opts.tools;
