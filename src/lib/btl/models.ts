@@ -12,14 +12,16 @@
 //   - claude-*         → require /v1/messages + paid Anthropic credits (blocked).
 export const BTL_BASE_URL_DEFAULT = "https://api.badtheorylabs.com";
 
-/** Default model: DeepSeek, tool-calling + json_object verified live. */
-export const BTL_DEFAULT_MODEL = "deepseek-v3.2";
+/** Default model: OpenAI, ~5s/call, tool-calling + json_object verified live.
+ *  (deepseek-v3.2 is reliable but ~20s/call — its thinking route is slow — so
+ *  it's the A/B alternate rather than the default.) */
+export const BTL_DEFAULT_MODEL = "gpt-4o-mini";
 
-/** Proven fallback / A-B alternate: OpenAI, tool-calling verified. */
-export const BTL_FALLBACK_MODEL = "gpt-4o-mini";
+/** Proven A-B alternate: DeepSeek, tool-calling verified (reasoning_effort:none). */
+export const BTL_FALLBACK_MODEL = "deepseek-v3.2";
 
-/** The cross-provider A/B toggle: DeepSeek vs OpenAI, both tool-capable. */
+/** The cross-provider A/B toggle: OpenAI vs DeepSeek, both tool-capable. */
 export const BTL_AB_MODELS = [
-  { id: "deepseek-v3.2", label: "DeepSeek v3.2", provider: "DeepSeek" },
   { id: "gpt-4o-mini", label: "GPT-4o mini", provider: "OpenAI" },
+  { id: "deepseek-v3.2", label: "DeepSeek v3.2", provider: "DeepSeek" },
 ] as const;

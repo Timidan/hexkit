@@ -6,7 +6,7 @@ export const config = {
   maxDuration: 60,
 };
 
-const BTL_MODEL = process.env.BTL_MODEL || "deepseek-v3.2";
+const BTL_MODEL = process.env.BTL_MODEL || "gpt-4o-mini";
 const BTL_API_KEY = process.env.BTL_API_KEY || "";
 const BTL_BASE_URL = process.env.BTL_BASE_URL || "https://api.badtheorylabs.com";
 
