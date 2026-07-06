@@ -24,7 +24,7 @@ The application pairs a React frontend with a local Rust-powered EDB (EVM Debugg
 | Styling | Tailwind CSS v4, shadcn/ui |
 | Web3 | ethers v5, viem, wagmi, RainbowKit |
 | Simulation | REVM (Rust), EDB engine, WebSocket bridge |
-| Integrations | LI.FI SDK (Earn API, Composer), Gemini LLM |
+| Integrations | LI.FI SDK (Earn API, Composer), BTL Runtime |
 | API Proxies | Vercel Serverless Functions |
 | Testing | Vitest, Testing Library |
 
@@ -83,7 +83,7 @@ A full yield management layer powered by the LI.FI Earn API:
 
 An AI assistant that translates natural language yield goals into actionable vault recommendations:
 
-- **Intent Parser** -- Gemini LLM converts free-text prompts ("safest USDC vault above 5% on Arbitrum") into structured filters (token, chain, APY range, objective, protocol allow/deny lists).
+- **Intent Parser** -- BTL Runtime converts free-text prompts ("safest USDC vault above 5% on Arbitrum") into structured filters (token, chain, APY range, objective, protocol allow/deny lists).
 - **My Assets Mode** -- Say "best vaults for my assets" and the concierge fans out per-asset recommendations for every idle token in the connected wallet.
 - **Consolidate Mode** -- Say "best vault for my assets" (singular) and the concierge finds the top vault candidates to funnel all holdings into a single position via cross-chain swaps.
 - **Idle Sweep** -- Detects wallet tokens sitting idle (not earning yield) and suggests the best vault for each, with one-click deposit.
@@ -170,9 +170,9 @@ For the LI.FI Earn integration and AI concierge, set the following in `.env`:
 | Variable | Purpose |
 |----------|---------|
 | `LIFI_API_KEY` | LI.FI API key for Earn and Composer endpoints |
-| `GEMINI_API_KEY` | Google AI Studio API key for the yield concierge LLM |
-| `GEMINI_MODEL` | Primary Gemini model (default: `gemini-3.1-pro-preview`) |
-| `GEMINI_FALLBACK_MODEL` | Fallback on 429/503 (default: `gemini-2.5-flash`) |
+| `BTL_API_KEY` | BTL Runtime API key for the yield concierge LLM |
+| `BTL_MODEL` | BTL model (default: `deepseek-v4-flash`) |
+| `BTL_BASE_URL` | BTL Runtime base URL (default: `https://api.badtheorylabs.com`) |
 | `PROXY_SECRET` | Shared secret for API proxy authentication (production) |
 | `ALLOWED_ORIGINS` | Comma-separated allowed CORS origins (production) |
 
@@ -229,7 +229,7 @@ src/
   lib/                       Shared libraries
 
 api/
-  llm-recommend.ts           Gemini LLM proxy with model fallback
+  llm-recommend.ts           BTL Runtime proxy with model fallback
   lifi-composer.ts           LI.FI Composer quote/execute proxy
   edb/                       EDB simulation API routes
 

@@ -1,7 +1,14 @@
 import React, { Suspense } from "react";
+import { CircleNotch } from "@phosphor-icons/react";
 import type { SimulationResult } from "../../types/transaction";
 import type { TraceRow, TraceFilters } from "../ExecutionStackTrace";
 import LoadingSpinner from "../shared/LoadingSpinner";
+import { useBtlExplain } from "@/lib/btl/useBtlExplain";
+import BtlExplanation from "@/components/btl/BtlExplanation";
+
+const LLM_MODE =
+  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
+  "live";
 
 const ExecutionStackTrace = React.lazy(() => import("../ExecutionStackTrace"));
 
@@ -53,6 +60,16 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   highlightedValue,
   setHighlightedValue,
 }) => {
+  const { explain: explainRevert, text: revertExplanation, meta: revertMeta, loading: revertLoading, error: revertError } = useBtlExplain();
+
+  const handleExplainRevert = () => {
+    const userText = JSON.stringify({ errorMessage, revertInfo }).slice(0, 4000);
+    void explainRevert(
+      "You are an EVM debugging assistant. Given a reverted transaction, explain the root cause in plain English and suggest a concrete fix. Be specific; never invent state you were not given.",
+      userText,
+    );
+  };
+
   return (
     <>
       {/* Warnings from EDB */}
@@ -131,6 +148,40 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+          {(errorMessage || revertInfo) && LLM_MODE !== "off" && (
+            <div style={{ marginTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "12px" }}>
+              <button
+                onClick={handleExplainRevert}
+                disabled={revertLoading}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "13px",
+                  color: "#e2e8f0",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: "6px",
+                  padding: "6px 10px",
+                  cursor: revertLoading ? "wait" : "pointer",
+                }}
+              >
+                {revertLoading && <CircleNotch size={13} className="animate-spin" />}
+                {revertLoading ? "Explaining…" : "Explain this revert"}
+              </button>
+              {(revertExplanation || revertLoading || revertError) && (
+                <div style={{ marginTop: "10px" }}>
+                  <BtlExplanation
+                    text={revertExplanation}
+                    meta={revertMeta}
+                    loading={revertLoading}
+                    error={revertError}
+                    title="Revert explanation"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

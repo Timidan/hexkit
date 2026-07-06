@@ -9,6 +9,8 @@ import {
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
+import { useBtlExplain } from '@/lib/btl/useBtlExplain';
+import BtlExplanation from '@/components/btl/BtlExplanation';
 import { useToolkit } from '../../contexts/ToolkitContext';
 import { parseFunctionSignatureParameters } from '../../utils/solidityTypes';
 import { EXTENDED_NETWORKS, type ExtendedChain } from '../shared/NetworkSelector';
@@ -38,6 +40,28 @@ import {
 } from './DecoderDialogs';
 import { useDecodeHandlers } from './useDecodeHandlers';
 import ArgsOnlyInput, { type ArgsOnlyParam } from './ArgsOnlyInput';
+
+const LLM_MODE =
+  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
+  "live";
+
+// Recursively converts a decoded value into something JSON-safe (bigint →
+// string) and truncates strings/arrays/objects so a single huge param can't
+// blow up the LLM payload.
+function toPromptValue(value: unknown, depth = 0): unknown {
+  if (depth > 4) return '…';
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'string') return value.length > 300 ? `${value.slice(0, 300)}…` : value;
+  if (Array.isArray(value)) return value.slice(0, 20).map((v) => toPromptValue(v, depth + 1));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>).slice(0, 20)) {
+      out[k] = toPromptValue(v, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
 
 type DecodeMode = 'calldata' | 'args-only';
 
@@ -267,6 +291,32 @@ const SmartDecoder: React.FC = () => {
     return { parameterData, hasGenericNames, hasRealNames };
   };
 
+  const { explain: explainCall, text: callExplanation, meta: callMeta, loading: callLoading, error: callError } = useBtlExplain();
+
+  const handleExplainCall = () => {
+    if (!decodedResult) return;
+    const { parameterData } = getParameterDisplayData();
+    const payload = {
+      name: decodedResult.name ?? null,
+      signature: decodedResult.signature ?? null,
+      args: toPromptValue(decodedResult.args ?? []),
+      parameters: parameterData.slice(0, 30).map((p) => ({
+        name: p.name,
+        type: p.type,
+        value: toPromptValue(p.value),
+      })),
+      contractName: contractMetadata?.name ?? null,
+      contractAddress: contractAddress || null,
+    };
+    // Belt-and-suspenders cap on top of toPromptValue's per-field truncation —
+    // keeps the request body well under 64KB even for pathological ABIs.
+    const userText = JSON.stringify(payload).slice(0, 60_000);
+    void explainCall(
+      "You are a smart-contract analyst. Explain in plain English what this function call does and what its parameters mean. Be concise; flag anything risky (token approvals, transfers, ownership/admin changes).",
+      userText,
+    );
+  };
+
   const addArgsOnlyParam = () => setArgsOnlyParams(prev => [...prev, { type: 'uint256', name: '' }]);
   const removeArgsOnlyParam = (i: number) => setArgsOnlyParams(prev => prev.filter((_, idx) => idx !== i));
   const updateArgsOnlyParam = (i: number, field: 'type' | 'name', val: string) => {
@@ -483,6 +533,41 @@ const SmartDecoder: React.FC = () => {
         showAlternativeResults={showAlternativeResults}
         getParameterDisplayData={getParameterDisplayData}
       />
+
+      {decodedResult && LLM_MODE !== 'off' && (
+        <div className="mt-3 space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExplainCall}
+            disabled={callLoading}
+            className="inline-flex items-center gap-1.5 text-xs"
+          >
+            {callLoading ? (
+              <>
+                <CircleNotch className="h-3 w-3 animate-spin" />
+                Explaining…
+              </>
+            ) : (
+              <>
+                <Sparkle className="h-3 w-3" />
+                What does this call do?
+              </>
+            )}
+          </Button>
+
+          {(callExplanation || callLoading || callError) && (
+            <BtlExplanation
+              text={callExplanation}
+              meta={callMeta}
+              loading={callLoading}
+              error={callError}
+              title="What this call does"
+            />
+          )}
+        </div>
+      )}
 
       <ContractConfirmationDialog
         state={contractConfirmation}

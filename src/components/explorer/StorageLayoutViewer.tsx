@@ -2,8 +2,11 @@ import React from 'react';
 import {
   CheckCircle,
   EyeSlash,
+  Sparkle,
+  CircleNotch,
 } from '@phosphor-icons/react';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
 import ContractAddressInput from '../contract/ContractAddressInput';
 import { getExplorerChains } from '../../utils/chains';
 import StorageSlotGraph from './storage-viewer/StorageSlotGraph';
@@ -12,12 +15,70 @@ import { StorageToolbar } from './StorageToolbar';
 import { StorageTableView } from './StorageTableView';
 import { TreePanel } from './TreePanel';
 import { useStorageViewerState } from './useStorageViewerState';
+import { useBtlExplain } from '@/lib/btl/useBtlExplain';
+import { safeParseJson } from '@/lib/btl/client';
+import BtlExplanation from '@/components/btl/BtlExplanation';
+import { SlotAnnotationChips, type SlotAnnotation } from '@/components/btl/SlotAnnotationChips';
+
+const LLM_MODE =
+  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
+  "live";
+
+// Cap the annotated slot count so the request body stays well under the 64KB
+// proxy limit even for contracts with hundreds of resolved slots.
+const ANNOTATE_ROW_CAP = 30;
 
 const StorageLayoutViewer: React.FC = () => {
   const state = useStorageViewerState();
   // Only chains with a configured explorer API — the storage loader needs
   // source/ABI data and would otherwise fall over with "No … API available".
   const explorerChains = React.useMemo(() => getExplorerChains(), []);
+
+  const {
+    explain: explainSlots,
+    text: slotAnnotations,
+    meta: slotAnnotationsMeta,
+    loading: annotateLoading,
+    error: annotateError,
+  } = useBtlExplain({ jsonMode: true, maxTokens: 2000 });
+
+  // BTL returns structured per-slot JSON; parse it into chips. On a parse
+  // miss we fall back to showing the raw text so nothing is lost.
+  const parsedAnnotations = React.useMemo((): { slots: SlotAnnotation[]; summary: string | null } | null => {
+    if (!slotAnnotations) return null;
+    const json = safeParseJson(slotAnnotations) as { slots?: unknown; summary?: unknown } | null;
+    if (!json || !Array.isArray(json.slots)) return null;
+    const slots = json.slots
+      .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object' && typeof (s as { note?: unknown }).note === 'string')
+      .map((s) => ({
+        slot: (s.slot as string) ?? null,
+        label: (s.label as string) ?? null,
+        note: s.note as string,
+        unusual: !!s.unusual,
+      }));
+    return { slots, summary: typeof json.summary === 'string' ? json.summary : null };
+  }, [slotAnnotations]);
+
+  const handleAnnotateSlots = () => {
+    const rows = state.displayRows.slice(0, ANNOTATE_ROW_CAP).map((row) => ({
+      slot: row.slot,
+      label: row.label ?? null,
+      typeLabel: row.typeLabel ?? null,
+      value: row.value ?? null,
+      decodedFields: row.decodedFields ?? null,
+    }));
+    const payload = {
+      contractName: state.contractMeta?.name ?? null,
+      slots: rows,
+    };
+    const userText = JSON.stringify(payload).slice(0, 60_000);
+    void explainSlots(
+      'You are a storage-layout analyst. Given a contract\'s resolved storage slots, return ONLY a JSON object of this exact shape: ' +
+        '{ "slots": [ { "slot": string (the slot key), "label": string (the variable name, or "" if none), "note": string (ONE concise plain-English sentence: what this slot holds), "unusual": boolean (true only if the slot is odd, mislabeled, suspect, or noteworthy) } ], "summary": string (one sentence overall) }. ' +
+        "Include exactly one entry per input slot, in the same order. Return JSON only — no prose, no code fences.",
+      userText,
+    );
+  };
 
   return (
     <>
@@ -64,6 +125,52 @@ const StorageLayoutViewer: React.FC = () => {
               handleExportCsv={state.handleExportCsv}
               setSlotGraphOpen={state.setSlotGraphOpen}
             />
+          )}
+
+          {state.hasData && state.displayRows.length > 0 && LLM_MODE !== 'off' && (
+            <div className="space-y-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-xs gap-1.5"
+                onClick={handleAnnotateSlots}
+                disabled={annotateLoading}
+              >
+                {annotateLoading ? (
+                  <>
+                    <CircleNotch className="h-3 w-3 animate-spin" />
+                    Annotating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkle className="h-3 w-3" />
+                    Annotate slots with AI
+                  </>
+                )}
+              </Button>
+
+              {(slotAnnotations || annotateLoading || annotateError) && (
+                <BtlExplanation
+                  text={null}
+                  meta={slotAnnotationsMeta}
+                  loading={annotateLoading}
+                  error={annotateError}
+                  title="Slot annotations"
+                >
+                  {parsedAnnotations ? (
+                    <SlotAnnotationChips
+                      slots={parsedAnnotations.slots}
+                      summary={parsedAnnotations.summary}
+                    />
+                  ) : slotAnnotations ? (
+                    // Parse miss — show raw text so nothing is lost.
+                    <p className="whitespace-pre-wrap text-xs text-foreground/80">
+                      {slotAnnotations}
+                    </p>
+                  ) : null}
+                </BtlExplanation>
+              )}
+            </div>
           )}
         </div>
 

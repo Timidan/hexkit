@@ -29,13 +29,23 @@ import type { AssetMovementResult } from "../../../utils/transaction-simulation/
 import { getCachedTokenMetadata, fetchTokenMetadata } from "../../../utils/tokenMovements";
 import { networkConfigManager } from "../../../config/networkConfig";
 import { useComposerQuote } from "./hooks/useComposerQuote";
-import { fetchComposerQuote } from "./earnApi";
+import { fetchComposerQuote, postLlmRecommend } from "./earnApi";
+import { buildDepositTx } from "./buildDepositTx";
 import { useTokenAllowance } from "./hooks/useTokenAllowance";
 import { useTokenBalance } from "./hooks/useTokenBalance";
 import { TokenIcon } from "./TokenIcon";
 import type { EarnToken, EarnVault } from "./types";
 import { formatTxError, shortAddress, isNativeToken } from "./txUtils";
 import EdbBadge from "../../EdbBadge";
+import { runBtlAgent, type BtlTool } from "@/lib/btl/agent";
+import type { BtlRuntimeMeta } from "@/lib/btl/client";
+import BtlExplanation from "@/components/btl/BtlExplanation";
+
+// "live"/"fixture" call the LLM (or read fixtures); "off" hides the AI
+// preflight entirely so the deposit flow degrades to manual-only.
+const LLM_MODE =
+  (import.meta.env.VITE_LLM_MODE as "live" | "fixture" | "off" | undefined) ??
+  "live";
 
 type FlowState =
   | "idle"
@@ -234,6 +244,10 @@ export function DepositFlow({
   });
   const [simulateFirst, setSimulateFirst] = useState(false);
   const [twoStepLabel, setTwoStepLabel] = useState<string | null>(null);
+  const [preflightText, setPreflightText] = useState<string | null>(null);
+  const [preflightMeta, setPreflightMeta] = useState<BtlRuntimeMeta | null>(null);
+  const [preflightRan, setPreflightRan] = useState(false);
+  const [preflightLoading, setPreflightLoading] = useState(false);
 
   // Reset state when vault/override changes so reopening the drawer for a
   // different vault doesn't leak stale state.
@@ -254,6 +268,10 @@ export function DepositFlow({
     setSpenderCheck({ status: "idle" });
     setSimulateFirst(false);
     setTwoStepLabel(null);
+    setPreflightText(null);
+    setPreflightMeta(null);
+    setPreflightRan(false);
+    setPreflightLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     vault.slug,
@@ -615,6 +633,62 @@ export function DepositFlow({
     flowState,
   ]);
 
+  // Tool the AI preflight agent calls — mirrors handleSimulate's path exactly
+  // (refetch quote → build tx → simulate) so the agent's numbers are always
+  // backed by a real REVM sim of the live, in-scope quote.
+  const simulateDepositTool: BtlTool = {
+    name: "simulate_deposit",
+    description:
+      "Simulate the currently-quoted deposit on the real REVM engine and return asset movements + gas.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
+    run: async () => {
+      const { data: freshQuote } = await refetchQuote();
+      const q = freshQuote ?? quote;
+      if (!q || !supportedChain || !address) return { error: "no quote available yet" };
+      const tx = buildDepositTx(q);
+      const result = await simulateAssetMovements(tx, supportedChain, address);
+      return {
+        success: result.success,
+        gasUsed: result.gasUsed,
+        movements: result.movements,
+        error: result.error,
+      };
+    },
+  };
+
+  async function handlePreflight() {
+    if (!quote) return;
+    setPreflightLoading(true);
+    try {
+      const { finalText, metas, toolRuns } = await runBtlAgent({
+        system:
+          "You are HexKit's deposit co-pilot. CALL simulate_deposit, then explain in one or two sentences: is a token approval needed?, the net asset movement, and gas. Be concrete; never invent numbers the sim didn't return.",
+        userText: `Preflight my deposit of ${amount} ${selectedToken?.symbol ?? ""} into ${vault.name} (${vault.slug}).`,
+        tools: [simulateDepositTool],
+        callBtl: postLlmRecommend,
+      });
+      if (finalText === null) {
+        setPreflightText(
+          "Couldn't complete the AI preflight — you can still run a manual simulation.",
+        );
+        setPreflightMeta(null);
+        setPreflightRan(false);
+      } else {
+        setPreflightText(finalText);
+        setPreflightMeta(metas.at(-1) ?? null);
+        setPreflightRan(toolRuns.some((r) => r.name === "simulate_deposit"));
+      }
+    } catch {
+      setPreflightText(
+        "Couldn't complete the AI preflight — you can still run a manual simulation.",
+      );
+      setPreflightMeta(null);
+      setPreflightRan(false);
+    } finally {
+      setPreflightLoading(false);
+    }
+  }
+
   async function handleSimulate() {
     if (!quote || !supportedChain || !address) return;
 
@@ -626,13 +700,7 @@ export function DepositFlow({
       const { data: freshQuote } = await refetchQuote();
       const q = freshQuote ?? quote;
 
-      const tx = {
-        to: q.transactionRequest.to,
-        data: q.transactionRequest.data,
-        value: q.transactionRequest.value,
-        gasLimit: q.transactionRequest.gasLimit,
-        gasPrice: q.transactionRequest.gasPrice,
-      };
+      const tx = buildDepositTx(q);
 
       const result = await simulateAssetMovements(tx, supportedChain, address);
       setSimResult(result);
@@ -1467,6 +1535,48 @@ export function DepositFlow({
                 </p>
               )}
             </motion.div>
+          )}
+
+          {LLM_MODE !== "off" && (
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-full text-sm"
+                disabled={!quote || preflightLoading}
+                onClick={handlePreflight}
+              >
+                {preflightLoading ? (
+                  <>
+                    <CircleNotch className="h-3 w-3 animate-spin mr-1.5" />
+                    Preflighting…
+                  </>
+                ) : (
+                  "Preflight with AI"
+                )}
+              </Button>
+
+              {(preflightText || preflightLoading) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  className="space-y-1.5"
+                >
+                  {preflightRan && (
+                    <span className="inline-flex items-center rounded-full border border-border/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
+                      simulated on REVM
+                    </span>
+                  )}
+                  <BtlExplanation
+                    text={preflightText}
+                    meta={preflightMeta}
+                    loading={preflightLoading}
+                    title="AI preflight"
+                  />
+                </motion.div>
+              )}
+            </div>
           )}
 
           <AnimatePresence>

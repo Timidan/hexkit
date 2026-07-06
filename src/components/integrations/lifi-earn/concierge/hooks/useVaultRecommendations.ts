@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { formatUnits } from "viem";
 import { postLlmRecommend } from "../../earnApi";
+import { buildBtlChatRequest, extractOpenAiText, safeParseJson } from "@/lib/btl/client";
+import type { BtlRuntimeMeta } from "@/lib/btl/client";
 import type { EarnVault } from "../../types";
 import type {
   IdleAsset,
@@ -204,11 +206,12 @@ async function fetchRecommendationForAsset(
   const request = buildGeminiRequest([source], candidateMap);
 
   let parsed: LlmRecommendationResponse | null = null;
+  let meta: BtlRuntimeMeta | undefined;
   let lastError: string | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await postLlmRecommend(request);
-      const text = extractGeminiText(raw);
+      const { data: raw, meta: btlMeta } = await postLlmRecommend(request);
+      const text = extractOpenAiText(raw);
       if (!text) throw new Error("empty LLM response");
       const json = safeParseJson(text);
       if (!json) throw new Error("LLM did not return JSON");
@@ -219,6 +222,7 @@ async function fetchRecommendationForAsset(
         );
       }
       parsed = result.data;
+      meta = btlMeta;
       lastError = null;
       break;
     } catch (err) {
@@ -237,8 +241,9 @@ async function fetchRecommendationForAsset(
   }
 
   const merged = mergeLlmWithCandidates([asset], candidateMap, parsed, vaultPool);
+  const recBase = merged[0] ?? pickByRules(asset, candidates);
   const rec = enforceDistinctPicks(
-    merged[0] ?? pickByRules(asset, candidates),
+    recBase.source === "ai" && meta ? { ...recBase, meta } : recBase,
     candidates
   );
   return { rec, llmError: null };
@@ -332,77 +337,12 @@ DECISION PRIORITY:
     },
   };
 
-  return {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: system },
-          {
-            text:
-              "INPUT:\n```json\n" +
-              JSON.stringify(userPayload, null, 2) +
-              "\n```\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.",
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.2,
-    },
-  };
-}
+  const userText =
+    "INPUT:\n```json\n" +
+    JSON.stringify(userPayload, null, 2) +
+    "\n```\n\nReturn ONLY the JSON object matching required_output_shape. No prose, no code fences.";
 
-function extractGeminiText(raw: unknown): string | null {
-  // Gemini 3 Pro can return multi-part content with `thought: true` parts
-  // before the answer — concatenate every non-thought text part.
-  try {
-    const r = raw as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string; thought?: boolean }>;
-        };
-      }>;
-    };
-    const parts = r.candidates?.[0]?.content?.parts ?? [];
-    const joined = parts
-      .filter((p) => !p.thought && typeof p.text === "string")
-      .map((p) => p.text ?? "")
-      .join("")
-      .trim();
-    return joined.length > 0 ? joined : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Strip common noise: code fences, leading commentary
-    const stripped = text
-      .replace(/^```(?:json)?/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      // Thinking models sometimes prepend prose before the JSON object.
-      // Find the first `{` and last `}` and try parsing that substring.
-      const first = stripped.indexOf("{");
-      const last = stripped.lastIndexOf("}");
-      if (first >= 0 && last > first) {
-        try {
-          return JSON.parse(stripped.slice(first, last + 1));
-        } catch {
-          /* fall through */
-        }
-      }
-      return null;
-    }
-  }
+  return buildBtlChatRequest(system, userText, { temperature: 0.2 });
 }
 
 function mergeLlmWithCandidates(

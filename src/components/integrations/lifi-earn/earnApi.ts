@@ -8,6 +8,7 @@ import type {
   EarnProtocolInfo,
   LifiStatusResponse,
 } from "./types";
+import { parseBtlMeta, type BtlRuntimeMeta } from "@/lib/btl/client";
 
 const EARN_PROXY = "/api/lifi-earn";
 const COMPOSER_PROXY = "/api/lifi-composer";
@@ -180,7 +181,7 @@ export function extractUniqueUnderlyings(
 
 const LLM_PROXY = "/api/llm-recommend";
 
-export async function postLlmRecommend(body: unknown): Promise<unknown> {
+export async function postLlmRecommend(body: unknown): Promise<{ data: unknown; meta: BtlRuntimeMeta }> {
   const res = await fetch(LLM_PROXY, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...proxyHeaders() },
@@ -193,7 +194,7 @@ export async function postLlmRecommend(body: unknown): Promise<unknown> {
     const text = await res.text().catch(() => "");
     throw new Error(`LLM proxy error: ${res.status} ${text}`);
   }
-  return res.json();
+  return { data: await res.json(), meta: parseBtlMeta(res.headers) };
 }
 
 export async function fetchCrossChainStatus(params: {
