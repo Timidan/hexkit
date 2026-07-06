@@ -110,7 +110,7 @@ function llmProxyPlugin(envObj: Record<string, string>): Plugin {
         for await (const chunk of req) chunks.push(chunk as Buffer);
         const body = Buffer.concat(chunks).toString("utf-8");
 
-        const model = envObj.BTL_MODEL || "deepseek-v4-flash";
+        const model = envObj.BTL_MODEL || "deepseek-v3.2";
         const apiKey = envObj.BTL_API_KEY || "";
         const baseUrl = envObj.BTL_BASE_URL || "https://api.badtheorylabs.com";
         if (!apiKey) { res.statusCode = 500; res.end('{"error":"No BTL_API_KEY"}'); return; }
