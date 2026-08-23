@@ -39,7 +39,8 @@ export interface IntentQuote {
   };
   /** Pass straight into outputs[].context for auction/limit handling. */
   context?: Hex;
-  validUntil?: string;
+  /** Unix timestamp (seconds) in practice; ISO strings have also been seen. */
+  validUntil?: string | number;
   solver?: string;
   [key: string]: unknown;
 }
@@ -47,6 +48,22 @@ export interface IntentQuote {
 export interface IntentQuoteResponse {
   quotes: IntentQuote[];
   [key: string]: unknown;
+}
+
+// `amount` is a decimal string, so a plain falsy check lets "0" through and
+// builds an order that offers the whole input for nothing. Returns null for
+// missing, unparseable, or non-positive amounts.
+export function readQuoteOutputAmount(
+  quote: IntentQuote | null | undefined,
+): bigint | null {
+  const raw = quote?.preview?.outputs?.[0]?.amount;
+  if (raw === null || raw === undefined) return null;
+  try {
+    const parsed = BigInt(raw);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 // LI.FI surfaces tx hashes and solver under `meta.*`; older shapes (and our

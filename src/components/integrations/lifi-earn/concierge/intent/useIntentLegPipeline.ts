@@ -15,11 +15,15 @@ import {
 import { useConfig } from "wagmi";
 import {
   requestIntentQuote,
+  readQuoteOutputAmount,
   type IntentQuote,
 } from "../../intentsApi";
 import { fetchComposerQuote } from "../../earnApi";
 import { encodeEip7930EvmAddress } from "../../../../../lib/intents/eip7930";
-import { buildDeadlinePlan } from "../../../../../lib/intents/deadlines";
+import {
+  buildDeadlinePlan,
+  assertFillWindowOpen,
+} from "../../../../../lib/intents/deadlines";
 import { nextOrderNonce } from "../../../../../lib/intents/nonce";
 import {
   buildStandardOrder,
@@ -31,7 +35,7 @@ import {
   extractOpenOrderId,
   inputSettlerEscrowAbi,
 } from "../../../../../lib/intents/contracts";
-import { safeApproveErc20 } from "../../txUtils";
+import { safeApproveErc20, formatTxError } from "../../txUtils";
 import type { IntentLegSpec } from "./intentLegs";
 
 // Quote requests fan out in parallel; on-chain open() runs sequentially —
@@ -158,17 +162,17 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
           return { ...run, status: "failed", error: "No quote returned" };
         }
 
-        const previewAmount = quote.preview?.outputs?.[0]?.amount;
-        if (!previewAmount) {
+        const previewAmount = readQuoteOutputAmount(quote);
+        if (previewAmount === null) {
           return {
             ...run,
             status: "failed",
-            error: "Quote missing preview output amount",
+            error: "Quote returned no usable output amount",
           };
         }
 
         const deadlines = buildDeadlinePlan({
-          quoteValidUntilIso: quote.validUntil ?? null,
+          quoteValidUntil: quote.validUntil ?? null,
         });
 
         const order = buildStandardOrder({
@@ -179,7 +183,7 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
           inputAmount: BigInt(spec.source.amountRaw),
           targetChainId: spec.destination.chainId,
           outputToken: spec.destination.outputToken,
-          outputAmount: BigInt(previewAmount),
+          outputAmount: previewAmount,
           recipient: spec.destination.recipient,
           expires: deadlines.expires,
           fillDeadline: deadlines.fillDeadline,
@@ -235,6 +239,9 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
     async (run: IntentLegRun): Promise<IntentLegRun> => {
       if (!run.order) return run;
       const chainId = run.spec.source.chainId;
+      // Held outside the try so a receipt-wait timeout still reports the
+      // broadcast hash instead of losing the escrow.
+      let broadcastHash: Hex | undefined;
 
       try {
         const currentChain = wagmiGetAccount(config).chainId;
@@ -245,6 +252,16 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
         const walletClient = await getWagmiWalletClient(config, { chainId });
         if (!walletClient) throw new Error("No wallet client for source chain");
         const walletAddress = walletClient.account.address as Address;
+
+        // open() collects from msg.sender but delivers and refunds to
+        // order.user. If they diverge, the signer funds someone else's order.
+        if (walletAddress.toLowerCase() !== run.order.user.toLowerCase()) {
+          throw new Error(
+            "The connected account changed after this quote was built — re-quote this leg before opening it.",
+          );
+        }
+
+        assertFillWindowOpen(run.order.fillDeadline);
 
         // Snapshot destination-chain balance of the underlying so the
         // post-delivery deposit step can use the actual delta. CRITICAL:
@@ -290,6 +307,7 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
           to: INPUT_SETTLER_ESCROW,
           data: openData,
         });
+        broadcastHash = openHash;
         const receipt = await wagmiWaitForReceipt(config, {
           hash: openHash,
           chainId,
@@ -323,7 +341,8 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
         return {
           ...run,
           status: "failed",
-          error: err instanceof Error ? err.message : String(err),
+          openTxHash: broadcastHash ?? run.openTxHash,
+          error: formatTxError(err),
         };
       }
     },
@@ -349,6 +368,15 @@ export function useIntentLegPipeline(): UseIntentLegPipelineReturn {
       if (!walletAddress) return;
       const current = runsRef.current.find((r) => r.spec.id === id);
       if (!current) return;
+      // A broadcast open() may still mine after its receipt wait timed out.
+      // Re-quoting mints a fresh nonce, so both orders could fill.
+      if (current.openTxHash) {
+        patch(id, {
+          error:
+            "An order was already broadcast for this leg. Check that transaction before retrying — opening again could escrow your funds twice.",
+        });
+        return;
+      }
       patch(id, { status: "quoting", error: undefined });
       const next = await quoteOne(
         { ...current, status: "quoting" },
