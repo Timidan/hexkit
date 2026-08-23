@@ -266,7 +266,7 @@ async function approveWithReset(args: {
 
   const data = APPROVE_ABI.encodeFunctionData("approve", [
     spender,
-    ethers.constants.MaxUint256,
+    amount,
   ]) as `0x${string}`;
   const hash = await walletClient.sendTransaction({
     to: tokenAddress as `0x${string}`,
@@ -465,7 +465,11 @@ export async function executeCrossChainComposerDeposit(
           sourceChainId,
         );
       } catch {
-        currentAllowance = ethers.BigNumber.from(0);
+        // Treating an unreadable allowance as 0 would skip the USDT-style
+        // reset and send a nonzero-to-nonzero approve that reverts.
+        throw new Error(
+          "Couldn't read the current token allowance — refusing to approve blindly. Try again in a moment.",
+        );
       }
       if (currentAllowance.lt(sourceAmountBN)) {
         onStateChange({
@@ -705,7 +709,11 @@ export async function executeCrossChainComposerDeposit(
         vault.chainId,
       );
     } catch {
-      currentAllowance = ethers.BigNumber.from(0);
+      // Treating an unreadable allowance as 0 would skip the USDT-style
+      // reset and send a nonzero-to-nonzero approve that reverts.
+      throw new Error(
+        "Couldn't read the current token allowance — refusing to approve blindly. Try again in a moment.",
+      );
     }
     if (currentAllowance.lt(depositAmountBN)) {
       onStateChange({

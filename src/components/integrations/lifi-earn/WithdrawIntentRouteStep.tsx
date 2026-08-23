@@ -25,12 +25,16 @@ import { IntentStatusTimeline } from "./IntentStatusTimeline";
 import {
   isDeliveredOrSettled,
   readDestinationTxHash,
+  readQuoteOutputAmount,
   requestIntentQuote,
   type IntentQuote,
 } from "./intentsApi";
 import { useIntentOrderStatus } from "./useIntentOrderStatus";
 import { encodeEip7930EvmAddress } from "../../../lib/intents/eip7930";
-import { buildDeadlinePlan } from "../../../lib/intents/deadlines";
+import {
+  buildDeadlinePlan,
+  assertFillWindowOpen,
+} from "../../../lib/intents/deadlines";
 import { nextOrderNonce } from "../../../lib/intents/nonce";
 import {
   buildStandardOrder,
@@ -111,6 +115,9 @@ export function WithdrawIntentRouteStep({
     setOpenTxHash(null);
     setOrderId(null);
     deliveredNotifiedRef.current = false;
+    // `address` matters: the order records the connected account as escrow
+    // depositor and refund payee, so a stale quote must not survive an account
+    // switch.
   }, [
     sourceChainId,
     sourceToken.address,
@@ -118,6 +125,7 @@ export function WithdrawIntentRouteStep({
     destinationChainId,
     destinationToken.address,
     recipient,
+    address,
   ]);
 
   useEffect(() => {
@@ -151,6 +159,14 @@ export function WithdrawIntentRouteStep({
 
   async function handleQuote() {
     if (!recipientAddr) return;
+    // A broadcast open() may still mine after its receipt wait timed out.
+    // Re-quoting mints a fresh nonce, so both orders could fill.
+    if (openTxHash) {
+      setError(
+        "An order was already broadcast for this quote. Check that transaction before starting a new one — opening again could escrow your funds twice.",
+      );
+      return;
+    }
     try {
       setStage("quoting");
       setError(null);
@@ -189,13 +205,13 @@ export function WithdrawIntentRouteStep({
       });
 
       const q = res.quotes?.[0];
-      const previewAmount = q?.preview?.outputs?.[0]?.amount;
-      if (!q || !previewAmount) {
+      const previewAmount = readQuoteOutputAmount(q);
+      if (!q || previewAmount === null) {
         throw new Error("No intent quote available for this receive route");
       }
 
       const deadlines = buildDeadlinePlan({
-        quoteValidUntilIso: q.validUntil ?? null,
+        quoteValidUntil: q.validUntil ?? null,
       });
 
       const built = buildStandardOrder({
@@ -206,7 +222,7 @@ export function WithdrawIntentRouteStep({
         inputAmount: BigInt(sourceAmountRaw),
         targetChainId: destinationChainId,
         outputToken: destinationToken.address as Address,
-        outputAmount: BigInt(previewAmount),
+        outputAmount: previewAmount,
         recipient: recipientAddr,
         expires: deadlines.expires,
         fillDeadline: deadlines.fillDeadline,
@@ -234,6 +250,18 @@ export function WithdrawIntentRouteStep({
       });
       if (!walletClient) throw new Error("No wallet client for source chain");
 
+      // open() collects from msg.sender but delivers and refunds to order.user.
+      // If they diverge, the signer funds an order that pays someone else.
+      if (
+        walletClient.account.address.toLowerCase() !== order.user.toLowerCase()
+      ) {
+        throw new Error(
+          "The connected account changed after this quote was built — request a new quote before opening the order.",
+        );
+      }
+
+      assertFillWindowOpen(order.fillDeadline);
+
       setStage("approving");
       await safeApproveErc20({
         wagmiConfig: config,
@@ -255,6 +283,9 @@ export function WithdrawIntentRouteStep({
         to: INPUT_SETTLER_ESCROW,
         data: openData,
       });
+      // Record before waiting: a receipt timeout on a tx that later mines must
+      // not leave the escrow invisible, or retry would open a second order.
+      setOpenTxHash(hash);
       const receipt = await wagmiWaitForReceipt(config, {
         hash,
         chainId: sourceChainId,
@@ -264,7 +295,6 @@ export function WithdrawIntentRouteStep({
         throw new Error("open() reverted on-chain");
       }
 
-      setOpenTxHash(hash);
       const decodedOrderId = extractOpenOrderId(receipt.logs);
       if (!decodedOrderId) {
         throw new Error(
@@ -509,7 +539,7 @@ export function WithdrawIntentRouteStep({
             size="sm"
             className="h-8 w-full gap-1 text-xs"
             onClick={handleQuote}
-            disabled={!isConnected}
+            disabled={!isConnected || !!openTxHash}
           >
             <ArrowsClockwise size={12} weight="bold" />
             Retry route
