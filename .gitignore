@@ -64,10 +64,6 @@ edb
 *test*
 *Test*
 *TEST*
-# ...but test sources belong in the repo. Without these exceptions the three
-# patterns above silently drop every spec, which is why none were tracked.
-!src/**/*.test.ts
-!src/**/*.test.tsx
 /tmp
 video/out
 .superpowers
