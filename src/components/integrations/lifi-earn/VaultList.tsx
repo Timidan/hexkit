@@ -1054,8 +1054,9 @@ export function VaultCard({
             <Warning className="h-7 w-7 text-amber-500" weight="fill" />
             <p className="text-center text-xs text-foreground leading-relaxed max-w-[220px]">
               This vault has <span className="font-semibold text-amber-500">very high APY</span> with{" "}
-              <span className="font-semibold text-amber-500">low TVL</span>. This pattern may indicate
-              elevated risk — including unsustainable yields or potential rug pulls. Proceed with caution.
+              <span className="font-semibold text-amber-500">low TVL</span>. That pattern is often
+              associated with short-lived yields or insufficiently-vetted vaults. We can't assess
+              contract risk on your behalf — review the protocol yourself before depositing.
             </p>
             <div className="flex items-center gap-2 mt-1">
               <button

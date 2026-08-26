@@ -197,9 +197,9 @@ export function rankVaultsForIntent(
       continue;
     }
     if (targetAliases !== null) {
-      const symbols = (v.underlyingTokens ?? []).map((t) =>
-        t.symbol.toUpperCase()
-      );
+      const symbols = (v.underlyingTokens ?? [])
+        .filter((t): t is typeof t & { symbol: string } => Boolean(t.symbol))
+        .map((t) => t.symbol.toUpperCase());
       if (!symbols.some((s) => targetAliases.has(s))) {
         rejection.symbolMismatch++;
         continue;

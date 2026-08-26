@@ -281,8 +281,25 @@ export function IdleSweepPanel({ targetAddress }: IdleSweepPanelProps) {
   ]);
 
   const queueBuilt = legState.legs.length > 0;
-  const hasInFlightStep = legState.legs.some((l) =>
-    ["quoting", "approving", "executing", "bridging", "ready"].includes(l.status)
+  // Include the post-Intent / post-Composer-bridge statuses introduced by the
+  // ExecutionQueue Intent-aware wiring — otherwise a destination change could
+  // rebuild the queue while a leg is still mid-flight (Intent escrow open,
+  // delivered-but-not-deposited, or actively depositing). Also guard
+  // recoverable failures so a queue rebuild can't erase the refund/retry
+  // affordance.
+  const hasInFlightStep = legState.legs.some(
+    (l) =>
+      [
+        "quoting",
+        "approving",
+        "executing",
+        "bridging",
+        "ready",
+        "intent-open",
+        "intent-delivered",
+        "depositing",
+      ].includes(l.status) ||
+      (l.status === "failed" && l.recoverable),
   );
   useEffect(() => {
     if (isReadOnly) return;

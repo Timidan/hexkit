@@ -145,7 +145,18 @@ async function scanSingleChain(args: {
     transport: http(rpcUrl),
   });
 
-  const erc20s = tokens.filter((t) => !isNativeToken(t.address));
+  // Filter to real 0x-prefixed 40-hex addresses. The upstream LI.FI Earn
+  // /vaults feed occasionally ships non-EVM identifiers in `underlyingTokens`
+  // (seen in the wild: `coingecko:universal-btc`). viem's multicall ABI-encodes
+  // each entry as `address`, and a single malformed entry corrupts the whole
+  // aggregate3 calldata — Alchemy rejects with "invalid hex string" and viem
+  // maps the entire batch to all-failure, silently dropping every legitimate
+  // balance (USDC on Base, BNB-chain ERC-20s, etc.).
+  const isHexAddress = (a: string | undefined) =>
+    typeof a === "string" && /^0x[a-f0-9]{40}$/i.test(a);
+  const erc20s = tokens.filter(
+    (t) => !isNativeToken(t.address) && isHexAddress(t.address),
+  );
   const nativeTokenMeta = tokens.find((t) => isNativeToken(t.address));
 
   const multicallCalls = erc20s.map((tok) => ({
@@ -155,19 +166,32 @@ async function scanSingleChain(args: {
     args: [address] as const,
   }));
 
+  // Multicall in parallel chunks so a single oversize aggregate3 payload
+  // doesn't reach gas/size limits on tighter-budget RPCs. Errors bubble up
+  // to the outer chain-scan catch (which already logs and degrades cleanly).
+  const MULTICALL_CHUNK = 50;
+  async function multicallChunked(): Promise<any[]> {
+    if (multicallCalls.length === 0) return [];
+    const chunks: (typeof multicallCalls)[] = [];
+    for (let i = 0; i < multicallCalls.length; i += MULTICALL_CHUNK) {
+      chunks.push(multicallCalls.slice(i, i + MULTICALL_CHUNK));
+    }
+    const chunkResults = await Promise.all(
+      chunks.map((chunk) =>
+        client.multicall({
+          contracts: chunk,
+          allowFailure: true,
+          multicallAddress: MULTICALL3_ADDRESS,
+        }),
+      ),
+    );
+    return chunkResults.flat();
+  }
+
   // Always fetch native balance — the user may hold native tokens on chains
   // where no vault explicitly lists the native sentinel as an underlying.
   const [erc20Results, nativeBalance] = await Promise.all([
-    multicallCalls.length > 0
-      ? withTimeout(
-          client.multicall({
-            contracts: multicallCalls,
-            allowFailure: true,
-            multicallAddress: MULTICALL3_ADDRESS,
-          }),
-          timeoutMs
-        )
-      : Promise.resolve([] as any[]),
+    withTimeout(multicallChunked(), timeoutMs * 2),
     withTimeout(client.getBalance({ address }), timeoutMs),
   ]);
 
