@@ -32,7 +32,7 @@ The application pairs a React frontend with a local Rust-powered EDB (EVM Debugg
 
 ### Smart Decoder
 
-Paste any calldata, transaction hash, or function signature and HexKit auto-detects the format and decodes it using the OpenChain signature database. Supports custom ABI input for decoding private or unregistered functions. A local signature cache enables offline use.
+Paste raw calldata and HexKit resolves the selector against the OpenChain signature database and decodes the parameters. An args-only mode decodes ABI-encoded blobs with no selector. Supports custom ABI input for decoding private or unregistered functions; a local signature cache lets previously resolved selectors decode offline. (To decode an on-chain transaction by hash, use Transaction Replay.)
 
 ### Signature Database
 
@@ -48,7 +48,7 @@ Two operating modes:
 ### Source Tools
 
 - **Contract Explorer** -- Browse verified contract source code fetched from Sourcify, Etherscan, and Blockscout.
-- **Contract Diff** -- Side-by-side bytecode and source comparison between two contracts on the same or different chains.
+- **Contract Diff** -- Side-by-side runtime-bytecode comparison between two contracts on the same or different chains, with optional Solidity metadata stripping.
 - **Storage Layout Viewer** -- AST-based storage slot reconstruction with live value reading from on-chain state.
 
 ### Simulation Results
