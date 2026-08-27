@@ -1,4 +1,4 @@
-import { calculateIntrinsicGas, formatTxType, parseGasSafe } from "./formatters";
+import { calculateIntrinsicGas, calculateTxFee, formatTxType, parseGasSafe } from "./formatters";
 
 export type SimulationResultExtras = {
   simulationId?: string;
@@ -178,7 +178,10 @@ export function computeGasValues(
   const gasLimit = `${gasLimitNum.toLocaleString()} (${gasPercentage}%)`;
   const gasPrice = result.effectiveGasPrice || result.gasPrice || "\u2014";
   const nonce = result.nonce !== null && result.nonce !== undefined ? String(result.nonce) : "\u2014";
-  const txFee = "0 ETH";
+  const txFee = calculateTxFee(
+    gasUsedNum > 0 ? String(gasUsedNum) : null,
+    result.effectiveGasPrice || result.gasPrice || null,
+  );
   const txType = formatTxType(result.type);
 
   return { gasUsed, gasLimit, gasPrice, nonce, txFee, txType };
