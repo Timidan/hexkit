@@ -123,6 +123,7 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
         handleContractSelection={db.handleContractSelection}
         selectAllContracts={db.selectAllContracts}
         deselectAllContracts={db.deselectAllContracts}
+        addAllExtractedSignatures={db.addAllExtractedSignatures}
       />
     </div>
   );

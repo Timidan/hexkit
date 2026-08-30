@@ -25,6 +25,7 @@ interface FileUploadModalProps {
   handleContractSelection: (contractName: string, isSelected: boolean) => void;
   selectAllContracts: () => void;
   deselectAllContracts: () => void;
+  addAllExtractedSignatures: () => void;
 }
 
 const FileUploadModal: React.FC<FileUploadModalProps> = ({
@@ -38,6 +39,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({
   handleContractSelection,
   selectAllContracts,
   deselectAllContracts,
+  addAllExtractedSignatures,
 }) => {
   return (
     <Dialog open={showFileModal} onOpenChange={setShowFileModal}>
@@ -70,13 +72,13 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({
               Click to browse or drag files here
             </p>
             <p className="text-xs text-muted-foreground/60 mt-1">
-              JSON and ABI files supported
+              JSON artifact files (.json)
             </p>
             <input
               type="file"
               id="contract-files"
               multiple
-              accept=".json,.abi"
+              accept=".json"
               onChange={handleFileSelect}
               className="hidden"
               {...({ webkitdirectory: "" } as any)}
@@ -158,7 +160,14 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({
             Cancel
           </Button>
           {Object.keys(parsedContracts).length > 0 && (
-            <Button size="sm" onClick={() => setShowFileModal(false)}>
+            <Button
+              size="sm"
+              disabled={selectedContracts.length === 0}
+              onClick={() => {
+                addAllExtractedSignatures();
+                setShowFileModal(false);
+              }}
+            >
               Import {selectedContracts.length} Contracts
             </Button>
           )}
