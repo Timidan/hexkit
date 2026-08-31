@@ -46,6 +46,10 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
     snapshotList,
     stepNext,
     stepPrev,
+    stepOver,
+    stepUp,
+    stepNextCall,
+    goToSnapshot,
     setCurrentExecutingAddress,
     setCurrentFile,
     setCurrentLine,
@@ -242,6 +246,32 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
             stepNext();
           }
           break;
+        case 'F10':
+          if (session) {
+            e.preventDefault();
+            stepOver();
+          }
+          break;
+        case 'F11':
+          if (session) {
+            e.preventDefault();
+            // Shift+F11 steps out of the current call; F11 jumps to the next one.
+            if (e.shiftKey) stepUp();
+            else stepNextCall();
+          }
+          break;
+        case 'Home':
+          if (session && snapshotList.length) {
+            e.preventDefault();
+            goToSnapshot(snapshotList[0].id);
+          }
+          break;
+        case 'End':
+          if (session && snapshotList.length) {
+            e.preventDefault();
+            goToSnapshot(snapshotList[snapshotList.length - 1].id);
+          }
+          break;
       }
     };
 
@@ -249,7 +279,18 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isDebugging, session, stepNext, stepPrev, closeDebugWindow]);
+  }, [
+    isDebugging,
+    session,
+    stepNext,
+    stepPrev,
+    stepOver,
+    stepUp,
+    stepNextCall,
+    goToSnapshot,
+    snapshotList,
+    closeDebugWindow,
+  ]);
 
   if (!isDebugging) {
     return null;
