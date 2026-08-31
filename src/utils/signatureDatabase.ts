@@ -528,7 +528,7 @@ export const getCustomSignatures = (): CustomSignature[] => {
 /**
  * Clear cached signatures (for cleanup/reset)
  */
-export const clearSignatureCache = (type?: 'function' | 'event' | 'error' | 'custom') => {
+export const clearSignatureCache = (type?: 'function' | 'event' | 'error' | 'custom' | 'all') => {
   if (type === 'function') {
     localStorage.removeItem(STORAGE_KEYS.FUNCTION_SIGNATURES);
   } else if (type === 'event') {
@@ -537,11 +537,17 @@ export const clearSignatureCache = (type?: 'function' | 'event' | 'error' | 'cus
     localStorage.removeItem(STORAGE_KEYS.ERROR_SIGNATURES);
   } else if (type === 'custom') {
     localStorage.removeItem(STORAGE_KEYS.CUSTOM_SIGNATURES);
-  } else {
-    // Clear all
+  } else if (type === 'all') {
+    // Everything, including the user's hand-added custom library.
     localStorage.removeItem(STORAGE_KEYS.FUNCTION_SIGNATURES);
     localStorage.removeItem(STORAGE_KEYS.EVENT_SIGNATURES);
     localStorage.removeItem(STORAGE_KEYS.ERROR_SIGNATURES);
     localStorage.removeItem(STORAGE_KEYS.CUSTOM_SIGNATURES);
+  } else {
+    // Default: clear looked-up caches only. Custom signatures are user-authored
+    // and are not cache, so they survive a cache clear.
+    localStorage.removeItem(STORAGE_KEYS.FUNCTION_SIGNATURES);
+    localStorage.removeItem(STORAGE_KEYS.EVENT_SIGNATURES);
+    localStorage.removeItem(STORAGE_KEYS.ERROR_SIGNATURES);
   }
 };

@@ -676,7 +676,7 @@ export function useSignatureDatabase(
     setShowFileModal(true);
   };
 
-  const clearCache = (type?: "function" | "event" | "error" | "custom") => {
+  const clearCache = (type?: "function" | "event" | "error" | "custom" | "all") => {
     clearSignatureCache(type);
     loadCachedData();
     setError(null);
