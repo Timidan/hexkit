@@ -12,9 +12,16 @@ export default function OverridesSidebar(): React.ReactElement {
     simulationOverrides,
     setSimulationOverrides,
     address,
+    selectedFunctionObj,
+    selectedFunctionType,
   } = ctx;
 
-  if (!isSimulationMode) {
+  const isLivePayable =
+    !isSimulationMode &&
+    selectedFunctionType === "write" &&
+    selectedFunctionObj?.stateMutability === "payable";
+
+  if (!isSimulationMode && !isLivePayable) {
     return <div />;
   }
 
@@ -25,6 +32,7 @@ export default function OverridesSidebar(): React.ReactElement {
         onChange={setSimulationOverrides}
         connectedAddress={address}
         isSimulationMode={isSimulationMode}
+        valueOnly={isLivePayable}
       />
     </div>
   );

@@ -37,6 +37,7 @@ export default function ExecutionSection(): React.ReactElement | null {
     isSimulating,
     simulationError,
     simulationFromAddress,
+    simulationOverrides,
     functionResult,
     setFunctionResult,
     generatedCallData,
@@ -525,12 +526,34 @@ export default function ExecutionSection(): React.ReactElement | null {
                       return;
                     }
 
+                    // Same convention as simulation: 0x-prefixed is wei, anything
+                    // else is decimal ETH. The two paths must agree or the same
+                    // input would send two different amounts.
+                    const rawValue = String(simulationOverrides?.value ?? "").trim();
+                    let sendValue: bigint | undefined;
+                    if (
+                      selectedFunctionObj.stateMutability === "payable" &&
+                      rawValue &&
+                      rawValue !== "0"
+                    ) {
+                      try {
+                        sendValue = rawValue.startsWith("0x")
+                          ? BigInt(rawValue)
+                          : ethers.utils.parseEther(rawValue).toBigInt();
+                      } catch {
+                        throw new Error(
+                          `Could not read "${rawValue}" as an amount. Use decimal ETH (0.1) or hex wei (0x...).`,
+                        );
+                      }
+                    }
+
                     const hash = await activeWalletClient.writeContract({
                       address: contractAddress as `0x${string}`,
                       abi: contractABI,
                       functionName: selectedFunctionObj.name,
                       args: args,
                       chain: targetChainId ? { id: targetChainId } : undefined,
+                      ...(sendValue !== undefined ? { value: sendValue } : {}),
                     });
                     const networkName =
                       selectedNetwork?.name ||

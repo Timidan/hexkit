@@ -24,6 +24,8 @@ interface SimulationOverridesPanelProps {
   connectedAddress?: string;
   className?: string;
   isSimulationMode?: boolean;
+  /** Render only the Value field, for sending ETH with a live payable call. */
+  valueOnly?: boolean;
 }
 
 interface CollapsibleSectionProps {
@@ -78,6 +80,7 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
   connectedAddress,
   className,
   isSimulationMode = true,
+  valueOnly = false,
 }) => {
   const [useCustomGas, setUseCustomGas] = useState(
     () => !!(overrides.gas || overrides.gasPrice)
@@ -105,8 +108,47 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
     onChange({ ...overrides, [key]: value });
   };
 
-  if (!isSimulationMode) {
+  if (!isSimulationMode && !valueOnly) {
     return null;
+  }
+
+  if (valueOnly) {
+    return (
+      <div
+        className={cn(
+          "border border-border rounded-xl bg-card/50 backdrop-blur-sm",
+          className,
+        )}
+      >
+        <div className="p-4 border-b border-border/50">
+          <h3 className="text-base font-semibold text-foreground">
+            Payable Function
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            This function accepts ETH
+          </p>
+        </div>
+        <div className="p-4 space-y-2">
+          <Label
+            htmlFor="live-value"
+            className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1.5"
+          >
+            <Coins className="w-3.5 h-3.5" />
+            Value (ETH)
+          </Label>
+          <Input
+            id="live-value"
+            value={overrides.value || ""}
+            onChange={(e) => updateOverride("value", e.target.value)}
+            placeholder="0"
+            className="font-mono text-sm h-9"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Sent with the transaction. Decimal ETH (0.1) or hex wei (0x...).
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
