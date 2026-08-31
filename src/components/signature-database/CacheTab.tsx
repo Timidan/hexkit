@@ -26,7 +26,7 @@ interface CacheTabProps {
   setEventsOpen: (v: boolean) => void;
   errorsOpen: boolean;
   setErrorsOpen: (v: boolean) => void;
-  clearCache: (type?: "function" | "event" | "error" | "custom") => void;
+  clearCache: (type?: "function" | "event" | "error" | "custom" | "all") => void;
 }
 
 const CacheTab: React.FC<CacheTabProps> = ({
@@ -262,8 +262,8 @@ const CacheTab: React.FC<CacheTabProps> = ({
         flattenedCachedEvents.length === 0 &&
         flattenedCachedErrors.length === 0 && (
           <p className="text-muted-foreground text-sm text-center py-6">
-            No cached signatures yet. Look up or search for signatures to
-            populate the cache.
+            No cached signatures yet. Look up a selector or topic to populate
+            the cache.
           </p>
         )}
 
