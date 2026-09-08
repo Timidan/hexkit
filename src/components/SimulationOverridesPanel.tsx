@@ -217,7 +217,7 @@ const SimulationOverridesPanel: React.FC<SimulationOverridesPanelProps> = ({
             className="font-mono text-sm h-9"
           />
           <p className="text-[10px] text-muted-foreground">
-            Amount of ETH to send with the transaction (in wei or decimal ETH).
+            Sent with the transaction. Decimal ETH (0.1) or hex wei (0x...).
           </p>
         </div>
 
