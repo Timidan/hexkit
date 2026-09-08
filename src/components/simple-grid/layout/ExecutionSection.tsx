@@ -545,6 +545,11 @@ export default function ExecutionSection(): React.ReactElement | null {
                           `Could not read "${rawValue}" as an amount. Use decimal ETH (0.1) or hex wei (0x...).`,
                         );
                       }
+                      if (sendValue < 0n) {
+                        throw new Error(
+                          `Could not read "${rawValue}" as an amount. Use decimal ETH (0.1) or hex wei (0x...).`,
+                        );
+                      }
                     }
 
                     const hash = await activeWalletClient.writeContract({
