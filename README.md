@@ -42,7 +42,7 @@ Look up function selectors (4-byte) and event topics by name or hex signature. M
 
 Two operating modes:
 
-- **Live Interaction** -- Connect a wallet via RainbowKit, then read and write contract functions on any EVM chain directly from the browser.
+- **Live Interaction** -- Connect a wallet via RainbowKit, then read and write contract functions on any EVM chain directly from the browser. Payable functions take a Value field, as decimal ETH or hex wei.
 - **Simulation (EDB)** -- Build transactions and simulate them through the local EDB engine. Get full REVM replay with execution traces, state changes, event logs, and gas analysis without spending gas or requiring a wallet.
 
 ### Source Tools
