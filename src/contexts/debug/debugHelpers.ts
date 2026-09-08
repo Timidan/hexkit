@@ -6,7 +6,6 @@
  *
  * Solidity struct layout analysis lives in ./solidityStructLayout.ts.
  * Storage-based struct decoding lives in ./structStorageDecoding.ts.
- * This module re-exports everything for backward compatibility.
  */
 
 import type {
@@ -18,31 +17,6 @@ import type {
   EvalResult,
 } from '../../types/debug';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
-
-// ── Re-exports from extracted modules ──────────────────────────────────
-
-export type {
-  StructFieldDef,
-  StructFieldLayout,
-} from './solidityStructLayout';
-
-export {
-  stripSolidityComments,
-  extractBraceBlock,
-  extractParenBlock,
-  splitParams,
-  findVariableTypeInFunction,
-  parseTypeSpec,
-  getBaseTypeSize,
-  findStructFields,
-  buildStructLayout,
-  toBigIntValue,
-  formatHex,
-  decodeScalarValue,
-  decodeFieldFromSlot,
-  parseStorageRead,
-  parseStorageWrite,
-} from './solidityStructLayout';
 
 // ── Gated debug logger ─────────────────────────────────────────────────
 

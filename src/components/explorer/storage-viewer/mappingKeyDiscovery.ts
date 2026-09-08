@@ -16,7 +16,7 @@
 import { ethers } from 'ethers';
 import type { StorageLayoutResponse } from '../../../types/debug';
 import type { MappingEntry } from './useSlotResolution';
-import { computeMappingSlot, computeNestedMappingSlot, formatSlotHex } from '../../../utils/storageSlotCalculator';
+import { computeMappingSlot, computeNestedMappingSlot, formatSlotHex, resolveAbiKeyType } from '../../../utils/storageSlotCalculator';
 import { scanLogs, type LogEntry, type ScanProgress } from './rpcLogScanner';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -116,46 +116,6 @@ const CANONICAL_EVENTS = {
 } as const;
 
 // ─── Type Resolution ────────────────────────────────────────────────
-
-/**
- * Resolve a layout typeId to its canonical Solidity key type.
- * Looks up the type definition's `label` first (most reliable),
- * then falls back to parsing the typeId string.
- */
-function resolveKeyType(
-  typeId: string,
-  layout: StorageLayoutResponse,
-): string | null {
-  // Try the type definition's label first — this is the canonical Solidity type
-  const typeDef = layout.types[typeId];
-  if (typeDef?.label) {
-    const label = typeDef.label.trim();
-    // Contract types are addresses
-    if (label.startsWith('contract ') || label.startsWith('interface ')) return 'address';
-    // Enum types are uint8 in storage
-    if (label.startsWith('enum ')) return 'uint8';
-    // Direct Solidity type labels
-    if (label === 'address' || label === 'address payable') return 'address';
-    if (label === 'bool') return 'bool';
-    if (label === 'string') return 'bytes32'; // string keys in mappings are hashed
-    if (/^bytes\d{0,2}$/.test(label)) return label; // bytes1..bytes32
-    if (/^uint\d+$/.test(label)) return label; // uint8..uint256
-    if (/^int\d+$/.test(label)) return label; // int8..int256
-  }
-  // Fallback: parse the typeId string (e.g. "t_address", "t_uint256", "t_contract(IERC20)")
-  if (!typeId) return null;
-  if (typeId.startsWith('t_contract') || typeId.startsWith('t_address')) return 'address';
-  if (typeId.startsWith('t_bool')) return 'bool';
-  if (typeId.startsWith('t_enum')) return 'uint8';
-  if (typeId.startsWith('t_string')) return 'bytes32';
-  const bytesMatch = typeId.match(/^t_bytes(\d+)$/);
-  if (bytesMatch) return `bytes${bytesMatch[1]}`;
-  const uintMatch = typeId.match(/^t_uint(\d+)$/);
-  if (uintMatch) return `uint${uintMatch[1]}`;
-  const intMatch = typeId.match(/^t_int(\d+)$/);
-  if (intMatch) return `int${intMatch[1]}`;
-  return null;
-}
 
 function normalizeKeyType(type: string | null | undefined): NormalizedKeyType | null {
   if (!type) return null;
@@ -320,14 +280,14 @@ function buildExpectedKeyKinds(
 
   for (const entry of mappingEntries) {
     const rootType = normalizeKeyType(
-      entry.keyTypeId ? resolveKeyType(entry.keyTypeId, layout) : null,
+      entry.keyTypeId ? resolveAbiKeyType({ typeId: entry.keyTypeId, typeLabel: layout.types[entry.keyTypeId]?.label }) : null,
     );
     if (rootType) expected.add(rootType);
 
     if (!entry.valueTypeId) continue;
     const valueType = layout.types[entry.valueTypeId];
     if (!valueType || valueType.encoding !== 'mapping' || !valueType.key) continue;
-    const nestedType = normalizeKeyType(resolveKeyType(valueType.key, layout));
+    const nestedType = normalizeKeyType(resolveAbiKeyType({ typeId: valueType.key, typeLabel: layout.types[valueType.key]?.label }));
     if (nestedType) expected.add(nestedType);
   }
 
@@ -431,7 +391,7 @@ function appendPoolCandidates(
     if (candidateMap.size >= MAX_CANDIDATES) return;
 
     const rootKind = normalizeKeyType(
-      mapping.keyTypeId ? resolveKeyType(mapping.keyTypeId, layout) : null,
+      mapping.keyTypeId ? resolveAbiKeyType({ typeId: mapping.keyTypeId, typeLabel: layout.types[mapping.keyTypeId]?.label }) : null,
     );
     if (!rootKind) continue;
 
@@ -440,7 +400,7 @@ function appendPoolCandidates(
 
     const valueType = mapping.valueTypeId ? layout.types[mapping.valueTypeId] : null;
     const nestedKind = valueType?.encoding === 'mapping' && valueType.key
-      ? normalizeKeyType(resolveKeyType(valueType.key, layout))
+      ? normalizeKeyType(resolveAbiKeyType({ typeId: valueType.key, typeLabel: layout.types[valueType.key]?.label }))
       : null;
 
     if (!nestedKind) {
@@ -728,7 +688,7 @@ async function verifyCandidate(
     const keyTypeId = mappingEntry.keyTypeId;
     let keyType = candidate.keyType;
     if (keyTypeId) {
-      const resolvedType = resolveKeyType(keyTypeId, layout);
+      const resolvedType = resolveAbiKeyType({ typeId: keyTypeId, typeLabel: layout.types[keyTypeId]?.label });
       if (resolvedType) keyType = resolvedType;
     }
 
@@ -751,7 +711,7 @@ async function verifyCandidate(
       // Determine nested key type using the same resolver
       const nestedKeyTypeId = valueTypeDef.key;
       if (nestedKeyTypeId) {
-        const resolved = resolveKeyType(nestedKeyTypeId, layout);
+        const resolved = resolveAbiKeyType({ typeId: nestedKeyTypeId, typeLabel: layout.types[nestedKeyTypeId]?.label });
         if (resolved) resolvedNestedKeyType = resolved;
       }
 

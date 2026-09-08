@@ -14,6 +14,7 @@ import {
   computeNestedMappingSlot,
   formatSlotHex,
   parseSlotInput,
+  resolveAbiKeyType,
   ZERO_WORD,
 } from '../../utils/storageSlotCalculator';
 import { resolveContractContext } from '../../utils/resolver/contractContext';
@@ -586,14 +587,7 @@ export function useStorageViewerState() {
     const isArray = currentSegment.slotKind === 'dynamic_array';
     const keyTypeId = currentSegment.keyTypeId;
 
-    let keyType = 'uint256';
-    if (!isArray && keyTypeId) {
-      if (keyTypeId.includes('address') || keyTypeId.startsWith('t_contract')) keyType = 'address';
-      else if (keyTypeId.includes('bytes32')) keyType = 'bytes32';
-      else if (keyTypeId.includes('bool')) keyType = 'bool';
-      else if (keyTypeId.includes('uint')) keyType = 'uint256';
-      else if (keyTypeId.includes('int')) keyType = 'int256';
-    }
+    const keyType = isArray ? 'uint256' : (resolveAbiKeyType({ typeId: keyTypeId }) ?? 'uint256');
 
     const key = keyInput.trim();
     setIsLookingUp(true);

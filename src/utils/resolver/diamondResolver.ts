@@ -91,10 +91,44 @@ function mergeFacetAbis(facets: FacetInfo[]): AbiItem[] {
 export async function detectDiamond(
   address: string,
   chain: Chain
-): Promise<{ isDiamond: boolean; facetAddresses?: string[] }> {
+): Promise<{
+  isDiamond: boolean;
+  facetAddresses?: string[];
+  // Per-facet selectors captured when detection falls back to facets() (which
+  // returns each facet's selectors in the same call). Used to skip per-facet
+  // facetFunctionSelectors() RPC calls in resolveDiamond.
+  loupeSelectors?: Map<string, string[]>;
+}> {
   try {
     const provider = getSharedProvider(chain);
     const contract = new ethers.Contract(address, DIAMOND_LOUPE_ABI, provider);
+
+    // Prefer facets(): one call returns addresses AND selectors, so resolveDiamond
+    // can skip the per-facet facetFunctionSelectors() RPCs for the common case.
+    try {
+      const facets = await contract.facets();
+      if (Array.isArray(facets) && facets.length > 0) {
+        const loupeSelectors = new Map<string, string[]>();
+        for (const f of facets as Array<{
+          facetAddress: string;
+          functionSelectors: string[];
+        }>) {
+          if (!f.facetAddress) continue;
+          loupeSelectors.set(
+            f.facetAddress,
+            (f.functionSelectors || []).slice()
+          );
+        }
+        const addresses = Array.from(
+          new Set(facets.map((f: { facetAddress: string }) => f.facetAddress))
+        ).filter(Boolean);
+        if (addresses.length > 0) {
+          return { isDiamond: true, facetAddresses: addresses, loupeSelectors };
+        }
+      }
+    } catch {
+      // facets() not implemented / reverted — fall back to facetAddresses()
+    }
 
     try {
       const addresses = await contract.facetAddresses();
@@ -102,15 +136,7 @@ export async function detectDiamond(
         return { isDiamond: true, facetAddresses: addresses };
       }
     } catch {
-      try {
-        const facets = await contract.facets();
-        if (Array.isArray(facets) && facets.length > 0) {
-          const addresses = facets.map((f: { facetAddress: string }) => f.facetAddress);
-          return { isDiamond: true, facetAddresses: addresses };
-        }
-      } catch {
-        // Not a diamond
-      }
+      // Not a diamond
     }
 
     return { isDiamond: false };
@@ -122,8 +148,18 @@ export async function detectDiamond(
 async function getFacetSelectors(
   diamondAddress: string,
   facetAddress: string,
-  chain: Chain
+  chain: Chain,
+  loupeSelectors?: Map<string, string[]>
 ): Promise<string[]> {
+  // Reuse selectors already returned by detectDiamond's facets() call (0 RPC).
+  // Facets absent from the map fall back to the per-facet RPC call (e.g.
+  // diamonds resolved via facetAddresses() where facets() wasn't read).
+  const cached = loupeSelectors?.get(facetAddress);
+  // Only reuse a non-empty cached set; an empty array still falls back to RPC.
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+
   try {
     const provider = getSharedProvider(chain);
     const contract = new ethers.Contract(diamondAddress, DIAMOND_LOUPE_ABI, provider);
@@ -154,6 +190,7 @@ export async function resolveDiamond(
   }
 
   const facetAddresses = detection.facetAddresses;
+  const loupeSelectors = detection.loupeSelectors;
   const facets: FacetInfo[] = [];
   let completed = 0;
   const total = facetAddresses.length;
@@ -166,7 +203,7 @@ export async function resolveDiamond(
     const batchPromises = batch.map(async (facetAddress): Promise<FacetInfo> => {
       try {
         const [selectors, resolveResult] = await Promise.all([
-          getFacetSelectors(diamondAddress, facetAddress, chain),
+          getFacetSelectors(diamondAddress, facetAddress, chain, loupeSelectors),
           contractResolver.resolve(facetAddress, chain, {
             signal,
             etherscanApiKey: options.etherscanApiKey,

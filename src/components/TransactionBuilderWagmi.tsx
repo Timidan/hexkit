@@ -12,6 +12,7 @@ import {
   TXHASH_REPLAY_KEY,
   TXHASH_REPLAY_EVENT,
   TXHASH_REPLAY_LAST_INTENT_KEY,
+  parseBuilderIntent,
 } from "./transaction-builder/types";
 import { TransactionReplayView } from "./transaction-builder/TransactionReplayView";
 import { renderModeToggle } from "./transaction-builder/renderModeToggle";
@@ -86,13 +87,9 @@ const TransactionBuilderWagmi: React.FC = () => {
 
   // Initialize viewMode: "replay" if txHash replay data exists, otherwise "builder"
   const [viewMode, setViewMode] = useState<SimulationViewMode>(() => {
-    const params = new URLSearchParams(location.search);
-    const requestedMode = params.get('mode');
-    if (requestedMode === 'replay' || params.get('replay') === 'txhash') {
-      return "replay";
-    }
-    if (requestedMode === 'simulation') {
-      return "builder";
+    const intentViewMode = parseBuilderIntent(location.search).viewMode;
+    if (intentViewMode) {
+      return intentViewMode;
     }
 
     // Check for txHash replay data (set by SimulationResultsPage for re-simulation)
@@ -245,14 +242,9 @@ const TransactionBuilderWagmi: React.FC = () => {
 
   // Keep route intent in sync while this component stays mounted in PersistentTools.
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const requestedMode = params.get('mode');
-    if (requestedMode === 'replay' || params.get('replay') === 'txhash') {
-      setViewMode('replay');
-      return;
-    }
-    if (requestedMode === 'simulation') {
-      setViewMode('builder');
+    const intentViewMode = parseBuilderIntent(location.search).viewMode;
+    if (intentViewMode) {
+      setViewMode(intentViewMode);
     }
   }, [location.search]);
 

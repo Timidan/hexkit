@@ -7,12 +7,17 @@ import {
   type SimulationCallNode,
 } from "../../utils/simulationArtifacts";
 import { copyTextToClipboard } from "../../utils/clipboard";
+import { TXHASH_REPLAY_KEY } from "../transaction-builder/types";
 import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { useNotifications } from "../NotificationManager";
 import type { TraceFilters } from "../ExecutionStackTrace";
 import { collectTraceAddresses, createTraceContractMap } from "../../utils/traceAddressCollector";
 import { traceVaultService } from "../../services/TraceVaultService";
+import {
+  loadStoredSimulation,
+  persistDecodedTrace as coordinatorPersist,
+} from "../../services/simulationStore";
 import { useDecodedTrace } from "../../hooks/useDecodedTrace";
 import { useDebug } from "../../contexts/DebugContext";
 import { getChainById } from "../../utils/chains";
@@ -25,7 +30,6 @@ import {
   type InternalInfoRow,
   type ContractContextExtras,
   type SimulationResultExtras,
-  hasInternalInfo,
   buildAddressToNameMap,
   buildRevertInfo,
   buildTraceDiagnostics,
@@ -85,45 +89,18 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       setLoadError(null);
 
       try {
-        const { simulationHistoryService } = await import('../../services/SimulationHistoryService');
-        const stored = await simulationHistoryService.getSimulation(id);
+        const loaded = await loadStoredSimulation(id);
 
-        if (stored) {
-          setSimulation(stored.result, stored.contractContext, { skipHistorySave: true });
-          try {
-            const traceBundle = await traceVaultService.loadDecodedTrace(id, { includeHeavy: false });
-            let rowsToUse = traceBundle?.rows;
-            if (
-              stored.decodedTraceRows &&
-              stored.decodedTraceRows.length > 0 &&
-              (!rowsToUse ||
-                rowsToUse.length === 0 ||
-                (!hasInternalInfo(rowsToUse) &&
-                  hasInternalInfo(stored.decodedTraceRows)))
-            ) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              rowsToUse = recomputeHierarchy(stored.decodedTraceRows);
-            }
-            if (rowsToUse && rowsToUse.length > 0) {
-              setDecodedTraceRows(rowsToUse);
-            }
-            if (traceBundle?.sourceTexts && Object.keys(traceBundle.sourceTexts).length > 0) {
-              setSourceTexts(traceBundle.sourceTexts);
-            }
-            if (traceBundle) {
-              setDecodedTraceMeta({
-                sourceLines: traceBundle.sourceLines ?? [],
-                callMeta: traceBundle.callMeta,
-                rawEvents: traceBundle.rawEvents ?? [],
-                implementationToProxy: traceBundle.implementationToProxy,
-              });
-            }
-          } catch (traceErr) {
-            console.warn("[SimulationResultsPage] Failed to load trace vault:", traceErr);
-            if (stored.decodedTraceRows && stored.decodedTraceRows.length > 0) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              setDecodedTraceRows(recomputeHierarchy(stored.decodedTraceRows));
-            }
+        if (loaded) {
+          setSimulation(loaded.result, loaded.contractContext, { skipHistorySave: true });
+          if (loaded.decodedRows && loaded.decodedRows.length > 0) {
+            setDecodedTraceRows(loaded.decodedRows);
+          }
+          if (loaded.sourceTexts) {
+            setSourceTexts(loaded.sourceTexts);
+          }
+          if (loaded.meta) {
+            setDecodedTraceMeta(loaded.meta);
           }
         } else {
           setLoadError(`Simulation not found`);
@@ -183,7 +160,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
           typeof resultDebugEnabled === 'boolean' ? resultDebugEnabled
             : typeof contextDebugEnabled === 'boolean' ? contextDebugEnabled : false,
       };
-      localStorage.setItem('web3-toolkit:txhash-replay', JSON.stringify(replayData));
+      localStorage.setItem(TXHASH_REPLAY_KEY, JSON.stringify(replayData));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('web3-toolkit:txhash-replay-updated', { detail: replayData }));
       }
@@ -299,24 +276,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   // ---- Persist decoded trace ----
   const persistDecodedTrace = useCallback(
     async (decoded: any, simulationId: string) => {
-      const hasJumpRows = decoded?.rows?.some((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall);
-      const jumpRowCount = decoded?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
-      try {
-        const existingTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: false });
-        const existingJumpCount = existingTrace?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
-        if (existingJumpCount > 0 && jumpRowCount === 0) return;
-
-        const saved = await traceVaultService.saveDecodedTrace(simulationId, decoded);
-        const rowsToStore = saved?.lite?.rows ?? decoded.rows;
-        const { simulationHistoryService } = await import("../../services/SimulationHistoryService");
-        await simulationHistoryService.updateSimulationDecodedRows(simulationId, rowsToStore, {
-          maxRetries: 6, delayMs: 150,
-        });
-      } catch (err) {
-        console.error("[SimulationResults] Failed to persist trace:", err);
-      }
+      await coordinatorPersist(simulationId, decoded);
     },
     []
   );
