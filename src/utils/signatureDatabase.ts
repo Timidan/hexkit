@@ -506,6 +506,7 @@ export const getCachedSignatures = (type: 'function' | 'event' | 'error'): { [ha
 export const saveCustomSignature = (signature: CustomSignature) => {
   try {
     const customs = getCustomSignatures();
+    if (customs.some((c) => c.signature === signature.signature)) return;
     customs.push(signature);
     localStorage.setItem(STORAGE_KEYS.CUSTOM_SIGNATURES, JSON.stringify(customs));
   } catch (error) {
