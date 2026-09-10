@@ -5,10 +5,11 @@
 import { ethers } from "ethers";
 import type { DecodedTraceRow, PcInfo, DecodeTraceContext, FunctionRange } from './types';
 import { formatAbiVal } from './formatting';
-import { fnForLine, fnForLineIfAtStart, parseFunctions, parseFunctionSignatures,
+import { fnForLine, parseFunctions, parseFunctionSignatures,
          buildSourceTextResolver } from './sourceParser';
 import { getCallFrames,
          getERC20FunctionsInterface, getERC721FunctionsInterface } from './stackDecoding';
+import { createPcResolvers, traceIdFromFrame } from './pcResolution';
 
 // ── Shared helper state passed between analysis sub-phases ─────────────
 
@@ -326,124 +327,18 @@ export function buildAnalysisLocals(ctx: DecodeTraceContext, callFrameRows: Deco
   const hasMultipleContractMaps = traceIdToCodeAddr.size > 1 || pcMapsPerContract.size > 1;
 
   const resolveCodeAddrForFrame = (frameId: any): string | undefined => {
-    if (!Array.isArray(frameId) || frameId.length < 1) return undefined;
-    const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-    if (isNaN(traceId)) return undefined;
+    const traceId = traceIdFromFrame(frameId);
+    if (traceId === null) return undefined;
     return traceIdToCodeAddr.get(traceId);
   };
 
-  const getPcInfoForOpcode = (pc: number, frameId: any): PcInfo | undefined => {
-    if (Array.isArray(frameId) && frameId.length >= 1) {
-      const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-      if (isNaN(traceId)) return undefined;
-      if (unverifiedTraceIds.has(traceId)) return undefined;
-      const codeAddr = traceIdToCodeAddr.get(traceId);
-      if (codeAddr) {
-        const contractPcMap = pcMapsPerContract.get(codeAddr);
-        if (contractPcMap?.has(pc)) return contractPcMap.get(pc);
-        if (hasMultipleContractMaps) return undefined;
-      }
-    }
-    return pcMapFull?.get(pc);
-  };
-
-  const pcInfoForPc = (pc: number, frameId?: any): PcInfo | undefined => {
-    if (frameId) {
-      const info = getPcInfoForOpcode(pc, frameId);
-      if (info) return info;
-    }
-    return pcMapFull ? pcMapFull.get(pc) : undefined;
-  };
-
-  const lineForPc = (pc: number, frameId?: any): number | undefined => {
-    const pcInfo = pcInfoForPc(pc, frameId);
-    if (pcInfo?.line !== undefined) return pcInfo.line;
-    if (frameId) {
-      const codeAddr = resolveCodeAddrForFrame(frameId);
-      if (codeAddr) {
-        const filtered = pcMapsFilteredPerContract.get(codeAddr);
-        if (filtered?.has(pc)) return filtered.get(pc);
-        if (hasMultipleContractMaps) return undefined;
-      }
-    }
-    if (pcMapFiltered && pcMapFiltered.has(pc)) return pcMapFiltered.get(pc);
-    return undefined;
-  };
-
-  const fnForPc = (pc: number, frameId?: any) => {
-    const pcInfo = pcInfoForPc(pc, frameId);
-    if (!pcInfo) return null;
-    if (pcInfo.line === undefined) return null;
-    const { line, file } = pcInfo;
-    if (file) {
-      let fileFnRanges = fnRangesPerFile.get(file);
-      if (!fileFnRanges || fileFnRanges.length === 0) {
-        const filename = file.split('/').pop() || file;
-        fileFnRanges = fnRangesPerFile.get(filename);
-      }
-      if (fileFnRanges && fileFnRanges.length > 0) {
-        const fn = fnForLine(fileFnRanges, line);
-        if (fn) return fn;
-      }
-      return null;
-    }
-    const codeAddr = resolveCodeAddrForFrame(frameId);
-    if (codeAddr) {
-      const contractFnRanges = ctx.codeAddrToFnRanges.get(codeAddr);
-      if (contractFnRanges && contractFnRanges.length > 0) {
-        const fn = fnForLine(contractFnRanges, line);
-        if (fn) return fn;
-      }
-      if (hasMultipleContractMaps) return null;
-    }
-    return hasMultipleContractMaps ? null : fnForLine(fnRanges, line);
-  };
-
-  const modifierForPc = (pc: number, frameId?: any): string | null => {
-    const pcInfo = pcInfoForPc(pc, frameId);
-    if (!pcInfo || pcInfo.line === undefined) return null;
-    const { line, file } = pcInfo;
-    if (!file) return null;
-
-    let fileModifierRanges = modifierRangesPerFile.get(file);
-    if (!fileModifierRanges || fileModifierRanges.length === 0) {
-      const filename = file.split('/').pop() || file;
-      fileModifierRanges = modifierRangesPerFile.get(filename);
-    }
-    if (!fileModifierRanges || fileModifierRanges.length === 0) return null;
-
-    return fnForLine(fileModifierRanges, line);
-  };
-
-  const fnForPcIfAtEntry = (pc: number, frameId?: any): string | null => {
-    const pcInfo = pcInfoForPc(pc, frameId);
-    if (!pcInfo || pcInfo.line === undefined) return null;
-    const { line, file } = pcInfo;
-    if (file) {
-      let fileFnRanges = fnRangesPerFile.get(file);
-      if (!fileFnRanges || fileFnRanges.length === 0) {
-        const filename = file.split('/').pop() || file;
-        fileFnRanges = fnRangesPerFile.get(filename);
-      }
-      if (fileFnRanges && fileFnRanges.length > 0) {
-        return fnForLineIfAtStart(fileFnRanges, line, 15);
-      }
-      return null;
-    }
-    const codeAddr = resolveCodeAddrForFrame(frameId);
-    if (codeAddr) {
-      const contractFnRanges = ctx.codeAddrToFnRanges.get(codeAddr);
-      if (contractFnRanges && contractFnRanges.length > 0) {
-        return fnForLineIfAtStart(contractFnRanges, line, 15);
-      }
-      if (hasMultipleContractMaps) return null;
-    }
-    return hasMultipleContractMaps ? null : fnForLineIfAtStart(fnRanges, line, 15);
-  };
-
-  const jumpTypeForPc = (pc: number, frameId?: any): PcInfo['jumpType'] | undefined => {
-    return pcInfoForPc(pc, frameId)?.jumpType;
-  };
+  const { pcInfoForPc, lineForPc, fnForPc, modifierForPc, fnForPcIfAtEntry,
+          jumpTypeForPc } = createPcResolvers({
+    pcMapFull, pcMapFiltered, pcMapsPerContract, pcMapsFilteredPerContract,
+    traceIdToCodeAddr, codeAddrToFnRanges: ctx.codeAddrToFnRanges,
+    fnRangesPerFile, modifierRangesPerFile, fnRanges, unverifiedTraceIds,
+    hasMultipleContractMaps,
+  });
 
   // Use cached resolver
   const getSourceContent = buildSourceTextResolver(sourceTexts);
@@ -511,12 +406,6 @@ export function buildAnalysisLocals(ctx: DecodeTraceContext, callFrameRows: Deco
   });
 
   const allJumps = opRows.filter((r) => jumpOpcodes.has(r.name));
-
-  const traceIdFromFrame = (frameId: any): number | null => {
-    if (!Array.isArray(frameId) || frameId.length < 1) return null;
-    const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-    return Number.isNaN(traceId) ? null : traceId;
-  };
 
   const opRowIndexByIdForJump = new Map<number, number>();
   opRows.forEach((row, idx) => {

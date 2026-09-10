@@ -5,7 +5,7 @@ import { useState, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import type { Chain, ContractInfo } from "../../../types";
 import { SUPPORTED_CHAINS, getChainById } from "../../../utils/chains";
-import { fetchContractInfoComprehensive } from "../../../utils/comprehensiveContractFetcher";
+import { contractResolver } from "../../../utils/resolver";
 import { resolveContractContext } from "../../../utils/resolver";
 import type { ProxyInfo } from "../../../utils/resolver";
 import { detectTokenType } from "../../../utils/universalTokenDetector";
@@ -312,23 +312,36 @@ export function useContractState(deps: UseContractStateDeps) {
 
     try {
       const chainConfig = getChainById(selectedNetwork?.id || 0) || (selectedNetwork as Chain);
-      const result = await fetchContractInfoComprehensive(
-        contractAddress,
-        chainConfig,
-        (progress) => { if (!isStale()) setSearchProgress(progress); }
-      );
+      const result = await contractResolver.resolve(contractAddress, chainConfig, {
+        onProgress: (attempt) => {
+          if (isStale()) return;
+          setSearchProgress({
+            source: attempt.source,
+            status:
+              attempt.status === "success"
+                ? "found"
+                : attempt.status === "failed" || attempt.status === "timeout"
+                  ? "not_found"
+                  : attempt.status === "fetching"
+                    ? "searching"
+                    : "error",
+            message: attempt.error,
+          });
+        },
+      });
 
       if (isStale()) return;
 
-      if (result.success && result.abi) {
+      if (result.abi) {
         try {
-          const parsedABI = sanitizeAbiEntries(JSON.parse(result.abi));
+          const abiString = JSON.stringify(result.abi);
+          const parsedABI = sanitizeAbiEntries(JSON.parse(abiString));
           const contractInfoObj: ContractInfo = {
             address: result.address,
             chain: result.chain,
-            abi: result.abi,
+            abi: abiString,
             verified: !!result.verified,
-            name: result.contractName || undefined,
+            name: result.name || undefined,
           };
           if (isStale()) return;
           setContractInfo(contractInfoObj);
@@ -339,7 +352,7 @@ export function useContractState(deps: UseContractStateDeps) {
           const eventSignatures = getEventSignatures(parsedABI);
           await detectAndFetchTokenInfo(parsedABI, true, functionNames, eventSignatures);
           if (isStale()) return;
-          if (result.contractName) setContractName(result.contractName);
+          if (result.name) setContractName(result.name);
           if (result.tokenInfo) tokenSetters.setTokenInfo(result.tokenInfo);
           if (result.source) setAbiSource(result.source as AbiSourceType);
 

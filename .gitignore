@@ -69,6 +69,9 @@ edb
 *.spec.js
 *.spec.mjs
 *.spec.mts
+
+# Local task/scratch artifacts (plans, benches, reports) — kept out of the repo
+tasks/
 /tmp
 video/out
 .superpowers

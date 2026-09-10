@@ -18,7 +18,7 @@ import type {
   StorageLayoutEntry,
   StorageTypeDefinition,
 } from '../types/debug';
-import { computeMappingSlot, computeArrayElementSlot, formatSlotHex } from './storageSlotCalculator';
+import { computeMappingSlot, computeArrayElementSlot, formatSlotHex, resolveAbiKeyType } from './storageSlotCalculator';
 
 /** Structured result from slot resolution, carrying type info for decoding */
 export interface SlotResolutionResult {
@@ -84,6 +84,67 @@ export function resolveLeafValueType(
   };
 }
 
+/** A single visit emitted by walkStorageEntries. */
+export interface StorageEntryVisit {
+  /** The layout entry being visited (a top-level entry or a struct member). */
+  entry: StorageLayoutEntry;
+  /** Absolute slot for this entry (top-level slot, or parent.slot + member.slot). */
+  slot: bigint;
+  /** Canonical 0x-padded hex of `slot`. */
+  slotHex: string;
+  /** True when `entry` is an inlined struct member. */
+  isMember: boolean;
+  /** Parent entry's label (member visits only). */
+  parentLabel?: string;
+  /** The type definition for `entry`, if known. */
+  typeInfo?: StorageTypeDefinition;
+  /** Whether this entry has inlined struct members that will be visited next (top-level only). */
+  hasMembers: boolean;
+}
+
+/**
+ * Single layout-walk visitor over top-level storage entries AND their inlined
+ * struct members. Each top-level entry is visited first (isMember=false),
+ * followed by each of its members (isMember=true) at parent.slot + member.slot.
+ *
+ * This is the one place member-slot arithmetic lives; the slot-map, descriptor,
+ * and slot-resolution walkers are thin callbacks over it.
+ */
+export function walkStorageEntries(
+  layout: StorageLayoutResponse,
+  visit: (v: StorageEntryVisit) => void,
+): void {
+  for (const entry of layout.storage) {
+    const baseSlot = BigInt(entry.slot);
+    const typeInfo = layout.types[entry.type];
+    const hasMembers = !!typeInfo?.members;
+
+    visit({
+      entry,
+      slot: baseSlot,
+      slotHex: formatSlotHex(baseSlot),
+      isMember: false,
+      typeInfo,
+      hasMembers,
+    });
+
+    if (typeInfo?.members) {
+      for (const member of typeInfo.members) {
+        const memberSlot = baseSlot + BigInt(member.slot);
+        visit({
+          entry: member,
+          slot: memberSlot,
+          slotHex: formatSlotHex(memberSlot),
+          isMember: true,
+          parentLabel: entry.label,
+          typeInfo: layout.types[member.type],
+          hasMembers: false,
+        });
+      }
+    }
+  }
+}
+
 /**
  * Build a map from slot hex → variable label for all simple (non-derived) slots.
  * Simple variables, structs inlined in storage, and fixed-size arrays.
@@ -91,25 +152,19 @@ export function resolveLeafValueType(
 export function buildSlotMap(layout: StorageLayoutResponse): Map<string, string> {
   const map = new Map<string, string>();
 
-  for (const entry of layout.storage) {
-    const slotHex = formatSlotHex(BigInt(entry.slot));
-    const typeInfo = layout.types[entry.type];
+  walkStorageEntries(layout, ({ entry, slotHex, isMember, parentLabel, typeInfo }) => {
+    if (isMember) {
+      map.set(slotHex, `${parentLabel}.${entry.label} (${typeInfo?.label || entry.type})`);
+      return;
+    }
 
     if (!typeInfo) {
       map.set(slotHex, entry.label);
-      continue;
+      return;
     }
 
     if (typeInfo.encoding === 'inplace') {
       map.set(slotHex, `${entry.label} (${typeInfo.label})`);
-      if (typeInfo.members) {
-        for (const member of typeInfo.members) {
-          const memberSlot = BigInt(entry.slot) + BigInt(member.slot);
-          const memberSlotHex = formatSlotHex(memberSlot);
-          const memberType = layout.types[member.type];
-          map.set(memberSlotHex, `${entry.label}.${member.label} (${memberType?.label || member.type})`);
-        }
-      }
     }
 
     if (typeInfo.encoding === 'mapping') {
@@ -123,7 +178,7 @@ export function buildSlotMap(layout: StorageLayoutResponse): Map<string, string>
     if (typeInfo.encoding === 'bytes') {
       map.set(slotHex, `${entry.label} (${typeInfo.label})`);
     }
-  }
+  });
 
   return map;
 }
@@ -184,6 +239,43 @@ export function tryResolveMappingSlot(
 }
 
 /**
+ * Memo cache for computeMappingSlot, keyed by `${seed}-${key}-${type}`.
+ *
+ * computeMappingSlot is target-independent: the same (seed, key, type) always
+ * derives the same slot, regardless of which target slot the DFS is searching
+ * for. matchSlot resolves one target slot per storage diff, so without a cache
+ * the identical (seed, key, type) keccak hashes are recomputed for every diff.
+ * Caching the keccak (not the target-dependent SlotResolutionResult) hashes each
+ * distinct (seed, key, type) exactly once and reuses it across all target slots.
+ */
+const MAPPING_SLOT_CACHE_MAX = 5000;
+const mappingSlotCache = new Map<string, bigint>();
+
+function computeMappingSlotCached(
+  seed: bigint,
+  key: string,
+  keyType: string
+): bigint {
+  const cacheKey = `${seed.toString()}-${key}-${keyType}`;
+  const cached = mappingSlotCache.get(cacheKey);
+  if (cached !== undefined) {
+    // Recency refresh so the bounded cache evicts genuinely-cold entries.
+    mappingSlotCache.delete(cacheKey);
+    mappingSlotCache.set(cacheKey, cached);
+    return cached;
+  }
+  const derived = computeMappingSlot(seed, key, keyType);
+  mappingSlotCache.set(cacheKey, derived);
+  // Bound the module-global cache; it would otherwise grow unbounded across a
+  // long session. Evict the least-recently-used entry once over the cap.
+  if (mappingSlotCache.size > MAPPING_SLOT_CACHE_MAX) {
+    const oldest = mappingSlotCache.keys().next().value;
+    if (oldest !== undefined) mappingSlotCache.delete(oldest);
+  }
+  return derived;
+}
+
+/**
  * DFS search through nested mapping structure to find the target slot.
  */
 function dfsMappingSearch(
@@ -206,8 +298,7 @@ function dfsMappingSearch(
   const keyTypeId = typeDef.key;
   if (!keyTypeId) return null;
   const keyTypeInfo = layout.types[keyTypeId];
-  const keyTypeName = keyTypeInfo?.label || 'uint256';
-  const abiKeyType = mapSolidityTypeToAbiType(keyTypeName);
+  const abiKeyType = resolveAbiKeyType({ typeId: keyTypeId, typeLabel: keyTypeInfo?.label }) ?? 'uint256';
 
   // The value type at this level
   const valueTypeId = typeDef.value;
@@ -215,7 +306,7 @@ function dfsMappingSearch(
   for (const key of knownKeys) {
     let derivedSlot: bigint;
     try {
-      derivedSlot = computeMappingSlot(currentSeed, key, abiKeyType);
+      derivedSlot = computeMappingSlotCached(currentSeed, key, abiKeyType);
     } catch {
       continue; // key not valid for this type
     }
@@ -358,32 +449,11 @@ function findDirectEntry(
 ): StorageLayoutEntry | null {
   const normalized = formatSlotHex(BigInt(slot));
 
-  for (const entry of layout.storage) {
-    const slotHex = formatSlotHex(BigInt(entry.slot));
-    if (slotHex === normalized) return entry;
+  let found: StorageLayoutEntry | null = null;
+  walkStorageEntries(layout, ({ entry, slotHex }) => {
+    if (found) return;
+    if (slotHex === normalized) found = entry;
+  });
 
-    // Check struct members
-    const typeInfo = layout.types[entry.type];
-    if (typeInfo?.members) {
-      for (const member of typeInfo.members) {
-        const memberSlot = BigInt(entry.slot) + BigInt(member.slot);
-        if (formatSlotHex(memberSlot) === normalized) return member;
-      }
-    }
-  }
-
-  return null;
-}
-
-/** Map Solidity type names to ABI encoder type strings */
-function mapSolidityTypeToAbiType(typeName: string): string {
-  if (typeName === 'address') return 'address';
-  if (typeName === 'bool') return 'bool';
-  if (typeName === 'string') return 'string';
-  if (typeName.startsWith('uint')) return typeName;
-  if (typeName.startsWith('int')) return typeName;
-  if (typeName.startsWith('bytes')) return typeName;
-  // Contract types (e.g. "contract IERC20") are addresses
-  if (typeName.startsWith('contract ')) return 'address';
-  return 'uint256';
+  return found;
 }

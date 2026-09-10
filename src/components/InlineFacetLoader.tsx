@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   fetchDiamondFacets,
-  getDiamondFacetAddresses,
+  getDiamondFacetAddressesWithSelectors,
   type DiamondFacet,
 } from "../utils/diamondFacetFetcher";
 import { networkConfigManager } from "../config/networkConfig";
@@ -91,10 +91,8 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
       setShowDetails(false);
       setFacetDetails([]);
 
-      const facetAddresses = await getDiamondFacetAddresses(
-        chain,
-        diamondAddress
-      );
+      const { addresses: facetAddresses, loupeSelectors } =
+        await getDiamondFacetAddressesWithSelectors(chain, diamondAddress);
 
       if (requestIdRef.current !== requestId) {
         return;
@@ -170,7 +168,7 @@ export const InlineFacetLoader: React.FC<InlineFacetLoaderProps> = ({
           });
           onProgressChange?.(p);
         },
-        { etherscanApiKey }
+        { etherscanApiKey, loupeSelectors }
       );
 
       if (requestIdRef.current !== requestId) {

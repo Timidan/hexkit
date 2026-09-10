@@ -6,6 +6,40 @@ import type { Chain } from "../../types";
 // ---- View mode type ----
 export type SimulationViewMode = "builder" | "replay";
 
+// ---- Canonical URL/storage intent parser ----
+// Resolves the `?mode=live|simulation|replay` and `?replay=txhash` URL signals
+// into the surfaces the Hub (live-vs-simulation) and Wagmi (builder-vs-replay)
+// state machines consume. A `null` field means the URL carried no signal for
+// that surface, in which case callers keep their existing runtime fallbacks
+// (localStorage / clone / contractContext).
+export interface BuilderIntent {
+  mode: "live" | "simulation" | null;
+  viewMode: "builder" | "replay" | null;
+}
+
+export function parseBuilderIntent(search: string): BuilderIntent {
+  const params = new URLSearchParams(search);
+  const requestedMode = params.get("mode");
+
+  // Hub surface: live-vs-simulation. `replay` collapses to simulation.
+  let mode: BuilderIntent["mode"] = null;
+  if (requestedMode === "live") {
+    mode = "live";
+  } else if (requestedMode === "simulation" || requestedMode === "replay") {
+    mode = "simulation";
+  }
+
+  // Wagmi surface: builder-vs-replay within simulation.
+  let viewMode: BuilderIntent["viewMode"] = null;
+  if (requestedMode === "replay" || params.get("replay") === "txhash") {
+    viewMode = "replay";
+  } else if (requestedMode === "simulation") {
+    viewMode = "builder";
+  }
+
+  return { mode, viewMode };
+}
+
 // ---- Transaction preview data fetched before enabling replay ----
 export interface TxPreviewData {
   from: string;

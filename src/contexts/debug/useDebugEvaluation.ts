@@ -2,7 +2,7 @@
  * useDebugEvaluation - Expression evaluation and watch expressions hook.
  * Snapshot resolution helpers live in ./evalSnapshotResolver.ts.
  */
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import type {
   HookSnapshotDetail,
   WatchExpression,
@@ -43,10 +43,13 @@ import {
   waitForLiveSessionReady,
   scanForHookSnapshot,
   resolveEvalSnapshotId,
+  resolveLiveSnapshotFromTraceRow,
   EVAL_SNAPSHOT_HINT_CACHE_MAX,
   EVAL_VARIABLE_HINT_CACHE_MAX,
   EVAL_TOTAL_BUDGET_MS,
 } from './evalSnapshotResolver';
+import { getTraceRowBytecodeAddress, getOpcodePc } from './traceRowScoring';
+import { createSnapshotCacheWriter } from './snapshotCacheStore';
 import type { DebugSharedState, DebugEvaluationActions } from './types';
 
 const NO_HOOK_SNAPSHOTS_ERROR =
@@ -56,115 +59,6 @@ const hookContextMismatchError = (step: number, traceId: number | null, file: st
   `No source-level debug snapshot found near step ${step}. Hook snapshots exist in this session but none match the current execution context (trace frame ${traceId ?? 'unknown'}, file: ${file || 'unknown'}).`;
 
 const SESSION_EXPIRED_ERROR = 'Debug session expired. Please re-run the simulation to debug again.';
-
-function normalizeTraceFrameId(frameId?: Array<string | number> | null): string | null {
-  if (!Array.isArray(frameId) || frameId.length === 0) return null;
-  return frameId.map((part) => String(part)).join('-');
-}
-
-function getTraceRowBytecodeAddress(row: { entryMeta?: { codeAddress?: string; target?: string } | null } | null): string | null {
-  const value = row?.entryMeta?.codeAddress || row?.entryMeta?.target || null;
-  return value ? value.toLowerCase() : null;
-}
-
-function getTraceRowStorageAccess(
-  row: {
-    storage_read?: { slot?: string; value?: string } | null;
-    storage_write?: { slot?: string; after?: string } | null;
-  } | null
-): { type: 'read' | 'write'; slot: string; value?: string } | null {
-  if (row?.storage_read?.slot) {
-    return {
-      type: 'read',
-      slot: row.storage_read.slot.toLowerCase(),
-      value: row.storage_read.value,
-    };
-  }
-  if (row?.storage_write?.slot) {
-    return {
-      type: 'write',
-      slot: row.storage_write.slot.toLowerCase(),
-      value: row.storage_write.after,
-    };
-  }
-  return null;
-}
-
-function getOpcodePc(snapshot: DebugSnapshot | null | undefined): number | null {
-  if (!snapshot || snapshot.type !== 'opcode') return null;
-  const detail = snapshot.detail as { pc?: number };
-  return typeof detail.pc === 'number' ? detail.pc : null;
-}
-
-function scoreOpcodeSnapshotCandidate(
-  traceRow: {
-    frame_id?: Array<string | number>;
-    pc?: number;
-    name?: string;
-    stackTop?: string | null;
-    stackDepth?: number;
-    storage_read?: { slot?: string; value?: string } | null;
-    storage_write?: { slot?: string; after?: string } | null;
-  },
-  snapshot: DebugSnapshot
-): number {
-  let score = 0;
-  const opcodeDetail =
-    snapshot.type === 'opcode'
-      ? (snapshot.detail as {
-          pc?: number;
-          opcodeName?: string;
-          stack?: string[];
-          storageAccess?: { type: 'read' | 'write'; slot: string; value?: string };
-        })
-      : null;
-  const traceFrameId = normalizeTraceFrameId(traceRow.frame_id);
-  if (traceFrameId && snapshot.frameId === traceFrameId) {
-    score += 100;
-  }
-  if (snapshot.type === 'opcode' && opcodeDetail?.pc === traceRow.pc) {
-    score += 50;
-  }
-  if (
-    snapshot.type === 'opcode' &&
-    traceRow.name &&
-    opcodeDetail?.opcodeName?.toUpperCase() === traceRow.name.toUpperCase()
-  ) {
-    score += 25;
-  }
-
-  const traceStorageAccess = getTraceRowStorageAccess(traceRow);
-  const snapshotStorageAccess =
-    snapshot.type === 'opcode' ? opcodeDetail?.storageAccess ?? null : null;
-  if (
-    traceStorageAccess &&
-    snapshotStorageAccess &&
-    snapshotStorageAccess.type === traceStorageAccess.type &&
-    snapshotStorageAccess.slot.toLowerCase() === traceStorageAccess.slot
-  ) {
-    score += 40;
-    if (
-      traceStorageAccess.value &&
-      snapshotStorageAccess.value &&
-      snapshotStorageAccess.value.toLowerCase() === traceStorageAccess.value.toLowerCase()
-    ) {
-      score += 15;
-    }
-  }
-
-  if (snapshot.type === 'opcode') {
-    const stack = Array.isArray(opcodeDetail?.stack) ? opcodeDetail.stack : [];
-    const stackTop = stack.length > 0 ? stack[stack.length - 1] : null;
-    if (traceRow.stackTop && stackTop && stackTop.toLowerCase() === traceRow.stackTop.toLowerCase()) {
-      score += 10;
-    }
-    if (typeof traceRow.stackDepth === 'number' && stack.length === traceRow.stackDepth) {
-      score += 5;
-    }
-  }
-
-  return score;
-}
 
 export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActions {
   const {
@@ -205,6 +99,13 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
   // the bridge with 3× the RPC load.
   const evalInflightRef = useRef<Map<string, Promise<EvalResult>>>(new Map());
 
+  // Single eviction-policy writer over snapshotCache (recency-LRU, cap 500).
+  // setSnapshotCache identity is stable, so the writer identity is stable too.
+  const snapshotCacheWriter = useMemo(
+    () => createSnapshotCacheWriter(setSnapshotCache),
+    [setSnapshotCache]
+  );
+
   // ── Wrapped resolver callbacks (delegate to extracted pure functions) ──
 
   const waitForLiveSessionReadyCb = useCallback(
@@ -214,7 +115,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         sessionRef,
         sourceFilesRef,
         snapshotCache,
-        setSnapshotCache,
+        snapshotCacheWriter,
       }, timeoutMs),
     [sessionInvalid, snapshotCache]
   );
@@ -244,7 +145,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
       currentSnapshotId: baseSnapshotId ?? null,
       currentSnapshot,
       snapshotCache,
-      setSnapshotCache,
+      snapshotCacheWriter,
       snapshotList,
       setSnapshotList,
       sourceFilesRef,
@@ -277,7 +178,7 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
         session,
         sourceFilesRef,
         snapshotCache,
-        setSnapshotCache,
+        snapshotCacheWriter,
       },
       predicate,
       timeoutMs
@@ -289,82 +190,17 @@ export function useDebugEvaluation(state: DebugSharedState): DebugEvaluationActi
     async (
       sessionId: string,
       traceStepId: number
-    ): Promise<{ snapshotId: number; snapshot: DebugSnapshot } | null> => {
-      const traceRow = decodedTraceRowsRef.current?.find((row) => row.id === traceStepId) ?? null;
-      const bytecodeAddress = getTraceRowBytecodeAddress(traceRow);
-      if (!traceRow || !bytecodeAddress || typeof traceRow.pc !== 'number') {
-        return null;
-      }
-
-      const cacheKey = `${sessionId}:${traceStepId}:${bytecodeAddress}:${traceRow.pc}`;
-      const cachedSnapshotId = traceToLiveSnapshotCacheRef.current.get(cacheKey);
-      if (typeof cachedSnapshotId === 'number') {
-        const cachedSnapshot = snapshotCache.get(cachedSnapshotId);
-        if (cachedSnapshot) {
-          return { snapshotId: cachedSnapshotId, snapshot: cachedSnapshot };
-        }
-      }
-
-      const breakpointHits = await debugBridgeService.getBreakpointHits({
+    ): Promise<{ snapshotId: number; snapshot: DebugSnapshot } | null> =>
+      resolveLiveSnapshotFromTraceRow(
+        {
+          decodedTraceRowsRef,
+          snapshotCache,
+          snapshotCacheWriter,
+          traceToLiveSnapshotCacheRef,
+        },
         sessionId,
-        breakpoints: [
-          {
-            location: {
-              type: 'opcode',
-              bytecodeAddress,
-              pc: traceRow.pc,
-            },
-          },
-        ],
-      });
-
-      const candidateIds = breakpointHits.hits.filter((id) => Number.isInteger(id) && id >= 0);
-      if (candidateIds.length === 0) {
-        return null;
-      }
-
-      let bestMatch:
-        | { snapshotId: number; snapshot: DebugSnapshot; score: number }
-        | null = null;
-
-      for (const candidateId of candidateIds.slice(0, 16)) {
-        try {
-          const response = await debugBridgeService.getSnapshot({
-            sessionId,
-            snapshotId: candidateId,
-          });
-          const candidateSnapshot = response.snapshot;
-          const score = scoreOpcodeSnapshotCandidate(traceRow, candidateSnapshot);
-
-          if (!bestMatch || score > bestMatch.score) {
-            bestMatch = {
-              snapshotId: candidateId,
-              snapshot: candidateSnapshot,
-              score,
-            };
-          }
-        } catch {
-          // Ignore candidate fetch errors and continue scoring remaining hits.
-        }
-      }
-
-      if (!bestMatch) {
-        return null;
-      }
-
-      traceToLiveSnapshotCacheRef.current.set(cacheKey, bestMatch.snapshotId);
-      setSnapshotCache((prev) => {
-        const next = new Map(prev);
-        next.set(bestMatch!.snapshotId, bestMatch!.snapshot);
-        if (next.size > 500) {
-          const sortedKeys = [...next.keys()].sort((a, b) => a - b);
-          sortedKeys.slice(0, next.size - 500).forEach((key) => next.delete(key));
-        }
-        return next;
-      });
-
-      return { snapshotId: bestMatch.snapshotId, snapshot: bestMatch.snapshot };
-    },
+        traceStepId
+      ),
     [decodedTraceRowsRef, snapshotCache, setSnapshotCache]
   );
 

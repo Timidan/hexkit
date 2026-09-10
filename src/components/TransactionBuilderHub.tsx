@@ -7,11 +7,9 @@ import { LayoutTransitionWrapper } from "./ui/animated-tabs";
 import { useSimulation } from "../contexts/SimulationContext";
 import { AnimatedZapIcon, AnimatedPlayIcon } from "./icons/IconLibrary";
 import { SUPPORTED_CHAINS } from "../utils/chains";
+import { TXHASH_REPLAY_KEY, parseBuilderIntent } from "./transaction-builder/types";
 
 type BuilderMode = "live" | "simulation";
-type BuilderIntentMode = "live" | "simulation" | "replay";
-
-const TXHASH_REPLAY_KEY = 'web3-toolkit:txhash-replay';
 
 const loadSimpleGridUI = () => import("./simple-grid");
 const loadTransactionBuilderWagmi = () => import("./TransactionBuilderWagmi");
@@ -19,18 +17,10 @@ const loadTransactionBuilderWagmi = () => import("./TransactionBuilderWagmi");
 const SimpleGridUI = React.lazy(loadSimpleGridUI);
 const TransactionBuilderWagmi = React.lazy(loadTransactionBuilderWagmi);
 
-function parseBuilderIntentMode(search: string): BuilderIntentMode | null {
-  const mode = new URLSearchParams(search).get('mode');
-  if (mode === 'live' || mode === 'simulation' || mode === 'replay') {
-    return mode;
-  }
-  return null;
-}
-
 const TransactionBuilderHub: React.FC = () => {
   const { contractContext } = useSimulation();
   const location = useLocation();
-  const urlIntentMode = parseBuilderIntentMode(location.search);
+  const urlIntentMode = parseBuilderIntent(location.search).mode;
   const builderSearchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   const liveInitialContractData = useMemo(() => {
@@ -59,9 +49,9 @@ const TransactionBuilderHub: React.FC = () => {
 
   // Initialize mode based on whether there's simulation context or clone/replay data
   const [mode, setMode] = useState<BuilderMode>(() => {
-    const initialIntentMode = parseBuilderIntentMode(location.search);
+    const initialIntentMode = parseBuilderIntent(location.search).mode;
     if (initialIntentMode === 'live') return 'live';
-    if (initialIntentMode === 'simulation' || initialIntentMode === 'replay') return 'simulation';
+    if (initialIntentMode === 'simulation') return 'simulation';
 
     // Check for clone query param (set by SimulationHistoryPage)
     if (hasCloneParam) {

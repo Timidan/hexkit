@@ -274,6 +274,20 @@ export const StateTab: React.FC<StateTabProps> = ({ result, artifacts, contractC
     return { match, fields };
   };
 
+  // Memoize decoding per diff so it doesn't re-run matchSlot/decodeDiffFields
+  // (which can hash mapping slots) on every re-render. Recomputes only when the
+  // layouts, descriptor indices, known keys, or diffs change.
+  const decodedByDiff = useMemo(() => {
+    const map = new Map<any, { match: SlotMatch; fields: DecodedField[] } | null>();
+    for (const diff of storageDiffs) {
+      map.set(diff, getDecodedInfo(diff));
+    }
+    return map;
+    // getDecodedInfo closes over layouts/descriptorIndices/knownKeys; depend on
+    // those plus storageDiffs so memo invalidates exactly when inputs change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layouts, descriptorIndices, knownKeys, storageDiffs]);
+
   // Group diffs by contract address
   const groupedByContract = (() => {
     const map = new Map<string, {
@@ -384,7 +398,7 @@ export const StateTab: React.FC<StateTabProps> = ({ result, artifacts, contractC
                 {contract.diffs.map((diff: any, diffIdx: number) => {
                   const beforeHex = formatHex(diff.before);
                   const afterHex = formatHex(diff.after || diff.value);
-                  const decoded = getDecodedInfo(diff);
+                  const decoded = decodedByDiff.get(diff) ?? null;
 
                   return (
                     <div key={diffIdx} className="state-diff-card">

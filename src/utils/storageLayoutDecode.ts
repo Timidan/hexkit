@@ -16,12 +16,11 @@ import { ethers } from 'ethers';
 import type {
   StorageLayoutResponse,
   StorageLayoutEntry,
-  StorageTypeDefinition,
   StorageDiffEntry,
 } from '../types/debug';
 import type { SimulationResult } from '../types/transaction';
-import { formatSlotHex, parseSlotInput } from './storageSlotCalculator';
-import { resolveSlotLabelComprehensive } from './storageLayoutResolver';
+import { formatSlotHex, parseSlotInput, buildScalarDescriptor } from './storageSlotCalculator';
+import { resolveSlotLabelComprehensive, walkStorageEntries } from './storageLayoutResolver';
 
 /** A single field that occupies (part of) a storage slot */
 export interface SlotDescriptor {
@@ -97,14 +96,34 @@ export function buildSlotDescriptors(
     }
   }
 
-  for (const entry of layout.storage) {
-    const baseSlotBigint = BigInt(entry.slot);
-    const typeInfo: StorageTypeDefinition | undefined = layout.types[entry.type];
+  walkStorageEntries(layout, ({ entry, slotHex, isMember, parentLabel, typeInfo, hasMembers }) => {
     const encoding = typeInfo?.encoding ?? 'unknown';
     const typeLabel = typeInfo?.label ?? entry.type;
     const size = typeInfo ? Math.ceil(parseInt(typeInfo.numberOfBytes, 10) || 32) : 32;
 
-    // Create the top-level descriptor for this entry
+    if (isMember) {
+      // Inlined struct member — relative to the parent struct.
+      const memberDescriptor: SlotDescriptor = {
+        label: `${parentLabel}.${entry.label}`,
+        typeLabel,
+        typeKey: entry.type,
+        offset: entry.offset,
+        size: Math.min(size, 32),
+        encoding,
+        entry,
+      };
+      addDescriptor(slotHex, memberDescriptor);
+      return;
+    }
+
+    // If it's a struct with members, add members only (not the parent struct
+    // descriptor — it would produce a meaningless whole-word decode alongside
+    // the meaningful member-level decodes)
+    if (encoding === 'inplace' && hasMembers) {
+      return;
+    }
+
+    // Non-struct entries: add the top-level descriptor directly
     const topDescriptor: SlotDescriptor = {
       label: entry.label,
       typeLabel,
@@ -114,40 +133,8 @@ export function buildSlotDescriptors(
       encoding,
       entry,
     };
-
-    const slotHex = formatSlotHex(baseSlotBigint);
-
-    // If it's a struct with members, add members only (not the parent struct
-    // descriptor — it would produce a meaningless whole-word decode alongside
-    // the meaningful member-level decodes)
-    if (encoding === 'inplace' && typeInfo?.members) {
-      for (const member of typeInfo.members) {
-        const memberSlotBigint = baseSlotBigint + BigInt(member.slot);
-        const memberSlotHex = formatSlotHex(memberSlotBigint);
-        const memberTypeInfo = layout.types[member.type];
-        const memberEncoding = memberTypeInfo?.encoding ?? 'unknown';
-        const memberTypeLabel = memberTypeInfo?.label ?? member.type;
-        const memberSize = memberTypeInfo
-          ? Math.ceil(parseInt(memberTypeInfo.numberOfBytes, 10) || 32)
-          : 32;
-
-        const memberDescriptor: SlotDescriptor = {
-          label: `${entry.label}.${member.label}`,
-          typeLabel: memberTypeLabel,
-          typeKey: member.type,
-          offset: member.offset,
-          size: Math.min(memberSize, 32),
-          encoding: memberEncoding,
-          entry: member,
-        };
-
-        addDescriptor(memberSlotHex, memberDescriptor);
-      }
-    } else {
-      // Non-struct entries: add the top-level descriptor directly
-      addDescriptor(slotHex, topDescriptor);
-    }
-  }
+    addDescriptor(slotHex, topDescriptor);
+  });
 
   return index;
 }
@@ -347,16 +334,13 @@ export function decodeDiffFields(
     if (match.valueTypeLabel) {
       // Build a synthetic descriptor for type-aware decoding.
       // Use actual size from resolved leaf type for correct signed int / bytesN decode.
-      const leafSize = match.valueNumberOfBytes ?? 32;
-      const syntheticDescriptor: SlotDescriptor = {
+      const syntheticDescriptor = buildScalarDescriptor({
         label: match.resolvedLabel ?? 'unknown',
         typeLabel: match.valueTypeLabel,
         typeKey: match.valueTypeId ?? '',
-        offset: 0,
-        size: leafSize,
+        size: match.valueNumberOfBytes ?? 32,
         encoding: match.valueEncoding ?? 'inplace',
-        entry: { label: '', offset: 0, slot: '0', type: match.valueTypeId ?? '', astId: 0, contract: '' },
-      };
+      });
       try {
         if (beforeHex) beforeDecoded = decodeSlotValue(beforeHex, syntheticDescriptor);
       } catch { /* malformed hex */ }

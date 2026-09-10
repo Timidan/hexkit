@@ -8,7 +8,6 @@ import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import { SimulationProvider } from "./contexts/SimulationContext";
 import { DebugProvider } from "./contexts/DebugContext";
-import Navigation from "./components/Navigation";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { NotificationProvider } from "./components/NotificationManager";
 import { RouteMetaTags } from "./components/shared/RouteMetaTags";
@@ -21,6 +20,7 @@ import HomePage from "./components/HomePage";
 import MobileDrawer from "./components/MobileDrawer";
 import { useBreakpoint } from "./hooks/useBreakpoint";
 
+const Navigation = React.lazy(() => import("./components/Navigation"));
 const SimulationResultsPage = React.lazy(() => import("./components/SimulationResultsPage"));
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
 const StorageManagerModal = React.lazy(() => import("./components/StorageManagerModal"));
@@ -80,7 +80,11 @@ function App() {
                 </Routes>
               ) : (
                 <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder") || location.pathname.startsWith("/integrations")) && "app-fullwidth")}>
-                  {!isMobile && <Navigation />}
+                  {!isMobile && (
+                    <Suspense fallback={null}>
+                      <Navigation />
+                    </Suspense>
+                  )}
 
                   <main className="content">
                     <Routes>

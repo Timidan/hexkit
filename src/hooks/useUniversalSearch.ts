@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
+import { TXHASH_REPLAY_KEY } from '../components/transaction-builder/types';
 
 export type InputType =
   | 'address'
@@ -91,7 +92,6 @@ function detectInputType(input: string): InputType {
   return 'unknown';
 }
 
-const TXHASH_REPLAY_KEY = 'web3-toolkit:txhash-replay';
 const TXHASH_REPLAY_EVENT = 'web3-toolkit:txhash-replay-updated';
 const TXHASH_REPLAY_LAST_INTENT_KEY = 'web3-toolkit:txhash-replay-last-intent';
 const RECENT_SEARCHES_KEY = 'web3-toolkit:recent-searches';

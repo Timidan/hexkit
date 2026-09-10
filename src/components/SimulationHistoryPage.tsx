@@ -10,7 +10,12 @@ import {
   type StoredSimulation, 
   type SimulationHistoryFilter 
 } from '../services/SimulationHistoryService';
-import { traceVaultService, recomputeHierarchy } from '../services/TraceVaultService';
+import {
+  loadStoredSimulation,
+  deleteStoredSimulation,
+  deleteStoredSimulations,
+  clearStoredSimulations,
+} from '../services/simulationStore';
 import { useSimulation } from '../contexts/SimulationContext';
 import { SUPPORTED_CHAINS } from '../utils/chains';
 import { Button } from './ui/button';
@@ -18,7 +23,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { Checkbox } from './ui/checkbox';
 import { shortenAddress } from './shared/AddressDisplay';
-import { hasInternalInfo } from './simulation-results/useSimulationPageHelpers';
 import '../styles/SimulationHistory.css';
 
 // Helper to format timestamp
@@ -169,76 +173,20 @@ const SimulationHistoryPage: React.FC = () => {
   const handleViewSimulation = useCallback(async (sim: StoredSimulation) => {
     // In lightweight mode, we don't have result/contractContext - need to fetch
     try {
-      const fullSim = await simulationHistoryService.getSimulation(sim.id);
-      if (fullSim?.result && fullSim?.contractContext) {
+      const loaded = await loadStoredSimulation(sim.id);
+      if (loaded) {
         // Set simulation in context and navigate to results
         // Pass skipHistorySave to avoid creating duplicate history entries
-        setSimulation(fullSim.result, fullSim.contractContext, { skipHistorySave: true });
+        setSimulation(loaded.result, loaded.contractContext, { skipHistorySave: true });
 
-        let restoredFromVault = false;
-        try {
-          const traceBundle = await traceVaultService.loadDecodedTrace(sim.id, {
-            includeHeavy: false,
-          });
-
-          const opfsRowCount = traceBundle?.rows?.length ?? 0;
-          const indexedDbRowCount = fullSim.decodedTraceRows?.length ?? 0;
-          const opfsHasInternal = hasInternalInfo(traceBundle?.rows);
-          const indexedDbHasInternal = hasInternalInfo(fullSim.decodedTraceRows);
-
-          // Prefer OPFS if it has rows with hierarchy info
-          // Fall back to IndexedDB only if OPFS is empty/missing hierarchy but IndexedDB has it
-          let rowsToUse: any[] | undefined;
-          let sourceLabel: string = 'unknown';
-
-          if (opfsRowCount > 0 && opfsHasInternal) {
-            // OPFS has full data with hierarchy - use it
-            rowsToUse = traceBundle!.rows;
-            sourceLabel = 'OPFS';
-          } else if (indexedDbRowCount > 0 && indexedDbHasInternal) {
-            // IndexedDB has hierarchy but OPFS doesn't - use IndexedDB
-            rowsToUse = fullSim.decodedTraceRows;
-            sourceLabel = 'IndexedDB';
-          } else if (opfsRowCount > 0) {
-            // OPFS has rows (even without hierarchy) - use it
-            rowsToUse = traceBundle!.rows;
-            sourceLabel = 'OPFS (no hierarchy)';
-          } else if (indexedDbRowCount > 0) {
-            // IndexedDB has rows as last resort
-            rowsToUse = fullSim.decodedTraceRows;
-            sourceLabel = 'IndexedDB (no hierarchy)';
-          }
-
-          if (rowsToUse && rowsToUse.length > 0) {
-            // Recompute hierarchy from depth relationships to fix traces where
-            // hasChildren wasn't computed correctly for nested call frames
-            const fixedRows = recomputeHierarchy(rowsToUse);
-            setDecodedTraceRows(fixedRows);
-            if (traceBundle?.sourceTexts && Object.keys(traceBundle.sourceTexts).length > 0) {
-              setSourceTexts(traceBundle.sourceTexts);
-            }
-            // Set trace metadata including rawEvents for TokenMovementsPanel
-            setDecodedTraceMeta({
-              sourceLines: traceBundle?.sourceLines ?? [],
-              callMeta: traceBundle?.callMeta,
-              rawEvents: traceBundle?.rawEvents ?? [],
-              implementationToProxy: traceBundle?.implementationToProxy ?? new Map<string, string>(),
-            });
-            restoredFromVault = true;
-          }
-        } catch {
-          // Fallback: restore decoded rows from IndexedDB on OPFS failure
-          if (fullSim.decodedTraceRows && fullSim.decodedTraceRows.length > 0) {
-            const fixedRows = recomputeHierarchy(fullSim.decodedTraceRows);
-            setDecodedTraceRows(fixedRows);
-            restoredFromVault = true;
-          }
+        if (loaded.decodedRows && loaded.decodedRows.length > 0) {
+          setDecodedTraceRows(loaded.decodedRows);
         }
-
-        // Final fallback: restore legacy decoded rows from IndexedDB (should rarely hit this)
-        if (!restoredFromVault && fullSim.decodedTraceRows && fullSim.decodedTraceRows.length > 0) {
-          const fixedRows = recomputeHierarchy(fullSim.decodedTraceRows);
-          setDecodedTraceRows(fixedRows);
+        if (loaded.sourceTexts) {
+          setSourceTexts(loaded.sourceTexts);
+        }
+        if (loaded.meta) {
+          setDecodedTraceMeta(loaded.meta);
         }
 
         // Set the simulation ID in context for consistency
@@ -269,7 +217,7 @@ const SimulationHistoryPage: React.FC = () => {
   // Handle delete simulation
   const handleDeleteSimulation = useCallback(async (id: string) => {
     try {
-      await simulationHistoryService.deleteSimulation(id);
+      await deleteStoredSimulation(id);
       setSimulations(prev => prev.filter(s => s.id !== id));
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -289,7 +237,7 @@ const SimulationHistoryPage: React.FC = () => {
     if (!confirmed) return;
     
     try {
-      await simulationHistoryService.deleteSimulations(Array.from(selectedIds));
+      await deleteStoredSimulations(Array.from(selectedIds));
       setSimulations(prev => prev.filter(s => !selectedIds.has(s.id)));
       setSelectedIds(new Set());
     } catch {
@@ -303,7 +251,7 @@ const SimulationHistoryPage: React.FC = () => {
     if (!confirmed) return;
     
     try {
-      await simulationHistoryService.clearAll();
+      await clearStoredSimulations();
       setSimulations([]);
       setSelectedIds(new Set());
     } catch {

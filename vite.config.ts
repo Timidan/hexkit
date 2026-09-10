@@ -172,6 +172,7 @@ export default defineConfig(({ mode }) => {
             vendor: ["react", "react-dom", "react-router-dom"],
             wagmi: ["wagmi", "@wagmi/core", "@wagmi/connectors"],
             ethers: ["ethers"],
+            "framer-motion": ["framer-motion"],
           },
         },
       },

@@ -28,12 +28,6 @@ export function buildJumpRows(
           traceIdFromFrame, opRowIndexByIdForJump, nextRowInFrame,
           jumpDestPcFromRow, getFnVisibility } = locals;
 
-  const getTraceIdFromFrame = (frameId: any): number | null => {
-    if (!Array.isArray(frameId) || frameId.length < 1) return null;
-    const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-    return isNaN(traceId) ? null : traceId;
-  };
-
   // ── Build raw jump rows ──────────────────────────────────────────────
 
   const jumpRows = locals.allJumps
@@ -284,7 +278,7 @@ export function buildJumpRows(
   const frameEntrySourceByTrace = new Map<number, { file: string; line: number }>();
 
   for (const entryRow of callFrameRows) {
-    const traceId = getTraceIdFromFrame(entryRow.frame_id);
+    const traceId = traceIdFromFrame(entryRow.frame_id);
     if (traceId === null) continue;
 
     const rawFn = entryRow.entryMeta?.function || entryRow.fn;
@@ -298,7 +292,7 @@ export function buildJumpRows(
     frameEntryFnByTrace.set(traceId, cleanFn);
 
     const firstEntryOp = opRows.find((row) => {
-      const rowTraceId = getTraceIdFromFrame(row.frame_id);
+      const rowTraceId = traceIdFromFrame(row.frame_id);
       return rowTraceId === traceId &&
         row.fn === cleanFn &&
         !!row.sourceFile &&
@@ -329,7 +323,7 @@ export function buildJumpRows(
   }
 
   const isRowStaticallyReachableFromEntry = (row: DecodedTraceRow): boolean => {
-    const traceId = getTraceIdFromFrame(row.frame_id);
+    const traceId = traceIdFromFrame(row.frame_id);
     if (traceId === null || !row.fn || !row.destFn) return true;
     const reachableFns = reachableFnsByTrace.get(traceId);
     if (!reachableFns || reachableFns.size === 0) return true;
@@ -353,7 +347,7 @@ export function buildJumpRows(
       .slice()
       .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
       .filter((row) => {
-        const traceId = getTraceIdFromFrame(row.frame_id);
+        const traceId = traceIdFromFrame(row.frame_id);
         if (traceId === null) return true;
 
         const callerFn = row.fn || null;
@@ -528,13 +522,13 @@ export function buildJumpRows(
 
     for (const calleeFn of directCallees) {
       const hasDirectEdge = allJumpRows.some((row) => {
-        const rowTraceId = getTraceIdFromFrame(row.frame_id);
+        const rowTraceId = traceIdFromFrame(row.frame_id);
         return rowTraceId === traceId && row.fn === entryFn && row.destFn === calleeFn;
       });
       if (hasDirectEdge) continue;
 
       const candidateIndex = allJumpRows.findIndex((row) => {
-        const rowTraceId = getTraceIdFromFrame(row.frame_id);
+        const rowTraceId = traceIdFromFrame(row.frame_id);
         return rowTraceId === traceId && row.fn === calleeFn;
       });
       if (candidateIndex < 0) continue;
@@ -567,15 +561,25 @@ export function buildJumpRows(
 
   // ── Source-line rescue ───────────────────────────────────────────────
 
+  // Precompute lookup sets in single O(n) passes so the rescue loop below
+  // does Set.has() instead of full-array .some() scans per row.
+  const existingEdgeKeys = new Set<string>();
+  for (const row of allJumpRows) {
+    const rowTraceId = traceIdFromFrame(row.frame_id);
+    existingEdgeKeys.add(`${rowTraceId}|${row.fn}|${row.destFn}`);
+  }
+  const traceFnOpKeys = new Set<string>();
+  for (const op of opRows) {
+    const opTraceId = traceIdFromFrame(op.frame_id);
+    traceFnOpKeys.add(`${opTraceId}|${op.fn}`);
+  }
+
   const hasEdge = (traceId: number, callerFn: string, calleeFn: string): boolean =>
-    allJumpRows.some((row) => {
-      const rowTraceId = getTraceIdFromFrame(row.frame_id);
-      return rowTraceId === traceId && row.fn === callerFn && row.destFn === calleeFn;
-    });
+    existingEdgeKeys.has(`${traceId}|${callerFn}|${calleeFn}`);
 
   const synthesizedFromSource: DecodedTraceRow[] = [];
   for (const row of allJumpRows) {
-    const traceId = getTraceIdFromFrame(row.frame_id);
+    const traceId = traceIdFromFrame(row.frame_id);
     if (traceId === null) continue;
     if (!row.srcSourceFile || row.srcLine === null || row.srcLine === undefined) continue;
 
@@ -593,10 +597,7 @@ export function buildJumpRows(
     if (!callerFromSourceLine || callerFromSourceLine === lineCalleeFn) continue;
     if (hasEdge(traceId, callerFromSourceLine, lineCalleeFn)) continue;
 
-    const hasCalleeOps = opRows.some((op) => {
-      const opTraceId = getTraceIdFromFrame(op.frame_id);
-      return opTraceId === traceId && op.fn === lineCalleeFn;
-    });
+    const hasCalleeOps = traceFnOpKeys.has(`${traceId}|${lineCalleeFn}`);
     if (!hasCalleeOps) continue;
 
     const calleeDef = findFunctionDefinition(lineCalleeFn);
@@ -619,7 +620,7 @@ export function buildJumpRows(
   // ── Dedup ────────────────────────────────────────────────────────────
 
   const dedupeKey = (row: DecodedTraceRow): string => {
-    const traceId = getTraceIdFromFrame(row.frame_id);
+    const traceId = traceIdFromFrame(row.frame_id);
     return `${traceId ?? -1}|${row.fn ?? ''}|${row.destFn ?? ''}|${row.srcSourceFile ?? ''}|${row.srcLine ?? ''}`;
   };
 

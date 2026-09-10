@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import type { SlotDescriptor } from './storageLayoutDecode';
 
 /**
  * Compute the storage slot for a Solidity mapping entry.
@@ -87,4 +88,73 @@ export function parseSlotInput(input: string): bigint {
   const trimmed = input.trim();
   if (!trimmed) throw new Error('Empty slot input');
   return BigInt(trimmed);
+}
+
+/**
+ * Canonical resolver: layout typeId/label → ABI-encoder key-type string.
+ *
+ * Resolves the Solidity type of a mapping key into the type string that
+ * `computeMappingSlot` feeds to the ABI encoder. Prefers the type
+ * definition's `label` (most reliable), then falls back to parsing the
+ * `typeId` string. Returns `null` when the type is unrecognized — callers
+ * keep their own `?? 'uint256'` (or candidate) fallback.
+ */
+export function resolveAbiKeyType(opts: { typeId?: string; typeLabel?: string }): string | null {
+  const { typeId, typeLabel } = opts;
+
+  // Try the type definition's label first — this is the canonical Solidity type
+  if (typeLabel) {
+    const label = typeLabel.trim();
+    // Contract types are addresses
+    if (label.startsWith('contract ') || label.startsWith('interface ')) return 'address';
+    // Enum types are uint8 in storage
+    if (label.startsWith('enum ')) return 'uint8';
+    // Direct Solidity type labels
+    if (label === 'address' || label === 'address payable') return 'address';
+    if (label === 'bool') return 'bool';
+    if (label === 'string') return 'bytes32'; // string keys in mappings are hashed
+    if (/^bytes\d{0,2}$/.test(label)) return label; // bytes1..bytes32
+    if (/^uint\d+$/.test(label)) return label; // uint8..uint256
+    if (/^int\d+$/.test(label)) return label; // int8..int256
+  }
+  // Fallback: parse the typeId string (e.g. "t_address", "t_uint256", "t_contract(IERC20)")
+  if (!typeId) return null;
+  if (typeId.startsWith('t_contract') || typeId.startsWith('t_address')) return 'address';
+  if (typeId.startsWith('t_bool')) return 'bool';
+  if (typeId.startsWith('t_enum')) return 'uint8';
+  if (typeId.startsWith('t_string')) return 'bytes32';
+  const bytesMatch = typeId.match(/^t_bytes(\d+)$/);
+  if (bytesMatch) return `bytes${bytesMatch[1]}`;
+  const uintMatch = typeId.match(/^t_uint(\d+)$/);
+  if (uintMatch) return `uint${uintMatch[1]}`;
+  const intMatch = typeId.match(/^t_int(\d+)$/);
+  if (intMatch) return `int${intMatch[1]}`;
+  return null;
+}
+
+/**
+ * Build a synthetic single-field SlotDescriptor for type-aware scalar decoding.
+ *
+ * Used by derived-slot decode paths (mapping/array leaf values) that have a
+ * resolved value type but no real layout entry. Fills offset 0, default size
+ * 32, default encoding 'inplace', and a placeholder layout entry so callers
+ * stop hand-fabricating the same literal.
+ */
+export function buildScalarDescriptor(args: {
+  label?: string;
+  typeLabel: string;
+  typeKey?: string;
+  size?: number;
+  encoding?: string;
+}): SlotDescriptor {
+  const { label = '', typeLabel, typeKey = '', size = 32, encoding = 'inplace' } = args;
+  return {
+    label,
+    typeLabel,
+    typeKey,
+    offset: 0,
+    size,
+    encoding,
+    entry: { label: '', offset: 0, slot: '0', type: typeKey, astId: 0, contract: '' },
+  };
 }
