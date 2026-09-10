@@ -178,8 +178,16 @@ function App() {
                 </div>
               )}
 
-              {/* Global footer — EDB status at far right */}
+              {/* Global footer — docs at far left, EDB status at far right */}
               <footer className="app-footer">
+                <a
+                  className="app-footer-docs"
+                  href="https://hexdocs.thally.app"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Documentation
+                </a>
                 <EdbBridgeStatus />
               </footer>
 

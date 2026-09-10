@@ -78,10 +78,21 @@ body {
   left: 0;
   z-index: 50;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: 4px 12px;
   pointer-events: none;
+}
+
+.app-footer-docs {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.app-footer-docs:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
 }
 
 .app-footer > * {
@@ -95,7 +106,7 @@ body {
   border: 1px solid hsl(var(--border) / 0.7);
   border-radius: 999px;
   background: hsl(var(--background) / 0.8);
-  color: hsl(var(--muted-foreground));
+  color: var(--text-secondary);
   padding: 4px 8px;
   font-size: 10px;
   line-height: 1;
@@ -105,7 +116,7 @@ body {
 
 .edb-status-indicator:hover,
 .edb-status-indicator:focus-visible {
-  color: hsl(var(--foreground));
+  color: var(--text-primary);
   border-color: hsl(var(--primary) / 0.45);
   background: hsl(var(--accent) / 0.55);
 }
