@@ -23,7 +23,7 @@ export const SourceViewPanel: React.FC<SourceViewPanelProps> = React.memo(({ cla
     sourceFiles,
     currentFile,
     currentLine,
-    setCurrentFile,
+    selectSourceFile,
     breakpoints,
     addBreakpoint,
     removeBreakpoint,
@@ -239,7 +239,7 @@ export const SourceViewPanel: React.FC<SourceViewPanelProps> = React.memo(({ cla
     if (fileOptions.length > 0) {
       const edbSourceOption = fileOptions.find(opt => opt.isEdbSource);
       if (edbSourceOption) {
-        setCurrentFile(edbSourceOption.value);
+        selectSourceFile(edbSourceOption.value);
         return;
       }
 
@@ -248,14 +248,14 @@ export const SourceViewPanel: React.FC<SourceViewPanelProps> = React.memo(({ cla
         const mainContractPath = `trace://${mainContractAddress}`;
         const mainContract = traceContracts.get(mainContractAddress);
         if (mainContract?.sourceCode && mainContract.verified) {
-          setCurrentFile(mainContractPath);
+          selectSourceFile(mainContractPath);
           return;
         }
       }
 
-      setCurrentFile(fileOptions[0].value);
+      selectSourceFile(fileOptions[0].value);
     }
-  }, [fileOptions, currentFile, sourceFiles, sourceTexts, traceContracts, contractContext?.address, setCurrentFile]);
+  }, [fileOptions, currentFile, sourceFiles, sourceTexts, traceContracts, contractContext?.address, selectSourceFile]);
 
   if (!currentSource) {
     const currentFrame = callStack.length > 0 ? callStack[callStack.length - 1] : null;
@@ -349,7 +349,7 @@ export const SourceViewPanel: React.FC<SourceViewPanelProps> = React.memo(({ cla
           <CardTitle className="text-sm font-medium">Source Code</CardTitle>
           <div className="flex items-center gap-2">
             {fileOptions.length > 1 ? (
-              <Select value={currentFile || ''} onValueChange={setCurrentFile}>
+              <Select value={currentFile || ''} onValueChange={selectSourceFile}>
                 <SelectTrigger className="h-7 text-xs w-[180px]">
                   <SelectValue placeholder="Select file" />
                 </SelectTrigger>

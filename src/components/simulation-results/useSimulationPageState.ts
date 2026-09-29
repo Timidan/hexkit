@@ -12,6 +12,10 @@ import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
 import { useNotifications } from "../NotificationManager";
 import type { TraceFilters } from "../ExecutionStackTrace";
 import { collectTraceAddresses, createTraceContractMap } from "../../utils/traceAddressCollector";
+import {
+  loadStoredSimulation,
+  persistDecodedTrace as persistStoredDecodedTrace,
+} from "../../services/simulationStore";
 import { traceVaultService } from "../../services/TraceVaultService";
 import { useDecodedTrace } from "../../hooks/useDecodedTrace";
 import { useDebug } from "../../contexts/DebugContext";
@@ -25,7 +29,6 @@ import {
   type InternalInfoRow,
   type ContractContextExtras,
   type SimulationResultExtras,
-  hasInternalInfo,
   buildAddressToNameMap,
   buildRevertInfo,
   buildTraceDiagnostics,
@@ -53,7 +56,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   const { showSuccess, showError } = useNotifications();
   const {
     isDebugging, openDebugWindow, closeDebugWindow, session: debugSession,
-    initFromTraceData, connectToSession, isLoading: isDebugLoading,
+    openSession, isLoading: isDebugLoading,
     debugPrepState, startDebugPrep, cancelDebugPrep,
   } = useDebug();
 
@@ -85,45 +88,24 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       setLoadError(null);
 
       try {
-        const { simulationHistoryService } = await import('../../services/SimulationHistoryService');
-        const stored = await simulationHistoryService.getSimulation(id);
+        const record = await loadStoredSimulation(id, { includeHeavy: false });
 
-        if (stored) {
+        if (record) {
+          const { stored, decodedTrace: restoredTrace } = record;
           setSimulation(stored.result, stored.contractContext, { skipHistorySave: true });
-          try {
-            const traceBundle = await traceVaultService.loadDecodedTrace(id, { includeHeavy: false });
-            let rowsToUse = traceBundle?.rows;
-            if (
-              stored.decodedTraceRows &&
-              stored.decodedTraceRows.length > 0 &&
-              (!rowsToUse ||
-                rowsToUse.length === 0 ||
-                (!hasInternalInfo(rowsToUse) &&
-                  hasInternalInfo(stored.decodedTraceRows)))
-            ) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              rowsToUse = recomputeHierarchy(stored.decodedTraceRows);
-            }
-            if (rowsToUse && rowsToUse.length > 0) {
-              setDecodedTraceRows(rowsToUse);
-            }
-            if (traceBundle?.sourceTexts && Object.keys(traceBundle.sourceTexts).length > 0) {
-              setSourceTexts(traceBundle.sourceTexts);
-            }
-            if (traceBundle) {
-              setDecodedTraceMeta({
-                sourceLines: traceBundle.sourceLines ?? [],
-                callMeta: traceBundle.callMeta,
-                rawEvents: traceBundle.rawEvents ?? [],
-                implementationToProxy: traceBundle.implementationToProxy,
-              });
-            }
-          } catch (traceErr) {
-            console.warn("[SimulationResultsPage] Failed to load trace vault:", traceErr);
-            if (stored.decodedTraceRows && stored.decodedTraceRows.length > 0) {
-              const { recomputeHierarchy } = await import('../../services/TraceVaultService');
-              setDecodedTraceRows(recomputeHierarchy(stored.decodedTraceRows));
-            }
+          if (restoredTrace?.rows.length) {
+            setDecodedTraceRows(restoredTrace.rows);
+          }
+          if (restoredTrace?.sourceTexts && Object.keys(restoredTrace.sourceTexts).length > 0) {
+            setSourceTexts(restoredTrace.sourceTexts);
+          }
+          if (restoredTrace) {
+            setDecodedTraceMeta({
+              sourceLines: restoredTrace.sourceLines ?? [],
+              callMeta: restoredTrace.callMeta,
+              rawEvents: restoredTrace.rawEvents ?? [],
+              implementationToProxy: restoredTrace.implementationToProxy,
+            });
           }
         } else {
           setLoadError(`Simulation not found`);
@@ -299,21 +281,8 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
   // ---- Persist decoded trace ----
   const persistDecodedTrace = useCallback(
     async (decoded: any, simulationId: string) => {
-      const hasJumpRows = decoded?.rows?.some((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall);
-      const jumpRowCount = decoded?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
       try {
-        const existingTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: false });
-        const existingJumpCount = existingTrace?.rows?.filter((r: any) => r?.destFn || r?.jumpMarker || r?.isInternalCall).length ?? 0;
-
-        if (existingJumpCount > 0 && jumpRowCount === 0) return;
-
-        const saved = await traceVaultService.saveDecodedTrace(simulationId, decoded);
-        const rowsToStore = saved?.lite?.rows ?? decoded.rows;
-        const { simulationHistoryService } = await import("../../services/SimulationHistoryService");
-        await simulationHistoryService.updateSimulationDecodedRows(simulationId, rowsToStore, {
-          maxRetries: 6, delayMs: 150,
-        });
+        await persistStoredDecodedTrace(simulationId, decoded);
       } catch (err) {
         console.error("[SimulationResults] Failed to persist trace:", err);
       }
@@ -457,12 +426,15 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       debugSession?.sessionId !== debugPrepForSimulation.sessionId
     ) {
       try {
-        await connectToSession({
-          sessionId: debugPrepForSimulation.sessionId,
-          rpcPort: 0,
-          snapshotCount: debugPrepForSimulation.snapshotCount ?? 0,
-          chainId,
-          simulationId,
+        await openSession({
+          kind: 'live-connect',
+          session: {
+            sessionId: debugPrepForSimulation.sessionId,
+            rpcPort: 0,
+            snapshotCount: debugPrepForSimulation.snapshotCount ?? 0,
+            chainId,
+            simulationId,
+          },
         });
         openDebugWindow();
         return;
@@ -488,6 +460,7 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       !!decodedTrace?.rows?.some((row: any) => Array.isArray(row.stack) || Array.isArray(row.memory));
     if (decodedTrace?.rows?.length && !hasHeavyTraceRows) {
       try {
+        // Only the heavy OPFS trace is needed here, not the IndexedDB record.
         const fullTrace = await traceVaultService.loadDecodedTrace(simulationId, { includeHeavy: true });
         if (fullTrace?.rows?.length) traceForDebug = fullTrace as any;
       } catch (err) {
@@ -497,11 +470,15 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
     if (result?.debugSession?.sessionId) {
       try {
-        await connectToSession({
-          sessionId: result.debugSession.sessionId,
-          rpcPort: result.debugSession.rpcPort,
-          snapshotCount: result.debugSession.snapshotCount,
-          chainId, simulationId,
+        await openSession({
+          kind: 'live-connect',
+          session: {
+            sessionId: result.debugSession.sessionId,
+            rpcPort: result.debugSession.rpcPort,
+            snapshotCount: result.debugSession.snapshotCount,
+            chainId,
+            simulationId,
+          },
         });
         openDebugWindow();
         return;
@@ -533,11 +510,15 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
     }
 
     if (traceForDebug?.rows && traceForDebug.rows.length > 0) {
-      initFromTraceData({
-        simulationId, chainId,
-        traceRows: traceForDebug.rows,
-        sourceTexts: traceForDebug.sourceTexts || {},
-        rawTrace: resultWithExtras?.rawTrace,
+      await openSession({
+        kind: 'decoded-trace',
+        trace: {
+          simulationId,
+          chainId,
+          traceRows: traceForDebug.rows,
+          sourceTexts: traceForDebug.sourceTexts || {},
+          rawTrace: resultWithExtras?.rawTrace,
+        },
       });
       openDebugWindow();
       return;
@@ -545,14 +526,13 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
 
     openDebugWindow();
   }, [
-    connectToSession,
+    openSession,
     contextSimulationId,
     contractContext,
     debugPrepState,
     debugSession,
     decodedTrace,
     id,
-    initFromTraceData,
     openDebugWindow,
     result,
     showError,
@@ -583,32 +563,28 @@ export function useSimulationPageState(props: SimulationResultsPageProps) {
       const addressList = Array.from(addresses).slice(0, 10);
 
       try {
-        const { contractResolver } = await import('../../utils/resolver/ContractResolver');
+        const { contractEvidence } = await import('../../utils/resolver/contractEvidence');
         const chainId = ctx.networkId;
         const chainName = ctx.networkName;
-
-        await Promise.allSettled(
-          addressList.map(async (addr) => {
-            try {
-              const result = await Promise.race([
-                contractResolver.resolve(addr, { id: chainId, name: chainName } as any),
-                new Promise<null>((_, reject) =>
-                  setTimeout(() => reject(new Error('timeout')), 5000)
-                )
-              ]);
-              if (result && result.verified) {
-                const contract = contractMap.get(addr);
-                if (contract) {
-                  contract.name = result.name || contract.name;
-                  contract.sourceCode = result.metadata?.sourceCode;
-                  contract.verified = true;
-                  contract.sourceProvider = result.source || undefined;
-                }
-              }
-              return result;
-            } catch { return null; }
-          })
-        );
+        const [root, ...related] = addressList;
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+        const evidence = await contractEvidence.inspect({
+          root,
+          related,
+          chain: { id: chainId, name: chainName } as any,
+          completeness: 'fast',
+          signal: controller.signal,
+        }).finally(() => window.clearTimeout(timeoutId));
+        for (const resolved of [evidence.root, ...evidence.related]) {
+          if (!resolved.verified) continue;
+          const contract = contractMap.get(resolved.address.toLowerCase());
+          if (!contract) continue;
+          contract.name = resolved.name || contract.name;
+          contract.sourceCode = resolved.metadata?.sourceCode;
+          contract.verified = true;
+          contract.sourceProvider = resolved.source || undefined;
+        }
 
         setTraceContracts(contractMap);
       } catch (err) {

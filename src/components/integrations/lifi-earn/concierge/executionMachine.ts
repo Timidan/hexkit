@@ -35,13 +35,13 @@ export const initialLegState: LegState = {
   started: false,
 };
 
-function legIdFor(src: SelectedSource): string {
-  return `${src.asset.chainId}:${src.asset.token.address.toLowerCase()}`;
+function legIdFor(src: SelectedSource, index: number): string {
+  return `${src.asset.chainId}:${src.asset.token.address.toLowerCase()}:${index}`;
 }
 
-function buildLeg(source: SelectedSource, destination: EarnVault): Leg {
+function buildLeg(source: SelectedSource, destination: EarnVault, index: number): Leg {
   return {
-    id: legIdFor(source),
+    id: legIdFor(source, index),
     source,
     destination,
     status: "pending",
@@ -274,14 +274,14 @@ function applyExecutionEvent(leg: Leg, event: DepositExecutionEvent): Leg {
 export function legsReducer(state: LegState, action: LegAction): LegState {
   switch (action.type) {
     case "BUILD_QUEUE": {
-      const legs: Leg[] = action.sources.map((src) =>
-        buildLeg(src, action.destination)
+      const legs: Leg[] = action.sources.map((src, index) =>
+        buildLeg(src, action.destination, index)
       );
       return { legs, currentIndex: -1, started: false };
     }
     case "BUILD_QUEUE_PER_ASSET": {
-      const legs: Leg[] = action.legs.map(({ source, destination }) =>
-        buildLeg(source, destination)
+      const legs: Leg[] = action.legs.map(({ source, destination }, index) =>
+        buildLeg(source, destination, index)
       );
       return { legs, currentIndex: -1, started: false };
     }
@@ -356,6 +356,13 @@ export function legsReducer(state: LegState, action: LegAction): LegState {
       };
     }
     case "NEXT": {
+      const current = state.legs[state.currentIndex];
+      if (
+        !current ||
+        (current.status !== "done" && current.status !== "failed")
+      ) {
+        return state;
+      }
       const nextIdx = state.legs.findIndex(
         (l, i) =>
           i > state.currentIndex &&

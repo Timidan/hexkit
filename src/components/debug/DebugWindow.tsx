@@ -50,10 +50,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
     stepUp,
     stepNextCall,
     goToSnapshot,
-    setCurrentExecutingAddress,
-    setCurrentFile,
-    setCurrentLine,
-    setEvalHint,
   } = useDebug();
   const { contractContext, currentSimulation, decodedTraceRows } = useSimulation();
 
@@ -95,11 +91,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
       decodedTrace.rows.find((row) => row.traceId === currentTraceId && row.entryMeta) ?? null
     );
   }, [decodedTrace?.rows, currentTraceId]);
-
-  const currentInternalParentRow = useMemo<DecodedTraceRow | null>(() => {
-    if (!decodedTrace?.rows || !currentTraceRow?.internalParentId) return null;
-    return decodedTrace.rows.find((row) => row.id === currentTraceRow.internalParentId) ?? null;
-  }, [decodedTrace?.rows, currentTraceRow?.internalParentId]);
 
   const decodedInput = useMemo<Record<string, unknown> | undefined>(() => {
     if (!currentTraceRow && !currentCallFrameRow) return undefined;
@@ -143,82 +134,6 @@ const DebugWindowInner: React.FC<DebugWindowProps> = React.memo(({ className }) 
       decodedOutput,
     };
   }, [contractContext, currentSimulation, decodedInput, decodedOutput]);
-
-  useEffect(() => {
-    if (currentSnapshotId === null || !decodedTrace?.rows) {
-      setCurrentExecutingAddress(null);
-      setEvalHint({ filePath: null, line: null, functionName: null });
-      return;
-    }
-
-    const row = decodedTrace.rows.find(r => r.id === currentSnapshotId);
-    if (!row) return;
-
-    if (row.entryMeta?.codeAddress) {
-      setCurrentExecutingAddress(row.entryMeta.codeAddress.toLowerCase());
-    } else if (row.entryMeta?.target) {
-      setCurrentExecutingAddress(row.entryMeta.target.toLowerCase());
-    } else {
-      setCurrentExecutingAddress(null);
-    }
-
-    if (row.isInternalCall) {
-      const callSiteFile = row.srcSourceFile || row.sourceFile || row.destSourceFile;
-      const callSiteLine = row.srcLine ?? row.line ?? row.destLine;
-      if (callSiteFile) {
-        setCurrentFile(callSiteFile);
-      }
-      if (callSiteLine) {
-        setCurrentLine(callSiteLine);
-      }
-      setEvalHint({
-        filePath: callSiteFile || null,
-        line: callSiteLine ?? null,
-        functionName: row.fn || null,
-      });
-      return;
-    }
-
-    if (row.internalParentId && currentInternalParentRow) {
-      const parentCallSiteFile =
-        currentInternalParentRow.srcSourceFile ||
-        currentInternalParentRow.sourceFile ||
-        currentInternalParentRow.destSourceFile ||
-        null;
-      const parentCallSiteLine =
-        currentInternalParentRow.srcLine ??
-        currentInternalParentRow.line ??
-        currentInternalParentRow.destLine ??
-        null;
-      setEvalHint({
-        filePath: parentCallSiteFile,
-        line: parentCallSiteLine,
-        functionName: currentInternalParentRow.fn || null,
-      });
-    }
-
-    if (row.sourceFile) {
-      setCurrentFile(row.sourceFile);
-      if (row.line) {
-        setCurrentLine(row.line);
-      }
-    }
-    if (!row.internalParentId || !currentInternalParentRow) {
-      setEvalHint({
-        filePath: row.sourceFile || null,
-        line: row.line ?? null,
-        functionName: row.fn || null,
-      });
-    }
-  }, [
-    currentSnapshotId,
-    decodedTrace,
-    currentInternalParentRow,
-    setCurrentExecutingAddress,
-    setCurrentFile,
-    setCurrentLine,
-    setEvalHint,
-  ]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

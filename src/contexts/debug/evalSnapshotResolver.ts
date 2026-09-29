@@ -18,6 +18,7 @@ import {
   debugLog,
   HOOK_SCAN_CHUNK_SIZE,
 } from './debugHelpers';
+import { writeSnapshotToCache } from './snapshotCacheStore';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
@@ -125,15 +126,9 @@ export async function waitForLiveSessionReady(
             snapshotId: candidateId,
           });
           const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-          deps.setSnapshotCache((prev) => {
-            const next = new Map(prev);
-            next.set(candidateId, resolved);
-            if (next.size > 500) {
-              const sortedKeys = [...next.keys()].sort((a, b) => a - b);
-              sortedKeys.slice(0, next.size - 500).forEach((k) => next.delete(k));
-            }
-            return next;
-          });
+          deps.setSnapshotCache((previous) =>
+            writeSnapshotToCache(previous, candidateId, resolved)
+          );
           return { ready: true, snapshotId: candidateId };
         } catch (err) {
           if (isSessionNotFoundError(err)) {
@@ -214,7 +209,9 @@ export async function scanForHookSnapshot(
         snapshotId,
       });
       const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-      deps.setSnapshotCache((prev) => { const next = new Map(prev); next.set(snapshotId, resolved); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+      deps.setSnapshotCache((previous) =>
+        writeSnapshotToCache(previous, snapshotId, resolved)
+      );
       if (resolved.type !== 'hook') return null;
       if (!matchesTraceId(resolved.frameId, traceId)) {
         return null;
@@ -380,7 +377,9 @@ export async function resolveEvalSnapshotId(
             snapshotId: candidateId,
           });
           const resolved = enhanceHookSnapshot(response.snapshot, deps.sourceFilesRef.current);
-          deps.setSnapshotCache((prev) => { const next = new Map(prev); next.set(candidateId, resolved); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+          deps.setSnapshotCache((previous) =>
+            writeSnapshotToCache(previous, candidateId, resolved)
+          );
           if (resolved.type === 'hook' && matchesTraceId(resolved.frameId, currentTraceId)) {
             return candidateId;
           }

@@ -382,7 +382,8 @@
   font-size: 14px;
   color: var(--tst-text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 200ms var(--ease-out), border-color 200ms var(--ease-out),
+    transform 160ms var(--ease-out);
 }
 
 .exec-dropdown-btn:hover {
@@ -400,7 +401,8 @@
   font-weight: 500;
   color: #d4d4d4;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 200ms var(--ease-out), border-color 200ms var(--ease-out),
+    transform 160ms var(--ease-out);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -409,6 +411,11 @@
 .exec-all-btn:hover {
   background: rgba(255, 255, 255, 0.25);
   border-color: rgba(255, 255, 255, 0.5);
+}
+
+.exec-dropdown-btn:active,
+.exec-all-btn:active {
+  transform: scale(0.97);
 }
 
 .exec-dropdown-caret {
@@ -441,6 +448,33 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+
+  /* trigger-origin entrance (entrance only — React unmounts on close, so
+     there is no exit animation; see Boundaries) */
+  transform-origin: top right;
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+@starting-style {
+  .exec-search-category-dropdown {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Reduced motion: keep the opacity fade, drop the scale movement. Placed AFTER
+   the base rule + @starting-style so equal-specificity source order wins. */
+@media (prefers-reduced-motion: reduce) {
+  .exec-search-category-dropdown {
+    transition: opacity 150ms var(--ease-out);
+    transform: none;
+  }
+  .exec-dropdown-btn:active,
+  .exec-all-btn:active {
+    transform: none;
+  }
 }
 
 .exec-search-category-item {

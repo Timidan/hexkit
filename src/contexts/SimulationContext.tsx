@@ -162,12 +162,12 @@ export const SimulationProvider: React.FC<{ children: React.ReactNode }> = ({
     setSimulationId(id);
 
     if (!options?.skipHistorySave) {
-      import('../services/SimulationHistoryService').then(({ simulationHistoryService }) => {
-        simulationHistoryService.saveSimulation(nextResult, contractCtx || null, id).catch(err => {
+      import('../services/simulationStore').then(({ saveStoredSimulation }) => {
+        saveStoredSimulation(nextResult, contractCtx || null, id).catch(err => {
           console.error("[Simulation] Failed to save to history:", err);
         });
       }).catch(err => {
-        console.error("[Simulation] Failed to load history service:", err);
+        console.error("[Simulation] Failed to load history Module:", err);
       });
     }
   }, []);

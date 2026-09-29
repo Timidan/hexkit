@@ -5,7 +5,7 @@ import {
   waitForTransactionReceipt as wagmiWaitForReceipt,
 } from "@wagmi/core";
 import { ethers } from "ethers";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   CircleNotch,
   CheckCircle,
@@ -27,7 +27,7 @@ import { SUPPORTED_CHAINS, CHAIN_REGISTRY } from "../../../utils/chains";
 import { simulateAssetMovements } from "../../../utils/transaction-simulation/simulateAssetMovements";
 import type { AssetMovementResult } from "../../../utils/transaction-simulation/simulateAssetMovements";
 import { getCachedTokenMetadata, fetchTokenMetadata } from "../../../utils/tokenMovements";
-import { networkConfigManager } from "../../../config/networkConfig";
+import { networkAccess } from "../../../config/networkAccess";
 import { useComposerQuote } from "./hooks/useComposerQuote";
 import { fetchComposerQuote } from "./earnApi";
 import { useTokenAllowance } from "./hooks/useTokenAllowance";
@@ -48,6 +48,9 @@ import type { DepositExecutionEvent } from "./concierge/types";
 import type { EarnToken, EarnVault } from "./types";
 import { formatTxError, shortAddress, isNativeToken } from "./txUtils";
 import EdbBadge from "../../EdbBadge";
+import { buildDepositTx } from "./buildDepositTx";
+import { createLifiEarnExecution } from "./lifiEarnExecution";
+import { readErc20Allowance, readErc20Balance } from "./hooks/evmRead";
 
 type FlowState =
   | "idle"
@@ -200,8 +203,33 @@ export function DepositFlow({
   onExecutionEvent,
 }: DepositFlowProps) {
   const { address, isConnected, chain: walletChain } = useAccount();
+  const reduce = useReducedMotion();
   const wagmiConfig = useConfig();
   const { switchChainAsync } = useSwitchChain();
+  const walletChainIdRef = useRef(walletChain?.id);
+  walletChainIdRef.current = walletChain?.id;
+  const earnExecution = useMemo(
+    () =>
+      createLifiEarnExecution({
+        switchChain: async (chainId) => {
+          if (walletChainIdRef.current !== chainId) {
+            await switchChainAsync({ chainId });
+            walletChainIdRef.current = chainId;
+          }
+        },
+        getWalletClient: async (chainId) =>
+          (await getWagmiWalletClient(wagmiConfig, { chainId })) as any,
+        waitForReceipt: async ({ txHash, chainId }) =>
+          wagmiWaitForReceipt(wagmiConfig, {
+            hash: txHash as `0x${string}`,
+            chainId,
+            timeout: 120_000,
+          }),
+        simulate: (transaction, chain, owner) =>
+          simulateAssetMovements(transaction, chain, owner),
+      }),
+    [switchChainAsync, wagmiConfig]
+  );
 
   const underlyingTokens = useMemo(
     () => vault.underlyingTokens ?? [],
@@ -676,10 +704,12 @@ export function DepositFlow({
     if (unknowns.length === 0) return;
     unknowns.forEach((a) => rpcFetchingRef.current.add(a.toLowerCase()));
 
-    const resolution = networkConfigManager.resolveRpcUrl(supportedChain.id, supportedChain.rpcUrl);
-    if (!resolution.url) return;
-
-    const provider = new ethers.providers.StaticJsonRpcProvider(resolution.url, supportedChain.id);
+    let provider: ethers.providers.JsonRpcProvider;
+    try {
+      provider = networkAccess.access(supportedChain).provider;
+    } catch {
+      return;
+    }
 
     (async () => {
       const results = new Map<string, { symbol: string; decimals: number }>();
@@ -733,13 +763,7 @@ export function DepositFlow({
     setSpenderCheck({ status: "running" });
     (async () => {
       try {
-        const tx = {
-          to: quote.transactionRequest.to,
-          data: quote.transactionRequest.data,
-          value: quote.transactionRequest.value,
-          gasLimit: quote.transactionRequest.gasLimit,
-          gasPrice: quote.transactionRequest.gasPrice,
-        };
+        const tx = buildDepositTx(quote);
         const result = await simulateAssetMovements(tx, supportedChain, address);
         if (cancelled) return;
         clearTimeout(timeout);
@@ -765,6 +789,14 @@ export function DepositFlow({
     flowState,
   ]);
 
+  async function refreshCurrentQuote() {
+    const refreshed = await refetchQuote();
+    if (refreshed.isError) {
+      throw refreshed.error ?? new Error("Failed to refresh LI.FI quote");
+    }
+    return refreshed.data ?? null;
+  }
+
   async function handleSimulate() {
     if (!quote || !supportedChain || !address) return;
 
@@ -773,18 +805,11 @@ export function DepositFlow({
     setErrorMsg(null);
 
     try {
-      const { data: freshQuote } = await refetchQuote();
-      const q = freshQuote ?? quote;
-
-      const tx = {
-        to: q.transactionRequest.to,
-        data: q.transactionRequest.data,
-        value: q.transactionRequest.value,
-        gasLimit: q.transactionRequest.gasLimit,
-        gasPrice: q.transactionRequest.gasPrice,
-      };
-
-      const result = await simulateAssetMovements(tx, supportedChain, address);
+      const { result } = await earnExecution.simulateQuote({
+        chain: supportedChain,
+        refreshQuote: refreshCurrentQuote,
+        owner: address,
+      });
       setSimResult(result);
       setFlowState("idle");
       if (result.success) {
@@ -797,74 +822,18 @@ export function DepositFlow({
   }
 
   async function handleApprove() {
-    if (!quote || !address || !selectedToken) return;
+    if (!quote || !address || !selectedToken || !supportedChain) return;
 
     setFlowState("approving");
     setErrorMsg(null);
 
     try {
-      if (walletChain?.id !== fromChainForQuote) {
-        await switchChainAsync({ chainId: fromChainForQuote });
-      }
-
-      const walletClient = await getWagmiWalletClient(wagmiConfig, {
-        chainId: fromChainForQuote,
+      await earnExecution.ensureApproval({
+        chain: supportedChain,
+        tokenAddress: selectedToken.address,
+        spender: quote.estimate.approvalAddress,
+        currentAllowance: BigInt(allowance.toString()),
       });
-
-      if (!walletClient) {
-        throw new Error("No wallet client available. Please connect your wallet.");
-      }
-
-      const spender = quote.estimate.approvalAddress as `0x${string}`;
-      const tokenAddr = selectedToken.address as `0x${string}`;
-
-      const iface = new ethers.utils.Interface([
-        "function approve(address spender, uint256 amount) returns (bool)",
-      ]);
-
-      if (allowance.gt(0)) {
-        const resetData = iface.encodeFunctionData("approve", [
-          spender,
-          ethers.constants.Zero,
-        ]) as `0x${string}`;
-
-        const resetHash = await walletClient.sendTransaction({
-          to: tokenAddr,
-          data: resetData,
-          chain: { id: fromChainForQuote } as any,
-        });
-
-        const resetReceipt = await wagmiWaitForReceipt(wagmiConfig, {
-          hash: resetHash,
-          chainId: fromChainForQuote,
-          timeout: 120_000,
-        });
-
-        if (resetReceipt.status === "reverted") {
-          throw new Error("Allowance reset transaction reverted onchain");
-        }
-      }
-
-      const data = iface.encodeFunctionData("approve", [
-        spender,
-        ethers.constants.MaxUint256,
-      ]) as `0x${string}`;
-
-      const hash = await walletClient.sendTransaction({
-        to: tokenAddr,
-        data,
-        chain: { id: fromChainForQuote } as any,
-      });
-
-      const receipt = await wagmiWaitForReceipt(wagmiConfig, {
-        hash,
-        chainId: fromChainForQuote,
-        timeout: 120_000,
-      });
-
-      if (receipt.status === "reverted") {
-        throw new Error("Approval transaction reverted onchain");
-      }
 
       await refetchAllowance();
       await refetchBalance();
@@ -876,56 +845,27 @@ export function DepositFlow({
   }
 
   async function handleExecute() {
-    if (!quote || !address) return;
+    if (!quote || !address || !supportedChain) return;
 
     setFlowState("executing");
     setErrorMsg(null);
 
     try {
-      const { data: freshQuote } = await refetchQuote();
-      const q = freshQuote ?? quote;
-
-      if (walletChain?.id !== fromChainForQuote) {
-        await switchChainAsync({ chainId: fromChainForQuote });
-      }
-
-      const walletClient = await getWagmiWalletClient(wagmiConfig, {
-        chainId: fromChainForQuote,
+      const { txHash: hash } = await earnExecution.executeQuote({
+        executionId: `deposit:${address}:${vault.address}:${fromAmountRaw?.toString() ?? "0"}`,
+        chain: supportedChain,
+        refreshQuote: refreshCurrentQuote,
+        onBroadcast: (broadcastHash) => {
+          setTxHash(broadcastHash);
+          onBroadcast?.(broadcastHash);
+          emitExecutionEvent({
+            type: "tx-broadcast",
+            phase: "same-chain",
+            txHash: broadcastHash,
+          });
+        },
       });
-
-      if (!walletClient) {
-        throw new Error("No wallet client available. Please connect your wallet.");
-      }
-
-      const hash = await walletClient.sendTransaction({
-        to: q.transactionRequest.to as `0x${string}`,
-        data: q.transactionRequest.data as `0x${string}`,
-        value: q.transactionRequest.value
-          ? BigInt(q.transactionRequest.value)
-          : undefined,
-        gas: q.transactionRequest.gasLimit
-          ? BigInt(q.transactionRequest.gasLimit)
-          : undefined,
-        chain: { id: fromChainForQuote } as any,
-      });
-
       setTxHash(hash);
-      onBroadcast?.(hash);
-      emitExecutionEvent({
-        type: "tx-broadcast",
-        phase: "same-chain",
-        txHash: hash,
-      });
-
-      const receipt = await wagmiWaitForReceipt(wagmiConfig, {
-        hash,
-        chainId: fromChainForQuote,
-        timeout: 120_000,
-      });
-
-      if (receipt.status === "reverted") {
-        throw new Error("Deposit transaction reverted onchain");
-      }
 
       setFlowState("success");
       refetchBalance();
@@ -1070,7 +1010,7 @@ export function DepositFlow({
   }
 
   async function handleTwoStepExecute() {
-    if (!address || !selectedToken || !fromAmountRaw) return;
+    if (!address || !selectedToken || !fromAmountRaw || !supportedChain) return;
     const underlying = underlyingTokens[0];
     if (!underlying) return;
 
@@ -1079,17 +1019,6 @@ export function DepositFlow({
     setTwoStepLabel("Fetching swap route…");
 
     try {
-      if (walletChain?.id !== fromChainForQuote) {
-        await switchChainAsync({ chainId: fromChainForQuote });
-      }
-
-      let walletClient = await getWagmiWalletClient(wagmiConfig, {
-        chainId: fromChainForQuote,
-      });
-      if (!walletClient) {
-        throw new Error("No wallet client available. Please connect your wallet.");
-      }
-
       // ── Step 1: Swap fromToken → underlying ──────────────────────────
       const swapQ = await fetchComposerQuote({
         fromChain: fromChainForQuote,
@@ -1113,46 +1042,43 @@ export function DepositFlow({
         );
         if (currentAllowance.lt(fromAmountRaw)) {
           setTwoStepLabel(`Approve ${selectedToken.symbol} for swap…`);
-          await sendInlineApproval(
-            walletClient,
-            selectedToken.address,
+          await earnExecution.ensureApproval({
+            chain: supportedChain,
+            tokenAddress: selectedToken.address,
             spender,
-            fromChainForQuote,
-          );
+            currentAllowance: BigInt(currentAllowance.toString()),
+          });
         }
       }
 
       // Step 1b: Execute the swap
       setTwoStepLabel(`Swapping ${selectedToken.symbol} → ${underlying.symbol}…`);
-      const swapHash = await walletClient.sendTransaction({
-        to: swapQ.transactionRequest.to as `0x${string}`,
-        data: swapQ.transactionRequest.data as `0x${string}`,
-        value: swapQ.transactionRequest.value
-          ? BigInt(swapQ.transactionRequest.value)
-          : undefined,
-        gas: swapQ.transactionRequest.gasLimit
-          ? BigInt(swapQ.transactionRequest.gasLimit)
-          : undefined,
-        chain: { id: fromChainForQuote } as any,
+      const { txHash: swapHash } = await earnExecution.executeQuote({
+        executionId: `swap:${address}:${vault.address}:${fromAmountRaw.toString()}`,
+        chain: supportedChain,
+        refreshQuote: () =>
+          fetchComposerQuote({
+            fromChain: fromChainForQuote,
+            toChain: vault.chainId,
+            fromToken: selectedToken.address,
+            toToken: underlying.address,
+            fromAddress: address,
+            toAddress: address,
+            fromAmount: fromAmountRaw.toString(),
+          }),
+        onBroadcast: (broadcastHash) => {
+          setTxHash(broadcastHash);
+          onBroadcast?.(broadcastHash);
+          emitExecutionEvent({
+            type: "tx-broadcast",
+            phase: "same-chain",
+            txHash: broadcastHash,
+          });
+          setTwoStepLabel("Confirming swap…");
+        },
       });
 
       setTxHash(swapHash);
-      onBroadcast?.(swapHash);
-      emitExecutionEvent({
-        type: "tx-broadcast",
-        phase: "same-chain",
-        txHash: swapHash,
-      });
-      setTwoStepLabel("Confirming swap…");
-
-      const swapReceipt = await wagmiWaitForReceipt(wagmiConfig, {
-        hash: swapHash,
-        chainId: fromChainForQuote,
-        timeout: 120_000,
-      });
-      if (swapReceipt.status === "reverted") {
-        throw new Error("Swap transaction reverted onchain");
-      }
 
       // ── Step 2: Deposit underlying → vault ───────────────────────────
       setFlowState("executing");
@@ -1180,17 +1106,6 @@ export function DepositFlow({
         fromAmount: depositAmount,
       });
 
-      // Switch chain if the vault is on a different chain
-      if (walletChain?.id !== vault.chainId) {
-        await switchChainAsync({ chainId: vault.chainId });
-      }
-      walletClient = await getWagmiWalletClient(wagmiConfig, {
-        chainId: vault.chainId,
-      });
-      if (!walletClient) {
-        throw new Error("No wallet client available. Please connect your wallet.");
-      }
-
       // Step 2a: Approve underlying for the deposit if needed
       if (!isNativeToken(underlying.address)) {
         setTwoStepLabel(`Checking ${underlying.symbol} deposit approval…`);
@@ -1204,45 +1119,42 @@ export function DepositFlow({
         const depositAmountBN = ethers.BigNumber.from(depositAmount);
         if (depositAllowance.lt(depositAmountBN)) {
           setTwoStepLabel(`Approve ${underlying.symbol} for deposit…`);
-          await sendInlineApproval(
-            walletClient,
-            underlying.address,
-            depositSpender,
-            vault.chainId,
-          );
+          await earnExecution.ensureApproval({
+            chain: supportedChain,
+            tokenAddress: underlying.address,
+            spender: depositSpender,
+            currentAllowance: BigInt(depositAllowance.toString()),
+          });
         }
       }
 
       // Step 2b: Execute the deposit
       setTwoStepLabel("Depositing into vault…");
-      const depositHash = await walletClient.sendTransaction({
-        to: depositQ.transactionRequest.to as `0x${string}`,
-        data: depositQ.transactionRequest.data as `0x${string}`,
-        value: depositQ.transactionRequest.value
-          ? BigInt(depositQ.transactionRequest.value)
-          : undefined,
-        gas: depositQ.transactionRequest.gasLimit
-          ? BigInt(depositQ.transactionRequest.gasLimit)
-          : undefined,
-        chain: { id: vault.chainId } as any,
+      const { txHash: depositHash } = await earnExecution.executeQuote({
+        executionId: `deposit-underlying:${address}:${vault.address}:${depositAmount}`,
+        chain: supportedChain,
+        refreshQuote: () =>
+          fetchComposerQuote({
+            fromChain: vault.chainId,
+            toChain: vault.chainId,
+            fromToken: underlying.address,
+            toToken: vault.address,
+            fromAddress: address,
+            toAddress: address,
+            fromAmount: depositAmount,
+          }),
+        onBroadcast: (broadcastHash) => {
+          setTxHash(broadcastHash);
+          emitExecutionEvent({
+            type: "tx-broadcast",
+            phase: "same-chain",
+            txHash: broadcastHash,
+          });
+          setTwoStepLabel("Confirming deposit…");
+        },
       });
 
       setTxHash(depositHash);
-      emitExecutionEvent({
-        type: "tx-broadcast",
-        phase: "same-chain",
-        txHash: depositHash,
-      });
-      setTwoStepLabel("Confirming deposit…");
-
-      const depositReceipt = await wagmiWaitForReceipt(wagmiConfig, {
-        hash: depositHash,
-        chainId: vault.chainId,
-        timeout: 120_000,
-      });
-      if (depositReceipt.status === "reverted") {
-        throw new Error("Deposit transaction reverted onchain");
-      }
 
       setFlowState("success");
       setTwoStepLabel(null);
@@ -1274,20 +1186,9 @@ export function DepositFlow({
     spender: string,
     chainId: number,
   ): Promise<ethers.BigNumber> {
-    const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
-    if (!chain) return ethers.BigNumber.from(0);
-    const resolution = networkConfigManager.resolveRpcUrl(chainId, chain.rpcUrl);
-    if (!resolution.url) return ethers.BigNumber.from(0);
-    const provider = new ethers.providers.StaticJsonRpcProvider(
-      resolution.url,
-      chainId,
+    return ethers.BigNumber.from(
+      await readErc20Allowance(tokenAddress, owner, spender, chainId)
     );
-    const erc20 = new ethers.Contract(
-      tokenAddress,
-      ["function allowance(address,address) view returns (uint256)"],
-      provider,
-    );
-    return erc20.allowance(owner, spender);
   }
 
   /** Read ERC-20 (or native) balance directly from the chain via RPC. */
@@ -1296,52 +1197,9 @@ export function DepositFlow({
     owner: string,
     chainId: number,
   ): Promise<ethers.BigNumber> {
-    const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
-    if (!chain) return ethers.BigNumber.from(0);
-    const resolution = networkConfigManager.resolveRpcUrl(chainId, chain.rpcUrl);
-    if (!resolution.url) return ethers.BigNumber.from(0);
-    const provider = new ethers.providers.StaticJsonRpcProvider(
-      resolution.url,
-      chainId,
+    return ethers.BigNumber.from(
+      await readErc20Balance(tokenAddress, owner, chainId)
     );
-    if (isNativeToken(tokenAddress)) {
-      return provider.getBalance(owner);
-    }
-    const erc20 = new ethers.Contract(
-      tokenAddress,
-      ["function balanceOf(address) view returns (uint256)"],
-      provider,
-    );
-    return erc20.balanceOf(owner);
-  }
-
-  /** Send an ERC-20 max-approval and wait for confirmation. */
-  async function sendInlineApproval(
-    walletClient: Awaited<ReturnType<typeof getWagmiWalletClient>>,
-    tokenAddress: string,
-    spender: string,
-    chainId: number,
-  ) {
-    const iface = new ethers.utils.Interface([
-      "function approve(address spender, uint256 amount) returns (bool)",
-    ]);
-    const data = iface.encodeFunctionData("approve", [
-      spender,
-      ethers.constants.MaxUint256,
-    ]) as `0x${string}`;
-    const hash = await walletClient.sendTransaction({
-      to: tokenAddress as `0x${string}`,
-      data,
-      chain: { id: chainId } as any,
-    });
-    const receipt = await wagmiWaitForReceipt(wagmiConfig, {
-      hash,
-      chainId,
-      timeout: 120_000,
-    });
-    if (receipt.status === "reverted") {
-      throw new Error("Approval transaction reverted onchain");
-    }
   }
 
   if (!supportedChain) {
@@ -1733,7 +1591,7 @@ export function DepositFlow({
 
           {!useIntents && simResult && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: reduce ? 0 : 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className={`rounded-md border p-2.5 text-sm space-y-1.5 ${
@@ -1867,9 +1725,9 @@ export function DepositFlow({
           <AnimatePresence>
             {flowState === "error" && errorMsg && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: reduce ? 0 : 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+                exit={{ opacity: 0, y: reduce ? 0 : -8 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-sm text-destructive"
               >
@@ -1884,14 +1742,14 @@ export function DepositFlow({
           <AnimatePresence>
             {flowState === "success" && txHash && (
               <motion.div
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: reduce ? 0 : 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+                exit={{ opacity: 0, y: reduce ? 0 : -8 }}
                 transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-2.5 text-sm text-emerald-600"
               >
                 <motion.span
-                  initial={{ scale: 0, opacity: 0 }}
+                  initial={{ scale: reduce ? 1 : 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 200, damping: 12, delay: 0.1 }}
                   className="mt-0.5 shrink-0"
@@ -1936,7 +1794,7 @@ export function DepositFlow({
           {/* Two-step progress indicator */}
           {!useIntents && twoStepLabel && (
             <motion.div
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: reduce ? 0 : 6 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex items-center gap-2 rounded-md border border-border/40 bg-background/30 p-2.5 text-sm text-muted-foreground"
             >
@@ -2067,9 +1925,9 @@ export function DepositFlow({
                     <AnimatePresence mode="wait" initial={false}>
                       <motion.span
                         key={ctaKey}
-                        initial={{ opacity: 0, y: 8 }}
+                        initial={{ opacity: 0, y: reduce ? 0 : 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
+                        exit={{ opacity: 0, y: reduce ? 0 : -8 }}
                         transition={{
                           duration: 0.2,
                           ease: [0.22, 1, 0.36, 1],
@@ -2134,9 +1992,9 @@ export function DepositFlow({
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.span
                       key={ctaKey}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={{ opacity: 0, y: reduce ? 0 : 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
+                      exit={{ opacity: 0, y: reduce ? 0 : -8 }}
                       transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                       className="inline-flex items-center"
                     >

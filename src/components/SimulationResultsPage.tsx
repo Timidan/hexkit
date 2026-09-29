@@ -119,7 +119,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
   const contextWithExtras = contractContext as (typeof contractContext & ContractContextExtras);
 
   return (
-    <div className="sim-results-page">
+    <div className="sim-results-page sim-results-page--loaded">
       {!isDebugging && (
         <>
           <ResultsHeader

@@ -100,7 +100,8 @@ export const useDecodedTrace = ({
   const decodeModeRef = useRef<typeof decodeMode>(decodeMode);
   const workerRef = useRef<Worker | null>(null);
   const pendingRequestRef = useRef<string | null>(null);
-  const decodeTimeoutRef = useRef<number | null>(null);
+  // Main-thread decode for the pending request, used only if the worker itself fails.
+  const workerFallbackRef = useRef<(() => void) | null>(null);
   const pendingRawRef = useRef<unknown>(null);
   const [decodedTrace, setDecodedTrace] = useState<DecodedTrace | null>(null);
   const [isDecoding, setIsDecoding] = useState(false);
@@ -120,19 +121,12 @@ export const useDecodedTrace = ({
     );
     workerRef.current = worker;
 
-    const clearDecodeTimeout = () => {
-      if (decodeTimeoutRef.current !== null) {
-        window.clearTimeout(decodeTimeoutRef.current);
-        decodeTimeoutRef.current = null;
-      }
-    };
-
     const handleMessage = (event: MessageEvent<{ id: string; decoded?: DecodedTrace; error?: string }>) => {
       if (pendingRequestRef.current !== event.data.id) {
         return;
       }
-      clearDecodeTimeout();
       pendingRequestRef.current = null;
+      workerFallbackRef.current = null;
       if (pendingRawRef.current) {
         clearCachedRawTraceText(pendingRawRef.current);
         pendingRawRef.current = null;
@@ -163,11 +157,29 @@ export const useDecodedTrace = ({
       setIsDecoding(false);
     };
 
+    // A worker that fails to load or crashes never answers: decode the pending
+    // request on the main thread and stop using the worker.
+    // ponytail: a worker killed without an error event (e.g. OOM) leaves the
+    // spinner up; the old 15 s main-thread retry would have frozen or crashed the tab.
+    const handleWorkerFailure = () => {
+      const fallback = workerFallbackRef.current;
+      pendingRequestRef.current = null;
+      workerFallbackRef.current = null;
+      worker.terminate();
+      if (workerRef.current === worker) {
+        workerRef.current = null;
+      }
+      fallback?.();
+    };
+
     worker.addEventListener("message", handleMessage);
+    worker.addEventListener("error", handleWorkerFailure);
+    worker.addEventListener("messageerror", handleWorkerFailure);
 
     return () => {
-      clearDecodeTimeout();
       worker.removeEventListener("message", handleMessage);
+      worker.removeEventListener("error", handleWorkerFailure);
+      worker.removeEventListener("messageerror", handleWorkerFailure);
       worker.terminate();
       if (workerRef.current === worker) {
         workerRef.current = null;
@@ -205,10 +217,7 @@ export const useDecodedTrace = ({
     if (hasV3) {
       // Cancel any pending worker request to prevent overwrite
       pendingRequestRef.current = null;
-      if (decodeTimeoutRef.current !== null) {
-        window.clearTimeout(decodeTimeoutRef.current);
-        decodeTimeoutRef.current = null;
-      }
+      workerFallbackRef.current = null;
       try {
         const consumed = consumeRenderedTrace(result!.renderedTrace!);
         const mode = decodeModeRef.current || "full";
@@ -300,10 +309,7 @@ export const useDecodedTrace = ({
       // Cancel any pending worker request to prevent it from overwriting
       // the good trace with a stripped version when it completes later
       pendingRequestRef.current = null;
-      if (decodeTimeoutRef.current !== null) {
-        window.clearTimeout(decodeTimeoutRef.current);
-        decodeTimeoutRef.current = null;
-      }
+      workerFallbackRef.current = null;
       // Use traceMeta from OPFS to preserve internal calls, events, source mappings
       const fromHistory = {
         rows: fixedRows,
@@ -368,27 +374,12 @@ export const useDecodedTrace = ({
     if (workerRef.current) {
       const requestId = `${currentSimId}-${crypto.randomUUID()}`;
       pendingRequestRef.current = requestId;
+      workerFallbackRef.current = decodeOnMain;
       setDecodedTrace(null);
       setIsDecoding(true);
 
-      if (decodeTimeoutRef.current !== null) {
-        window.clearTimeout(decodeTimeoutRef.current);
-      }
-      decodeTimeoutRef.current = window.setTimeout(() => {
-        if (pendingRequestRef.current !== requestId) return;
-        pendingRequestRef.current = null;
-        decodeTimeoutRef.current = null;
-        workerRef.current?.terminate();
-        workerRef.current = null;
-        decodeOnMain();
-        try {
-          workerRef.current = new Worker(
-            new URL("../workers/traceDecoderWorker.ts", import.meta.url),
-            { type: "module" }
-          );
-        } catch {}
-      }, 15000);
-
+      // No timeout: large traces legitimately take longer than any fixed budget,
+      // and restarting them on the main thread freezes the page.
       workerRef.current.postMessage({
         id: requestId,
         raw,

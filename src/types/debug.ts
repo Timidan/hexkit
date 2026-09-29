@@ -459,6 +459,34 @@ export interface EndDebugSessionResponse {
 }
 
 /** Debug context value interface */
+export type DebugSessionSource =
+  | {
+      kind: 'live-connect';
+      session: {
+        sessionId: string;
+        rpcPort: number;
+        snapshotCount: number;
+        chainId: number;
+        simulationId: string;
+      };
+      options?: DebugSessionConnectOptions;
+    }
+  | {
+      kind: 'live-start';
+      request: StartDebugSessionRequest;
+      options?: DebugSessionStartOptions;
+    }
+  | {
+      kind: 'decoded-trace';
+      trace: {
+        simulationId: string;
+        chainId: number;
+        traceRows: any[];
+        sourceTexts: Record<string, string>;
+        rawTrace?: any;
+      };
+    };
+
 export interface DebugContextValue {
   // Session state
   session: DebugSession | null;
@@ -497,17 +525,7 @@ export interface DebugContextValue {
   storageDiffs: StorageDiffEntry[];
 
   // Actions
-  startSession: (
-    request: StartDebugSessionRequest,
-    options?: DebugSessionStartOptions
-  ) => Promise<void>;
-  connectToSession: (existingSession: {
-    sessionId: string;
-    rpcPort: number;
-    snapshotCount: number;
-    chainId: number;
-    simulationId: string;
-  }, options?: DebugSessionConnectOptions) => Promise<void>;
+  openSession: (source: DebugSessionSource) => Promise<void>;
   endSession: () => Promise<void>;
   goToSnapshot: (id: number) => Promise<void>;
   stepNext: () => Promise<void>;
@@ -526,10 +544,7 @@ export interface DebugContextValue {
   evaluateExpression: (expression: string) => Promise<EvalResult>;
   refreshWatchExpressions: () => Promise<void>;
   loadSnapshotBatch: (startId: number, count: number) => Promise<void>;
-  setCurrentFile: (filePath: string) => void;
-  setCurrentLine: (line: number | null) => void;
-  setCurrentExecutingAddress: (address: string | null) => void;
-  setEvalHint: (hint: { filePath: string | null; line: number | null; functionName?: string | null }) => void;
+  selectSourceFile: (filePath: string) => void;
 
   // Debug window actions
   openDebugWindow: () => void;
@@ -542,14 +557,6 @@ export interface DebugContextValue {
   startDebugPrep: (params: PrepareDebugRequest, simulationId?: string) => void;
   cancelDebugPrep: () => void;
 
-  // Initialize from trace data (no live session required)
-  initFromTraceData: (params: {
-    simulationId: string;
-    chainId: number;
-    traceRows: any[]; // DecodedTraceRow[]
-    sourceTexts: Record<string, string>;
-    rawTrace?: any;
-  }) => void;
 }
 
 /** Request to start async debug preparation */

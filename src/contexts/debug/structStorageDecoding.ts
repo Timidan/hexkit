@@ -15,6 +15,7 @@ import type {
   HookSnapshotDetail,
   DebugVariable,
   SolValue,
+  StorageLayoutResponse,
 } from '../../types/debug';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import { debugBridgeService } from '../../services/DebugBridgeService';
@@ -25,7 +26,7 @@ import {
   decodeSlotValue,
   type SlotDescriptor,
 } from '../../utils/storageLayoutDecode';
-import { reconstructStorageLayout } from '../../utils/solidity-layout';
+import type { ReconstructionResult } from '../../utils/solidity-layout';
 import {
   debugLog,
   resolveSourceContent,
@@ -43,6 +44,75 @@ import {
   parseStorageWrite,
   type StructFieldLayout,
 } from './solidityStructLayout';
+
+/**
+ * Convert compiler storage-layout members into the field shape used by trace
+ * decoding. Nested structs are flattened because their members occupy real
+ * parent-relative slots; treating the struct as one dynamic slot loses data.
+ */
+export function astStructMembersToFieldLayouts(
+  structTypeId: string,
+  storageLayout: StorageLayoutResponse
+): StructFieldLayout[] {
+  const expand = (
+    typeId: string,
+    namePrefix: string,
+    slotBase: number,
+    ancestors: Set<string>
+  ): StructFieldLayout[] => {
+    if (ancestors.has(typeId)) return [];
+    const definition = storageLayout.types[typeId];
+    if (!definition) return [];
+
+    if (definition.members?.length) {
+      const nextAncestors = new Set(ancestors).add(typeId);
+      return definition.members.flatMap((member) => {
+        const memberName = namePrefix
+          ? `${namePrefix}.${member.label}`
+          : member.label;
+        const memberSlot = slotBase + Number.parseInt(member.slot, 10);
+        const memberDefinition = storageLayout.types[member.type];
+        if (memberDefinition?.members?.length) {
+          return expand(
+            member.type,
+            memberName,
+            memberSlot,
+            nextAncestors
+          );
+        }
+
+        const sizeBytes = Number.parseInt(
+          memberDefinition?.numberOfBytes ?? '32',
+          10
+        );
+        const label = memberDefinition?.label ?? member.type;
+        const isMapping = memberDefinition?.encoding === 'mapping';
+        const isDynamic =
+          isMapping ||
+          memberDefinition?.encoding === 'dynamic_array' ||
+          label === 'bytes' ||
+          label === 'string';
+
+        return [
+          {
+            name: memberName,
+            type: label,
+            base: label.replace(/^contract\s+/, ''),
+            slotOffset: memberSlot,
+            byteOffset: member.offset,
+            sizeBytes: Number.isFinite(sizeBytes) ? sizeBytes : 32,
+            isDynamic,
+            isMapping,
+          },
+        ];
+      });
+    }
+
+    return [];
+  };
+
+  return expand(structTypeId, '', 0, new Set());
+}
 
 // ── Source line helpers ─────────────────────────────────────────────────
 
@@ -256,12 +326,46 @@ export function deriveStructValueFromTrace(params: {
   };
 }
 
-export function deriveScalarStateValueFromTrace(params: {
+// Parsing every source file is expensive (roughly 1 s per 1k lines), and watch
+// expressions re-evaluate on every step. Cache per sourceFiles Map: the session
+// replaces that Map when its sources change, which drops the entry.
+const layoutCache = new WeakMap<
+  Map<string, SourceFile>,
+  Map<string, Promise<ReconstructionResult>>
+>();
+
+function reconstructLayoutCached(
+  sourceFiles: Map<string, SourceFile>,
+  contractName: string
+): Promise<ReconstructionResult> {
+  let byContract = layoutCache.get(sourceFiles);
+  if (!byContract) {
+    byContract = new Map();
+    layoutCache.set(sourceFiles, byContract);
+  }
+  let pending = byContract.get(contractName);
+  if (!pending) {
+    const files: Record<string, string> = {};
+    for (const [path, file] of sourceFiles.entries()) {
+      files[path] = file.content;
+    }
+    // Lazy import keeps @solidity-parser/parser out of the entry chunk.
+    pending = import('../../utils/solidity-layout').then(
+      ({ reconstructStorageLayout }) =>
+        reconstructStorageLayout({ files, contractName })
+    );
+    pending.catch(() => byContract!.delete(contractName));
+    byContract.set(contractName, pending);
+  }
+  return pending;
+}
+
+export async function deriveScalarStateValueFromTrace(params: {
   variableName: string;
   snapshotId: number;
   traceRows: DecodedTraceRow[];
   sourceFiles: Map<string, SourceFile>;
-}): SolValue | null {
+}): Promise<SolValue | null> {
   const {
     variableName,
     snapshotId,
@@ -283,15 +387,7 @@ export function deriveScalarStateValueFromTrace(params: {
     return null;
   }
 
-  const files: Record<string, string> = {};
-  for (const [path, file] of sourceFiles.entries()) {
-    files[path] = file.content;
-  }
-
-  const reconstruction = reconstructStorageLayout({
-    files,
-    contractName,
-  });
+  const reconstruction = await reconstructLayoutCached(sourceFiles, contractName);
   if (reconstruction.layout.storage.length === 0) {
     debugLog('[deriveScalarStateValueFromTrace] No storage layout entries for', contractName);
     return null;

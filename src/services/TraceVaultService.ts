@@ -319,6 +319,31 @@ class TraceVaultService {
       implementationToProxy,
     };
   }
+
+  async deleteDecodedTrace(simulationId: string): Promise<void> {
+    if (!supportsOpfs()) return;
+
+    try {
+      const root = await navigator.storage.getDirectory();
+      const base = await root.getDirectoryHandle(TRACE_DIR, { create: false });
+      await base.removeEntry(simulationId, { recursive: true });
+    } catch (error: any) {
+      if (error?.name === "NotFoundError") return;
+      throw error;
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    if (!supportsOpfs()) return;
+
+    try {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(TRACE_DIR, { recursive: true });
+    } catch (error: any) {
+      if (error?.name === "NotFoundError") return;
+      throw error;
+    }
+  }
 }
 
 export const traceVaultService = new TraceVaultService();

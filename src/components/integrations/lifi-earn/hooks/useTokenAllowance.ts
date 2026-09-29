@@ -1,39 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { ethers } from "ethers";
-import { networkConfigManager } from "../../../../config/networkConfig";
-import { SUPPORTED_CHAINS } from "../../../../utils/chains";
+import { readErc20Allowance } from "./evmRead";
 
-const ERC20_ALLOWANCE_ABI = [
-  "function allowance(address owner, address spender) view returns (uint256)",
-];
-
-async function fetchAllowance(
+export async function fetchAllowance(
   tokenAddress: string,
   ownerAddress: string,
   spenderAddress: string,
   chainId: number
 ): Promise<string> {
-  const chain = SUPPORTED_CHAINS.find((c) => c.id === chainId);
-  if (!chain) throw new Error(`Chain ${chainId} not supported`);
-
-  const resolution = networkConfigManager.resolveRpcUrl(chainId, chain.rpcUrl);
-  if (!resolution.url) {
-    throw new Error(
-      `No RPC URL configured for chain ${chainId}. Set a custom RPC or enable the public fallback in Network Settings.`,
-    );
-  }
-  const provider = new ethers.providers.JsonRpcProvider(resolution.url);
-  const contract = new ethers.Contract(
+  return readErc20Allowance(
     tokenAddress,
-    ERC20_ALLOWANCE_ABI,
-    provider
-  );
-
-  const allowance: ethers.BigNumber = await contract.allowance(
     ownerAddress,
-    spenderAddress
+    spenderAddress,
+    chainId
   );
-  return allowance.toString();
 }
 
 export function useTokenAllowance(params: {

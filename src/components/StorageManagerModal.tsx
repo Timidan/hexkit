@@ -10,12 +10,13 @@ import { Button } from "./ui/button";
 import { CircleNotch, Trash, HardDrive, Warning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-import { simulationHistoryService } from "../services/SimulationHistoryService";
-import { contractCache } from "../utils/resolver/ContractCache";
 import {
-  artifactCache,
-  artifactFetchInflight,
-  sourcifySourceCache,
+  clearStoredSimulations,
+  clearStoredTraces,
+  listStoredSimulations,
+  loadStoredSimulation,
+} from "../services/simulationStore";
+import {
   ARTIFACT_CACHE_STORAGE_PREFIX,
 } from "../utils/transaction-simulation/artifactFetching";
 import {
@@ -23,7 +24,7 @@ import {
   getCachedSignatures,
   getCustomSignatures,
 } from "../utils/signatureDatabase";
-import { clearAllProxyCache, clearAllContextCache } from "../utils/resolver";
+import { contractEvidence } from "../utils/resolver";
 
 interface StorageCategory {
   id: string;
@@ -66,14 +67,14 @@ function getLocalStorageKeysByPrefix(prefix: string): string[] {
 
 async function scanSimulationHistory(): Promise<Omit<StorageCategory, "clearing">> {
   try {
-    const sims = await simulationHistoryService.getSimulations(undefined, true);
+    const sims = await listStoredSimulations();
     const count = sims.length;
     let sizeBytes = 0;
     if (count > 0) {
       try {
-        const fullSim = await simulationHistoryService.getSimulation(sims[0].id);
-        if (fullSim) {
-          const sampleSize = JSON.stringify(fullSim).length * 2;
+        const record = await loadStoredSimulation(sims[0].id, { includeHeavy: false });
+        if (record) {
+          const sampleSize = JSON.stringify(record.stored).length * 2;
           sizeBytes = sampleSize * count;
         }
       } catch {
@@ -132,7 +133,7 @@ async function scanTraceVault(): Promise<Omit<StorageCategory, "clearing">> {
 
 async function scanContractCache(): Promise<Omit<StorageCategory, "clearing">> {
   try {
-    const stats = await contractCache.getStats();
+    const stats = await contractEvidence.cacheStats();
     const count = stats.persistedSize;
     const sizeBytes = count * 5_000;
     return {
@@ -204,20 +205,13 @@ function scanArtifactCache(): Omit<StorageCategory, "clearing"> {
 async function clearCategory(id: string): Promise<void> {
   switch (id) {
     case "sim-history":
-      await simulationHistoryService.clearAll();
+      await clearStoredSimulations();
       break;
     case "trace-vault":
-      if (navigator.storage?.getDirectory) {
-        const root = await navigator.storage.getDirectory();
-        try {
-          await root.removeEntry("trace-vault", { recursive: true });
-        } catch { /* may not exist */ }
-      }
+      await clearStoredTraces();
       break;
     case "contract-cache":
-      await contractCache.clearAll();
-      clearAllProxyCache();
-      clearAllContextCache();
+      await contractEvidence.clear({ kind: "resolution" });
       break;
     case "sig-cache":
       clearSignatureCache();
@@ -226,13 +220,7 @@ async function clearCategory(id: string): Promise<void> {
       localStorage.removeItem("web3-toolkit-saved-contracts");
       break;
     case "artifact-cache": {
-      // Clear memory caches
-      artifactCache.clear();
-      artifactFetchInflight.clear();
-      sourcifySourceCache.clear();
-      // Clear localStorage entries
-      const keys = getLocalStorageKeysByPrefix(ARTIFACT_CACHE_STORAGE_PREFIX);
-      for (const k of keys) localStorage.removeItem(k);
+      await contractEvidence.clear({ kind: "artifacts" });
       break;
     }
   }

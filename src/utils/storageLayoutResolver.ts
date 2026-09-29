@@ -41,6 +41,61 @@ export interface LeafTypeInfo {
   numberOfBytes: string;
 }
 
+export interface StorageEntryVisit {
+  entry: StorageLayoutEntry;
+  typeInfo?: StorageTypeDefinition;
+  slot: bigint;
+  slotHex: string;
+  isMember: boolean;
+  parentLabel?: string;
+}
+
+/** Visit top-level entries and inline struct members using absolute slots. */
+export function walkStorageEntries(
+  layout: StorageLayoutResponse,
+  visitor: (visit: StorageEntryVisit) => void
+): void {
+  const visitMembers = (
+    typeInfo: StorageTypeDefinition | undefined,
+    baseSlot: bigint,
+    parentLabel: string,
+    depth: number
+  ) => {
+    if (!typeInfo?.members || depth > 32) return;
+    for (const member of typeInfo.members) {
+      const slot = baseSlot + BigInt(member.slot);
+      const memberType = layout.types[member.type];
+      visitor({
+        entry: member,
+        typeInfo: memberType,
+        slot,
+        slotHex: formatSlotHex(slot),
+        isMember: true,
+        parentLabel,
+      });
+      visitMembers(
+        memberType,
+        slot,
+        `${parentLabel}.${member.label}`,
+        depth + 1
+      );
+    }
+  };
+
+  for (const entry of layout.storage) {
+    const slot = BigInt(entry.slot);
+    const typeInfo = layout.types[entry.type];
+    visitor({
+      entry,
+      typeInfo,
+      slot,
+      slotHex: formatSlotHex(slot),
+      isMember: false,
+    });
+    visitMembers(typeInfo, slot, entry.label, 0);
+  }
+}
+
 /**
  * Walk the layout type chain to resolve the final non-mapping/non-array type.
  *
@@ -91,25 +146,18 @@ export function resolveLeafValueType(
 export function buildSlotMap(layout: StorageLayoutResponse): Map<string, string> {
   const map = new Map<string, string>();
 
-  for (const entry of layout.storage) {
-    const slotHex = formatSlotHex(BigInt(entry.slot));
-    const typeInfo = layout.types[entry.type];
-
+  walkStorageEntries(layout, ({ entry, typeInfo, slotHex, isMember, parentLabel }) => {
+    if (isMember) {
+      map.set(slotHex, `${parentLabel}.${entry.label} (${typeInfo?.label || entry.type})`);
+      return;
+    }
     if (!typeInfo) {
       map.set(slotHex, entry.label);
-      continue;
+      return;
     }
 
     if (typeInfo.encoding === 'inplace') {
       map.set(slotHex, `${entry.label} (${typeInfo.label})`);
-      if (typeInfo.members) {
-        for (const member of typeInfo.members) {
-          const memberSlot = BigInt(entry.slot) + BigInt(member.slot);
-          const memberSlotHex = formatSlotHex(memberSlot);
-          const memberType = layout.types[member.type];
-          map.set(memberSlotHex, `${entry.label}.${member.label} (${memberType?.label || member.type})`);
-        }
-      }
     }
 
     if (typeInfo.encoding === 'mapping') {
@@ -123,7 +171,7 @@ export function buildSlotMap(layout: StorageLayoutResponse): Map<string, string>
     if (typeInfo.encoding === 'bytes') {
       map.set(slotHex, `${entry.label} (${typeInfo.label})`);
     }
-  }
+  });
 
   return map;
 }

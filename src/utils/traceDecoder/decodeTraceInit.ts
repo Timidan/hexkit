@@ -11,6 +11,7 @@ import { formatAbiVal } from './formatting';
 import { parseFunctions, parseModifiers, parseFunctionSignatures, fnForLine } from './sourceParser';
 import { buildFullPcLineMap } from './pcMapper';
 import { getCallFrames } from './stackDecoding';
+import { createPcResolvers, traceIdFromFrame } from './pcResolution';
 
 type ArtifactSourceValue = string | { content?: string };
 type FunctionSignatureMap = Record<string, unknown>;
@@ -455,23 +456,19 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     });
   }
 
-  const getPcInfoForOpcode = (pc: number, frameId: any): PcInfo | undefined => {
-    if (Array.isArray(frameId) && frameId.length >= 1) {
-      const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-      if (unverifiedTraceIds.has(traceId)) {
-        // Do not borrow lines from the primary contract for unverified frames.
-        // Cross-contract fallback attribution is a major source of false src maps.
-        return undefined;
-      }
-      const codeAddr = traceIdToCodeAddr.get(traceId);
-      if (codeAddr) {
-        const contractPcMap = pcMapsPerContract.get(codeAddr);
-        if (contractPcMap?.has(pc)) return contractPcMap.get(pc);
-        if (hasMultipleContractMaps) return undefined;
-      }
-    }
-    return pcMapFull?.get(pc);
-  };
+  const { getPcInfoForOpcode } = createPcResolvers({
+    pcMapFull,
+    pcMapFiltered,
+    pcMapsPerContract,
+    pcMapsFilteredPerContract,
+    traceIdToCodeAddr,
+    codeAddrToFnRanges: new Map(),
+    fnRangesPerFile,
+    modifierRangesPerFile,
+    fnRanges,
+    unverifiedTraceIds,
+    hasMultipleContractMaps,
+  });
 
   const opcodeDetails = snaps.map((s: any) => s.detail?.Opcode).filter(Boolean);
 
@@ -514,8 +511,8 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
       let depth: number | undefined;
       const frameId = cur.frame_id;
       if (Array.isArray(frameId) && frameId.length >= 1) {
-        const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-        if (traceIdToDepth.has(traceId)) depth = traceIdToDepth.get(traceId);
+        const traceId = traceIdFromFrame(frameId);
+        if (traceId !== null && traceIdToDepth.has(traceId)) depth = traceIdToDepth.get(traceId);
       } else if (frameId && typeof frameId === 'object' && (frameId as any).trace_id !== undefined) {
         const traceId = (frameId as any).trace_id;
         if (traceIdToDepth.has(traceId)) depth = traceIdToDepth.get(traceId);
@@ -677,7 +674,7 @@ export function phaseInit(raw: RawTrace): DecodeTraceContext {
     let traceId: number | undefined;
     const frameId = r.frame_id;
     if (Array.isArray(frameId) && frameId.length >= 1) {
-      traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
+      traceId = traceIdFromFrame(frameId) ?? undefined;
     } else if (frameId && typeof frameId === 'object' && (frameId as any).trace_id !== undefined) {
       traceId = (frameId as any).trace_id;
     }

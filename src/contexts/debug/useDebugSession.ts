@@ -5,7 +5,7 @@
  * initializing from trace data, and snapshot loading.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type {
   DebugSession,
   DebugSnapshot,
@@ -14,6 +14,7 @@ import type {
   StartDebugSessionRequest,
   DebugSessionConnectOptions,
   DebugSessionStartOptions,
+  DebugSessionSource,
   StorageDiffEntry,
   HookSnapshotDetail,
   TraceEntry,
@@ -26,6 +27,9 @@ import {
   debugLog,
 } from './debugHelpers';
 import type { DebugSharedState, DebugSessionActions } from './types';
+import { writeSnapshotToCache } from './snapshotCacheStore';
+import { openDebugSessionFromSource } from './debugSessionLifecycle';
+import { createOperationGeneration } from './operationGeneration';
 
 const INITIAL_SNAPSHOT_PREFETCH_COUNT = 20;
 const MINIMAL_SNAPSHOT_PREFETCH_COUNT = 8;
@@ -68,6 +72,8 @@ function getPrefetchWindow(
 }
 
 export function useDebugSession(state: DebugSharedState): DebugSessionActions {
+  const sessionGenerationRef = useRef(createOperationGeneration());
+  const navigationGenerationRef = useRef(createOperationGeneration());
   const {
     session,
     setSession,
@@ -90,8 +96,15 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setBreakpointHits,
     setWatchExpressions,
     setStorageDiffs,
+    setCurrentExecutingAddress,
     traceRowsRef,
   } = state;
+
+  // Live view of the snapshot cache. Session resets replace it synchronously, so
+  // navigation started by a new session never reads the previous session's
+  // snapshots through a stale closure.
+  const snapshotCacheRef = useRef(snapshotCache);
+  snapshotCacheRef.current = snapshotCache;
 
   /**
    * Navigate to a snapshot using trace data (for trace-based sessions)
@@ -100,6 +113,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     snapshotItem: SnapshotListItem,
     traceRows: any[]
   ) => {
+    navigationGenerationRef.current.begin();
     const row = traceRows.find((r: any) => r.id === snapshotItem.id);
     if (!row) return;
 
@@ -154,7 +168,9 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setStorageDiffs(diffs);
 
     // Cache the snapshot
-    setSnapshotCache(prev => { const next = new Map(prev); next.set(row.id, snapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+    setSnapshotCache((previous) =>
+      writeSnapshotToCache(previous, row.id, snapshot)
+    );
   }, []);
 
   const goToSnapshotInternal = useCallback(async (
@@ -162,6 +178,12 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     snapshotId: number,
     options?: { includeStorageDiff?: boolean }
   ) => {
+    const sessionGeneration = sessionGenerationRef.current.current();
+    const navigationGeneration = navigationGenerationRef.current.begin();
+    const isCurrentOperation = () =>
+      sessionGenerationRef.current.isCurrent(sessionGeneration) &&
+      navigationGenerationRef.current.isCurrent(navigationGeneration);
+
     if (sessionInvalid) {
       return;
     }
@@ -170,24 +192,30 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setIsLoading(true);
 
     try {
-      let snapshot = snapshotCache.get(snapshotId);
+      let snapshot = snapshotCacheRef.current.get(snapshotId);
 
       if (!snapshot) {
         const response = await debugBridgeService.getSnapshot({
           sessionId,
           snapshotId,
         });
+        if (!isCurrentOperation()) return;
         snapshot = response.snapshot;
 
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, snapshot!); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache((previous) =>
+          writeSnapshotToCache(previous, snapshotId, snapshot!)
+        );
       }
 
       const resolvedSnapshot = snapshot ? enhanceHookSnapshot(snapshot, sourceFilesRef.current) : snapshot;
+      if (!isCurrentOperation()) return;
 
       setCurrentSnapshotId(snapshotId);
       setCurrentSnapshot(resolvedSnapshot || null);
       if (resolvedSnapshot) {
-        setSnapshotCache(prev => { const next = new Map(prev); next.set(snapshotId, resolvedSnapshot); if (next.size > 500) { const sortedKeys = [...next.keys()].sort((a, b) => a - b); sortedKeys.slice(0, next.size - 500).forEach(k => next.delete(k)); } return next; });
+        setSnapshotCache((previous) =>
+          writeSnapshotToCache(previous, snapshotId, resolvedSnapshot)
+        );
       }
 
       // Update source location if hook snapshot
@@ -203,6 +231,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           sessionId,
           snapshotId,
         });
+        if (!isCurrentOperation()) return;
         setStorageDiffs(storageDiffResponse.diffs);
       } else {
         setStorageDiffs([]);
@@ -210,6 +239,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
 
       // Note: watch expression refresh is handled by the evaluation hook
     } catch (err) {
+      if (!isCurrentOperation()) return;
       if (isSessionNotFoundError(err)) {
         setSessionInvalid(true);
         setError('Debug session expired. Please re-run the simulation to debug again.');
@@ -218,9 +248,9 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         setError(message);
       }
     } finally {
-      setIsLoading(false);
+      if (isCurrentOperation()) setIsLoading(false);
     }
-  }, [snapshotCache, sessionInvalid]);
+  }, [sessionInvalid]);
 
   const mergeSourceFiles = useCallback(
     (base: Map<string, SourceFile>, incoming: Record<string, string>) => {
@@ -272,6 +302,10 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     chainId: number;
     simulationId: string;
   }, options: DebugSessionConnectOptions = {}) => {
+    const generation = sessionGenerationRef.current.begin();
+    navigationGenerationRef.current.invalidate();
+    const isCurrentSession = () =>
+      sessionGenerationRef.current.isCurrent(generation);
     const hydrate = options.hydrate ?? 'full';
     const initialSnapshotId = resolveInitialSnapshotId(
       options.initialSnapshotId,
@@ -287,6 +321,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
 
       if (hydrate === 'full') {
         const traceResult = await debugBridgeService.getTrace(existingSession.sessionId);
+        if (!isCurrentSession()) return;
         trace = {
           entries: traceResult.entries || [],
           rootId: traceResult.rootId ?? 0,
@@ -296,6 +331,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           existingSession.sessionId,
           trace.entries
         );
+        if (!isCurrentSession()) return;
         files = mergeSourceFiles(files, sourceFileMap);
       }
 
@@ -314,7 +350,8 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       sessionRef.current = newSession;
       setSession(newSession);
       updateSourceFiles(files);
-      setSnapshotCache(new Map());
+      snapshotCacheRef.current = new Map();
+      setSnapshotCache(snapshotCacheRef.current);
       setSnapshotList([]);
       setBreakpointHits(new Map());
 
@@ -337,6 +374,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           startId,
           count,
         });
+        if (!isCurrentSession()) return;
         setSnapshotList(batchResponse.snapshots);
 
         await goToSnapshotInternal(
@@ -346,11 +384,12 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         );
       }
     } catch (err) {
+      if (!isCurrentSession()) return;
       const message = err instanceof Error ? err.message : 'Failed to connect to debug session';
       setError(message);
       throw err;
     } finally {
-      setIsLoading(false);
+      if (isCurrentSession()) setIsLoading(false);
     }
   }, [goToSnapshotInternal, loadSourceFilesFromTrace, mergeSourceFiles, sourceFilesRef]);
 
@@ -358,6 +397,10 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     request: StartDebugSessionRequest,
     options: DebugSessionStartOptions = {}
   ) => {
+    const generation = sessionGenerationRef.current.begin();
+    navigationGenerationRef.current.invalidate();
+    const isCurrentSession = () =>
+      sessionGenerationRef.current.isCurrent(generation);
     const hydrate = options.hydrate ?? 'full';
     setIsLoading(true);
     setError(null);
@@ -368,11 +411,23 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         includeTrace: hydrate === 'full',
         preferDebugStart: true,
       });
+      // A superseded start still created a bridge session; end it instead of leaking it.
+      const abandon = () => {
+        debugBridgeService.endSession({ sessionId: response.sessionId }).catch(() => {});
+      };
+      if (!isCurrentSession()) {
+        abandon();
+        return;
+      }
       debugLog('[startSession] EDB returned sourceFiles with', Object.keys(response.sourceFiles).length, 'files:', Object.keys(response.sourceFiles).slice(0, 5));
 
       let incomingSourceFiles = response.sourceFiles;
       if (hydrate === 'full' && Object.keys(incomingSourceFiles).length === 0 && response.trace?.entries?.length) {
         incomingSourceFiles = await loadSourceFilesFromTrace(response.sessionId, response.trace.entries);
+        if (!isCurrentSession()) {
+          abandon();
+          return;
+        }
       }
       const files = mergeSourceFiles(sourceFilesRef.current, incomingSourceFiles);
       debugLog('[startSession] After merge, files map has', files.size, 'entries');
@@ -392,7 +447,8 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
       sessionRef.current = newSession;
       setSession(newSession);
       updateSourceFiles(files);
-      setSnapshotCache(new Map());
+      snapshotCacheRef.current = new Map();
+      setSnapshotCache(snapshotCacheRef.current);
       setSnapshotList([]);
       setBreakpointHits(new Map());
 
@@ -419,6 +475,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           startId,
           count,
         });
+        if (!isCurrentSession()) return;
         setSnapshotList(batchResponse.snapshots);
 
         await goToSnapshotInternal(
@@ -428,27 +485,27 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
         );
       }
     } catch (err) {
+      if (!isCurrentSession()) return;
       const message = err instanceof Error ? err.message : 'Failed to start debug session';
       setError(message);
       throw err;
     } finally {
-      setIsLoading(false);
+      if (isCurrentSession()) setIsLoading(false);
     }
   }, [goToSnapshotInternal, loadSourceFilesFromTrace, mergeSourceFiles, sourceFilesRef]);
 
   const endSession = useCallback(async () => {
-    if (!session) return;
+    const sessionToClose = session;
+    sessionGenerationRef.current.invalidate();
+    navigationGenerationRef.current.invalidate();
 
-    try {
-      await debugBridgeService.endSession({ sessionId: session.sessionId });
-    } catch (err) {
-      console.error('Failed to end debug session:', err);
-    }
-
+    sessionRef.current = null;
+    traceRowsRef.current = [];
     setSession(null);
     setCurrentSnapshotId(null);
     setCurrentSnapshot(null);
-    setSnapshotCache(new Map());
+    snapshotCacheRef.current = new Map();
+    setSnapshotCache(snapshotCacheRef.current);
     setSnapshotList([]);
     updateSourceFiles(new Map());
     setCurrentFile(null);
@@ -458,7 +515,20 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setBreakpointHits(new Map());
     setWatchExpressions([]);
     setStorageDiffs([]);
+    setCurrentExecutingAddress(null);
+    setSessionInvalid(false);
     setError(null);
+    setIsLoading(false);
+
+    if (sessionToClose) {
+      try {
+        await debugBridgeService.endSession({
+          sessionId: sessionToClose.sessionId,
+        });
+      } catch (err) {
+        console.error('Failed to end debug session:', err);
+      }
+    }
   }, [session]);
 
   const initFromTraceData = useCallback((params: {
@@ -468,6 +538,8 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     sourceTexts: Record<string, string>;
     rawTrace?: any;
   }) => {
+    sessionGenerationRef.current.begin();
+    navigationGenerationRef.current.invalidate();
     const { simulationId, chainId, traceRows, sourceTexts, rawTrace } = params;
 
     setSessionInvalid(false);
@@ -534,7 +606,8 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     setSession(newSession);
     updateSourceFiles(files);
     setSnapshotList(snapshots);
-    setSnapshotCache(new Map());
+    snapshotCacheRef.current = new Map();
+    setSnapshotCache(snapshotCacheRef.current);
     setBreakpointHits(new Map());
     setError(null);
 
@@ -558,6 +631,8 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
     async (startId: number, count: number) => {
       if (!session) return;
 
+      const generation = sessionGenerationRef.current.current();
+
       if (session.sessionId.startsWith('trace-')) {
         return;
       }
@@ -568,6 +643,7 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           startId,
           count,
         });
+        if (!sessionGenerationRef.current.isCurrent(generation)) return;
 
         setSnapshotList(prev => {
           const newList = [...prev];
@@ -579,13 +655,32 @@ export function useDebugSession(state: DebugSharedState): DebugSessionActions {
           return newList.sort((a, b) => a.id - b.id);
         });
       } catch (err) {
+        if (!sessionGenerationRef.current.isCurrent(generation)) return;
         console.error('Failed to load snapshot batch:', err);
       }
     },
     [session]
   );
 
+  const openSession = useCallback(
+    (source: DebugSessionSource) =>
+      openDebugSessionFromSource(source, {
+        connect: connectToSession,
+        start: startSession,
+        fromTrace: initFromTraceData,
+      }),
+    [connectToSession, initFromTraceData, startSession]
+  );
+
+  const invalidatePendingSessionOpen = useCallback(() => {
+    sessionGenerationRef.current.invalidate();
+    navigationGenerationRef.current.invalidate();
+    setIsLoading(false);
+  }, []);
+
   return {
+    openSession,
+    invalidatePendingSessionOpen,
     connectToSession,
     startSession,
     endSession,

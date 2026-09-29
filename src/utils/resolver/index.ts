@@ -12,6 +12,14 @@
 
 // Main resolver
 export { contractResolver, ContractResolver } from './ContractResolver';
+export {
+  contractEvidence,
+  createContractEvidence,
+  type ContractInspectionRequest,
+  type ContractInspectionBundle,
+  type SimulationEvidenceRequest,
+  type SimulationEvidenceBundle,
+} from './contractEvidence';
 
 // Multi-chain search
 export {

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { useAccount } from "wagmi";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { MagnifyingGlass, X, CircleNotch } from "@phosphor-icons/react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
 import { Input } from "../../../components/ui/input";
@@ -23,6 +23,7 @@ function sanitizeAddressInput(value: string): string {
 }
 
 const LifiEarnPage: React.FC = () => {
+  const reduce = useReducedMotion();
   const [activeTab, setActiveTab] = useState("positions");
   const [selectedVault, setSelectedVault] = useState<EarnVault | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -133,7 +134,11 @@ const LifiEarnPage: React.FC = () => {
                   <motion.div
                     layoutId="earn-tab-indicator"
                     className="absolute inset-x-0 -bottom-px h-[2px] bg-foreground"
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    transition={
+                      reduce
+                        ? { duration: 0 }
+                        : { type: "spring", stiffness: 300, damping: 25 }
+                    }
                   />
                 )}
               </TabsTrigger>

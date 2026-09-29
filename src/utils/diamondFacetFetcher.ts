@@ -7,7 +7,7 @@ import {
   type SelectorFunctionStub,
 } from "./whatsabiFetcher";
 import { fetchContractABIMultiSource } from "./multiSourceAbiFetcher";
-import { networkConfigManager } from "../config/networkConfig";
+import { networkAccess } from "../config/networkAccess";
 import { postEtherscanLookup } from "./etherscanProxy";
 
 // Diamond facet information
@@ -56,17 +56,6 @@ const FACET_CACHE_MAX_SIZE = 200;
 // Batch processing configuration
 const BATCH_SIZE = 6;
 const FETCH_TIMEOUT = 10000; // 10 seconds per facet
-
-// Helper to get RPC URL for a chain
-function getRpcUrl(chain: Chain): string {
-  const resolved = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
-  if (resolved?.url) {
-    return resolved.url;
-  }
-
-  // Use the chain's default RPC as final fallback
-  return chain.rpcUrl;
-}
 
 // Helper to get explorer API URLs (using Vite proxy paths)
 function getExplorerUrls(chain: Chain, address: string) {
@@ -304,8 +293,7 @@ async function fetchFacetSelectors(
   provider?: ethers.providers.Provider
 ): Promise<string[]> {
   try {
-    const rpcProvider =
-      provider ?? new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+    const rpcProvider = provider ?? networkAccess.access(chain).provider;
     const diamondContract = new ethers.Contract(
       diamondAddress,
       [
@@ -649,8 +637,7 @@ export async function fetchDiamondFacets(
 
   const allFacets: DiamondFacet[] = [];
   const progressState: ProgressState = { completed: 0 };
-  const provider =
-    options.provider ?? new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+  const provider = options.provider ?? networkAccess.access(chain).provider;
   let sharedPreferredSources = options.preferredSources?.slice();
   const sharedOptions: FacetFetchOptions = {
     ...options,
@@ -697,7 +684,7 @@ export async function getDiamondFacetAddresses(
 ): Promise<string[]> {
   try {
     const { ethers } = await import("ethers");
-    const provider = new ethers.providers.JsonRpcProvider(getRpcUrl(chain));
+    const provider = networkAccess.access(chain).provider;
 
     // Diamond Loupe interface
     const loupeFacetAddressesABI = [

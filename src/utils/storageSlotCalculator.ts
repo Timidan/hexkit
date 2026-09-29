@@ -1,4 +1,66 @@
 import { ethers } from 'ethers';
+import type { SlotDescriptor } from './storageLayoutDecode';
+
+/** Resolve a compiler type ID/label to the ABI type used for mapping keys. */
+export function resolveAbiKeyType(input: {
+  typeId?: string;
+  typeLabel?: string;
+}): string | null {
+  const label = input.typeLabel?.trim();
+  if (label) {
+    if (label.startsWith('contract ') || label.startsWith('interface ')) return 'address';
+    if (label.startsWith('enum ')) return 'uint8';
+    if (label === 'address' || label === 'address payable') return 'address';
+    if (label === 'bool') return 'bool';
+    if (label === 'string') return 'bytes32';
+    if (/^bytes\d{0,2}$/.test(label)) return label;
+    if (/^uint\d+$/.test(label)) return label;
+    if (/^int\d+$/.test(label)) return label;
+  }
+
+  const typeId = input.typeId ?? '';
+  if (typeId.startsWith('t_contract') || typeId.startsWith('t_address')) return 'address';
+  if (typeId.startsWith('t_bool')) return 'bool';
+  if (typeId.startsWith('t_enum')) return 'uint8';
+  if (typeId.startsWith('t_string')) return 'bytes32';
+  const bytesMatch = typeId.match(/^t_bytes(\d+)$/);
+  if (bytesMatch) return `bytes${bytesMatch[1]}`;
+  const uintMatch = typeId.match(/^t_uint(\d+)$/);
+  if (uintMatch) return `uint${uintMatch[1]}`;
+  const intMatch = typeId.match(/^t_int(\d+)$/);
+  if (intMatch) return `int${intMatch[1]}`;
+  return null;
+}
+
+/** Build the scalar descriptor shared by derived-slot decoding paths. */
+export function buildScalarDescriptor(input: {
+  label?: string;
+  typeLabel: string;
+  typeKey?: string;
+  offset?: number;
+  size?: number;
+  encoding?: string;
+}): SlotDescriptor {
+  const label = input.label ?? '';
+  const typeKey = input.typeKey ?? '';
+  const offset = input.offset ?? 0;
+  return {
+    label,
+    typeLabel: input.typeLabel,
+    typeKey,
+    offset,
+    size: input.size ?? 32,
+    encoding: input.encoding ?? 'inplace',
+    entry: {
+      label,
+      offset,
+      slot: '0',
+      type: typeKey,
+      astId: 0,
+      contract: '',
+    },
+  };
+}
 
 /**
  * Compute the storage slot for a Solidity mapping entry.

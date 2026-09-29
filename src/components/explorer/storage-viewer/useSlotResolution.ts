@@ -18,7 +18,12 @@ import {
   decodeSlotValue,
   type SlotDescriptor,
 } from '../../../utils/storageLayoutDecode';
-import { formatSlotHex, PROXY_SLOTS, ZERO_WORD } from '../../../utils/storageSlotCalculator';
+import {
+  buildScalarDescriptor,
+  formatSlotHex,
+  PROXY_SLOTS,
+  ZERO_WORD,
+} from '../../../utils/storageSlotCalculator';
 
 export interface MappingEntry {
   variable: string;
@@ -127,15 +132,11 @@ function typeAwareDecode(
   if (!SAFE_DECODE_TYPES.test(typeLabel)) return undefined;
 
   try {
-    const syntheticDescriptor: SlotDescriptor = {
-      label: '',
+    const syntheticDescriptor = buildScalarDescriptor({
       typeLabel,
-      typeKey: '',
-      offset: 0,
       size,
       encoding,
-      entry: { label: '', offset: 0, slot: '0', type: '', astId: 0, contract: '' },
-    };
+    });
     const decoded = decodeSlotValue(value, syntheticDescriptor);
     return [{ label: '', typeLabel, decoded, offset: 0, size }];
   } catch {

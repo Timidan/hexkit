@@ -137,6 +137,9 @@ export async function fetchEtherscan(
     }
 
     let sourceCode: string | undefined;
+    let sources: Record<string, string> | undefined;
+    let mainSourcePath: string | undefined;
+    let compilerSettings: ContractMetadata['compilerSettings'];
     if (contract.SourceCode) {
       const rawSource = contract.SourceCode;
       if (rawSource.startsWith("{{") || rawSource.startsWith("{")) {
@@ -148,17 +151,50 @@ export async function fetchEtherscan(
 
           if (parsed.sources && typeof parsed.sources === "object") {
             const sourceFiles = Object.entries(parsed.sources);
+            sources = {};
+            for (const [path, source] of sourceFiles) {
+              const content = (source as { content?: string })?.content;
+              if (content) sources[path] = content;
+            }
             if (sourceFiles.length > 0) {
               const mainFile = sourceFiles.find(([path]) =>
                 path.toLowerCase().includes((name || "").toLowerCase())
               );
               if (mainFile && (mainFile[1] as { content?: string })?.content) {
+                mainSourcePath = mainFile[0];
                 sourceCode = (mainFile[1] as { content: string }).content;
               } else {
+                mainSourcePath = sourceFiles[0][0];
                 const firstSource = sourceFiles[0][1] as { content?: string };
                 sourceCode = firstSource?.content;
               }
             }
+            const settings = parsed.settings as Record<string, unknown> | undefined;
+            const optimizer = settings?.optimizer as
+              | Record<string, unknown>
+              | undefined;
+            compilerSettings = settings
+              ? {
+                  optimizer:
+                    typeof optimizer?.enabled === 'boolean' &&
+                    typeof optimizer?.runs === 'number'
+                      ? {
+                          enabled: optimizer.enabled,
+                          runs: optimizer.runs,
+                        }
+                      : undefined,
+                  evmVersion: settings.evmVersion as string | undefined,
+                  compilationTarget: settings.compilationTarget as
+                    | Record<string, string>
+                    | undefined,
+                  libraries: settings.libraries as
+                    | Record<string, Record<string, string>>
+                    | undefined,
+                  outputSelection: settings.outputSelection as
+                    | Record<string, Record<string, string[]>>
+                    | undefined,
+                }
+              : undefined;
           } else if ((parsed as { content?: string }).content) {
             sourceCode = (parsed as { content: string }).content;
           } else {
@@ -181,6 +217,9 @@ export async function fetchEtherscan(
       license: contract.LicenseType || undefined,
       constructorArguments: contract.ConstructorArguments || undefined,
       sourceCode,
+      sources,
+      mainSourcePath,
+      compilerSettings,
     };
 
     return {

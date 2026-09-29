@@ -104,8 +104,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   const {
     evaluateExpression,
     session,
-    startSession,
-    connectToSession,
+    openSession,
     debugPrepState,
     currentSnapshotId,
   } = useDebug();
@@ -210,15 +209,19 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     if (!force && targetSessionId) {
       try {
         await withTimeout(
-          connectToSession({
-            sessionId: targetSessionId,
-            rpcPort: currentDebugSession?.rpcPort || 0,
-            snapshotCount: currentDebugSession?.snapshotCount ?? prepStateForCurrentSimulation?.snapshotCount ?? 0,
-            chainId,
-            simulationId: expectedSimulationId || `debug-${Date.now()}`,
-          }, {
-            hydrate: 'minimal',
-            initialSnapshotId: initialLiveSnapshotId,
+          openSession({
+            kind: 'live-connect',
+            session: {
+              sessionId: targetSessionId,
+              rpcPort: currentDebugSession?.rpcPort || 0,
+              snapshotCount: currentDebugSession?.snapshotCount ?? prepStateForCurrentSimulation?.snapshotCount ?? 0,
+              chainId,
+              simulationId: expectedSimulationId || `debug-${Date.now()}`,
+            },
+            options: {
+              hydrate: 'minimal',
+              initialSnapshotId: initialLiveSnapshotId,
+            },
           }),
           LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS,
           `Connecting to existing live debug session timed out after ${Math.round(
@@ -243,22 +246,26 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     try {
       const inlineArtifacts = extractInlineArtifacts(currentSimulation?.rawTrace);
       await withTimeout(
-        startSession({
-          simulationId: simulationId || `debug-${Date.now()}`,
-          rpcUrl,
-          chainId,
-          traceDetailHandleId: currentSimulation?.traceDetailHandle?.id,
-          blockTag: liveBlockTag,
-          transaction: {
-            from: liveFrom,
-            to: liveTo,
-            data: liveData,
-            value: liveValue,
+        openSession({
+          kind: 'live-start',
+          request: {
+            simulationId: simulationId || `debug-${Date.now()}`,
+            rpcUrl,
+            chainId,
+            traceDetailHandleId: currentSimulation?.traceDetailHandle?.id,
+            blockTag: liveBlockTag,
+            transaction: {
+              from: liveFrom,
+              to: liveTo,
+              data: liveData,
+              value: liveValue,
+            },
+            ...(inlineArtifacts ? { artifacts: inlineArtifacts } : {}),
           },
-          ...(inlineArtifacts ? { artifacts: inlineArtifacts } : {}),
-        }, {
-          hydrate: 'minimal',
-          initialSnapshotId: initialLiveSnapshotId,
+          options: {
+            hydrate: 'minimal',
+            initialSnapshotId: initialLiveSnapshotId,
+          },
         }),
         LIVE_SESSION_BOOTSTRAP_TIMEOUT_MS,
         `Live debug session startup timed out after ${Math.round(
@@ -277,7 +284,7 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
   }, [
     hasLiveSessionData,
     rpcUrl,
-    startSession,
+    openSession,
     simulationId,
     chainId,
     liveBlockTag,
@@ -285,7 +292,6 @@ export const EvaluateModal: React.FC<EvaluateModalProps> = React.memo(({
     liveFrom,
     liveTo,
     liveValue,
-    connectToSession,
     currentSimulation,
     session,
     expectedSimulationId,

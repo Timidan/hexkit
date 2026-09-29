@@ -1,11 +1,13 @@
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 /**
- * AnimatedTabContent - Blur transition wrapper for tab content.
+ * AnimatedTabContent - Opacity fade-in wrapper for tab content.
  *
  * Replaces the Radix TabsContent pattern with AnimatePresence.
- * On tab switch the old content blurs out then the new content blurs in.
+ * On tab switch the old content unmounts immediately and the new content
+ * fades in. There is no exit animation: without mode="wait" an exiting panel
+ * would stay in the layout next to the entering one.
  *
  * Usage:
  *   <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -17,15 +19,14 @@ import { motion, AnimatePresence } from "framer-motion";
  *   </Tabs>
  */
 
-const blurVariants = {
-  initial: { opacity: 0, filter: "blur(4px)" },
-  animate: { opacity: 1, filter: "blur(0px)" },
-  exit: { opacity: 0, filter: "blur(4px)" },
+const fadeVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
 };
 
-const blurTransition = {
-  duration: 0.18,
-  ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],
+const fadeTransition = {
+  duration: 0.12,
+  ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
 };
 
 interface AnimatedTabContentProps {
@@ -40,15 +41,15 @@ export function AnimatedTabContent({
   children,
   className,
 }: AnimatedTabContentProps) {
+  const shouldReduceMotion = useReducedMotion();
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <AnimatePresence initial={false}>
       <motion.div
         key={activeKey}
-        variants={blurVariants}
-        initial="initial"
+        variants={fadeVariants}
+        initial={shouldReduceMotion ? false : "initial"}
         animate="animate"
-        exit="exit"
-        transition={blurTransition}
+        transition={fadeTransition}
         className={className}
       >
         {children}
@@ -64,26 +65,36 @@ export function AnimatedTabContent({
  * (e.g. Live ↔ Simulation mode in TransactionBuilderHub).
  */
 
-const layoutExitVariants = {
-  initial: { opacity: 0, scale: 0.97, y: 12 },
+const makeLayoutVariants = (reduce: boolean) => ({
+  initial: reduce
+    ? { opacity: 0 }
+    : { opacity: 0, scale: 0.97, y: 12 },
   animate: {
     opacity: 1,
     scale: 1,
     y: 0,
     transition: {
-      duration: 0.3,
-      ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number],
+      duration: 0.2,
+      ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
     },
   },
-  exit: {
-    opacity: 0,
-    scale: 0.95,
-    transition: {
-      duration: 0.15,
-      ease: "easeIn" as const,
-    },
-  },
-};
+  exit: reduce
+    ? {
+        opacity: 0,
+        transition: {
+          duration: 0.15,
+          ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
+        },
+      }
+    : {
+        opacity: 0,
+        scale: 0.95,
+        transition: {
+          duration: 0.15,
+          ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
+        },
+      },
+});
 
 interface LayoutTransitionWrapperProps {
   activeKey: string;
@@ -96,6 +107,8 @@ export function LayoutTransitionWrapper({
   children,
   className,
 }: LayoutTransitionWrapperProps) {
+  const shouldReduceMotion = useReducedMotion();
+  const layoutExitVariants = makeLayoutVariants(!!shouldReduceMotion);
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div

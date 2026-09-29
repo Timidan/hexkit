@@ -1,10 +1,7 @@
 import { whatsabi } from '@shazow/whatsabi';
 import { ethers } from 'ethers';
 import type { Chain } from '../types';
-import { networkConfigManager } from '../config/networkConfig';
-
-const resolveRpcUrl = (chain: Chain) =>
-  networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl).url;
+import { networkAccess } from '../config/networkAccess';
 
 // Extended result interface for WhatsABI integration
 export interface WhatsABIResult {
@@ -32,8 +29,7 @@ export async function fetchFromWhatsABI(
     // Create provider if not provided
     let whatsabiProvider = provider;
     if (!whatsabiProvider) {
-      const network = { name: chain.name, chainId: chain.id };
-      whatsabiProvider = new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), network);
+      whatsabiProvider = networkAccess.access(chain).provider;
     }
 
     // Use WhatsABI autoload for comprehensive analysis
@@ -118,10 +114,7 @@ export async function fetchFromWhatsABI(
   } catch (error: any) {
     // Fallback: try basic bytecode analysis
     try {
-      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), {
-        name: chain.name,
-        chainId: chain.id
-      });
+      const fallbackProvider = provider || networkAccess.access(chain).provider;
       
       const bytecode = await fallbackProvider.getCode(contractAddress);
       if (bytecode && bytecode !== '0x') {
@@ -167,10 +160,7 @@ export async function analyzeContractWithWhatsABI(
   abi?: any[];
 }> {
   try {
-    const whatsabiProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain), {
-      name: chain.name,
-      chainId: chain.id
-    });
+    const whatsabiProvider = provider || networkAccess.access(chain).provider;
 
     // Get bytecode and analyze
     const bytecode = await whatsabiProvider.getCode(contractAddress);
@@ -214,7 +204,7 @@ export async function analyzeContractWithWhatsABI(
   } catch {
     // Fallback to basic selector extraction
     try {
-      const fallbackProvider = provider || new ethers.providers.JsonRpcProvider(resolveRpcUrl(chain));
+      const fallbackProvider = provider || networkAccess.access(chain).provider;
       const bytecode = await fallbackProvider.getCode(contractAddress);
       const selectors = bytecode !== '0x' ? whatsabi.selectorsFromBytecode(bytecode) : [];
       

@@ -28,6 +28,21 @@ export const artifactFetchInflight = new Map<string, Promise<SourcifyMetadataRes
 export const sourcifySourceCache = new Map<string, Promise<string | null>>();
 const SOURCIFY_SOURCE_CACHE_MAX_SIZE = 100;
 
+/** Clear every artifact cache owned by Contract Evidence. */
+export const clearArtifactCaches = (): void => {
+  artifactCache.clear();
+  artifactFetchInflight.clear();
+  sourcifySourceCache.clear();
+
+  if (typeof window === 'undefined') return;
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index);
+    if (key?.startsWith(ARTIFACT_CACHE_STORAGE_PREFIX)) {
+      window.localStorage.removeItem(key);
+    }
+  }
+};
+
 export const buildArtifactCacheKey = (source: string, address: string, chainId: number) =>
   `${source}:${chainId}:${address.toLowerCase()}`;
 

@@ -121,6 +121,14 @@ export interface ContractMetadata {
   sources?: Record<string, string>;
   /** Path to the main contract file */
   mainSourcePath?: string;
+  /** Compiler input settings when verified evidence supplied them. */
+  compilerSettings?: {
+    optimizer?: { enabled: boolean; runs: number };
+    evmVersion?: string;
+    compilationTarget?: Record<string, string>;
+    libraries?: Record<string, Record<string, string>>;
+    outputSelection?: Record<string, Record<string, string[]>>;
+  };
 }
 
 export interface ResolveResult {

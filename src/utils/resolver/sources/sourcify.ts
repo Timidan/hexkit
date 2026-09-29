@@ -47,6 +47,11 @@ const extractMetadata = (metadata: Record<string, unknown>): ContractMetadata =>
   const compiler = metadata?.compiler as Record<string, unknown> | undefined;
   const settings = metadata?.settings as Record<string, unknown> | undefined;
   const optimizer = settings?.optimizer as Record<string, unknown> | undefined;
+  const optimizerSettings =
+    typeof optimizer?.enabled === 'boolean' &&
+    typeof optimizer?.runs === 'number'
+      ? { enabled: optimizer.enabled, runs: optimizer.runs }
+      : undefined;
 
   return {
     compiler: metadata?.language as string | undefined,
@@ -54,6 +59,21 @@ const extractMetadata = (metadata: Record<string, unknown>): ContractMetadata =>
     optimization: optimizer?.enabled as boolean | undefined,
     optimizationRuns: optimizer?.runs as number | undefined,
     evmVersion: settings?.evmVersion as string | undefined,
+    compilerSettings: settings
+      ? {
+          optimizer: optimizerSettings,
+          evmVersion: settings.evmVersion as string | undefined,
+          compilationTarget: settings.compilationTarget as
+            | Record<string, string>
+            | undefined,
+          libraries: settings.libraries as
+            | Record<string, Record<string, string>>
+            | undefined,
+          outputSelection: settings.outputSelection as
+            | Record<string, Record<string, string[]>>
+            | undefined,
+        }
+      : undefined,
   };
 };
 

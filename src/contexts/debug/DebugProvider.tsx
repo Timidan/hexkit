@@ -28,6 +28,7 @@ import { useDebugPrep } from './useDebugPrep';
 import type { DebugSharedState } from './types';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import type { parseFunctions } from '../../utils/traceDecoder/sourceParser';
+import { deriveTraceDebugContext } from './traceContext';
 
 const DebugContext = createContext<DebugContextValue | undefined>(undefined);
 
@@ -107,6 +108,28 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     traceRowsRef.current = decodedTraceRows ?? [];
   }, [decodedTraceRows]);
+
+  // Trace selection owns its complete source/evaluation context. Keeping this
+  // derivation here prevents UI panels from coordinating session internals.
+  useEffect(() => {
+    const rows = decodedTraceRows ?? [];
+    if (
+      currentSnapshotId !== null &&
+      !rows.some((row) => row.id === currentSnapshotId)
+    ) {
+      // A live EDB snapshot has its own source context; do not overwrite it
+      // merely because decoded trace IDs use a different coordinate space.
+      return;
+    }
+    const context = deriveTraceDebugContext(
+      rows,
+      currentSnapshotId
+    );
+    setCurrentExecutingAddress(context.executingAddress);
+    setCurrentFile(context.sourceFile);
+    setCurrentLine(context.sourceLine);
+    setEvalHint(context.evalHint);
+  }, [decodedTraceRows, currentSnapshotId]);
 
   const sharedState: DebugSharedState = {
     session,
@@ -207,10 +230,8 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       storageDiffs,
 
       // Session actions
-      startSession: sessionActions.startSession,
-      connectToSession: sessionActions.connectToSession,
+      openSession: sessionActions.openSession,
       endSession: sessionActions.endSession,
-      initFromTraceData: sessionActions.initFromTraceData,
       loadSnapshotBatch: sessionActions.loadSnapshotBatch,
 
       // Navigation actions
@@ -246,11 +267,8 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       startDebugPrep: prepActions.startDebugPrep,
       cancelDebugPrep: prepActions.cancelDebugPrep,
 
-      // Setters
-      setCurrentFile,
-      setCurrentLine,
-      setCurrentExecutingAddress,
-      setEvalHint,
+      // Explicit presentation action
+      selectSourceFile: setCurrentFile,
     }),
     [
       session,
@@ -271,10 +289,8 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       watchExpressions,
       callStack,
       storageDiffs,
-      sessionActions.startSession,
-      sessionActions.connectToSession,
+      sessionActions.openSession,
       sessionActions.endSession,
-      sessionActions.initFromTraceData,
       sessionActions.loadSnapshotBatch,
       navigationActions.goToSnapshot,
       navigationActions.stepNext,
@@ -299,7 +315,6 @@ export const DebugProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prepActions.debugPrepState,
       prepActions.startDebugPrep,
       prepActions.cancelDebugPrep,
-      setEvalHint,
     ]
   );
 

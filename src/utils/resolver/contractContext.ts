@@ -40,7 +40,7 @@ import { resolveProxyInfo } from './proxyResolver';
 import { contractResolver } from './ContractResolver';
 import { hasDiamondLoupeFunctions } from './diamondLoupe';
 import { detectTokenType, type TokenDetectionResult } from '../universalTokenDetector';
-import { networkConfigManager } from '../../config/networkConfig';
+import { networkAccess } from '../../config/networkAccess';
 import { ZERO_ADDRESS } from '../addressConstants';
 
 export interface ContractContext {
@@ -332,10 +332,11 @@ export async function resolveContractContext(
     etherscanApiKey,
     blockscoutApiKey,
   } = options;
+  const policy = networkAccess.contractResolutionPolicy(chainId);
   const resolvedEtherscanKey =
-    etherscanApiKey?.trim() || networkConfigManager.getEtherscanApiKey();
+    etherscanApiKey?.trim() || policy.etherscanApiKey;
   const resolvedBlockscoutKey =
-    blockscoutApiKey?.trim() || networkConfigManager.getBlockscoutApiKey();
+    blockscoutApiKey?.trim() || policy.blockscoutApiKey;
 
   const flags: ResolutionFlags = {
     abi: fetchAbi,

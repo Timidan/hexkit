@@ -110,14 +110,14 @@ button:focus-visible {
 /* On hover: erase then redraw */
 button:hover .animated-play-triangle,
 [role="tab"]:hover .animated-play-triangle {
-  animation: draw-48 0.9s ease-out forwards, icon-fill 0.35s ease-in 0.7s forwards;
+  animation: draw-48 0.9s ease-out forwards, icon-fill 0.35s ease-out 0.7s forwards;
   stroke-dashoffset: 48;
   fill-opacity: 0;
 }
 
 button:hover .animated-zap-bolt,
 [role="tab"]:hover .animated-zap-bolt {
-  animation: draw-60 0.9s ease-out forwards, icon-fill 0.35s ease-in 0.7s forwards;
+  animation: draw-60 0.9s ease-out forwards, icon-fill 0.35s ease-out 0.7s forwards;
   stroke-dashoffset: 60;
   fill-opacity: 0;
 }

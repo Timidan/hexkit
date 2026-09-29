@@ -1,9 +1,9 @@
 /**
  * useWalletHelpers – wallet chain-id helpers and ethers provider factory. */
 import { useCallback } from "react";
-import { ethers } from "ethers";
 import { SUPPORTED_CHAINS } from "../../../utils/chains";
 import { networkConfigManager } from "../../../config/networkConfig";
+import { networkAccess } from "../../../config/networkAccess";
 import { validateGenericRpcEndpoint, FALLBACK_RPCS } from "../utils";
 
 export interface UseWalletHelpersDeps {
@@ -46,7 +46,10 @@ export function useWalletHelpers(deps: UseWalletHelpersDeps) {
     }
 
     const defaultRpcUrl = rpcUrl;
-    const resolution = networkConfigManager.resolveRpcUrl(selectedNetwork.id, defaultRpcUrl);
+    const resolution = networkAccess.resolve({
+      ...(currentNetworkConfig ?? selectedNetwork),
+      rpcUrl: defaultRpcUrl,
+    });
     if (resolution.note) showWarning("RPC configuration", resolution.note);
 
     if (resolution.mode === "CUSTOM") {
@@ -63,21 +66,13 @@ export function useWalletHelpers(deps: UseWalletHelpersDeps) {
       rpcUrl = resolution.url;
     }
 
-    const networkConfig = {
-      name: selectedNetwork.name.toLowerCase().replace(/\s+/g, "-"),
-      chainId: selectedNetwork.id,
-      ensAddress: selectedNetwork.id === 1 ? "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" : undefined,
-    };
-
     try {
-      const provider = new ethers.providers.JsonRpcProvider({ url: rpcUrl, timeout: 30000, allowGzip: true }, networkConfig);
-      const originalDetectNetwork = provider.detectNetwork.bind(provider);
-      provider.detectNetwork = async () => {
-        try { return await originalDetectNetwork(); } catch {
-          return networkConfig as any;
-        }
-      };
-      return provider;
+      // Pin rpcUrl: after a chain-ID mismatch it is the fallback, which settings
+      // resolution would otherwise override with the bad per-chain RPC again.
+      return networkAccess.access({
+        ...(currentNetworkConfig ?? selectedNetwork),
+        rpcUrl,
+      }, rpcUrl).provider;
     } catch (error) {
       throw new Error(`Failed to create provider for ${selectedNetwork.name}: ${error}`);
     }

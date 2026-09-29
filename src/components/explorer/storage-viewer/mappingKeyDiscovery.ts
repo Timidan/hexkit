@@ -16,7 +16,12 @@
 import { ethers } from 'ethers';
 import type { StorageLayoutResponse } from '../../../types/debug';
 import type { MappingEntry } from './useSlotResolution';
-import { computeMappingSlot, computeNestedMappingSlot, formatSlotHex } from '../../../utils/storageSlotCalculator';
+import {
+  computeMappingSlot,
+  computeNestedMappingSlot,
+  formatSlotHex,
+  resolveAbiKeyType,
+} from '../../../utils/storageSlotCalculator';
 import { scanLogs, type LogEntry, type ScanProgress } from './rpcLogScanner';
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -126,35 +131,10 @@ function resolveKeyType(
   typeId: string,
   layout: StorageLayoutResponse,
 ): string | null {
-  // Try the type definition's label first — this is the canonical Solidity type
-  const typeDef = layout.types[typeId];
-  if (typeDef?.label) {
-    const label = typeDef.label.trim();
-    // Contract types are addresses
-    if (label.startsWith('contract ') || label.startsWith('interface ')) return 'address';
-    // Enum types are uint8 in storage
-    if (label.startsWith('enum ')) return 'uint8';
-    // Direct Solidity type labels
-    if (label === 'address' || label === 'address payable') return 'address';
-    if (label === 'bool') return 'bool';
-    if (label === 'string') return 'bytes32'; // string keys in mappings are hashed
-    if (/^bytes\d{0,2}$/.test(label)) return label; // bytes1..bytes32
-    if (/^uint\d+$/.test(label)) return label; // uint8..uint256
-    if (/^int\d+$/.test(label)) return label; // int8..int256
-  }
-  // Fallback: parse the typeId string (e.g. "t_address", "t_uint256", "t_contract(IERC20)")
-  if (!typeId) return null;
-  if (typeId.startsWith('t_contract') || typeId.startsWith('t_address')) return 'address';
-  if (typeId.startsWith('t_bool')) return 'bool';
-  if (typeId.startsWith('t_enum')) return 'uint8';
-  if (typeId.startsWith('t_string')) return 'bytes32';
-  const bytesMatch = typeId.match(/^t_bytes(\d+)$/);
-  if (bytesMatch) return `bytes${bytesMatch[1]}`;
-  const uintMatch = typeId.match(/^t_uint(\d+)$/);
-  if (uintMatch) return `uint${uintMatch[1]}`;
-  const intMatch = typeId.match(/^t_int(\d+)$/);
-  if (intMatch) return `int${intMatch[1]}`;
-  return null;
+  return resolveAbiKeyType({
+    typeId,
+    typeLabel: layout.types[typeId]?.label,
+  });
 }
 
 function normalizeKeyType(type: string | null | undefined): NormalizedKeyType | null {

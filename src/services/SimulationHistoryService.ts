@@ -442,8 +442,6 @@ class SimulationHistoryService {
         if (this.metaCache) {
           this.metaCache.set(id, meta);
         }
-        // Cleanup old simulations
-        this.cleanupOldSimulations().catch(console.error);
         resolve(id);
       };
 
@@ -605,9 +603,9 @@ class SimulationHistoryService {
         if (cursor) {
           const sim = cursor.value;
 
-          // Apply filters
+          // Apply filters (lightweight reads keep everything: they fill the cache)
           let include = true;
-          if (filter) {
+          if (filter && !lightweight) {
             if (filter.status && sim.status !== filter.status) include = false;
             if (filter.networkId && sim.networkId !== filter.networkId) include = false;
             if (filter.contractAddress && sim.contractAddress.toLowerCase() !== filter.contractAddress.toLowerCase()) include = false;
@@ -633,9 +631,10 @@ class SimulationHistoryService {
       };
     });
 
-    // Populate the in-memory cache for lightweight reads
+    // Populate the in-memory cache with the unfiltered set, then filter the view
     if (lightweight) {
       this.metaCache = new Map(simulations.map(s => [s.id, s as SimulationMeta]));
+      return this.filterMeta(Array.from(this.metaCache.values()), filter) as StoredSimulation[];
     }
 
     return simulations;
@@ -748,15 +747,21 @@ class SimulationHistoryService {
   }
 
   /**
-   * Cleanup old simulations to stay under MAX_SIMULATIONS
+   * Return the records that exceed the retention limit.
+   *
+   * Deletion is deliberately owned by the Simulation History Module so the
+   * matching OPFS traces can be removed in the same lifecycle operation.
    */
-  private async cleanupOldSimulations(): Promise<void> {
-    const count = await this.getCount();
-    if (count <= MAX_SIMULATIONS) return;
+  async getRetentionCandidates(
+    maxSimulations = MAX_SIMULATIONS
+  ): Promise<string[]> {
+    await this.init();
+    if (!this.db) throw new Error('Database not initialized');
 
-    const toDelete = count - MAX_SIMULATIONS;
-    const oldestIds = await this.getOldestIds(toDelete);
-    await this.deleteSimulations(oldestIds);
+    const count = await this.getCount();
+    if (count <= maxSimulations) return [];
+
+    return this.getOldestIds(count - maxSimulations);
   }
 
   /**

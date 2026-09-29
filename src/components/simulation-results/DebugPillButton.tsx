@@ -66,7 +66,7 @@ export const DebugPillButton: React.FC<DebugPillButtonProps> = ({
   if (isPreparing) {
     return (
       <button className="debug-pill debug-pill--preparing">
-        <div className="debug-pill__fill" style={{ width: `${Math.max(2, progressPct)}%` }} />
+        <div className="debug-pill__fill" style={{ transform: `scaleX(${Math.max(2, progressPct) / 100})` }} />
         <span className="debug-pill__content">
           <CircleNotch size={14} className="debug-pill__spinner" />
           <span className="debug-pill__stage">{stageLabel}</span>

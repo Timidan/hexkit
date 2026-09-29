@@ -17,7 +17,7 @@ import type {
 import type { Chain } from "../../types";
 import { getSimulatorBridgeUrl, getBridgeHeaders } from "../env";
 import { cacheRawTraceText } from "../traceRawTextCache";
-import { networkConfigManager } from "../../config/networkConfig";
+import { networkAccess } from "../../config/networkAccess";
 import { classifySimulationError } from "../errorParser";
 import { lookupFunctionSignatures } from "../signatureDatabase";
 
@@ -27,10 +27,7 @@ import {
   type SourcifyArtifact,
   normalizeBlockTag,
 } from "./types";
-import {
-  buildArtifactsFromSourcify,
-  fetchBlockscoutMetadata,
-} from "./artifactFetching";
+import { contractEvidence } from "../resolver/contractEvidence";
 
 import {
   buildBridgeTransactionPayload,
@@ -216,7 +213,7 @@ export const trySimulatorBridge = async (
   },
 ): Promise<SimulationResult | null> => {
   const liteEventsOnly = options?.liteEventsOnly === true;
-  const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
+  const resolution = networkAccess.resolve(chain);
   const rpcUrl = resolution.url;
 
   if (!rpcUrl) {
@@ -244,7 +241,7 @@ export const trySimulatorBridge = async (
   // 4 sequential round-trips to potentially slow public RPCs, saving 5-30s.
   if (!liteEventsOnly) {
     try {
-      const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+      const provider = networkAccess.access(chain).provider;
 
       const currentBlock =
         typeof targetBlockTag === "number"
@@ -305,146 +302,32 @@ export const trySimulatorBridge = async (
     }
   }
 
-  let contractArtifacts: SourcifyArtifact[] | null = null;
-  let contractMetadata: Record<string, unknown> | null = null;
-
   // Lite mode skips every upstream artifact fetch — Sourcify/Blockscout,
   // diamond facets, proxy implementations. The engine will still emit event
   // logs from the base RPC trace, which is the only data the asset-movement
-  // path consumes. This is the single biggest pre-flight win (3-5s saved).
+  // path consumes, so artifact and proxy preflight are unnecessary.
+  let sourcifyArtifacts: SourcifyArtifact[] | null = null;
+  let sourcifyMetadata: Record<string, unknown> | null = null;
   if (!liteEventsOnly && transaction.to) {
     try {
-      const sourcifyResult = await buildArtifactsFromSourcify(
-        transaction.to,
-        chain.id,
-      );
-      contractArtifacts = sourcifyResult.artifacts;
-      contractMetadata = sourcifyResult.metadata;
+      const evidence = await contractEvidence.simulate({
+        chain,
+        root: transaction.to,
+        related: [
+          ...(transaction.diamondFacetAddresses ?? []),
+          ...(transaction.proxyImplementationAddresses ?? []),
+        ],
+        completeness: "fast",
+      });
+      sourcifyArtifacts = evidence.simulationArtifacts.length
+        ? evidence.simulationArtifacts
+        : null;
+      sourcifyMetadata = evidence.metadata;
     } catch (err) {
       console.warn(
-        "[simulation] Sourcify metadata fetch failed:",
+        "[simulation] Contract evidence resolution failed:",
         (err as Error)?.message,
       );
-    }
-
-    if (!contractArtifacts) {
-      try {
-        const blockscoutResult = await fetchBlockscoutMetadata(
-          transaction.to,
-          chain.id,
-        );
-        contractArtifacts = blockscoutResult.artifacts;
-        contractMetadata = blockscoutResult.metadata;
-      } catch (err) {
-        console.warn(
-          "[simulation] Blockscout metadata fetch failed:",
-          (err as Error)?.message,
-        );
-      }
-    }
-  }
-
-  let sourcifyArtifacts = contractArtifacts;
-  const sourcifyMetadata = contractMetadata;
-
-  if (
-    !liteEventsOnly &&
-    transaction.diamondFacetAddresses &&
-    transaction.diamondFacetAddresses.length > 0
-  ) {
-    if (!sourcifyArtifacts) {
-      sourcifyArtifacts = [];
-    }
-
-    const existingAddresses = new Set(
-      sourcifyArtifacts.map((a) => a.address?.toLowerCase()),
-    );
-
-    const facetsToFetch = transaction.diamondFacetAddresses.filter(
-      (addr) => !existingAddresses.has(addr.toLowerCase()),
-    );
-
-    if (facetsToFetch.length > 0) {
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < facetsToFetch.length; i += BATCH_SIZE) {
-        const batch = facetsToFetch.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (facetAddr) => {
-            try {
-              const result = await buildArtifactsFromSourcify(
-                facetAddr,
-                chain.id,
-              );
-              if (result.artifacts && result.artifacts.length > 0) {
-                return result.artifacts[0];
-              }
-            } catch (e) {
-              // Facet not on Sourcify — non-critical, skip
-              if (import.meta.env.DEV)
-                console.debug(
-                  `[simulation] Facet ${facetAddr} not on Sourcify`,
-                );
-            }
-            return null;
-          }),
-        );
-
-        for (const artifact of batchResults) {
-          if (artifact) {
-            sourcifyArtifacts.push(artifact);
-          }
-        }
-      }
-    }
-  }
-
-  if (
-    !liteEventsOnly &&
-    transaction.proxyImplementationAddresses &&
-    transaction.proxyImplementationAddresses.length > 0
-  ) {
-    if (!sourcifyArtifacts) {
-      sourcifyArtifacts = [];
-    }
-
-    const existingAddresses = new Set(
-      sourcifyArtifacts.map((a) => a.address?.toLowerCase()),
-    );
-
-    const implementationsToFetch =
-      transaction.proxyImplementationAddresses.filter(
-        (addr) => !existingAddresses.has(addr.toLowerCase()),
-      );
-
-    if (implementationsToFetch.length > 0) {
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < implementationsToFetch.length; i += BATCH_SIZE) {
-        const batch = implementationsToFetch.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (implAddr) => {
-            try {
-              let result = await buildArtifactsFromSourcify(implAddr, chain.id);
-              if (result.artifacts && result.artifacts.length > 0) {
-                return result.artifacts[0];
-              }
-
-              result = await fetchBlockscoutMetadata(implAddr, chain.id);
-              if (result.artifacts && result.artifacts.length > 0) {
-                return result.artifacts[0];
-              }
-            } catch {
-              // Failed to fetch sources for implementation
-            }
-            return null;
-          }),
-        );
-
-        for (const artifact of batchResults) {
-          if (artifact) {
-            sourcifyArtifacts.push(artifact);
-          }
-        }
-      }
     }
   }
 
@@ -637,7 +520,7 @@ export const replayTransactionWithSimulator = async (
     return null;
   }
 
-  const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
+  const resolution = networkAccess.resolve(chain);
   const rpcUrl = resolution.url;
 
   let transactionMetadata:
@@ -660,7 +543,7 @@ export const replayTransactionWithSimulator = async (
     | undefined;
 
   try {
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const provider = networkAccess.access(chain).provider;
     const [tx, receipt] = await Promise.all([
       provider.getTransaction(hash),
       provider.getTransactionReceipt(hash),

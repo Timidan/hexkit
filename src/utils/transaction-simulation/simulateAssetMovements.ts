@@ -1,10 +1,9 @@
-import { ethers } from "ethers";
 import type { TransactionRequest, SimulationResult } from "../../types/transaction";
 import type { Chain } from "../../types";
 import type { TokenMovement } from "../tokenMovements";
 import { extractTokenMovements, getCachedTokenMetadata, fetchTokenMetadata } from "../tokenMovements";
 import { simulateTransaction } from "./simulationEntryPoints";
-import { networkConfigManager } from "../../config/networkConfig";
+import { networkAccess } from "../../config/networkAccess";
 
 export interface AssetMovementResult {
   success: boolean;
@@ -133,11 +132,7 @@ async function resolveMovementTokenMetadata(
   if (unknowns.size === 0) return;
 
   try {
-    const resolution = networkConfigManager.resolveRpcUrl(chain.id, chain.rpcUrl);
-    const rpcUrl = resolution.url;
-    if (!rpcUrl) return;
-
-    const provider = new ethers.providers.StaticJsonRpcProvider(rpcUrl, chain.id);
+    const provider = networkAccess.access(chain).provider;
 
     // Fetch all unknowns in parallel with an 8s overall timeout
     await Promise.race([

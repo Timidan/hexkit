@@ -6,6 +6,7 @@ import type { DecodedTraceRow, DecodeTraceContext, FnCallInfo } from './types';
 import { parseLogStack, decodeLogWithFallback } from './eventDecoding';
 import { validateSourceLineContainsFunctionCall, findCorrectCallLine } from './sourceParser';
 import type { AnalysisLocals } from './analysisHelpers';
+import { traceIdFromFrame } from './pcResolution';
 
 // ── Row assembly + LOG decoding ────────────────────────────────────────
 
@@ -47,9 +48,8 @@ export function assembleRowsWithJumps(
   // Build traceId -> first opcode ID map for sorting call frame entries
   const traceIdToFirstOpcodeId = new Map<number, number>();
   for (const r of opRows) {
-    const frameId = r.frame_id;
-    if (Array.isArray(frameId) && frameId.length >= 1 && r.id !== undefined) {
-      const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
+    const traceId = traceIdFromFrame(r.frame_id);
+    if (traceId !== null && r.id !== undefined) {
       if (!traceIdToFirstOpcodeId.has(traceId) || r.id < traceIdToFirstOpcodeId.get(traceId)!) {
         traceIdToFirstOpcodeId.set(traceId, r.id);
       }
@@ -128,11 +128,10 @@ export function buildCallHierarchy(
   // Build map from frame_id to external entry function name
   const frameIdToEntryFn = new Map<number, string>();
   for (const cfr of callFrameRows) {
-    const frameId = cfr.frame_id;
     const entryFn = cfr.entryMeta?.function || cfr.fn;
-    if (Array.isArray(frameId) && frameId.length >= 1 && entryFn) {
-      const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-      if (!isNaN(traceId)) {
+    if (entryFn) {
+      const traceId = traceIdFromFrame(cfr.frame_id);
+      if (traceId !== null) {
         const cleanFn = entryFn.includes('.') ? entryFn.split('.').pop() || entryFn : entryFn;
         frameIdToEntryFn.set(traceId, cleanFn);
       }
@@ -149,11 +148,7 @@ export function buildCallHierarchy(
       const targetFn = row.destFn;
       const isRecursive = callerFn !== null && callerFn === targetFn;
 
-      let frameTraceId = 0;
-      const frameId = row.frame_id;
-      if (Array.isArray(frameId) && frameId.length >= 1) {
-        frameTraceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-      }
+      const frameTraceId = traceIdFromFrame(row.frame_id) ?? 0;
 
       const destFile = row.destSourceFile || row.sourceFile;
       const destLine = row.destLine ?? null;
@@ -354,10 +349,8 @@ export function buildCallHierarchy(
     return undefined;
   };
 
-  const traceIdFromFrameId = (frameId: any): number | undefined => {
-    if (!Array.isArray(frameId) || frameId.length < 1) return undefined;
-    return toTraceId(frameId[0]);
-  };
+  const traceIdFromFrameId = (frameId: any): number | undefined =>
+    traceIdFromFrame(frameId) ?? undefined;
 
   const callEntryOpcodes = new Set(["CALL", "DELEGATECALL", "STATICCALL", "CALLCODE", "CREATE", "CREATE2"]);
 

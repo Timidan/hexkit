@@ -30,9 +30,9 @@ function routeMatches(route: ToolRoute, pathname: string): boolean {
 const INACTIVE_ROUTE_TIMEOUT_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 
-const EXIT_MS = 150;
-const ENTER_MS = 300;
-const ENTER_EASE = "cubic-bezier(0.25,0.46,0.45,0.94)";
+const EXIT_MS = 120;
+const ENTER_MS = 200;
+const ENTER_EASE = "cubic-bezier(0.23,1,0.32,1)";
 
 const PersistentTools: React.FC = () => {
   const location = useLocation();
@@ -129,7 +129,7 @@ const PersistentTools: React.FC = () => {
     animatingRef.current = true;
 
     if (oldPanel) {
-      oldPanel.style.transition = `opacity ${EXIT_MS}ms ease-in, transform ${EXIT_MS}ms ease-in`;
+      oldPanel.style.transition = `opacity ${EXIT_MS}ms cubic-bezier(0.23,1,0.32,1), transform ${EXIT_MS}ms cubic-bezier(0.23,1,0.32,1)`;
       oldPanel.style.opacity = "0";
       oldPanel.style.transform = "scale(0.95)";
       oldPanel.style.pointerEvents = "none";

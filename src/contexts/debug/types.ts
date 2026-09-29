@@ -18,6 +18,7 @@ import type {
   StartDebugSessionRequest,
   DebugSessionConnectOptions,
   DebugSessionStartOptions,
+  DebugSessionSource,
 } from '../../types/debug';
 import type { DecodedTraceRow } from '../../utils/traceDecoder';
 import type { parseFunctions } from '../../utils/traceDecoder/sourceParser';
@@ -95,6 +96,8 @@ export interface DebugSharedState {
  * Return type for useDebugSession hook
  */
 export interface DebugSessionActions {
+  openSession: (source: DebugSessionSource) => Promise<void>;
+  invalidatePendingSessionOpen: () => void;
   connectToSession: (existingSession: {
     sessionId: string;
     rpcPort: number;

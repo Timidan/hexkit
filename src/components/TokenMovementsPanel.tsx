@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { ethers } from "ethers";
+import { networkAccess } from "../config/networkAccess";
 import {
   extractTokenMovements,
   aggregateBalanceChanges,
@@ -124,7 +124,17 @@ const TokenMovementsPanel: React.FC<TokenMovementsPanelProps> = ({
 
     // Create provider and fetch symbols in batches (max 5 concurrent to avoid
     // overwhelming RPC, with 3s timeout per request).
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    let provider;
+    try {
+      provider = networkAccess.access({
+        id: chainId,
+        name: `Chain ${chainId}`,
+        rpcUrl,
+      } as any).provider;
+    } catch {
+      tokensToFetch.forEach((address) => fetchingRef.current.delete(address));
+      return;
+    }
     const BATCH_SIZE = 5;
     const TIMEOUT_MS = 3000;
 

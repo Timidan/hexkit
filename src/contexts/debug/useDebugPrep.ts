@@ -16,6 +16,7 @@ import type {
   PrepareStatusResponse,
 } from '../../types/debug';
 import type { DebugSharedState, DebugSessionActions } from './types';
+import { createOperationGeneration } from './operationGeneration';
 
 const INITIAL_PREP_STATE: DebugPrepState = {
   prepareId: null,
@@ -47,6 +48,7 @@ export function useDebugPrep(
   const prepareIdRef = useRef<string | null>(null);
   const pollTimerRef = useRef<number | null>(null);
   const readyHandledForPrepareRef = useRef<string | null>(null);
+  const prepGenerationRef = useRef(createOperationGeneration());
 
   // Cleanup EventSource on unmount
   useEffect(() => {
@@ -59,6 +61,8 @@ export function useDebugPrep(
         window.clearTimeout(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      prepGenerationRef.current.invalidate();
+      sessionActions.invalidatePendingSessionOpen();
     };
   }, []);
 
@@ -74,16 +78,21 @@ export function useDebugPrep(
   }, []);
 
   const cancelDebugPrep = useCallback(() => {
+    prepGenerationRef.current.invalidate();
+    sessionActions.invalidatePendingSessionOpen();
     stopPrepWatchers();
     prepareIdRef.current = null;
     readyHandledForPrepareRef.current = null;
     setPrepState(INITIAL_PREP_STATE);
-  }, [stopPrepWatchers]);
+  }, [sessionActions.invalidatePendingSessionOpen, stopPrepWatchers]);
 
   const startDebugPrep = useCallback(
     async (params: PrepareDebugRequest, callerSimulationId?: string) => {
       // Cancel any existing prep
       cancelDebugPrep();
+      const prepGeneration = prepGenerationRef.current.begin();
+      const isCurrentPrep = () =>
+        prepGenerationRef.current.isCurrent(prepGeneration);
 
       // Capture the simulationId this prep is for so consumers can detect stale state.
       // Prefer the caller-provided ID (from SimulationContext), fall back to debug session.
@@ -229,6 +238,7 @@ export function useDebugPrep(
 
       try {
         const { prepareId } = await debugBridgeService.prepareDebug(params);
+        if (!isCurrentPrep()) return;
         prepareIdRef.current = prepareId;
         readyHandledForPrepareRef.current = null;
 
@@ -287,6 +297,7 @@ export function useDebugPrep(
 
         void pollPrepareStatus(prepareId);
       } catch (err) {
+        if (!isCurrentPrep()) return;
         const errorMessage =
           err instanceof Error ? err.message : 'Failed to start debug preparation';
         setPrepState((prev) => ({

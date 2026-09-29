@@ -3,7 +3,6 @@
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check as CheckIcon, CaretDown as ChevronDownIcon, CaretUp as ChevronUpIcon } from "@phosphor-icons/react"
-import { motion, AnimatePresence } from "framer-motion"
 
 import { cn } from "@/lib/utils"
 
@@ -179,7 +178,7 @@ function SelectScrollDownButton({
 
 /**
  * AnimatedSelectValue — drop-in replacement for SelectValue.
- * Slides the displayed text up when the value changes.
+ * Renders the displayed text; swaps instantly on value change.
  * Keeps a hidden Radix SelectValue so the Select primitive still works.
  *
  * Usage:
@@ -208,22 +207,15 @@ function AnimatedSelectValue({
       <span className="sr-only">
         <SelectPrimitive.Value placeholder={placeholder} />
       </span>
-      {/* Visible animated display */}
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={display}
-          initial={{ y: "100%", opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: "-100%", opacity: 0 }}
-          transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className={cn(
-            "block truncate",
-            isPlaceholder && "text-muted-foreground"
-          )}
-        >
-          {display}
-        </motion.span>
-      </AnimatePresence>
+      {/* Visible display */}
+      <span
+        className={cn(
+          "block truncate",
+          isPlaceholder && "text-muted-foreground"
+        )}
+      >
+        {display}
+      </span>
     </span>
   )
 }

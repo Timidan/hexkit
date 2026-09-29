@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { Lightning, Play, Code, GitDiff, Database } from "@phosphor-icons/react";
 import {
@@ -128,26 +128,33 @@ function measureBtn(
 }
 
 const SPRING = { stiffness: 320, damping: 30, mass: 0.8 };
-const SUB_STAGGER = { staggerChildren: 0.04, delayChildren: 0.06 };
+const SUB_STAGGER = { staggerChildren: 0, delayChildren: 0 };
 const SUB_ITEM: Variants = {
-  hidden: { opacity: 0, y: -6, scale: 0.92 },
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { ...SPRING, type: "spring" as const },
+    transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] as const },
   },
-  exit: { opacity: 0, y: 4, scale: 0.95, transition: { duration: 0.12 } },
+  exit: { opacity: 0, transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] as const } },
 };
 
 const Navigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const reduce = useReducedMotion();
 
   const activeToolId = getActiveToolId(location.pathname);
   const activeTool = TOOLS.find((t) => t.id === activeToolId) ?? TOOLS[0];
   const activeSubId = getActiveSubTabId(activeTool, location.search, location.pathname);
   const hasSubTabs = activeTool.subTabs != null && activeTool.subTabs.length > 0;
+
+  const subItemVariant: Variants = reduce
+    ? {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] as const } },
+        exit: { opacity: 0, transition: { duration: 0.12, ease: [0.23, 1, 0.32, 1] as const } },
+      }
+    : SUB_ITEM;
 
   // Refs
   const capsuleRef = useRef<HTMLDivElement>(null);
@@ -339,7 +346,7 @@ const Navigation: React.FC = () => {
               onPointerUp={() => setPressedTab(null)}
               onPointerLeave={() => setPressedTab(null)}
               animate={{
-                scale: pressedTab === tool.id ? 0.96 : 1,
+                transform: reduce ? 'none' : (pressedTab === tool.id ? 'scale(0.96)' : 'scale(1)'),
               }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
@@ -373,8 +380,8 @@ const Navigation: React.FC = () => {
                       data-sub={sub.id}
                       className={`capsule-sub-tab${sub.id === activeSubId ? " active" : ""}`}
                       onClick={() => handleSubTabClick(sub)}
-                      variants={hasInitialRender ? undefined : SUB_ITEM}
-                      whileTap={{ scale: 0.94 }}
+                      variants={hasInitialRender ? undefined : subItemVariant}
+                      whileTap={reduce ? { transform: 'none' } : { transform: 'scale(0.94)' }}
                     >
                       {sub.icon}
                       <span className="hidden sm:inline">{sub.label}</span>

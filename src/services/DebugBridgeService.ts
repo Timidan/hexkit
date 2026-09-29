@@ -31,7 +31,7 @@ import type {
   OpcodeSnapshotDetail,
   HookSnapshotDetail,
 } from '../types/debug';
-import { networkConfigManager } from '../config/networkConfig';
+import { networkAccess } from '../config/networkAccess';
 import { getSimulatorBridgeUrl, getBridgeHeaders } from '../utils/env';
 import { extractInlineArtifacts } from '../utils/debugArtifacts';
 import {
@@ -79,7 +79,7 @@ type SerializedBreakpoint =
     };
 
 function buildDebugAnalysisOptions(chainId: number): Record<string, unknown> {
-  const etherscanApiKey = networkConfigManager.getEtherscanApiKey(chainId);
+  const policy = networkAccess.contractResolutionPolicy(chainId);
 
   return {
     quickMode: false,
@@ -88,8 +88,10 @@ function buildDebugAnalysisOptions(chainId: number): Record<string, unknown> {
     collectStorageDiff: true,
     collectStorageDiffs: true,
     collectSnapshots: true,
-    artifactSourcePriority: networkConfigManager.getSourcePriority(),
-    ...(etherscanApiKey ? { etherscanApiKey } : {}),
+    artifactSourcePriority: policy.sourcePriority,
+    ...(policy.etherscanApiKey
+      ? { etherscanApiKey: policy.etherscanApiKey }
+      : {}),
   };
 }
 

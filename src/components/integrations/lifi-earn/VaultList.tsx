@@ -570,45 +570,56 @@ export function VaultList({ onSelectVault, compact = false, lockedChainId }: Vau
         </div>
       </div>
 
-      {visible.length === 0 ? (
-        <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-          No vaults found matching filters
-        </div>
-      ) : (
-        <motion.div
-          className={
-            compact
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
-              : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-          }
-          initial="hidden"
-          animate="visible"
-          variants={prefersReducedMotion ? undefined : {
-            hidden: {},
-            visible: { transition: { staggerChildren: 0.04 } },
-          }}
-        >
-          {visible.map((vault) => (
-            <motion.div
-              key={`${vault.chainId}-${vault.address}`}
-              variants={prefersReducedMotion ? undefined : {
-                hidden: { opacity: 0, y: 12 },
-                visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
-              }}
-            >
-              <MemoVaultCard
-                vault={vault}
-                onSelect={onSelectVault}
-                compact={compact}
-                highRiskAcknowledged={highRiskAcked.has(vaultKey(vault))}
-                cautionAcknowledged={cautionAcked.has(vaultKey(vault))}
-                onAcknowledgeHighRisk={() => handleHighRiskAck(vaultKey(vault))}
-                onAcknowledgeCaution={() => handleCautionAck(vaultKey(vault))}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
-      )}
+      <AnimatePresence mode="wait">
+        {visible.length === 0 ? (
+          <motion.div
+            key="empty"
+            className="px-4 py-12 text-center text-sm text-muted-foreground"
+            initial={prefersReducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, transition: { duration: 0.15, ease: [0.22, 1, 0.36, 1] } }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          >
+            No vaults found matching filters
+          </motion.div>
+        ) : (
+          <motion.div
+            key="grid"
+            className={
+              compact
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+                : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+            }
+            initial="hidden"
+            animate="visible"
+            exit={prefersReducedMotion ? { opacity: 1, transition: { duration: 0 } } : { opacity: 0, transition: { duration: 0.15, ease: [0.22, 1, 0.36, 1] } }}
+            variants={prefersReducedMotion ? undefined : {
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.04 } },
+            }}
+          >
+            {visible.map((vault) => (
+              <motion.div
+                key={`${vault.chainId}-${vault.address}`}
+                variants={prefersReducedMotion ? undefined : {
+                  hidden: { opacity: 0, y: 12 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
+                }}
+              >
+                <MemoVaultCard
+                  vault={vault}
+                  onSelect={onSelectVault}
+                  compact={compact}
+                  highRiskAcknowledged={highRiskAcked.has(vaultKey(vault))}
+                  cautionAcknowledged={cautionAcked.has(vaultKey(vault))}
+                  onAcknowledgeHighRisk={() => handleHighRiskAck(vaultKey(vault))}
+                  onAcknowledgeCaution={() => handleCautionAck(vaultKey(vault))}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div ref={sentinelRef} className="h-1" />
       {isFetchingNextPage && (
@@ -761,7 +772,7 @@ export function VaultCard({
       onHoverEnd={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHovered(false); }}
-      whileHover={compact ? { boxShadow: "0 8px 20px rgba(0,0,0,0.15)" } : { y: -8, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+      whileHover={compact ? { boxShadow: "0 8px 20px rgba(0,0,0,0.15)" } : { transform: 'translateY(-8px)', boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
       animate={{ borderColor: hovered ? "rgba(var(--primary-rgb, 99,102,241), 0.4)" : undefined }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       style={{ willChange: "transform" }}
@@ -794,7 +805,7 @@ export function VaultCard({
           {tokens.slice(0, 3).map((token) => (
             <motion.div
               key={token.address}
-              animate={{ scale: hovered && !compact ? 1.1 : 1 }}
+              animate={{ transform: hovered && !compact ? 'scale(1.1)' : 'scale(1)' }}
               transition={{ type: "spring", stiffness: 500, damping: 20 }}
             >
               <TokenIcon
@@ -930,7 +941,7 @@ export function VaultCard({
             animate={{ color: hovered ? "var(--primary)" : undefined }}
           >
             View Details
-            <motion.span animate={{ x: hovered ? 3 : 0 }} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
+            <motion.span animate={{ transform: hovered ? 'translateX(3px)' : 'translateX(0px)' }} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
               <CaretRight className="h-3.5 w-3.5" />
             </motion.span>
           </motion.div>

@@ -7,7 +7,8 @@ import {
   getCachedSignatures,
   cacheSignature,
 } from "../../utils/signatureDatabase";
-import { networkConfigManager } from "../../config/networkConfig";
+import { networkAccess } from "../../config/networkAccess";
+import { SUPPORTED_CHAINS } from "../../utils/chains";
 import { decodeCalldataWithSignature, formatParamValue } from "./traceTypes";
 import type {
   TraceRow,
@@ -184,7 +185,9 @@ export function useTraceState(props: UseTraceStateProps) {
   const effectiveRpcUrl = useMemo(() => {
     const networkId = contractContext?.networkId;
     if (!networkId) return undefined;
-    const resolution = networkConfigManager.resolveRpcUrl(networkId);
+    const chain = SUPPORTED_CHAINS.find((candidate) => candidate.id === networkId);
+    if (!chain) return undefined;
+    const resolution = networkAccess.resolve(chain);
     return resolution.url || undefined;
   }, [contractContext?.networkId]);
 
@@ -214,11 +217,9 @@ export function useTraceState(props: UseTraceStateProps) {
     const fetchSymbol = async () => {
       try {
         const networkId = contractContext.networkId || 1;
-        const resolution = networkConfigManager.resolveRpcUrl(networkId);
-        const rpcUrl = resolution.url;
-        if (!rpcUrl) return;
-
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+        const chain = SUPPORTED_CHAINS.find((candidate) => candidate.id === networkId);
+        if (!chain) return;
+        const provider = networkAccess.access(chain).provider;
         const contract = new ethers.Contract(
           contractContext.address,
           ['function symbol() view returns (string)'],

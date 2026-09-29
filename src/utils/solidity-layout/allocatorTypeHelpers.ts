@@ -13,6 +13,37 @@ import type {
 
 const ELEMENTARY_SIZES: Record<string, number> = {};
 
+export interface StorageCursor {
+  slot: number;
+  offset: number;
+}
+
+/** Place one packable field and advance the caller-owned storage cursor. */
+export function placeField(cursor: StorageCursor, size: number): number {
+  if (!Number.isInteger(size) || size < 1 || size > 32) {
+    throw new RangeError(`Storage field size must be an integer from 1 to 32; received ${size}`);
+  }
+  if (cursor.offset > 0 && cursor.offset + size > 32) {
+    cursor.slot += 1;
+    cursor.offset = 0;
+  }
+  const fieldOffset = cursor.offset;
+  cursor.offset += size;
+  if (cursor.offset >= 32) {
+    cursor.slot += 1;
+    cursor.offset = 0;
+  }
+  return fieldOffset;
+}
+
+/** Number of fixed-array scalar elements Solidity can pack in one slot. */
+export function elementsPerSlot(size: number): number {
+  if (!Number.isInteger(size) || size < 1 || size > 32) {
+    throw new RangeError(`Array element size must be an integer from 1 to 32; received ${size}`);
+  }
+  return Math.floor(32 / size);
+}
+
 // uint8..uint256 and int8..int256
 for (let bits = 8; bits <= 256; bits += 8) {
   ELEMENTARY_SIZES[`uint${bits}`] = bits / 8;
@@ -152,8 +183,14 @@ export function computeStructSlotCount(
   structDef: ParsedStructDef,
   symbols: SymbolTable,
 ): number {
-  let slot = 0;
-  let offset = 0;
+  const cursor: StorageCursor = { slot: 0, offset: 0 };
+
+  const alignToNextSlot = () => {
+    if (cursor.offset > 0) {
+      cursor.slot += 1;
+      cursor.offset = 0;
+    }
+  };
 
   for (const member of structDef.members) {
     const memberEncoding = getEncoding(member.typeName, symbols);
@@ -162,45 +199,37 @@ export function computeStructSlotCount(
     // Nested struct
     const nestedStruct = resolveStruct(member.typeName, symbols);
     if (nestedStruct) {
-      if (offset > 0) { slot += 1; offset = 0; }
-      slot += computeStructSlotCount(nestedStruct, symbols);
+      alignToNextSlot();
+      cursor.slot += computeStructSlotCount(nestedStruct, symbols);
       continue;
     }
 
     // Fixed array
     if (member.typeName.kind === 'array' && member.typeName.length !== null) {
-      if (offset > 0) { slot += 1; offset = 0; }
-      slot += computeFixedArraySlotCount(member.typeName, symbols);
+      alignToNextSlot();
+      cursor.slot += computeFixedArraySlotCount(member.typeName, symbols);
       continue;
     }
 
     // Mapping / dynamic
     if (memberEncoding === 'mapping' || memberEncoding === 'dynamic_array' || memberEncoding === 'bytes') {
-      if (offset > 0) { slot += 1; offset = 0; }
-      slot += 1;
+      alignToNextSlot();
+      cursor.slot += 1;
       continue;
     }
 
     // Inplace
     if (memberSize !== null) {
-      if (offset > 0 && (32 - offset) < memberSize) {
-        slot += 1;
-        offset = 0;
-      }
-      offset += memberSize;
-      if (offset >= 32) {
-        slot += 1;
-        offset = 0;
-      }
+      placeField(cursor, memberSize);
     } else {
-      if (offset > 0) { slot += 1; offset = 0; }
-      slot += 1;
+      alignToNextSlot();
+      cursor.slot += 1;
     }
   }
 
   // Round up: if any partial slot remains, it counts as a full slot
-  if (offset > 0) slot += 1;
-  return Math.max(slot, 1); // Minimum 1 slot for an empty struct
+  alignToNextSlot();
+  return Math.max(cursor.slot, 1); // Minimum 1 slot for an empty struct
 }
 
 // ---- fixed array slot count -------------------------------------------
@@ -232,7 +261,7 @@ export function computeFixedArraySlotCount(
   const elemSize = getTypeSize(typeName.base, symbols);
   if (elemSize !== null) {
     if (elemSize <= 32) {
-      const elemsPerSlot = Math.floor(32 / elemSize);
+      const elemsPerSlot = elementsPerSlot(elemSize);
       return Math.ceil(length / elemsPerSlot);
     }
     // Large elements (e.g. nested fixed arrays) -- each takes multiple slots

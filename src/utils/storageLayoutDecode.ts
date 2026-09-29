@@ -20,7 +20,11 @@ import type {
   StorageDiffEntry,
 } from '../types/debug';
 import type { SimulationResult } from '../types/transaction';
-import { formatSlotHex, parseSlotInput } from './storageSlotCalculator';
+import {
+  buildScalarDescriptor,
+  formatSlotHex,
+  parseSlotInput,
+} from './storageSlotCalculator';
 import { resolveSlotLabelComprehensive } from './storageLayoutResolver';
 
 /** A single field that occupies (part of) a storage slot */
@@ -348,15 +352,13 @@ export function decodeDiffFields(
       // Build a synthetic descriptor for type-aware decoding.
       // Use actual size from resolved leaf type for correct signed int / bytesN decode.
       const leafSize = match.valueNumberOfBytes ?? 32;
-      const syntheticDescriptor: SlotDescriptor = {
+      const syntheticDescriptor = buildScalarDescriptor({
         label: match.resolvedLabel ?? 'unknown',
         typeLabel: match.valueTypeLabel,
         typeKey: match.valueTypeId ?? '',
-        offset: 0,
         size: leafSize,
         encoding: match.valueEncoding ?? 'inplace',
-        entry: { label: '', offset: 0, slot: '0', type: match.valueTypeId ?? '', astId: 0, contract: '' },
-      };
+      });
       try {
         if (beforeHex) beforeDecoded = decodeSlotValue(beforeHex, syntheticDescriptor);
       } catch { /* malformed hex */ }

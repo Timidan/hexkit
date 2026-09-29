@@ -123,6 +123,7 @@ const TransactionBuilderWagmi: React.FC = () => {
     // Set loading before async fetch to prevent wrong-view flash on URL transitions
     setCloneLoading(true);
     let cancelled = false;
+    // Cloning needs only the stored record, not the OPFS trace.
     import('../services/SimulationHistoryService').then(({ simulationHistoryService }) => {
       simulationHistoryService.getSimulation(cloneId).then(fullSim => {
         if (cancelled) return;

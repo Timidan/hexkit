@@ -23,6 +23,7 @@ import {
   type RpcResolution,
   networkConfigManager,
 } from '../config/networkConfig';
+import { networkAccess } from '../config/networkAccess';
 
 interface NetworkConfigContextValue {
   // Current config state
@@ -94,6 +95,7 @@ export const NetworkConfigProvider: React.FC<NetworkConfigProviderProps> = ({
     if (typeof window === 'undefined') return;
 
     const handleConfigUpdate = () => {
+      networkAccess.clear();
       setConfig(networkConfigManager.getConfig());
       setConfigVersion((prev) => prev + 1);
     };

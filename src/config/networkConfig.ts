@@ -374,47 +374,6 @@ function writeConfig(config: NetworkConfig): void {
   window.dispatchEvent(new CustomEvent('network-config-updated'));
 }
 
-function autoSwitchProviderModeToDefault(
-  config: NetworkConfig,
-  providerLabel: 'Alchemy' | 'Infura',
-  fallbackUrl: string
-): RpcResolution {
-  const note = fallbackUrl
-    ? `${providerLabel} was selected without an API key. Switched back to App Default RPC.`
-    : `${providerLabel} was selected without an API key. Switched back to App Default RPC, but no default RPC is configured for this network.`;
-
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem('web3-toolkit:rpc-auto-switch-notice', note);
-    window.sessionStorage.setItem('web3-toolkit:rpc-auto-switch-notice', note);
-    window.dispatchEvent(
-      new CustomEvent('network-config-auto-switched', {
-        detail: { note, provider: providerLabel },
-      })
-    );
-  }
-
-  writeConfig({
-    ...config,
-    rpcMode: 'DEFAULT',
-  });
-
-  if (fallbackUrl) {
-    return {
-      url: fallbackUrl,
-      mode: 'DEFAULT',
-      isFallback: true,
-      note,
-    };
-  }
-
-  return {
-    url: '',
-    mode: 'DEFAULT',
-    isFallback: true,
-    note,
-  };
-}
-
 /** Private/reserved IP ranges that should be rejected for user-supplied RPC URLs */
 const PRIVATE_IP_PATTERNS = [
   /^https?:\/\/10\.\d+\.\d+\.\d+/i,
@@ -467,8 +426,17 @@ export const networkConfigManager = {
     // Check for per-chain override first
     const chainOverride = config.chainOverrides?.[chainId];
     if (chainOverride?.customRpcUrl) {
+      const url = normalizeUrl(chainOverride.customRpcUrl);
+      if (!isUrlSafeFromSsrf(url)) {
+        return {
+          url: '',
+          mode: 'CUSTOM',
+          isFallback: false,
+          note: 'The per-chain custom RPC URL is unsafe.',
+        };
+      }
       return {
-        url: normalizeUrl(chainOverride.customRpcUrl),
+        url,
         mode: 'CUSTOM',
         isFallback: false,
       };
@@ -478,8 +446,17 @@ export const networkConfigManager = {
     if (config.rpcMode === 'CUSTOM') {
       const customUrl = config.customRpcUrl?.trim();
       if (customUrl) {
+        const url = normalizeUrl(customUrl);
+        if (!isUrlSafeFromSsrf(url)) {
+          return {
+            url: '',
+            mode: 'CUSTOM',
+            isFallback: false,
+            note: 'The custom RPC URL is unsafe.',
+          };
+        }
         return {
-          url: normalizeUrl(customUrl),
+          url,
           mode: 'CUSTOM',
           isFallback: false,
         };
@@ -507,7 +484,20 @@ export const networkConfigManager = {
       const builder = ALCHEMY_ENDPOINTS[chainId];
 
       if (!apiKey) {
-        return autoSwitchProviderModeToDefault(config, 'Alchemy', fallbackUrl);
+        if (config.allowPublicRpcFallback && fallbackUrl) {
+          return {
+            url: fallbackUrl,
+            mode: 'DEFAULT',
+            isFallback: true,
+            note: 'Alchemy was selected without an API key. Using public fallback.',
+          };
+        }
+        return {
+          url: '',
+          mode: 'ALCHEMY',
+          isFallback: false,
+          note: 'Alchemy was selected without an API key. No fallback allowed.',
+        };
       }
 
       if (apiKey && builder) {
@@ -546,7 +536,20 @@ export const networkConfigManager = {
       const builder = INFURA_ENDPOINTS[chainId];
 
       if (!projectId) {
-        return autoSwitchProviderModeToDefault(config, 'Infura', fallbackUrl);
+        if (config.allowPublicRpcFallback && fallbackUrl) {
+          return {
+            url: fallbackUrl,
+            mode: 'DEFAULT',
+            isFallback: true,
+            note: 'Infura was selected without a Project ID. Using public fallback.',
+          };
+        }
+        return {
+          url: '',
+          mode: 'INFURA',
+          isFallback: false,
+          note: 'Infura was selected without a Project ID. No fallback allowed.',
+        };
       }
 
       if (projectId && builder) {

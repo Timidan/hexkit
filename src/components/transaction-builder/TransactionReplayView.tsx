@@ -21,6 +21,7 @@ import {
 } from "../../utils/transactionSimulation";
 import { useSimulation } from "../../contexts/SimulationContext";
 import { useNetworkConfig } from "../../contexts/NetworkConfigContext";
+import { networkAccess } from "../../config/networkAccess";
 import { classifySimulationError } from "../../utils/errorParser";
 import {
   type TxPreviewData,
@@ -337,7 +338,7 @@ export const TransactionReplayView: React.FC<{
           return;
         }
 
-        const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+        const provider = networkAccess.access(chainForRpc).provider;
         const tx = await provider.getTransaction(trimmedHash);
 
         if (abortController.signal.aborted) return;

@@ -7,28 +7,51 @@
  * - Request deduplication (same address/chain never fetched twice simultaneously)
  * - Two-layer caching (memory + IndexedDB)
  * - Racing source strategy (first success wins)
- * - Settlement window (allows better sources to complete after first success)
+ * - Purposeful speed/completeness resolution modes
  * - Proper abort signal propagation
  * - Progress callbacks for UI
  */
 
 import type { Chain } from '../../types';
-import { networkConfigManager } from '../../config/networkConfig';
+import { networkAccess } from '../../config/networkAccess';
 import type {
   ResolveResult,
   ResolveOptions,
   SourceResult,
   Source,
   SourceAttempt,
-  AbiItem,
-  SOURCE_CONFIGS,
+  CacheStats,
 } from './types';
 import { extractExternalFunctions } from './types';
 import { contractCache } from './ContractCache';
 import { fetchEtherscan, fetchSourcify, fetchBlockscout } from './sources';
 
-const SETTLEMENT_WINDOW_MS = 200; // Time to wait for better sources after first success
 const SOURCE_TIMEOUT_MS = 5000; // Default timeout per source
+
+interface ContractResolverCache {
+  get(address: string, chainId: number): Promise<ResolveResult | null>;
+  set(address: string, chainId: number, result: ResolveResult): Promise<void>;
+  delete(address: string, chainId: number): Promise<void>;
+  clearAll(): Promise<void>;
+  getStats(): Promise<CacheStats>;
+}
+
+interface ContractResolverDependencies {
+  fetchSource?: (
+    source: Source,
+    address: string,
+    chain: Chain,
+    options: ResolveOptions,
+    signal: AbortSignal
+  ) => Promise<SourceResult>;
+  cache?: ContractResolverCache;
+  getPolicy?: (chainId: number) => {
+    sourcePriority: Source[];
+    etherscanApiKey?: string;
+    blockscoutApiKey?: string;
+  };
+  sourceTimeoutMs?: number;
+}
 
 function createEmptyResult(address: string, chainId: number, chain: Chain): ResolveResult {
   return {
@@ -50,6 +73,14 @@ function createEmptyResult(address: string, chainId: number, chain: Chain): Reso
 
 class ContractResolver {
   private inflightRequests = new Map<string, Promise<ResolveResult>>();
+  private requestSequence = 0;
+  private readonly dependencies: ContractResolverDependencies;
+  private readonly cache: ContractResolverCache;
+
+  constructor(dependencies: ContractResolverDependencies = {}) {
+    this.dependencies = dependencies;
+    this.cache = dependencies.cache ?? contractCache;
+  }
 
   async resolve(
     address: string,
@@ -58,21 +89,33 @@ class ContractResolver {
   ): Promise<ResolveResult> {
     const startTime = performance.now();
     const chainId = chain.id;
-    const cacheKey = `${chainId}:${address.toLowerCase()}`;
+    const policy = this.dependencies.getPolicy?.(chainId) ??
+      networkAccess.contractResolutionPolicy(chainId);
     const resolvedEtherscanKey =
-      options.etherscanApiKey?.trim() || networkConfigManager.getEtherscanApiKey();
+      options.etherscanApiKey?.trim() || policy.etherscanApiKey;
     const resolvedBlockscoutKey =
-      options.blockscoutApiKey?.trim() || networkConfigManager.getBlockscoutApiKey();
+      options.blockscoutApiKey?.trim() || policy.blockscoutApiKey;
     const resolvedPreferredSources =
       options.preferredSources && options.preferredSources.length > 0
         ? options.preferredSources
-        : (networkConfigManager.getSourcePriority() as Source[]);
+        : policy.sourcePriority;
     const resolvedOptions: ResolveOptions = {
       ...options,
       etherscanApiKey: resolvedEtherscanKey,
       blockscoutApiKey: resolvedBlockscoutKey,
       preferredSources: resolvedPreferredSources,
     };
+    const sourceOrder = this.getSourceOrder(resolvedPreferredSources);
+    const requestKey = [
+      chainId,
+      address.toLowerCase(),
+      resolvedOptions.priority ?? 'speed',
+      resolvedOptions.skipCache ? 'reload' : 'cache',
+      sourceOrder.join(','),
+      resolvedEtherscanKey ? 'etherscan-auth' : 'etherscan-anon',
+      resolvedBlockscoutKey ? 'blockscout-auth' : 'blockscout-anon',
+      resolvedOptions.signal ? `signal-${this.requestSequence += 1}` : 'shared',
+    ].join(':');
 
     if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
       return {
@@ -82,8 +125,16 @@ class ContractResolver {
     }
 
     if (!resolvedOptions.skipCache) {
-      const cached = await contractCache.get(address, chainId);
-      if (cached) {
+      const cached = await this.cache.get(address, chainId);
+      const cacheIsComplete =
+        cached?.metadata?.sources &&
+        Object.keys(cached.metadata.sources).length > 0 &&
+        cached.metadata.compilerVersion &&
+        cached.metadata.compilerSettings;
+      if (
+        cached &&
+        (resolvedOptions.priority !== 'completeness' || cacheIsComplete)
+      ) {
         return {
           ...cached,
           fromCache: true,
@@ -92,7 +143,7 @@ class ContractResolver {
       }
     }
 
-    const inflight = this.inflightRequests.get(cacheKey);
+    const inflight = this.inflightRequests.get(requestKey);
     if (inflight) {
       const result = await inflight;
       return {
@@ -102,18 +153,18 @@ class ContractResolver {
     }
 
     const resolvePromise = this.doResolve(address, chain, resolvedOptions, startTime);
-    this.inflightRequests.set(cacheKey, resolvePromise);
+    this.inflightRequests.set(requestKey, resolvePromise);
 
     try {
       const result = await resolvePromise;
 
       if (result.abi) {
-        await contractCache.set(address, chainId, result);
+        await this.cache.set(address, chainId, result);
       }
 
       return result;
     } finally {
-      this.inflightRequests.delete(cacheKey);
+      this.inflightRequests.delete(requestKey);
     }
   }
 
@@ -127,7 +178,9 @@ class ContractResolver {
     const attempts: SourceAttempt[] = [];
     const controller = new AbortController();
 
-    if (options.signal) {
+    if (options.signal?.aborted) {
+      controller.abort();
+    } else if (options.signal) {
       options.signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
 
@@ -153,8 +206,11 @@ class ContractResolver {
     let bestResult: SourceResult | null = null;
     let resolved = false;
 
-    const firstVerifiedPromise = new Promise<void>((resolveFirst) => {
-      const racePromises = fetchers.map(async ({ source, fetch }) => {
+    let resolveFirst: (() => void) | null = null;
+    const firstVerifiedPromise = new Promise<void>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const racePromises = fetchers.map(async ({ source, fetch }) => {
         const sourceStart = performance.now();
 
         options.onProgress?.({
@@ -185,7 +241,7 @@ class ContractResolver {
 
             if (result.confidence === 'verified' && !resolved) {
               resolved = true;
-              resolveFirst();
+              resolveFirst?.();
             }
           }
 
@@ -213,16 +269,17 @@ class ContractResolver {
         }
       });
 
-      // Also resolve if all sources complete without finding verified
-      Promise.allSettled(racePromises).then(() => {
-        if (!resolved) {
-          resolveFirst();
-        }
-      });
+    const allSourcesSettled = Promise.allSettled(racePromises);
+    void allSourcesSettled.then(() => {
+      if (!resolved) resolveFirst?.();
     });
 
     await firstVerifiedPromise;
-    controller.abort();
+    if (options.priority === 'completeness') {
+      await allSourcesSettled;
+    } else {
+      controller.abort();
+    }
 
     const durationMs = performance.now() - startTime;
     const finalResult = bestResult as SourceResult | null;
@@ -274,16 +331,23 @@ class ContractResolver {
     options: ResolveOptions,
     signal: AbortSignal
   ): Promise<SourceResult> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<SourceResult>((_, reject) => {
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         reject(new Error(`${source} timed out after ${SOURCE_TIMEOUT_MS}ms`));
-      }, SOURCE_TIMEOUT_MS);
+      }, this.dependencies.sourceTimeoutMs ?? SOURCE_TIMEOUT_MS);
 
-      signal.addEventListener('abort', () => clearTimeout(timeoutId));
+      signal.addEventListener('abort', () => {
+        if (timeoutId) clearTimeout(timeoutId);
+      });
     });
 
     const fetchPromise = this.fetchFromSource(source, address, chain, options, signal);
-    return Promise.race([fetchPromise, timeoutPromise]);
+    try {
+      return await Promise.race([fetchPromise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
   }
 
   private async fetchFromSource(
@@ -293,6 +357,16 @@ class ContractResolver {
     options: ResolveOptions,
     signal: AbortSignal
   ): Promise<SourceResult> {
+    if (this.dependencies.fetchSource) {
+      return this.dependencies.fetchSource(
+        source,
+        address,
+        chain,
+        options,
+        signal
+      );
+    }
+
     switch (source) {
       case 'sourcify':
         return fetchSourcify(address, chain, signal);
@@ -321,26 +395,36 @@ class ContractResolver {
   }
 
   private isBetterResult(newResult: SourceResult, existing: SourceResult): boolean {
-    if (newResult.confidence === 'verified' && existing.confidence !== 'verified') {
-      return true;
-    }
+    const score = (result: SourceResult): number => {
+      const sources = Object.keys(result.metadata?.sources ?? {}).length;
+      return (
+        (result.confidence === 'verified'
+          ? 1_000
+          : result.confidence === 'inferred'
+            ? 500
+            : 0) +
+        (result.abi?.length ?? 0) +
+        sources * 20 +
+        (result.metadata?.compilerVersion ? 40 : 0) +
+        (result.metadata?.compilerSettings ? 50 : 0) +
+        (result.metadata?.mainSourcePath ? 10 : 0) +
+        (result.name ? 5 : 0)
+      );
+    };
 
-    if (newResult.name && !existing.name) return true;
-    if (newResult.metadata && !existing.metadata) return true;
-
-    return false;
+    return score(newResult) > score(existing);
   }
 
   async clearCache(address?: string, chainId?: number): Promise<void> {
     if (address && chainId) {
-      await contractCache.delete(address, chainId);
+      await this.cache.delete(address, chainId);
     } else {
-      await contractCache.clearAll();
+      await this.cache.clearAll();
     }
   }
 
-  async getCacheStats() {
-    return contractCache.getStats();
+  async getCacheStats(): Promise<CacheStats> {
+    return this.cache.getStats();
   }
 }
 

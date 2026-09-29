@@ -7,7 +7,7 @@ import { ethers } from 'ethers';
 import type { Chain } from '../types';
 import { CopyButton } from './ui/copy-button';
 import { copyTextToClipboard } from '../utils/clipboard';
-import { useNetworkConfig } from '../contexts/NetworkConfigContext';
+import { networkAccess } from '../config/networkAccess';
 import {
   Dialog,
   DialogContent,
@@ -47,7 +47,6 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   blockExplorerUrl,
   chain
 }) => {
-  const { resolveRpcUrl } = useNetworkConfig();
   const { showSuccess, showError } = useNotifications();
   const [selectedFacetIndex, setSelectedFacetIndex] = useState<number>(0);
   const [expandedABI, setExpandedABI] = useState<boolean>(false);
@@ -86,8 +85,7 @@ const DiamondContractPopup: React.FC<DiamondContractPopupProps> = ({
   };
 
   const fetchFacetFunctionSelectors = async (diamondAddress: string, facetAddress: string, chain: Chain): Promise<string[]> => {
-    const rpcUrl = resolveRpcUrl(chain.id, chain.rpcUrl).url;
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const provider = networkAccess.access(chain).provider;
 
     const diamondABI = [
       "function facetFunctionSelectors(address facet) external view returns (bytes4[] memory)"

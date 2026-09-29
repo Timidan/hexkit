@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
 import { fetchEarnVaults, extractUniqueUnderlyings } from "../../earnApi";
 import { CHAIN_REGISTRY, isTestnet } from "../../../../../utils/chains";
-import { networkConfigManager } from "../../../../../config/networkConfig";
+import { networkAccess } from "../../../../../config/networkAccess";
 import { fetchAssetPrices, applyPricesToAssets } from "./fetchAssetPrices";
 import type { EarnToken, EarnVault } from "../../types";
 import type { IdleAsset } from "../types";
@@ -137,7 +137,7 @@ async function scanSingleChain(args: {
   const chainMeta = CHAIN_REGISTRY.find((c) => c.id === chainId);
   if (!chainMeta) return [];
 
-  const resolution = networkConfigManager.resolveRpcUrl(chainId, chainMeta.rpcUrl);
+  const resolution = networkAccess.resolve(chainMeta);
   const rpcUrl = resolution.url;
   if (!rpcUrl) return [];
 

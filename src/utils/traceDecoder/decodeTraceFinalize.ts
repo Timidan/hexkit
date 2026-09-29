@@ -7,6 +7,7 @@
 import type { DecodedTraceRow, CallMeta, RawEventLog, DecodeTraceContext } from './types';
 import { getStaticGasCost } from './opcodes';
 import { getCallFrames } from './stackDecoding';
+import { traceIdFromFrame } from './pcResolution';
 
 export function phaseFinalize(ctx: DecodeTraceContext): {
   rows: DecodedTraceRow[];
@@ -38,12 +39,7 @@ export function phaseFinalize(ctx: DecodeTraceContext): {
   // (lower traceId, same-traceId re-entry, or shallower depth), we pop and
   // assign childEndId from the tracked id.
   const getTraceId = (row: DecodedTraceRow): number | undefined => {
-    const frameId = row.frame_id;
-    if (Array.isArray(frameId) && frameId.length >= 1) {
-      const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-      return isNaN(traceId) ? undefined : traceId;
-    }
-    return row.traceId;
+    return traceIdFromFrame(row.frame_id) ?? row.traceId;
   };
 
   interface ChildRangeFrame {
@@ -193,10 +189,8 @@ export function phaseFinalize(ctx: DecodeTraceContext): {
   // ==========================================================================
   const traceIdToTotalGas = new Map<number, bigint>();
   for (const opRow of opRows) {
-    const frameId = opRow.frame_id;
-    if (!Array.isArray(frameId) || frameId.length < 1) continue;
-    const traceId = typeof frameId[0] === 'number' ? frameId[0] : parseInt(String(frameId[0]), 10);
-    if (isNaN(traceId)) continue;
+    const traceId = traceIdFromFrame(opRow.frame_id);
+    if (traceId === null) continue;
     const currentGas = traceIdToTotalGas.get(traceId) ?? 0n;
     try { traceIdToTotalGas.set(traceId, currentGas + BigInt(opRow.gasDelta || "0")); } catch {}
   }
