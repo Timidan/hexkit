@@ -69,8 +69,19 @@ edb
 *.spec.js
 *.spec.mjs
 *.spec.mts
+*.bench.ts
+*.bench.tsx
+*.bench.js
+*.bench.mjs
+*.bench.mts
 /tmp
 video/out
 .superpowers
 /docs
 @docs
+
+# Local scratch, tool caches, and nested repos (not part of the app source)
+tasks/
+.codegraph/
+.vercel/
+starknet-sim/
