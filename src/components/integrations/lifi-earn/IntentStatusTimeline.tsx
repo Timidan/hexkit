@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleNotch, CheckCircle, XCircle, Warning } from "@phosphor-icons/react";
+import { Warning } from "@phosphor-icons/react";
+import { AnimatedValue } from "../../ui/animated-value";
+import { StepStatusIcon } from "../../ui/step-status-icon";
 import type { Hex } from "viem";
 import { useIntentOrderStatus } from "./useIntentOrderStatus";
 import {
@@ -104,11 +106,13 @@ export function IntentStatusTimeline({
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">{rawLabel}</span>
         <span className="font-mono tabular-nums text-muted-foreground">
-          {canRefund
-            ? "Refund window open"
-            : fillSecondsLeft > 0
-              ? `${formatSeconds(fillSecondsLeft)} to fill`
-              : `${formatSeconds(expireSecondsLeft)} until refund`}
+          {canRefund ? (
+            "Refund window open"
+          ) : fillSecondsLeft > 0 ? (
+            <AnimatedValue value={`${formatSeconds(fillSecondsLeft)} to fill`} />
+          ) : (
+            <AnimatedValue value={`${formatSeconds(expireSecondsLeft)} until refund`} />
+          )}
         </span>
       </div>
 
@@ -172,17 +176,6 @@ export function IntentStatusTimeline({
 }
 
 function StepPill({ step, status }: { step: Step; status: StepStatus }) {
-  const icon =
-    status === "done" ? (
-      <CheckCircle className="h-3 w-3 text-emerald-500" />
-    ) : status === "failed" ? (
-      <XCircle className="h-3 w-3 text-destructive" />
-    ) : status === "active" ? (
-      <CircleNotch className="h-3 w-3 animate-spin text-primary" />
-    ) : (
-      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
-    );
-
   const tone =
     status === "done"
       ? "border-emerald-500/30 bg-emerald-500/5"
@@ -197,7 +190,7 @@ function StepPill({ step, status }: { step: Step; status: StepStatus }) {
       className={`flex flex-col gap-0.5 rounded-md border px-2 py-1.5 text-[11px] ${tone}`}
     >
       <span className="flex items-center gap-1 font-medium text-foreground">
-        {icon}
+        <StepStatusIcon status={status} />
         {step.label}
       </span>
       <span className="text-[10px] text-muted-foreground/80">{step.hint}</span>

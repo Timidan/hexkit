@@ -202,3 +202,14 @@
   50% { border-color: hsl(var(--primary) / 0.4); opacity: 1; }
 }
 .slot-badge-shimmer { animation: slot-badge-shimmer 1.5s ease-in-out infinite; }
+
+/* iOS Safari zooms the page when a focused input's font-size is under 16px.
+   Unlayered, so it wins over Tailwind text-* utilities and per-component CSS
+   on small screens; md+ keeps each input's own size. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

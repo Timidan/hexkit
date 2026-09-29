@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Check, Copy, WarningCircle as AlertCircle } from "@phosphor-icons/react"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { Button, type ButtonProps } from "./button"
 import { cn } from "@/lib/utils"
 import { copyTextToClipboard } from "@/utils/clipboard"
@@ -87,6 +88,10 @@ export function CopyButton({
     ? 'Copy failed'
     : ariaLabel
 
+  // Icon morph adapted from SmoothUI's ButtonCopy: the outgoing icon blurs and
+  // drops while the incoming one settles, inside the button's existing chrome.
+  const reduce = useReducedMotion()
+
   return (
     <Button
       type="button"
@@ -96,10 +101,22 @@ export function CopyButton({
       disabled={disabled}
       aria-label={title}
       title={title}
-      className={cn(iconColor, className)}
+      aria-live="polite"
+      className={cn("overflow-hidden", iconColor, className)}
       {...props}
     >
-      <Icon style={{ width: iconSize, height: iconSize }} />
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.span
+          key={state}
+          className="flex items-center justify-center"
+          initial={reduce ? { opacity: 1 } : { opacity: 0, y: -10, filter: "blur(4px)" }}
+          animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+          exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: 10, filter: "blur(4px)" }}
+          transition={reduce ? { duration: 0 } : { type: "spring", bounce: 0, duration: 0.25 }}
+        >
+          <Icon style={{ width: iconSize, height: iconSize }} />
+        </motion.span>
+      </AnimatePresence>
     </Button>
   )
 }

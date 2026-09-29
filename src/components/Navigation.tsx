@@ -345,9 +345,9 @@ const Navigation: React.FC = () => {
               onPointerDown={() => setPressedTab(tool.id)}
               onPointerUp={() => setPressedTab(null)}
               onPointerLeave={() => setPressedTab(null)}
-              animate={{
-                transform: reduce ? 'none' : (pressedTab === tool.id ? 'scale(0.96)' : 'scale(1)'),
-              }}
+              // Native scale prop only — animating a raw `transform` string leaves
+              // the element at matrix(0,…) when framer interpolates back to "none".
+              animate={{ scale: reduce ? 1 : pressedTab === tool.id ? 0.96 : 1 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
               <span className="hidden sm:inline">{tool.label}</span>
@@ -381,7 +381,7 @@ const Navigation: React.FC = () => {
                       className={`capsule-sub-tab${sub.id === activeSubId ? " active" : ""}`}
                       onClick={() => handleSubTabClick(sub)}
                       variants={hasInitialRender ? undefined : subItemVariant}
-                      whileTap={reduce ? { transform: 'none' } : { transform: 'scale(0.94)' }}
+                      whileTap={reduce ? undefined : { scale: 0.94 }}
                     >
                       {sub.icon}
                       <span className="hidden sm:inline">{sub.label}</span>

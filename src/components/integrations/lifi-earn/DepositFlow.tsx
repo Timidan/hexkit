@@ -15,6 +15,8 @@ import {
 } from "@phosphor-icons/react";
 import { Input } from "../../../components/ui/input";
 import { Button } from "../../../components/ui/button";
+import { AnimatedValue } from "../../../components/ui/animated-value";
+import { StepStatusIcon } from "../../../components/ui/step-status-icon";
 import { Switch } from "../../../components/ui/switch";
 import {
   Select,
@@ -2046,9 +2048,13 @@ function YieldForecast({
             <div key={label} className="text-center">
               <p className="text-[10px] text-muted-foreground">{label}</p>
               <p className={`text-xs font-medium tabular-nums ${hasAmount ? "text-emerald-500" : "text-muted-foreground/40"}`}>
-                {hasAmount
-                  ? `+${earned < 0.01 ? "<0.01" : earned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : "—"}
+                {hasAmount ? (
+                  <AnimatedValue
+                    value={`+${earned < 0.01 ? "<0.01" : earned.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  />
+                ) : (
+                  "—"
+                )}
               </p>
               <p className="text-[10px] text-muted-foreground">{tokenSymbol}</p>
             </div>
@@ -2335,10 +2341,12 @@ function CrossChainTimeline({
 }
 
 function TimelineDot({ status }: { status: TimelineStepStatus }) {
-  if (status === "done") return <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-0.5" weight="fill" />;
-  if (status === "failed") return <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5" weight="fill" />;
-  if (status === "active") return <CircleNotch className="h-3.5 w-3.5 text-blue-400 animate-spin mt-0.5" />;
-  return <span className="h-3.5 w-3.5 rounded-full border border-border/40 mt-0.5" />;
+  return (
+    <StepStatusIcon
+      status={status === "pending" ? "waiting" : status}
+      className="mt-0.5 h-3.5 w-3.5"
+    />
+  );
 }
 
 /** Token row inside the deposit-with dropdown — icon + symbol + balance. */

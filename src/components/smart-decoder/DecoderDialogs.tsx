@@ -3,7 +3,6 @@ import {
   CheckCircle,
   Sparkle,
   UploadSimple,
-  MagnifyingGlass,
   WarningCircle,
 } from '@phosphor-icons/react';
 import {
@@ -16,6 +15,7 @@ import {
 } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import AITaskList, { type AITask } from '../smoothui/ui/AITaskList';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Field } from '../ui/field';
 import {
@@ -242,28 +242,19 @@ interface SearchProgressProps {
 export const SearchProgress: React.FC<SearchProgressProps> = ({ steps }) => {
   if (steps.length === 0) return null;
 
-  return (
-    <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-3 mt-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-blue-400 mb-2">
-        <MagnifyingGlass className="h-3 w-3 animate-pulse" />
-        Searching explorers...
-      </div>
-      <div className="space-y-0.5">
-        {steps.map((step, index) => (
-          <div
-            key={index}
-            className={`text-xs font-mono ${
-              step.startsWith('✓') ? 'text-emerald-400' :
-              step.startsWith('✗') ? 'text-red-400' :
-              'text-muted-foreground'
-            }`}
-          >
-            {step}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // Map the ✓/✗-prefixed log lines onto SmoothUI's AITaskList: the last
+  // unprefixed line is the step currently running.
+  const tasks: AITask[] = steps.map((step, index) => {
+    const done = step.startsWith('✓');
+    const failed = step.startsWith('✗');
+    return {
+      id: `search-${index}`,
+      label: step.replace(/^[✓✗]\s*/, ''),
+      status: done ? 'done' : failed ? 'failed' : 'running',
+    };
+  });
+
+  return <AITaskList label="Searching explorers" tasks={tasks} className="mt-3" />;
 };
 
 /* ------------------------------------------------------------------ */

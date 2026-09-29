@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { SUPPORTED_CHAINS } from "../../../utils/chains";
 import ChainIcon from "../../icons/ChainIcon";
 import { Button } from "../../../components/ui/button";
+import { AnimatedValue } from "../../../components/ui/animated-value";
 import {
   Popover,
   PopoverContent,
@@ -235,7 +236,9 @@ export function PositionsView({ targetAddress, vaults = [] }: PositionsViewProps
                 Portfolio
               </div>
               <div className="mt-0.5 font-mono text-2xl font-semibold tracking-tight tabular-nums">
-                {`$${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                <AnimatedValue
+                  value={`$${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                />
               </div>
             </div>
             <div className="text-right text-[10px] text-muted-foreground">

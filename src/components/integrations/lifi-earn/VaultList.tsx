@@ -772,7 +772,7 @@ export function VaultCard({
       onHoverEnd={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setHovered(false); }}
-      whileHover={compact ? { boxShadow: "0 8px 20px rgba(0,0,0,0.15)" } : { transform: 'translateY(-8px)', boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+      whileHover={compact ? { boxShadow: "0 8px 20px rgba(0,0,0,0.15)" } : { y: -8, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
       animate={{ borderColor: hovered ? "rgba(var(--primary-rgb, 99,102,241), 0.4)" : undefined }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       style={{ willChange: "transform" }}
@@ -805,7 +805,7 @@ export function VaultCard({
           {tokens.slice(0, 3).map((token) => (
             <motion.div
               key={token.address}
-              animate={{ transform: hovered && !compact ? 'scale(1.1)' : 'scale(1)' }}
+              animate={{ scale: hovered && !compact ? 1.1 : 1 }}
               transition={{ type: "spring", stiffness: 500, damping: 20 }}
             >
               <TokenIcon
@@ -941,7 +941,7 @@ export function VaultCard({
             animate={{ color: hovered ? "var(--primary)" : undefined }}
           >
             View Details
-            <motion.span animate={{ transform: hovered ? 'translateX(3px)' : 'translateX(0px)' }} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
+            <motion.span animate={{ x: hovered ? 3 : 0 }} transition={{ type: "spring", stiffness: 500, damping: 20 }}>
               <CaretRight className="h-3.5 w-3.5" />
             </motion.span>
           </motion.div>
