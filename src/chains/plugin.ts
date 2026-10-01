@@ -34,6 +34,8 @@ export interface ChainTool {
 export interface ChainPlugin {
   id: string;
   name: string;
+  /** Brand mark shown in the chain switcher. */
+  Mark: ComponentType<{ size?: number }>;
   /** "" for the default chain (owns the flat routes), "/<id>" for every other chain. */
   basePath: string;
   tools: ChainTool[];

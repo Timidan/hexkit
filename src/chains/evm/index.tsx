@@ -10,6 +10,7 @@ import {
 import RainbowKitWallet from "../../components/RainbowKitWallet";
 import type { ChainPlugin } from "../plugin";
 import { Provider } from "./Provider";
+import { Mark } from "./Mark";
 
 const TransactionBuilderHub = React.lazy(() => import("../../components/TransactionBuilderHub"));
 const SignatureDatabase = React.lazy(() => import("../../components/SignatureDatabase"));
@@ -20,6 +21,7 @@ const IntegrationsHub = React.lazy(() => import("../../components/integrations/I
 export const evm: ChainPlugin = {
   id: "evm",
   name: "EVM",
+  Mark,
   basePath: "",
   Provider,
   WalletButton: RainbowKitWallet,

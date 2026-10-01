@@ -10,7 +10,6 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { CHAIN_PLUGINS, firstNavTool, resolvePath } from "../chains/plugins";
 
 import UniversalSearchBar from "./UniversalSearchBar";
@@ -176,6 +175,21 @@ const TopBar: React.FC<TopBarProps> = ({
           HEXKIT
         </span>
       </Link>
+      {CHAIN_PLUGINS.length > 1 && (
+        <nav aria-label="Chain" className="inline-flex shrink-0 items-center rounded-md border border-border/40 bg-muted/30 p-0.5">
+          {CHAIN_PLUGINS.map((p) => {
+            const active = p.id === plugin.id;
+            return (
+              <button key={p.id} type="button" aria-label={p.name} title={p.name} aria-pressed={active}
+                onClick={() => { if (!active) navigate(p.basePath + firstNavTool(p).path); }}
+                className={cn("flex h-7 w-7 items-center justify-center rounded transition-colors",
+                  active ? "bg-foreground/10" : "opacity-55 hover:bg-foreground/5 hover:opacity-100")}>
+                <p.Mark size={16} />
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
@@ -208,24 +222,6 @@ const TopBar: React.FC<TopBarProps> = ({
           >
             <MagnifyingGlass size={16} />
           </Button>
-        )}
-        {CHAIN_PLUGINS.length > 1 && (
-          <Select
-            value={plugin.id}
-            onValueChange={(id) => {
-              const p = CHAIN_PLUGINS.find((x) => x.id === id)!;
-              navigate(p.basePath + firstNavTool(p).path);
-            }}
-          >
-            <SelectTrigger size="sm" aria-label="Chain">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHAIN_PLUGINS.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         )}
         {Wallet && <Wallet />}
         <Button

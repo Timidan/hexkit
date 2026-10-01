@@ -2,10 +2,12 @@ import React from "react";
 import { AddressBook, Envelope } from "@phosphor-icons/react";
 import type { ChainPlugin } from "../plugin";
 import { VaraWalletButton, VaraWalletProvider } from "./wallet";
+import { Mark } from "./Mark";
 
 export const vara: ChainPlugin = {
   id: "vara",
   name: "Vara",
+  Mark,
   basePath: "/vara",
   Provider: VaraWalletProvider,
   WalletButton: VaraWalletButton,
