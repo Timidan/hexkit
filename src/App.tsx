@@ -2,7 +2,7 @@ import React, { Suspense, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import "./App.css";
-import { useApplyRainbowKitTheme } from "./config/rainbowkit";
+import { resolvePath } from "./chains/plugins";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
@@ -35,8 +35,6 @@ function App() {
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
-
-  useApplyRainbowKitTheme();
 
   const hasUserOverride =
     (config.rpcMode === "CUSTOM" && config.customRpcUrl?.trim()) ||
@@ -79,7 +77,7 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                 </Routes>
               ) : (
-                <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder") || location.pathname.startsWith("/integrations")) && "app-fullwidth")}>
+                <div className={cn("app", resolvePath(location.pathname).tool?.fullWidth && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
 
                   <main className="content">

@@ -1,5 +1,5 @@
 import React, { Suspense, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   GearSix as SettingsIcon,
   HardDrive,
@@ -10,7 +10,8 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import RainbowKitWallet from "./RainbowKitWallet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { CHAIN_PLUGINS, firstNavTool, resolvePath } from "../chains/plugins";
 
 import UniversalSearchBar from "./UniversalSearchBar";
 import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
@@ -32,6 +33,10 @@ const TopBar: React.FC<TopBarProps> = ({
   onToggleMobileMenu,
   isMobileMenuOpen,
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { plugin } = resolvePath(location.pathname);
+  const Wallet = plugin.WalletButton;
   const { isMobile } = useBreakpoint();
   const { config } = useNetworkConfig();
 
@@ -204,7 +209,25 @@ const TopBar: React.FC<TopBarProps> = ({
             <MagnifyingGlass size={16} />
           </Button>
         )}
-        <RainbowKitWallet />
+        {CHAIN_PLUGINS.length > 1 && (
+          <Select
+            value={plugin.id}
+            onValueChange={(id) => {
+              const p = CHAIN_PLUGINS.find((x) => x.id === id)!;
+              navigate(p.basePath + firstNavTool(p).path);
+            }}
+          >
+            <SelectTrigger size="sm" aria-label="Chain">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CHAIN_PLUGINS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {Wallet && <Wallet />}
         <Button
           type="button"
           variant="icon-borderless"

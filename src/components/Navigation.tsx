@@ -2,116 +2,32 @@ import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { Lightning, Play, Code, GitDiff, Database } from "@phosphor-icons/react";
-import {
-  SearchIcon,
-  HashtagIcon,
-  ToolIcon,
-  FileTextIcon,
-  ZapIcon,
-} from "./icons/IconLibrary";
+import type { ChainSubTab, ChainTool } from "../chains/plugin";
+import { resolvePath } from "../chains/plugins";
 
-interface SubTab {
-  id: string;
-  label: string;
-  shortLabel?: string;
-  icon?: React.ReactNode;
-  paramKey: string;
-}
-
-interface ToolDef {
-  id: string;
-  route: string;
-  label: string;
-  shortLabel: string;
-  subTabs: SubTab[] | null;
-}
-
-const TOOLS: ToolDef[] = [
-  {
-    id: "database",
-    route: "/database",
-    label: "Signature Database",
-    shortLabel: "Signatures",
-    subTabs: [
-      { id: "lookup", label: "Lookup", shortLabel: "Lookup", paramKey: "tab", icon: <HashtagIcon width={12} height={12} /> },
-      { id: "search", label: "Search", shortLabel: "Search", paramKey: "tab", icon: <SearchIcon width={12} height={12} /> },
-      { id: "tools", label: "Tools", shortLabel: "Tools", paramKey: "tab", icon: <ToolIcon width={12} height={12} /> },
-      { id: "custom", label: "Custom", shortLabel: "Custom", paramKey: "tab", icon: <FileTextIcon width={12} height={12} /> },
-      { id: "cache", label: "Cache", shortLabel: "Cache", paramKey: "tab", icon: <ZapIcon width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "builder",
-    route: "/builder",
-    label: "Transaction Utils",
-    shortLabel: "Tx Utils",
-    subTabs: [
-      { id: "live", label: "Live Interaction", shortLabel: "Live", paramKey: "mode", icon: <Lightning width={12} height={12} /> },
-      { id: "simulation", label: "Simulation (EDB)", shortLabel: "Sim", paramKey: "mode", icon: <Play width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "explorer",
-    route: "/explorer",
-    label: "Source Tools",
-    shortLabel: "Source",
-    subTabs: [
-      { id: "explorer", label: "Explorer", shortLabel: "Explorer", paramKey: "tool", icon: <Code width={12} height={12} /> },
-      { id: "diff", label: "Contract Diff", shortLabel: "Diff", paramKey: "tool", icon: <GitDiff width={12} height={12} /> },
-      { id: "storage", label: "Storage", shortLabel: "Storage", paramKey: "tool", icon: <Database width={12} height={12} /> },
-    ],
-  },
-  {
-    id: "integrations",
-    route: "/integrations",
-    label: "Integrations",
-    shortLabel: "Integrate",
-    subTabs: [
-      { id: "lifi-earn", label: "LI.FI Earn", shortLabel: "LI.FI", paramKey: "route", icon: <img src="/logos/lifi.png" alt="" width={14} height={14} className="opacity-80" /> },
-    ],
-  },
-];
-
-function getActiveToolId(pathname: string): string {
-  if (pathname.startsWith("/builder")) return "builder";
-  if (pathname.startsWith("/simulations")) return "builder";
-  if (pathname.startsWith("/database")) return "database";
-  if (pathname.startsWith("/explorer")) return "explorer";
-  if (pathname.startsWith("/integrations")) return "integrations";
-  return "database";
-}
-
-function getActiveSubTabId(tool: ToolDef, search: string, pathname: string): string | null {
-  if (!tool.subTabs) return null;
-  // /simulations is the history page — highlight the "simulation" sub-tab
-  if (pathname.startsWith("/simulations")) return "simulation";
-  const params = new URLSearchParams(search);
-  // Replay is a simulation workflow even though it can carry dedicated replay params.
-  if (
-    tool.id === "builder" &&
-    (params.get("mode") === "replay" || params.get("replay") === "txhash")
-  ) {
-    return "simulation";
-  }
+function getActiveSubTabId(tool: ChainTool, params: URLSearchParams, rel: string): string | null {
+  const resolved = tool.resolveSubTab?.(rel, params);
+  if (resolved != null) return resolved;
+  const subTabs = tool.nav?.subTabs;
+  if (!subTabs?.length) return null;
   // Route-based sub-tabs: match by pathname segment (e.g. /integrations/lifi-earn).
   // Return null when URL has no segment yet so handleSubTabClick doesn't
   // falsely short-circuit on the first subtab and leave the user on a blank
   // parent route (e.g. /integrations with no body).
-  if (tool.subTabs[0]?.paramKey === "route") {
-    const segment = pathname.replace(new RegExp(`^${tool.route}/?`), "").split("/")[0];
+  if (subTabs[0]?.paramKey === "route") {
+    const segment = rel.replace(new RegExp(`^${tool.path}/?`), "").split("/")[0];
     if (!segment) return null;
-    for (const sub of tool.subTabs) {
+    for (const sub of subTabs) {
       if (sub.id === segment) return sub.id;
     }
-    return tool.subTabs[0].id;
+    return subTabs[0].id;
   }
 
-  for (const sub of tool.subTabs) {
+  for (const sub of subTabs) {
     const val = params.get(sub.paramKey);
     if (val === sub.id) return sub.id;
   }
-  return tool.subTabs[0].id;
+  return subTabs[0].id;
 }
 
 function measureBtn(
@@ -143,10 +59,12 @@ const Navigation: React.FC = () => {
   const navigate = useNavigate();
   const reduce = useReducedMotion();
 
-  const activeToolId = getActiveToolId(location.pathname);
-  const activeTool = TOOLS.find((t) => t.id === activeToolId) ?? TOOLS[0];
-  const activeSubId = getActiveSubTabId(activeTool, location.search, location.pathname);
-  const hasSubTabs = activeTool.subTabs != null && activeTool.subTabs.length > 0;
+  const { plugin, rel, tool } = resolvePath(location.pathname);
+  const navTools = plugin.tools.filter((t) => t.nav);
+  const activeTool = tool?.nav ? tool : navTools.find((t) => t.id === tool?.navParent) ?? navTools[0];
+  const activeToolId = activeTool.id;
+  const activeSubId = getActiveSubTabId(activeTool, new URLSearchParams(location.search), rel);
+  const hasSubTabs = activeTool.nav?.subTabs != null && activeTool.nav.subTabs.length > 0;
 
   const subItemVariant: Variants = reduce
     ? {
@@ -271,17 +189,17 @@ const Navigation: React.FC = () => {
 
   const [pressedTab, setPressedTab] = useState<string | null>(null);
 
-  const handleToolClick = (tool: ToolDef) => {
+  const handleToolClick = (tool: ChainTool) => {
     if (tool.id === activeToolId) return;
-    navigate(tool.route);
+    navigate(plugin.basePath + tool.path);
   };
 
-  const handleSubTabClick = (sub: SubTab) => {
+  const handleSubTabClick = (sub: ChainSubTab) => {
     if (sub.id === activeSubId) return;
 
     // Route-based sub-tabs navigate to a sub-path (e.g. /integrations/lifi-earn)
     if (sub.paramKey === "route") {
-      navigate(`${activeTool.route}/${sub.id}`);
+      navigate(`${plugin.basePath}${activeTool.path}/${sub.id}`);
       return;
     }
 
@@ -289,9 +207,9 @@ const Navigation: React.FC = () => {
     params.set(sub.paramKey, sub.id);
     // Use the tool's canonical route when the current path doesn't match
     // (e.g. navigating from /simulations back to /builder?mode=live)
-    const basePath = location.pathname.startsWith(activeTool.route)
+    const basePath = rel.startsWith(activeTool.path)
       ? location.pathname
-      : activeTool.route;
+      : plugin.basePath + activeTool.path;
     navigate(
       { pathname: basePath, search: `?${params.toString()}` },
       { replace: true },
@@ -335,7 +253,7 @@ const Navigation: React.FC = () => {
             className="capsule-indicator"
             style={{ left: mainLeft, width: mainWidth }}
           />
-          {TOOLS.map((tool) => (
+          {navTools.map((tool) => (
             <motion.button
               key={tool.id}
               type="button"
@@ -350,8 +268,8 @@ const Navigation: React.FC = () => {
               animate={{ scale: reduce ? 1 : pressedTab === tool.id ? 0.96 : 1 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
-              <span className="hidden sm:inline">{tool.label}</span>
-              <span className="sm:hidden">{tool.shortLabel}</span>
+              <span className="hidden sm:inline">{tool.nav!.label}</span>
+              <span className="sm:hidden">{tool.nav!.shortLabel}</span>
             </motion.button>
           ))}
         </div>
@@ -373,7 +291,7 @@ const Navigation: React.FC = () => {
                   animate="visible"
                   exit="exit"
                 >
-                  {activeTool.subTabs?.map((sub) => (
+                  {activeTool.nav?.subTabs?.map((sub) => (
                     <motion.button
                       key={sub.id}
                       type="button"
