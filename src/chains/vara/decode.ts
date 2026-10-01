@@ -66,3 +66,11 @@ export function decodeEvent(payload: Hex, sails: Sails | null): Decoded {
   }
   return decoded;
 }
+
+export function encodeArgs(sails: Sails, service: string, name: string, kind: "functions" | "queries", args: unknown): Hex {
+  const fn = sails.services[service]?.[kind][name];
+  if (!fn) throw new Error(`${service}.${name} not in IDL`);
+  if (!Array.isArray(args) && (args === null || typeof args !== "object")) throw new Error("Args must be a JSON object or array");
+  const positional = Array.isArray(args) ? args : fn.args.map((a) => (args as Record<string, unknown>)[a.name]);
+  return fn.encodePayload(...positional);
+}

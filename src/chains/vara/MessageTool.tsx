@@ -5,10 +5,17 @@ import { Button } from "../../components/ui/button";
 import { CopyButton } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
 import { encodeSs58, VARA_SS58_PREFIX } from "./address";
-import { caseFromJson, fetchCase } from "./case";
-import type { VaraCase } from "./case";
+import { caseFromJson, explainRpcError, fetchCase } from "./case";
+import type { Runs, VaraCase } from "./case";
 import { decodeCall, decodeEvent, decodeReply, loadIdl } from "./decode";
 import type { Decoded } from "./decode";
+import DryRunPanel from "./DryRunPanel";
+
+function defaultRuns(c: VaraCase): Runs | null {
+  if (!c.call.destination || !c.call.payload) return null;
+  const input = { block: String(c.block.number - 1), origin: c.call.signer ?? `0x${"00".repeat(32)}`, payload: c.call.payload, value: c.call.value ?? "0", gasLimit: c.call.gasLimit ?? "0" };
+  return { a: { input, result: null }, b: { input: { ...input, block: "latest" }, result: null }, query: null };
+}
 
 function Identity({ label, value }: { label: string; value: string | null }) {
   return (
@@ -37,6 +44,7 @@ function Payload({ payload, decoded, hasIdl }: { payload: `0x${string}`; decoded
 export default function MessageTool() {
   const [input, setInput] = useState("");
   const [c, setCase] = useState<VaraCase | null>(null);
+  const [runs, setRuns] = useState<Runs | null>(null);
   const [idlText, setIdlText] = useState<string | null>(null);
   const [sails, setSails] = useState<Sails | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,9 +61,11 @@ export default function MessageTool() {
     setBusy(true);
     setError("");
     try {
-      setCase(await fetchCase(Number(match[1]), Number(match[2])));
+      const fetched = await fetchCase(Number(match[1]), Number(match[2]));
+      setCase(fetched);
+      setRuns(defaultRuns(fetched));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(explainRpcError(err, match[1]));
     } finally {
       setBusy(false);
     }
@@ -67,6 +77,7 @@ export default function MessageTool() {
     try {
       const imported = caseFromJson(await file.text());
       setCase(imported);
+      setRuns(imported.runs ?? defaultRuns(imported));
       setInput(`${imported.block.number}-${imported.extrinsicIndex}`);
       setIdlText(imported.idl);
       setSails(null);
@@ -94,7 +105,7 @@ export default function MessageTool() {
 
   function exportCase() {
     if (!c) return;
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ ...c, idl: idlText ?? null }, null, 2)], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ ...c, idl: idlText ?? null, ...(runs ? { runs } : {}) }, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `vara-case-${c.block.number}-${c.extrinsicIndex}.json`;
@@ -208,6 +219,7 @@ export default function MessageTool() {
               : <pre className={`whitespace-pre-wrap break-all text-sm ${replyText === reply.payload ? "font-mono" : "font-sans"}`}>{replyText}</pre>}
           </> : <p className="text-sm text-muted-foreground">No reply in this block</p>}
         </section>
+        {runs && <DryRunPanel key={`${c.block.hash}-${c.extrinsicIndex}`} c={c} sails={sails} runs={runs} update={(f) => setRuns((prev) => prev && f(prev))} />}
         <section className="space-y-4 rounded-lg border border-border bg-card p-4">
           <h2 className="font-semibold">Program events <span className="font-normal text-muted-foreground">(same block, same program, not causally linked)</span></h2>
           {c.message?.programEvents.length ? c.message.programEvents.map((event) => (

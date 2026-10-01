@@ -9,7 +9,7 @@ const ZERO = `0x${"00".repeat(32)}`;
 let pending: Promise<GearApi> | null = null;
 
 // ponytail: one shared archive connection per session; add an endpoint picker when testnet/local nodes are needed.
-function getVaraApi(): Promise<GearApi> {
+export function getVaraApi(): Promise<GearApi> {
   pending ??= (async () => {
     const api = new GearApi({ providerAddress: VARA_RPC });
     const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Could not reach ${VARA_RPC}`)), 20_000));
@@ -25,7 +25,21 @@ function getVaraApi(): Promise<GearApi> {
   return pending;
 }
 
+export function explainRpcError(err: unknown, block: number | string): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/State already discarded|UnknownBlock/.test(message)) return `History unavailable at block ${block} on ${VARA_RPC} (state discarded; needs an archive node)`;
+  if (/calculate_reply_for_handle is not found/.test(message)) return `Dry run not supported by the runtime at block ${block}`;
+  return message;
+}
+
 const Hex = z.custom<`0x${string}`>((v) => typeof v === "string" && /^0x([0-9a-fA-F]{2})*$/.test(v));
+const Reply = z.object({ code: z.string(), success: z.boolean(), payload: Hex, value: z.string() });
+const RunInput = z.object({ block: z.string(), origin: z.string(), payload: z.string(), value: z.string(), gasLimit: z.string() });
+const RunResult = z.object({
+  block: z.object({ number: z.number(), hash: Hex }).nullable(), specVersion: z.number().nullable(),
+  reply: Reply.nullable(), query: z.union([Reply, z.object({ error: z.string() })]).nullable(), error: z.string().nullable(),
+});
+const Run = z.object({ input: RunInput, result: RunResult.nullable() });
 export const CaseSchema = z.object({
   format: z.literal("hexkit.vara.case"), version: z.literal(1),
   network: z.object({ genesisHash: Hex, specVersion: z.number(), endpoint: z.string() }),
@@ -41,8 +55,12 @@ export const CaseSchema = z.object({
     programEvents: z.array(z.object({ id: Hex, payload: Hex })),
   }).nullable(),
   idl: z.string().nullable(),
+  runs: z.object({ a: Run, b: Run, query: z.object({ service: z.string(), name: z.string(), args: z.array(z.unknown()) }).nullable() }).optional(),
 });
 export type VaraCase = z.infer<typeof CaseSchema>;
+export type RunInputT = z.infer<typeof RunInput>;
+export type RunResultT = z.infer<typeof RunResult>;
+export type Runs = NonNullable<VaraCase["runs"]>;
 
 export function caseFromJson(text: string): VaraCase {
   const result = CaseSchema.safeParse(JSON.parse(text));
