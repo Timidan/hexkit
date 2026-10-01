@@ -1,5 +1,5 @@
 import React from "react";
-import { AddressBook } from "@phosphor-icons/react";
+import { AddressBook, Envelope } from "@phosphor-icons/react";
 import type { ChainPlugin } from "../plugin";
 
 export const vara: ChainPlugin = {
@@ -7,6 +7,12 @@ export const vara: ChainPlugin = {
   name: "Vara",
   basePath: "/vara",
   tools: [
+    {
+      id: "message",
+      path: "/message",
+      nav: { label: "Message Case", shortLabel: "Case", icon: Envelope },
+      Component: React.lazy(() => import("./MessageTool")),
+    },
     {
       id: "address",
       path: "/address",
