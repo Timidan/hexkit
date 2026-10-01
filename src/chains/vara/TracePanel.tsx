@@ -10,7 +10,8 @@ import { StepStatusIcon } from "../../components/ui/step-status-icon";
 import type { StepVisualStatus } from "../../components/ui/step-status-icon";
 import { cn } from "../../lib/utils";
 import type { VaraCase } from "./case";
-import { decodeCall, decodeEvent, decodeReply } from "./decode";
+import { decodeCall, decodeEvent, decodeReply, loadIdl } from "./decode";
+import { getIdl } from "./idlStore";
 import type { Decoded } from "./decode";
 import type { Hex, Trace, TraceNode, TraceStep } from "./model";
 import { traceMessage } from "./trace";
@@ -71,28 +72,32 @@ function Derivation({ node, parentShort }: { node: TraceNode; parentShort: strin
   );
 }
 
-function NodePayload({ node, rootCall, sails, programId }: { node: TraceNode; rootCall: Decoded; sails: Sails | null; programId: Hex }) {
+function NodePayload({ node, rootCall, sails, programId, calleeIdls }: { node: TraceNode; rootCall: Decoded; sails: Sails | null; programId: Hex; calleeIdls: Map<string, Sails> }) {
   if (!node.payload) return null;
   if (node.payload === "0x") return <p className="text-sm text-muted-foreground">Empty payload</p>;
   if (node.kind === "reply" && node.replySuccess === false) {
     const text = utf8(node.payload);
     return <pre className="whitespace-pre-wrap break-all rounded-md border border-red-500/30 bg-red-500/5 p-3 font-mono text-sm text-red-300">{text ?? node.payload}</pre>;
   }
-  const foreign = node.source !== null && node.source !== programId;
-  const decoded = foreign ? null : node.kind === "reply" ? decodeReply(node.payload, rootCall, sails) : node.kind === "event" ? decodeEvent(node.payload, sails) : decodeCall(node.payload, sails);
+  // The root comes from a user; any other node emitted by a different program cannot use
+  // this program's IDL, but its Sails route (service.method) still decodes from the prefix.
+  const foreign = node.kind !== "root" && node.source !== null && node.source.toLowerCase() !== programId.toLowerCase();
+  // A callee's own event decodes with the IDL remembered for that callee, when there is one.
+  const idl = foreign ? calleeIdls.get(node.source!.toLowerCase()) ?? null : sails;
+  const decoded = node.kind === "reply" ? decodeReply(node.payload, rootCall, idl) : node.kind === "event" ? decodeEvent(node.payload, idl) : decodeCall(node.payload, idl);
   return (
     <div className="space-y-2">
-      {decoded?.service && decoded.name && <p className="text-sm">{decoded.service}.{decoded.name}</p>}
-      {decoded && sails && !decoded.error && decoded.value !== null
+      {decoded.service && decoded.name && <p className="text-sm">{decoded.service}.{decoded.name}</p>}
+      {idl && !decoded.error && decoded.value !== null
         ? <ValueTree value={decoded.value} rootLabel={decoded.name ?? "value"} />
         : <code className="block break-all rounded-md border border-border/60 bg-background/40 p-3 font-mono text-xs">{node.payload}</code>}
-      {foreign && <p className="text-xs text-muted-foreground">Emitted by another program; the loaded IDL describes {shortHex(programId)}.</p>}
-      {decoded?.error && <p className="text-xs text-muted-foreground">{decoded.error}</p>}
+      {foreign && !idl && sails && <p className="text-xs text-muted-foreground">Emitted by another program; the loaded IDL describes {shortHex(programId)}, so only the route is decoded. Load this program's IDL in its workspace to decode it.</p>}
+      {decoded.error && <p className="text-xs text-muted-foreground">{decoded.error}</p>}
     </div>
   );
 }
 
-function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent: Map<string, TraceNode[]>; depth: number; rootCall: Decoded; sails: Sails | null; programId: Hex }) {
+function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent: Map<string, TraceNode[]>; depth: number; rootCall: Decoded; sails: Sails | null; programId: Hex; calleeIdls: Map<string, Sails> }) {
   // Traces are one level deep by construction; the cap guards against cycles in imported files.
   const children = depth < MAX_DEPTH ? byParent.get(node.id.toLowerCase()) ?? [] : [];
   const hidden = node.kind === "hidden";
@@ -107,9 +112,18 @@ function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent
           {node.block !== null && <span className="font-mono text-xs text-muted-foreground">block {node.block}</span>}
         </div>
         {hidden ? (
-          <p className="text-sm text-muted-foreground">
-            Call into another program (nonce {node.derivation?.nonce}). Its id is known, but the destination and payload never appear in on-chain events.
-          </p>
+          node.destination ? (
+            <div className="space-y-2">
+              <p className="text-sm">
+                Call into <HexChip value={node.destination} label="callee program" /> (nonce {node.derivation?.nonce}).
+              </p>
+              <p className="text-xs text-muted-foreground">Destination proven by the callee's own event below, whose id derives from this call's id. The call's payload is not on-chain.</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Call into another program (nonce {node.derivation?.nonce}). Its id is known, but the destination and payload never appear in on-chain events.
+            </p>
+          )
         ) : (
           <>
             <dl className="grid gap-3 sm:grid-cols-2">
@@ -152,6 +166,21 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
+  // IDLs remembered for programs that emitted events in this trace (callees), keyed lowercase.
+  const [calleeIdls, setCalleeIdls] = useState<Map<string, Sails>>(new Map());
+  useEffect(() => {
+    if (!trace) return;
+    let cancelled = false;
+    const sources = [...new Set(trace.nodes.map((n) => n.source?.toLowerCase()).filter((s): s is string => !!s && s !== trace.programId.toLowerCase()))];
+    void Promise.all(sources.map(async (s) => {
+      const text = getIdl(s as Hex);
+      if (!text) return null;
+      try { return [s, await loadIdl(text)] as const; } catch { return null; }
+    })).then((loaded) => {
+      if (!cancelled) setCalleeIdls(new Map(loaded.filter((e): e is readonly [string, Sails] => e !== null)));
+    });
+    return () => { cancelled = true; };
+  }, [trace]);
 
   const message = c.message;
   if (!message) return <p className="text-sm text-muted-foreground">This extrinsic queued no message, so there is nothing to trace.</p>;
@@ -184,7 +213,9 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
   const order = (n: TraceNode) => (n.derivation?.salt === "reply" ? Number.MAX_SAFE_INTEGER : n.derivation?.nonce ?? 0);
   byParent.forEach((list) => list.sort((a, b) => order(a) - order(b)));
   const proven = trace ? trace.nodes.filter((n) => n.kind !== "root" && n.kind !== "hidden").length : 0;
-  const hidden = trace ? trace.nodes.filter((n) => n.kind === "hidden").length : 0;
+  // Hidden calls made by the traced message itself (grandchild calls belong to callees).
+  const rootHidden = trace ? trace.nodes.filter((n) => n.kind === "hidden" && n.parent?.toLowerCase() === trace.root.toLowerCase()).length : 0;
+  const provenCallees = trace ? trace.nodes.filter((n) => n.kind === "hidden" && n.destination).length : 0;
   const rootCall = c.call.payload ? decodeCall(c.call.payload, sails) : { service: null, name: null, value: null, error: null };
   const pct = progress ? Math.round((progress.scanned / Math.max(progress.total, 1)) * 100) : 0;
 
@@ -221,7 +252,8 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={trace.complete ? "success" : "warning"}>{trace.complete ? "Complete" : "Incomplete"}</Badge>
             <Badge variant="outline">{proven} proven link{proven === 1 ? "" : "s"}</Badge>
-            {hidden > 0 && <Badge variant="outline">{hidden} hidden call{hidden === 1 ? "" : "s"}</Badge>}
+            {rootHidden > 0 && <Badge variant="outline">{rootHidden} hidden call{rootHidden === 1 ? "" : "s"}</Badge>}
+            {provenCallees > 0 && <Badge variant="teal">{provenCallees} callee{provenCallees === 1 ? "" : "s"} proven</Badge>}
             <span className="font-mono text-xs text-muted-foreground">blocks {trace.fromBlock}–{trace.toBlock}</span>
           </div>
           {!trace.complete && (
@@ -237,7 +269,7 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
               if (pauses === 0) return null;
               return (
                 <p className="max-w-prose text-sm text-muted-foreground">
-                  {pauses === hidden
+                  {pauses === rootHidden
                     ? `Paused ${pauses} time${pauses === 1 ? "" : "s"}, once per hidden call: the program called another program and waited for its reply before continuing.`
                     : `Paused ${pauses} time${pauses === 1 ? "" : "s"} waiting for replies from other programs.`}
                 </p>
@@ -257,7 +289,7 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Causal tree</h3>
             <ul className="space-y-3">
-              <NodeCard node={root} byParent={byParent} depth={0} rootCall={rootCall} sails={sails} programId={trace.programId} />
+              <NodeCard node={root} byParent={byParent} depth={0} rootCall={rootCall} sails={sails} programId={trace.programId} calleeIdls={calleeIdls} />
             </ul>
           </section>
 

@@ -6,6 +6,7 @@ import { AnimatedTabContent } from "../../components/ui/animated-tabs";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { encodeSs58, VARA_SS58_PREFIX } from "./address";
 import { caseFromJson, explainRpcError, fetchCase } from "./case";
@@ -85,7 +86,7 @@ export default function MessageTool() {
     if (programId) setIdl(programId as `0x${string}`, text);
   }
 
-  async function fetchExtrinsic(raw = input) {
+  async function fetchExtrinsic(raw = input, msg = 0) {
     const match = /^(\d+)-(\d+)$/.exec(raw.trim());
     if (!match) {
       setError("Use <block>-<index>, e.g. 36589852-1");
@@ -94,13 +95,17 @@ export default function MessageTool() {
     setBusy(true);
     setError("");
     try {
-      const fetched = await fetchCase(Number(match[1]), Number(match[2]));
+      const fetched = await fetchCase(Number(match[1]), Number(match[2]), msg);
       if (!alive.current) return;
       setCase(fetched);
       setRuns(defaultRuns(fetched));
       setTrace(null);
-      handledId.current = `${match[1]}-${match[2]}`;
-      setParams((p) => { p.set("id", `${match[1]}-${match[2]}`); return p; }, { replace: true });
+      handledId.current = `${match[1]}-${match[2]}#${msg}`;
+      setParams((p) => {
+        p.set("id", `${match[1]}-${match[2]}`);
+        if (msg) p.set("msg", String(msg)); else p.delete("msg");
+        return p;
+      }, { replace: true });
       const programId = fetched.message?.programId ?? fetched.call.destination;
       // An IDL loaded before any case binds to this program; otherwise switch to the
       // IDL remembered for this program so another program's IDL is never reused.
@@ -116,17 +121,19 @@ export default function MessageTool() {
   // Deep link: /vara/message?id=<block>-<index>&tab=trace. Tools stay mounted between
   // visits, so react to the id changing rather than only to the first mount.
   const idParam = params.get("id");
+  // Non-negative integer only; anything else falls back to the first message.
+  const msgParam = /^\d+$/.test(params.get("msg") ?? "") ? Number(params.get("msg")) : 0;
   useEffect(() => {
     if (TABS.includes(tabParam as Tab)) setTab(tabParam as Tab);
   }, [tabParam]);
   useEffect(() => {
-    if (!idParam || idParam === handledId.current) return;
-    handledId.current = idParam;
+    if (!idParam || `${idParam}#${msgParam}` === handledId.current) return;
+    handledId.current = `${idParam}#${msgParam}`;
     setInput(idParam);
     if (TABS.includes(tabParam as Tab)) setTab(tabParam as Tab);
-    void fetchExtrinsic(idParam);
+    void fetchExtrinsic(idParam, msgParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idParam]);
+  }, [idParam, msgParam]);
 
   async function importCase(file: File) {
     setBusy(true);
@@ -165,7 +172,7 @@ export default function MessageTool() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(body, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `vara-case-${c.block.number}-${c.extrinsicIndex}.json`;
+    a.download = `vara-case-${c.block.number}-${c.extrinsicIndex}${(c.messageCount ?? 1) > 1 ? `-m${(c.messageIndex ?? 0) + 1}` : ""}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -227,7 +234,14 @@ export default function MessageTool() {
           <dl className="grid gap-4 rounded-lg border border-border/70 bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Extrinsic"><span className="font-mono">{c.block.number}-{c.extrinsicIndex}</span></Field>
             <Field label="Block hash"><HexChip value={c.block.hash} label="block hash" /></Field>
-            <Field label="Call">{c.call.section}.{c.call.method} <Badge className="ml-1" variant={c.result.success ? "success" : "error"}>{c.result.success ? "Success" : "Failed"}</Badge></Field>
+            <Field label="Call">
+              <span className="inline-flex flex-wrap items-center gap-1.5">
+                {c.call.section}.{c.call.method}
+                <Badge variant={c.result.success ? "success" : "error"}>{c.result.success ? "Success" : "Failed"}</Badge>
+                {c.call.via === "voucher" && <Badge variant="outline">via voucher</Badge>}
+                {c.call.via === "batch" && <Badge variant="outline">batch</Badge>}
+              </span>
+            </Field>
             <Field label="Program">
               {programId ? (
                 <span className="inline-flex flex-wrap items-center gap-1">
@@ -237,6 +251,21 @@ export default function MessageTool() {
               ) : "—"}
             </Field>
           </dl>
+
+          {((c.messageCount ?? 1) > 1 || c.call.voucherId) && (
+            <div className="flex flex-wrap items-center gap-3">
+              {(c.messageCount ?? 1) > 1 && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="vara-message-index" className="text-sm text-muted-foreground">This extrinsic queued {c.messageCount} messages</label>
+                  <Select value={String(c.messageIndex ?? 0)} disabled={busy} onValueChange={(v) => void fetchExtrinsic(`${c.block.number}-${c.extrinsicIndex}`, Number(v))}>
+                    <SelectTrigger id="vara-message-index" size="sm" className="w-auto min-w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>{Array.from({ length: c.messageCount ?? 1 }, (_, k) => <SelectItem key={k} value={String(k)}>Message {k + 1} of {c.messageCount}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              {c.call.voucherId && <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">Voucher <HexChip value={c.call.voucherId} label="voucher id" /></span>}
+            </div>
+          )}
 
           <Tabs value={tab} onValueChange={changeTab}>
             <TabsList>
@@ -266,9 +295,9 @@ export default function MessageTool() {
                   </dl>
                 </Card>
                 <Card title="Payload">
-                  {c.call.section === "gear" && c.call.method === "sendMessage" && c.call.payload && call
+                  {c.call.payload && call
                     ? <Payload payload={c.call.payload} decoded={call} hasIdl={!!sails} />
-                    : <><ValueTree value={c.call.args} rootLabel="args" /><p className="text-sm text-muted-foreground">Only gear.sendMessage payloads are decoded</p></>}
+                    : <><ValueTree value={c.call.args} rootLabel="args" /><p className="text-sm text-muted-foreground">Only message sends (direct, via voucher or inside a batch) are decoded</p></>}
                 </Card>
                 <Card title="Message">
                   {c.message ? (

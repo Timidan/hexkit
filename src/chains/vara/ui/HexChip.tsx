@@ -14,7 +14,7 @@ export function HexChip({ value, label, className, full = false }: { value: stri
         <code className="min-w-0 break-all font-mono text-sm">{value}</code>
       ) : (
         <AnimatedTooltip content={<span className="block max-w-[80vw] break-all font-mono text-xs sm:max-w-md">{value}</span>}>
-          <code className="font-mono text-sm" aria-label={`${label}: ${value}`}>{shortHex(value)}</code>
+          <code tabIndex={0} className="rounded-sm font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`${label}: ${value}`}>{shortHex(value)}</code>
         </AnimatedTooltip>
       )}
       <CopyButton variant="ghost" size="icon-sm" value={value} ariaLabel={`Copy ${label}`} />

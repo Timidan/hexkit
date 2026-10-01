@@ -1,7 +1,8 @@
 import { GearApi } from "@gear-js/api";
-import type { GearCoreProgram, UserMessageSentData } from "@gear-js/api";
-import type { Option } from "@polkadot/types";
-import type { DispatchError, MultiAddress } from "@polkadot/types/interfaces";
+import type { GearCoreProgram, PalletGearVoucherInternalPrepaidCall, UserMessageSentData } from "@gear-js/api";
+import type { GenericExtrinsic, Option, Vec } from "@polkadot/types";
+import type { Call, DispatchError, MultiAddress } from "@polkadot/types/interfaces";
+import type { FrameSystemEventRecord } from "@polkadot/types/lookup";
 import { z } from "zod";
 
 const VARA_RPC = "wss://archive-rpc.vara.network";
@@ -46,9 +47,11 @@ export const CaseSchema = z.object({
   format: z.literal("hexkit.vara.case"), version: z.literal(1),
   network: z.object({ genesisHash: Hex, specVersion: z.number(), endpoint: z.string() }),
   block: z.object({ number: z.number(), hash: Hex }), extrinsicIndex: z.number(),
+  messageIndex: z.number().optional(), messageCount: z.number().optional(),
   call: z.object({
     section: z.string(), method: z.string(), signer: Hex.nullable(), args: z.unknown(),
     destination: Hex.nullable(), payload: Hex.nullable(), gasLimit: z.string().nullable(), value: z.string().nullable(), keepAlive: z.boolean().nullable(),
+    via: z.enum(["voucher", "batch"]).nullable().optional(), voucherId: Hex.nullable().optional(),
   }),
   result: z.object({ success: z.boolean(), error: z.string().nullable() }),
   message: z.object({
@@ -81,7 +84,41 @@ export function caseFromJson(text: string): VaraCase {
   return result.data;
 }
 
-export async function fetchCase(blockNumber: number, index: number): Promise<VaraCase> {
+export function messageCall(ex: GenericExtrinsic, phase: FrameSystemEventRecord[], k: number) {
+  let call = ex.method;
+  const queued = phase.filter(({ event }) => event.section === "gear" && event.method === "MessageQueued")[k];
+  const result: Pick<VaraCase["call"], "destination" | "payload" | "gasLimit" | "value" | "keepAlive" | "via" | "voucherId"> = {
+    destination: null, payload: null, gasLimit: null, value: null, keepAlive: null, via: null, voucherId: null,
+  };
+  if (call.section === "utility" && ["batch", "batchAll", "forceBatch"].includes(call.method)) {
+    let j = 0;
+    for (const record of phase) {
+      if (record === queued) break;
+      if (record.event.section === "utility" && ["ItemCompleted", "ItemFailed"].includes(record.event.method)) j++;
+    }
+    // ponytail: nested batches misalign; the destination check below nulls the fields instead of lying.
+    call = (call.args[0] as unknown as Vec<Call>)[j];
+    result.via = "batch";
+  }
+  if (call?.section === "gearVoucher" && call.method === "call") {
+    result.voucherId = call.args[0].toHex();
+    result.via ??= "voucher";
+    const pc = call.args[1] as unknown as PalletGearVoucherInternalPrepaidCall;
+    if (pc.isSendMessage) {
+      const { destination, payload, gasLimit, value, keepAlive } = pc.asSendMessage;
+      Object.assign(result, { destination: destination.toHex(), payload: payload.toHex(), gasLimit: gasLimit.toString(), value: value.toString(), keepAlive: keepAlive.isTrue });
+    }
+  } else if (call?.section === "gear" && call.method === "sendMessage") {
+    const [dest, payload, gas, value, keep] = call.args;
+    Object.assign(result, { destination: dest.toHex(), payload: payload.toHex(), gasLimit: gas.toString(), value: value.toString(), keepAlive: keep.eq(true) });
+  }
+  if (result.destination && result.destination.toLowerCase() !== queued?.event.data[2].toHex().toLowerCase()) {
+    Object.assign(result, { destination: null, payload: null, gasLimit: null, value: null, keepAlive: null });
+  }
+  return result;
+}
+
+export async function fetchCase(blockNumber: number, index: number, messageIndex = 0): Promise<VaraCase> {
   const api = await getVaraApi();
   const hash = await api.rpc.chain.getBlockHash(blockNumber);
   if (hash.isEmpty) throw new Error(`Block ${blockNumber} not found`);
@@ -104,7 +141,11 @@ export async function fetchCase(blockNumber: number, index: number): Promise<Var
   }
 
   let message: VaraCase["message"] = null;
-  const queued = gear("MessageQueued", mine)[0];
+  const queuedAll = gear("MessageQueued", mine);
+  const messageCount = queuedAll.length;
+  const queued = queuedAll[messageIndex];
+  if (!Number.isSafeInteger(messageIndex) || messageIndex < 0) throw new Error(`Invalid message index ${messageIndex}`);
+  if (messageIndex > 0 && !queued) throw new Error(`Message ${messageIndex} not found in extrinsic ${blockNumber}-${index} (it queued ${messageCount})`);
   if (queued) {
     const id = queued[0].toHex();
     const programId = queued[2].toHex();
@@ -128,19 +169,17 @@ export async function fetchCase(blockNumber: number, index: number): Promise<Var
     if (program.isSome && program.unwrap().isActive) message.codeId = program.unwrap().asActive.codeId.toHex();
   }
 
-  const isSend = ex.method.section === "gear" && ex.method.method === "sendMessage";
-  const [dest, payload, gas, value, keep] = ex.args;
   const signer = ex.signer as unknown as MultiAddress;
   return {
     format: "hexkit.vara.case", version: 1,
     network: { genesisHash: api.genesisHash.toHex(), specVersion: apiAt.runtimeVersion.specVersion.toNumber(), endpoint: VARA_RPC },
     block: { number: blockNumber, hash: hash.toHex() }, extrinsicIndex: index,
+    messageIndex, messageCount,
     call: {
       section: ex.method.section, method: ex.method.method,
       signer: ex.isSigned && signer.type === "Id" ? signer.value.toHex() : null,
       args: (ex.method.toJSON() as { args: unknown }).args,
-      destination: isSend ? dest.toHex() : null, payload: isSend ? payload.toHex() : null,
-      gasLimit: isSend ? gas.toString() : null, value: isSend ? value.toString() : null, keepAlive: isSend ? keep.eq(true) : null,
+      ...messageCall(ex, mine, messageIndex),
     },
     result: { success: !failed, error }, message, idl: null,
   };

@@ -1,6 +1,7 @@
-import type { GearCoreProgram, MessagesDispatchedData, PalletGearVoucherInternalPrepaidCall, UserMessageSentData } from "@gear-js/api";
+import type { GearCoreProgram, MessagesDispatchedData, UserMessageSentData } from "@gear-js/api";
 import type { Option } from "@polkadot/types";
-import { explainRpcError, getVaraApi } from "./case";
+import type { FrameSystemEventRecord } from "@polkadot/types/lookup";
+import { explainRpcError, getVaraApi, messageCall } from "./case";
 import type { ActivityItem, Hex, ProgramInfo } from "./model";
 
 export async function loadProgram(id: Hex): Promise<ProgramInfo> {
@@ -42,12 +43,23 @@ export async function recentActivity(programId: Hex, blocks: number, onProgress?
     }));
     const activity = await Promise.all(batch.map(async ({ number, hash, records }) => {
       try {
-        const queued = records.filter(({ event, phase }) => event.section === "gear" && event.method === "MessageQueued" && phase.isApplyExtrinsic && event.data[2].toHex().toLowerCase() === programId.toLowerCase());
-        if (!queued.length) return [];
-        const { block } = await api.rpc.chain.getBlock(hash);
+        const queued: { record: FrameSystemEventRecord; messageIndex: number }[] = [];
+        const counts = new Map<number, number>();
+        const phases = new Map<number, FrameSystemEventRecord[]>();
         const statuses = new Map<string, string>();
         const replies = new Map<string, boolean>();
-        for (const { event } of records) {
+        for (const record of records) {
+          const { event, phase } = record;
+          if (phase.isApplyExtrinsic) {
+            const index = phase.asApplyExtrinsic.toNumber();
+            if (!phases.has(index)) phases.set(index, []);
+            phases.get(index)!.push(record);
+            if (event.section === "gear" && event.method === "MessageQueued") {
+              const messageIndex = counts.get(index) ?? 0;
+              counts.set(index, messageIndex + 1);
+              if (event.data[2].toHex().toLowerCase() === programId.toLowerCase()) queued.push({ record, messageIndex });
+            }
+          }
           if (event.section !== "gear") continue;
           if (event.method === "MessagesDispatched") {
             for (const [id, status] of event.data[1] as unknown as MessagesDispatchedData["statuses"]) statuses.set(id.toHex().toLowerCase(), status.type);
@@ -59,24 +71,21 @@ export async function recentActivity(programId: Hex, blocks: number, onProgress?
             }
           }
         }
+        if (!queued.length) return [];
+        const { block } = await api.rpc.chain.getBlock(hash);
         const found: ActivityItem[] = [];
-        for (const { event, phase } of queued) {
+        for (const { record: { event, phase }, messageIndex } of queued) {
           const extrinsicIndex = phase.asApplyExtrinsic.toNumber();
           const ex = block.extrinsics[extrinsicIndex];
-          let payload: Hex | null = null;
-          if (ex?.method.section === "gear" && ex.method.method === "sendMessage") payload = ex.args[1].toHex();
-          else if (ex?.method.section === "gearVoucher" && ex.method.method === "call") {
-            const call = ex.args[1] as unknown as PalletGearVoucherInternalPrepaidCall;
-            if (call.isSendMessage) payload = call.asSendMessage.payload.toHex();
-          }
+          const payload = ex ? messageCall(ex, phases.get(extrinsicIndex)!, messageIndex).payload : null;
           if (payload === null) continue;
           const messageId = event.data[0].toHex();
           found.push({
-            block: number, extrinsicIndex, messageId, source: event.data[1].toHex(), payload,
+            block: number, extrinsicIndex, messageIndex, messageId, source: event.data[1].toHex(), payload,
             status: statuses.get(messageId.toLowerCase()) ?? null, replySuccess: replies.get(messageId.toLowerCase()) ?? null,
           });
         }
-        return found.sort((a, b) => b.extrinsicIndex - a.extrinsicIndex);
+        return found.sort((a, b) => b.extrinsicIndex - a.extrinsicIndex || a.messageIndex - b.messageIndex);
       } catch (err) {
         throw new Error(explainRpcError(err, number));
       }

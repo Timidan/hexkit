@@ -27,7 +27,12 @@ import { IdlDrop } from "./ui/IdlDrop";
 import { FieldEditor, typeLabel } from "./ui/TypedForm";
 import { ValueTree } from "./ui/ValueTree";
 
-const EXAMPLE = { id: "0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba", name: "PolyBaskets BasketMarket" };
+const EXAMPLES = [
+  { id: "0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba", name: "PolyBaskets BasketMarket" },
+  { id: "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029", name: "ServiceSync" },
+  { id: "0x038534fe3ec91c4a9b4074f14908bfeca6358da0515772a428d8c489fdd134a1", name: "DEX Pair" },
+  { id: "0x4255ff4a87a4c13dc39f74ace8c4948bbef2f75fb639d66639a1cfcc99e6243e", name: "Vft token" },
+] as const;
 const ZERO = `0x${"00".repeat(32)}` as Hex;
 const LAST_KEY = "hexkit.vara.lastProgram";
 const ACTIVITY_RANGES = [300, 1200, 3600] as const;
@@ -145,7 +150,7 @@ function MethodList({ model, selected, onSelect }: { model: IdlModel; selected: 
   );
 }
 
-function Activity({ programId, sails, onOpenTrace }: { programId: Hex; sails: Sails | null; onOpenTrace: (id: string) => void }) {
+function Activity({ programId, sails, onOpenTrace }: { programId: Hex; sails: Sails | null; onOpenTrace: (id: string, msg?: number) => void }) {
   const [range, setRange] = useState<number>(1200);
   const [items, setItems] = useState<ActivityItem[] | null>(null);
   const [progress, setProgress] = useState<{ scanned: number; total: number } | null>(null);
@@ -200,9 +205,9 @@ function Activity({ programId, sails, onOpenTrace }: { programId: Hex; sails: Sa
             const ok = it.status === "Success" && it.replySuccess !== false;
             return (
               <li key={it.messageId}>
-                <button type="button" onClick={() => onOpenTrace(id)}
+                <button type="button" onClick={() => onOpenTrace(id, it.messageIndex)}
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 px-3 py-3 text-left transition-colors hover:bg-foreground/5 sm:grid-cols-[7.5rem_1fr_9rem_auto] sm:px-4">
-                  <span className="font-mono text-xs text-muted-foreground sm:text-sm">{id}</span>
+                  <span className="font-mono text-xs text-muted-foreground sm:text-sm">{it.block}-{it.extrinsicIndex}{it.messageIndex ? ` #${it.messageIndex + 1}` : ""}</span>
                   <span className="col-span-2 row-start-2 min-w-0 truncate text-sm sm:col-span-1 sm:row-start-auto">{route.service && route.name ? `${route.service}.${route.name}` : "Raw payload"}</span>
                   <span className="hidden font-mono text-xs text-muted-foreground sm:block">{shortHex(encodeSs58(hexToBytes(it.source.slice(2)), VARA_SS58_PREFIX), 4, 4)}</span>
                   <Badge variant={it.status === null ? "outline" : ok ? "success" : "error"} className="col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto">{it.status ?? "Pending"}</Badge>
@@ -301,8 +306,8 @@ export default function ProgramTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programParam]);
 
-  function openTrace(id: string) {
-    navigate(`/vara/message?id=${id}&tab=trace`);
+  function openTrace(id: string, msg = 0) {
+    navigate(`/vara/message?id=${id}${msg ? `&msg=${msg}` : ""}&tab=trace`);
   }
 
   function originHex(): Hex {
@@ -361,8 +366,15 @@ export default function ProgramTool() {
           <Input id="vara-program-id" value={input} onChange={(e) => setInput(e.target.value)} placeholder="0x… program id" className="font-mono" autoComplete="off" spellCheck={false} />
         </div>
         <Button type="submit" variant="outline" loading={loading}>Load</Button>
-        {!programId && <Button type="button" variant="ghost" onClick={() => { setInput(EXAMPLE.id); void load(EXAMPLE.id); }}>Try {EXAMPLE.name}</Button>}
       </form>
+      {!programId && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Examples on mainnet</span>
+          {EXAMPLES.map((ex) => (
+            <Button key={ex.id} type="button" variant="outline" size="sm" onClick={() => { setInput(ex.id); void load(ex.id); }}>{ex.name}</Button>
+          ))}
+        </div>
+      )}
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
       {loading && !info && <Skeleton className="h-28 w-full rounded-lg" />}

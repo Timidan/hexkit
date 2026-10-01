@@ -139,6 +139,7 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
       <div>
         <h2 className="font-semibold">Dry run</h2>
         <p className="mt-1 text-sm text-muted-foreground">gear_calculateReplyForHandle at a pinned block</p>
+        <p className="mt-1 max-w-prose text-xs text-muted-foreground">Each run replays the message against the state at the end of the chosen block. Messages that ran earlier inside the original block are not included, so a run can succeed where the original failed.</p>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         {(["a", "b"] as const).map((slot) => (

@@ -32,6 +32,7 @@ export interface TraceNode {
   /** How the id is derived from the parent id; null for the root. */
   derivation: { salt: "reply" | "outgoing"; nonce: number | null } | null;
   source: Hex | null;
+  /** For hidden nodes: the callee, when one of its own events proves it (else null). */
   destination: Hex | null;
   /** Block where the node was observed; null for hidden nodes. */
   block: number | null;
@@ -78,6 +79,8 @@ export interface ProgramInfo {
 export interface ActivityItem {
   block: number;
   extrinsicIndex: number;
+  /** Order of this message among the messages its extrinsic queued (batches queue several). */
+  messageIndex: number;
   messageId: Hex;
   source: Hex;
   payload: Hex;

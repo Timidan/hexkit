@@ -17,16 +17,21 @@ export async function traceMessage(root: { id: Hex; programId: Hex; block: numbe
   };
   const trace: Trace = { root: id, programId: root.programId, fromBlock: root.block, toBlock: root.block - 1, nodes: [rootNode], complete: false, stateChanges: [] };
   const nodes = new Map<Hex, TraceNode>([[id, rootNode]]);
-  const frontier = new Map<Hex, NonNullable<TraceNode["derivation"]>>([[replyId(id), { salt: "reply", nonce: null }]]);
-  for (let nonce = 0; nonce < opts.maxNonce; nonce++) frontier.set(outgoingId(id, nonce), { salt: "outgoing", nonce });
+  const frontier = new Map<Hex, { parent: Hex; derivation: NonNullable<TraceNode["derivation"]> }>([[replyId(id), { parent: id, derivation: { salt: "reply", nonce: null } }]]);
+  for (let nonce = 0; nonce < opts.maxNonce; nonce++) {
+    const child = outgoingId(id, nonce);
+    frontier.set(child, { parent: id, derivation: { salt: "outgoing", nonce } });
+    for (let k = 0; k < opts.maxNonce; k++) frontier.set(outgoingId(child, k), { parent: child, derivation: { salt: "outgoing", nonce: k } });
+  }
 
   function materialize(candidate: Hex): TraceNode | undefined {
     const existing = nodes.get(candidate);
     if (existing) return existing;
-    const derivation = frontier.get(candidate);
-    if (!derivation) return;
+    const entry = frontier.get(candidate);
+    if (!entry) return;
+    if (!nodes.has(entry.parent)) materialize(entry.parent);
     const node: TraceNode = {
-      id: candidate, parent: id, kind: "hidden", derivation, source: null, destination: null,
+      id: candidate, parent: entry.parent, kind: "hidden", derivation: entry.derivation, source: null, destination: null,
       block: null, payload: null, value: null, replyCode: null, replySuccess: null, steps: [],
     };
     nodes.set(candidate, node);
@@ -65,6 +70,7 @@ export async function traceMessage(root: { id: Hex; programId: Hex; block: numbe
             value: message.value.toString(), block, replyCode: details ? JSON.stringify(details.code.toJSON()) : null,
             replySuccess: details ? details.code.isSuccess : null,
           });
+          if (node.parent !== id) materialize(node.parent!)!.destination ??= message.source.toHex();
         } else if (method === "MessageWaited" || method === "MessageWoken" || method === "UserMessageRead") {
           const candidate = data[0].toHex().toLowerCase() as Hex;
           const node = method === "UserMessageRead" ? nodes.get(candidate) : materialize(candidate);
@@ -91,7 +97,7 @@ export async function traceMessage(root: { id: Hex; programId: Hex; block: numbe
     onProgress?.(trace.toBlock - root.block + 1, total);
     if (trace.complete) break;
   }
-  const highest = trace.nodes.reduce((max, node) => Math.max(max, node.derivation?.salt === "outgoing" ? node.derivation.nonce ?? -1 : -1), -1);
+  const highest = trace.nodes.reduce((max, node) => Math.max(max, node.parent === id && node.derivation?.salt === "outgoing" ? node.derivation.nonce ?? -1 : -1), -1);
   for (let nonce = 0; nonce < highest; nonce++) materialize(outgoingId(id, nonce));
   return trace;
 }
