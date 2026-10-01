@@ -1,5 +1,5 @@
 import React from "react";
-import { AddressBook, Envelope } from "@phosphor-icons/react";
+import { AddressBook, Cube, Envelope } from "@phosphor-icons/react";
 import type { ChainPlugin } from "../plugin";
 import { VaraWalletButton, VaraWalletProvider } from "./wallet";
 import { Mark } from "./Mark";
@@ -12,6 +12,12 @@ export const vara: ChainPlugin = {
   Provider: VaraWalletProvider,
   WalletButton: VaraWalletButton,
   tools: [
+    {
+      id: "program",
+      path: "/program",
+      nav: { label: "Program", shortLabel: "Program", icon: Cube },
+      Component: React.lazy(() => import("./ProgramTool")),
+    },
     {
       id: "message",
       path: "/message",

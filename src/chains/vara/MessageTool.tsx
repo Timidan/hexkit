@@ -1,15 +1,26 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { hexToBytes } from "@noble/hashes/utils";
 import type { Sails } from "sails-js";
+import { AnimatedTabContent } from "../../components/ui/animated-tabs";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { CopyButton } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { encodeSs58, VARA_SS58_PREFIX } from "./address";
 import { caseFromJson, explainRpcError, fetchCase } from "./case";
 import type { Runs, VaraCase } from "./case";
 import { decodeCall, decodeEvent, decodeReply, loadIdl } from "./decode";
 import type { Decoded } from "./decode";
 import DryRunPanel from "./DryRunPanel";
+import { getIdl, setIdl } from "./idlStore";
+import type { Trace } from "./model";
+import TracePanel from "./TracePanel";
+import { Field, HexChip } from "./ui/HexChip";
+import { ValueTree } from "./ui/ValueTree";
+
+const TABS = ["overview", "trace", "dryrun"] as const;
+type Tab = (typeof TABS)[number];
 
 function defaultRuns(c: VaraCase): Runs | null {
   if (!c.call.destination || !c.call.payload) return null;
@@ -17,43 +28,65 @@ function defaultRuns(c: VaraCase): Runs | null {
   return { a: { input, result: null }, b: { input: { ...input, block: "latest" }, result: null }, query: null };
 }
 
-function Identity({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 flex items-center gap-2">
-        <code className="min-w-0 flex-1 break-all font-mono text-sm">{value ?? "—"}</code>
-        {value && <CopyButton variant="ghost" value={value} ariaLabel={`Copy ${label}`} />}
-      </dd>
-    </div>
-  );
+function utf8(hex: string): string | null {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(hexToBytes(hex.slice(2))); } catch { return null; }
 }
 
 function Payload({ payload, decoded, hasIdl }: { payload: `0x${string}`; decoded: Decoded; hasIdl: boolean }) {
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       {decoded.service && decoded.name && <p className="text-sm">{decoded.service}.{decoded.name}</p>}
-      {hasIdl && !decoded.error
-        ? <pre className="whitespace-pre-wrap break-all font-mono text-sm">{JSON.stringify(decoded.value, null, 2)}</pre>
-        : <pre className="whitespace-pre-wrap break-all font-mono text-sm">{payload}</pre>}
+      {hasIdl && !decoded.error && decoded.value !== null
+        ? <ValueTree value={decoded.value} rootLabel={decoded.name ?? "value"} />
+        : <code className="block break-all rounded-md border border-border/60 bg-background/40 p-3 font-mono text-xs">{payload}</code>}
       {decoded.error && <p className="text-sm text-red-400">{decoded.error}</p>}
     </div>
   );
 }
 
+function Card({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+  return (
+    <section className="min-w-0 space-y-4 rounded-lg border border-border/70 bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{title}</h2>{aside}</div>
+      {children}
+    </section>
+  );
+}
+
 export default function MessageTool() {
-  const [input, setInput] = useState("");
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [input, setInput] = useState(() => params.get("id") ?? "");
   const [c, setCase] = useState<VaraCase | null>(null);
   const [runs, setRuns] = useState<Runs | null>(null);
+  const [trace, setTrace] = useState<Trace | null>(null);
   const [idlText, setIdlText] = useState<string | null>(null);
+  /** Program the loaded IDL belongs to; null while it is not yet bound to a fetched case. */
+  const [idlFor, setIdlFor] = useState<string | null>(null);
   const [sails, setSails] = useState<Sails | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const tabParam = params.get("tab");
+  const [tab, setTab] = useState<Tab>(TABS.includes(tabParam as Tab) ? (tabParam as Tab) : "overview");
+  const handledId = useRef<string | null>(null);
   const caseInput = useRef<HTMLInputElement>(null);
   const idlInput = useRef<HTMLInputElement>(null);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  async function fetchExtrinsic() {
-    const match = /^(\d+)-(\d+)$/.exec(input.trim());
+  async function applyIdl(text: string | null, programId: string | null) {
+    setIdlText(text);
+    setIdlFor(text ? programId : null);
+    setSails(null);
+    if (!text) return;
+    const s = await loadIdl(text);
+    if (!alive.current) return;
+    setSails(s);
+    if (programId) setIdl(programId as `0x${string}`, text);
+  }
+
+  async function fetchExtrinsic(raw = input) {
+    const match = /^(\d+)-(\d+)$/.exec(raw.trim());
     if (!match) {
       setError("Use <block>-<index>, e.g. 36589852-1");
       return;
@@ -62,14 +95,38 @@ export default function MessageTool() {
     setError("");
     try {
       const fetched = await fetchCase(Number(match[1]), Number(match[2]));
+      if (!alive.current) return;
       setCase(fetched);
       setRuns(defaultRuns(fetched));
+      setTrace(null);
+      handledId.current = `${match[1]}-${match[2]}`;
+      setParams((p) => { p.set("id", `${match[1]}-${match[2]}`); return p; }, { replace: true });
+      const programId = fetched.message?.programId ?? fetched.call.destination;
+      // An IDL loaded before any case binds to this program; otherwise switch to the
+      // IDL remembered for this program so another program's IDL is never reused.
+      if (programId && idlText && idlFor === null) { setIdlFor(programId); setIdl(programId as `0x${string}`, idlText); }
+      else if (programId && idlFor !== programId) await applyIdl(getIdl(programId), programId);
     } catch (err) {
-      setError(explainRpcError(err, match[1]));
+      if (alive.current) setError(explainRpcError(err, match[1]));
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
+
+  // Deep link: /vara/message?id=<block>-<index>&tab=trace. Tools stay mounted between
+  // visits, so react to the id changing rather than only to the first mount.
+  const idParam = params.get("id");
+  useEffect(() => {
+    if (TABS.includes(tabParam as Tab)) setTab(tabParam as Tab);
+  }, [tabParam]);
+  useEffect(() => {
+    if (!idParam || idParam === handledId.current) return;
+    handledId.current = idParam;
+    setInput(idParam);
+    if (TABS.includes(tabParam as Tab)) setTab(tabParam as Tab);
+    void fetchExtrinsic(idParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idParam]);
 
   async function importCase(file: File) {
     setBusy(true);
@@ -78,14 +135,15 @@ export default function MessageTool() {
       const imported = caseFromJson(await file.text());
       setCase(imported);
       setRuns(imported.runs ?? defaultRuns(imported));
+      setTrace(imported.trace ?? null);
       setInput(`${imported.block.number}-${imported.extrinsicIndex}`);
-      setIdlText(imported.idl);
-      setSails(null);
-      if (imported.idl !== null) setSails(await loadIdl(imported.idl));
+      await applyIdl(imported.idl, null);
+      // Bind the file's IDL to its program without overwriting the IDL remembered for it.
+      setIdlFor(imported.idl ? (imported.message?.programId ?? imported.call.destination) : null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (alive.current) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
 
@@ -93,19 +151,18 @@ export default function MessageTool() {
     setBusy(true);
     setError("");
     try {
-      const text = await file.text();
-      setSails(await loadIdl(text));
-      setIdlText(text);
+      await applyIdl(await file.text(), c?.message?.programId ?? c?.call.destination ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (alive.current) setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   }
 
   function exportCase() {
     if (!c) return;
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ ...c, idl: idlText ?? null, ...(runs ? { runs } : {}) }, null, 2)], { type: "application/json" }));
+    const body = { ...c, idl: idlText ?? null, ...(runs ? { runs } : {}), ...(trace ? { trace } : {}) };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(body, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `vara-case-${c.block.number}-${c.extrinsicIndex}.json`;
@@ -113,123 +170,149 @@ export default function MessageTool() {
     URL.revokeObjectURL(url);
   }
 
+  function changeTab(next: string) {
+    setTab(next as Tab);
+    setParams((p) => { p.set("tab", next); return p; }, { replace: true });
+  }
+
   let signerAddress = "";
   if (c?.call.signer) {
-    try {
-      signerAddress = encodeSs58(hexToBytes(c.call.signer.slice(2)), VARA_SS58_PREFIX);
-    } catch { /* Imported cases may contain a hex signer that is not an AccountId32. */ }
+    try { signerAddress = encodeSs58(hexToBytes(c.call.signer.slice(2)), VARA_SS58_PREFIX); } catch { /* not an AccountId32 */ }
   }
   const call = c?.call.payload ? decodeCall(c.call.payload, sails) : null;
   const reply = c?.message?.reply;
-  let replyText = reply?.payload ?? "";
-  if (reply && !reply.success) {
-    try {
-      replyText = new TextDecoder("utf-8", { fatal: true }).decode(hexToBytes(reply.payload.slice(2)));
-    } catch { /* keep the raw hex */ }
-  }
+  const programId = c?.message?.programId ?? c?.call.destination ?? null;
 
   return (
     <section className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
       <div>
         <h1 className="text-xl font-semibold">Message case</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Decode a Gear message extrinsic from Vara mainnet and export it as a portable case file.</p>
+        <p className="mt-1 max-w-prose text-sm text-muted-foreground">Decode a Gear message from Vara mainnet, trace everything it caused, replay it at other blocks, and export it as a portable case file.</p>
         <p className="mt-2 text-xs text-muted-foreground">Pinned format: legacy Sails IDL (sails-js-parser 0.5.1). IDL v2 payloads (0x474d) are flagged, not decoded.</p>
       </div>
+
       <div className="space-y-2">
         <label htmlFor="vara-extrinsic" className="text-sm font-medium">Extrinsic id</label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            id="vara-extrinsic"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="36589852-1"
-            className="w-full font-mono sm:w-60"
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-            aria-describedby={error ? "vara-message-error" : undefined}
-          />
-          <Button variant="outline" loading={busy} onClick={fetchExtrinsic}>Fetch</Button>
-          <Button variant="outline" disabled={busy} onClick={() => caseInput.current?.click()}>Import case</Button>
+        <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); void fetchExtrinsic(); }}>
+          <Input id="vara-extrinsic" value={input} onChange={(event) => setInput(event.target.value)} placeholder="36589852-1"
+            className="w-full font-mono sm:w-60" autoComplete="off" spellCheck={false} disabled={busy}
+            aria-describedby={error ? "vara-message-error" : undefined} />
+          <Button type="submit" variant="outline" loading={busy}>Fetch</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => caseInput.current?.click()}>Import case</Button>
           <input ref={caseInput} type="file" accept=".json,application/json" hidden onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (file) void importCase(file);
           }} />
-          <Button variant="outline" disabled={!c || busy} onClick={exportCase}>Export case</Button>
-          <Button variant="outline" disabled={busy} onClick={() => idlInput.current?.click()}>Load IDL</Button>
+          <Button type="button" variant="outline" disabled={!c || busy} onClick={exportCase}>Export case</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => idlInput.current?.click()}>Load IDL</Button>
           <input ref={idlInput} type="file" accept=".idl,.txt" hidden onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (file) void importIdl(file);
           }} />
-        </div>
-        {sails && <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>IDL: {Object.keys(sails.services).length} service{Object.keys(sails.services).length === 1 ? "" : "s"}</span>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setSails(null); setIdlText(null); setError(""); }}>Clear</Button>
-        </div>}
+        </form>
+        {sails && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Badge variant="outline">IDL</Badge>
+            <span>{Object.keys(sails.services).length} service{Object.keys(sails.services).length === 1 ? "" : "s"}</span>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setSails(null); setIdlText(null); setIdlFor(null); setError(""); }}>Clear</Button>
+          </div>
+        )}
         {error && <p id="vara-message-error" role="alert" className="text-sm text-red-400">{error}</p>}
       </div>
-      {c && <>
-        <dl className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2">
-          <Identity label="Extrinsic" value={`${c.block.number}-${c.extrinsicIndex}`} />
-          <Identity label="Block hash" value={c.block.hash} />
-          <Identity label="Genesis hash" value={c.network.genesisHash} />
-          <div><dt className="text-xs text-muted-foreground">Spec version</dt><dd className="mt-1 font-mono text-sm">{c.network.specVersion}</dd></div>
-        </dl>
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-semibold">Call</h2>
-          <p className="text-sm">{c.call.section}.{c.call.method}</p>
-          <dl className="grid gap-4 sm:grid-cols-2">
-            <Identity label="Signer" value={c.call.signer} />
-            {signerAddress && <Identity label={`Vara SS58 (${VARA_SS58_PREFIX})`} value={signerAddress} />}
-            <Identity label="Destination" value={c.call.destination} />
-            <div><dt className="text-xs text-muted-foreground">Gas limit</dt><dd className="mt-1 font-mono text-sm">{c.call.gasLimit ?? "—"}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Value</dt><dd className="mt-1 font-mono text-sm">{c.call.value ?? "—"}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Keep alive</dt><dd className="mt-1 text-sm">{c.call.keepAlive === null ? "—" : String(c.call.keepAlive)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Result</dt><dd className="mt-1 text-sm">{c.result.success ? "Success" : `Failed: ${c.result.error}`}</dd></div>
+
+      {c && (
+        <>
+          <dl className="grid gap-4 rounded-lg border border-border/70 bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Extrinsic"><span className="font-mono">{c.block.number}-{c.extrinsicIndex}</span></Field>
+            <Field label="Block hash"><HexChip value={c.block.hash} label="block hash" /></Field>
+            <Field label="Call">{c.call.section}.{c.call.method} <Badge className="ml-1" variant={c.result.success ? "success" : "error"}>{c.result.success ? "Success" : "Failed"}</Badge></Field>
+            <Field label="Program">
+              {programId ? (
+                <span className="inline-flex flex-wrap items-center gap-1">
+                  <HexChip value={programId} label="program id" />
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate(`/vara/program?program=${programId}`)}>Open workspace</Button>
+                </span>
+              ) : "—"}
+            </Field>
           </dl>
-        </section>
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-semibold">Payload</h2>
-          {c.call.section === "gear" && c.call.method === "sendMessage" && c.call.payload && call
-            ? <Payload payload={c.call.payload} decoded={call} hasIdl={!!sails} />
-            : <><pre className="whitespace-pre-wrap break-all font-mono text-sm">{JSON.stringify(c.call.args, null, 2)}</pre><p className="text-sm text-muted-foreground">Only gear.sendMessage payloads are decoded</p></>}
-        </section>
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-semibold">Message</h2>
-          {c.message ? <dl className="grid gap-4 sm:grid-cols-2">
-            <Identity label="Message id" value={c.message.id} />
-            <Identity label="Program" value={c.message.programId} />
-            <Identity label="Code id" value={c.message.codeId} />
-            <div><dt className="text-xs text-muted-foreground">Dispatch status</dt><dd className="mt-1 text-sm">{c.message.dispatchStatus ?? "Not dispatched in this block"}</dd></div>
-          </dl> : <p className="text-sm text-muted-foreground">No queued message</p>}
-        </section>
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-semibold">Reply</h2>
-          {reply ? <>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <Identity label="Reply id" value={reply.id} />
-              <div><dt className="text-xs text-muted-foreground">Code</dt><dd className="mt-1 break-all text-sm">{reply.code}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Success</dt><dd className="mt-1 text-sm">{String(reply.success)}</dd></div>
-            </dl>
-            {reply.success
-              ? reply.payload === "0x" ? <p className="text-sm">Empty reply</p>
-                : <Payload payload={reply.payload} decoded={decodeReply(reply.payload, call ?? { service: null, name: null, value: null, error: null }, sails)} hasIdl={!!sails} />
-              : <pre className={`whitespace-pre-wrap break-all text-sm ${replyText === reply.payload ? "font-mono" : "font-sans"}`}>{replyText}</pre>}
-          </> : <p className="text-sm text-muted-foreground">No reply in this block</p>}
-        </section>
-        {runs && <DryRunPanel key={`${c.block.hash}-${c.extrinsicIndex}`} c={c} sails={sails} runs={runs} update={(f) => setRuns((prev) => prev && f(prev))} />}
-        <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-semibold">Program events <span className="font-normal text-muted-foreground">(same block, same program, not causally linked)</span></h2>
-          {c.message?.programEvents.length ? c.message.programEvents.map((event) => (
-            <div key={event.id} className="space-y-3 border-t border-border pt-4">
-              <dl><Identity label="Event id" value={event.id} /></dl>
-              <Payload payload={event.payload} decoded={decodeEvent(event.payload, sails)} hasIdl={!!sails} />
-            </div>
-          )) : <p className="text-sm text-muted-foreground">No program events in this block</p>}
-        </section>
-      </>}
+
+          <Tabs value={tab} onValueChange={changeTab}>
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="trace">Trace</TabsTrigger>
+              <TabsTrigger value="dryrun">Dry run</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <AnimatedTabContent activeKey={tab} className="min-w-0">
+            {tab === "trace" ? (
+              <TracePanel c={c} sails={sails} trace={trace} onTrace={setTrace} />
+            ) : tab === "dryrun" ? (
+              runs ? <DryRunPanel key={`${c.block.hash}-${c.extrinsicIndex}`} c={c} sails={sails} runs={runs} update={(f) => setRuns((prev) => prev && f(prev))} />
+                : <p className="text-sm text-muted-foreground">Only gear.sendMessage extrinsics can be dry-run.</p>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Card title="Call">
+                  <dl className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Signer">{c.call.signer ? <HexChip value={c.call.signer} label="signer" /> : "—"}</Field>
+                    {signerAddress && <Field label={`Vara SS58 (${VARA_SS58_PREFIX})`}><HexChip value={signerAddress} label="Vara address" /></Field>}
+                    <Field label="Destination">{c.call.destination ? <HexChip value={c.call.destination} label="destination" /> : "—"}</Field>
+                    <Field label="Gas limit"><span className="font-mono">{c.call.gasLimit ?? "—"}</span></Field>
+                    <Field label="Value"><span className="font-mono">{c.call.value ?? "—"}</span></Field>
+                    <Field label="Keep alive">{c.call.keepAlive === null ? "—" : String(c.call.keepAlive)}</Field>
+                    {!c.result.success && <Field label="Error" className="sm:col-span-2"><span className="text-red-400">{c.result.error}</span></Field>}
+                  </dl>
+                </Card>
+                <Card title="Payload">
+                  {c.call.section === "gear" && c.call.method === "sendMessage" && c.call.payload && call
+                    ? <Payload payload={c.call.payload} decoded={call} hasIdl={!!sails} />
+                    : <><ValueTree value={c.call.args} rootLabel="args" /><p className="text-sm text-muted-foreground">Only gear.sendMessage payloads are decoded</p></>}
+                </Card>
+                <Card title="Message">
+                  {c.message ? (
+                    <dl className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Message id"><HexChip value={c.message.id} label="message id" /></Field>
+                      <Field label="Code id">{c.message.codeId ? <HexChip value={c.message.codeId} label="code id" /> : "—"}</Field>
+                      <Field label="Dispatch status">
+                        {c.message.dispatchStatus
+                          ? <Badge variant={c.message.dispatchStatus === "Success" ? "success" : "error"}>{c.message.dispatchStatus}</Badge>
+                          : "Not dispatched in this block"}
+                      </Field>
+                      <Field label="Spec version"><span className="font-mono">{c.network.specVersion}</span></Field>
+                    </dl>
+                  ) : <p className="text-sm text-muted-foreground">No queued message</p>}
+                </Card>
+                <Card title="Reply">
+                  {reply ? (
+                    <div className="space-y-3">
+                      <dl className="grid gap-4 sm:grid-cols-2">
+                        <Field label="Reply id"><HexChip value={reply.id} label="reply id" /></Field>
+                        <Field label="Code"><code className="break-all font-mono text-sm">{reply.code}</code></Field>
+                      </dl>
+                      {reply.success
+                        ? reply.payload === "0x" ? <p className="text-sm text-muted-foreground">Empty reply</p>
+                          : <Payload payload={reply.payload} decoded={decodeReply(reply.payload, call ?? { service: null, name: null, value: null, error: null }, sails)} hasIdl={!!sails} />
+                        : <pre className="whitespace-pre-wrap break-all rounded-md border border-red-500/30 bg-red-500/5 p-3 font-mono text-sm text-red-300">{utf8(reply.payload) ?? reply.payload}</pre>}
+                    </div>
+                  ) : <p className="text-sm text-muted-foreground">No reply in this block. The Trace tab follows later blocks.</p>}
+                </Card>
+                <div className="lg:col-span-2">
+                  <Card title="Program events in this block" aside={<span className="text-xs text-muted-foreground">same block, same program; the Trace tab proves which belong to this message</span>}>
+                    {c.message?.programEvents.length ? c.message.programEvents.map((event) => (
+                      <div key={event.id} className="space-y-3 border-t border-border/60 pt-4 first:border-t-0 first:pt-0">
+                        <Field label="Event id"><HexChip value={event.id} label="event id" /></Field>
+                        <Payload payload={event.payload} decoded={decodeEvent(event.payload, sails)} hasIdl={!!sails} />
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">No program events in this block</p>}
+                  </Card>
+                </div>
+              </div>
+            )}
+          </AnimatedTabContent>
+        </>
+      )}
     </section>
   );
 }

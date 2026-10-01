@@ -29,6 +29,8 @@ export function explainRpcError(err: unknown, block: number | string): string {
   const message = err instanceof Error ? err.message : String(err);
   if (/State already discarded|UnknownBlock/.test(message)) return `History unavailable at block ${block} on ${VARA_RPC} (state discarded; needs an archive node)`;
   if (/calculate_reply_for_handle is not found/.test(message)) return `Dry run not supported by the runtime at block ${block}`;
+  const panic = /panicked with '(.*)'/.exec(message);
+  if (panic) return `The program panics: ${panic[1].replace(/'+"?$/, "")}`;
   return message;
 }
 
@@ -55,6 +57,17 @@ export const CaseSchema = z.object({
     programEvents: z.array(z.object({ id: Hex, payload: Hex })),
   }).nullable(),
   idl: z.string().nullable(),
+  trace: z.object({
+    root: Hex, programId: Hex, fromBlock: z.number(), toBlock: z.number(), complete: z.boolean(),
+    nodes: z.array(z.object({
+      id: Hex, parent: Hex.nullable(), kind: z.enum(["root", "reply", "event", "message", "hidden"]),
+      derivation: z.object({ salt: z.enum(["reply", "outgoing"]), nonce: z.number().nullable() }).nullable(),
+      source: Hex.nullable(), destination: Hex.nullable(), block: z.number().nullable(), payload: Hex.nullable(),
+      value: z.string().nullable(), replyCode: z.string().nullable(), replySuccess: z.boolean().nullable(),
+      steps: z.array(z.object({ kind: z.enum(["queued", "waited", "woken", "dispatched", "read"]), block: z.number(), detail: z.string().nullable() })),
+    })),
+    stateChanges: z.array(z.object({ block: z.number(), programs: z.array(Hex) })),
+  }).optional(),
   runs: z.object({ a: Run, b: Run, query: z.object({ service: z.string(), name: z.string(), args: z.array(z.unknown()) }).nullable() }).optional(),
 });
 export type VaraCase = z.infer<typeof CaseSchema>;

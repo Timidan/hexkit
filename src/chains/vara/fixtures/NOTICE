@@ -1,0 +1,10 @@
+Demo fixtures for the Vara tools (live Vara mainnet data, 2026-10-01).
+
+case-36589852-1.json  PolyBaskets BasketMarket.FinalizeSettlement (basket 1633),
+                      exported from Message Case with the IDL and an A/B dry run.
+case-36592237-1.json  ServiceSync message with a full trace: 4 hidden calls into
+                      other programs, 4 wait/wake cycles, a Sails event and a reply.
+
+polymarket-mirror.idl is the PolyBaskets Sails IDL from
+https://github.com/Adityaakr/polybaskets-skills (idl/polymarket-mirror.idl),
+used under the MIT License, Copyright (c) its authors.

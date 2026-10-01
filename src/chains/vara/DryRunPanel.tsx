@@ -13,6 +13,7 @@ import { useVaraWallet } from "./wallet";
 
 type Hex = `0x${string}`;
 type Slot = "a" | "b";
+const ROWS = ["Block", "Spec version", "Reply code", "Reply", "Query result"] as const;
 
 function failedReply(reply: NonNullable<RunResultT["reply"]>): string {
   let text: string = reply.payload;
@@ -30,7 +31,7 @@ function replyString(result: RunResultT | null, slotPayload: string, sails: Sail
   if (reply.payload === "0x") return "Empty reply";
   if (!sails) return reply.payload;
   const decoded = decodeReply(reply.payload, decodeCall(slotPayload as Hex, sails), sails);
-  return decoded.error ?? JSON.stringify(decoded.value);
+  return decoded.error ?? JSON.stringify(decoded.value, null, 2);
 }
 
 function queryString(result: RunResultT | null, q: Runs["query"], sails: Sails | null): string {
@@ -40,7 +41,7 @@ function queryString(result: RunResultT | null, q: Runs["query"], sails: Sails |
   if (!query.success) return failedReply(query);
   if (!sails || !q) return query.payload;
   try {
-    return JSON.stringify(sails.services[q.service].queries[q.name].decodeResult(query.payload));
+    return JSON.stringify(sails.services[q.service].queries[q.name].decodeResult(query.payload), null, 2);
   } catch (err) {
     return err instanceof Error ? err.message : String(err);
   }
@@ -205,17 +206,34 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
         </div>
       </div>}
       <Button variant="outline" disabled={busy.a || busy.b} onClick={() => { void run("a"); void run("b"); }}>Run both</Button>
-      <div className="overflow-x-auto">
+      {/* Desktop: side-by-side table. Phones: one stacked card per row. */}
+      <div className="hidden sm:block">
         <table className="w-full table-fixed text-left text-sm">
           <thead><tr className="border-b border-border"><th className="w-28 py-2 font-medium">Result</th><th className="px-3 py-2 font-medium">A</th><th className="px-3 py-2 font-medium">B</th></tr></thead>
-          <tbody>{["Block", "Spec version", "Reply code", "Reply", "Query result"].map((label, i) => (
-            <tr key={label} className="border-b border-border last:border-0">
-              <th scope="row" className="py-3 align-top font-medium">{label}{runs.a.result && runs.b.result && columns[0][i] !== columns[1][i] && <span className="mt-1 block w-fit rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">differs</span>}</th>
-              {columns.map((column, j) => <td key={j} className="px-3 py-3 align-top"><pre className="whitespace-pre-wrap break-all font-mono text-xs">{column[i]}</pre></td>)}
-            </tr>
-          ))}</tbody>
+          <tbody>{ROWS.map((label, i) => {
+            const differs = !!runs.a.result && !!runs.b.result && columns[0][i] !== columns[1][i];
+            return (
+              <tr key={label} className="border-b border-border last:border-0">
+                <th scope="row" className={`py-3 align-top font-medium ${differs ? "border-l-2 border-l-amber-400/70 pl-2" : ""}`}>{label}{differs && <span className="mt-1 block w-fit rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">differs</span>}</th>
+                {columns.map((column, j) => <td key={j} className="px-3 py-3 align-top"><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">{column[i]}</pre></td>)}
+              </tr>
+            );
+          })}</tbody>
         </table>
       </div>
+      <dl className="space-y-3 sm:hidden">
+        {ROWS.map((label, i) => {
+          const differs = !!runs.a.result && !!runs.b.result && columns[0][i] !== columns[1][i];
+          return (
+            <div key={label} className={`space-y-2 rounded-md border p-3 ${differs ? "border-amber-400/50" : "border-border/60"}`}>
+              <dt className="flex items-center justify-between text-sm font-medium">{label}{differs && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">differs</span>}</dt>
+              {columns.map((column, j) => (
+                <dd key={j} className="min-w-0"><span className="text-xs text-muted-foreground">{j === 0 ? "A" : "B"}</span><pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-xs">{column[i]}</pre></dd>
+              ))}
+            </div>
+          );
+        })}
+      </dl>
     </section>
   );
 }
