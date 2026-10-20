@@ -137,6 +137,12 @@ Not covered: anything that needs a wallet signature (deposits, withdrawals, Live
 
 Keep branch names to 19 characters or fewer. Vercel shortens longer branch names in preview URLs with a hash, and the check then cannot find the preview.
 
+What the suite caught on its first runs, fixed in [#41](https://github.com/Timidan/hexkit/pull/41):
+
+- **Decode Calldata from search never decoded.** It opened the 4-byte selector lookup with the whole calldata pasted in.
+- **A malformed replay hash failed silently.** Run Replay turned grey with no explanation.
+- **Replays of transactions older than about 25 minutes failed on default settings.** The default Ethereum RPC keeps no historical state, and the error wrongly said "Failed to connect to the RPC node". The default is now an archive-capable public RPC, and archive refusals show the historical-data message.
+
 ## Architecture
 
 HexKit follows a local-first architecture. The frontend communicates with a local EDB simulator bridge over WebSocket, which in turn drives the Rust-based REVM engine.

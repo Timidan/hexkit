@@ -317,7 +317,7 @@ const EXPLORER_APIS: Record<number, { explorerUrl: string; blockExplorer: string
 
 const PUBLIC_RPCS: Record<number, string> = {
   // Existing curated RPCs
-  1: "https://ethereum-rpc.publicnode.com",
+  1: "https://eth.drpc.org",
   8453: "https://mainnet.base.org",
   137: "https://polygon.drpc.org",
   42161: "https://arbitrum.drpc.org",
