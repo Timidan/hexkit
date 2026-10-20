@@ -126,8 +126,9 @@ Nobody has to remember to run the tests. [TestSprite](https://www.testsprite.com
 | Every pull request | 20 browser tests | The PR's Vercel preview | The `TestSprite V3` check fails. It is required on `master`, so the PR cannot merge |
 | Every merge to `master` | 20 browser tests + 20 API tests | Production, https://hexkit.app | The run fails in the TestSprite portal |
 | Every night, 12:00 AM PT | 8 core browser flows (decode, replay, bad-hash message, explorer, signatures, LI.FI vaults) | Production | The run fails, and the result is emailed |
+| Every night, 07:30 UTC | 20 API tests, from [GitHub Actions](.github/workflows/api-nightly.yml) with the TestSprite CLI | Production | The workflow run fails. Its summary lists every test, and a JUnit report is attached |
 
-The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly run catches what no pull request changes: a public RPC or an upstream API changing under the app.
+The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly runs catch what no pull request changes: a public RPC or an upstream API changing under the app. The API suite's nightly results are public, in this repository's Actions tab.
 
 Both suites were generated in the TestSprite portal, from a short product scope and an [OpenAPI description](api/openapi.yaml), then tightened by hand. The browser tests assert exact values from one real mainnet USDC transfer, which lives in the production environment's variables.
 
