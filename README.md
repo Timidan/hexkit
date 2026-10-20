@@ -163,6 +163,11 @@ What the suite caught on its first runs, fixed in [#41](https://github.com/Timid
 - **A malformed replay hash failed silently.** Run Replay turned grey with no explanation.
 - **Replays of transactions older than about 25 minutes failed on default settings.** The default Ethereum RPC keeps no historical state, and the error wrongly said "Failed to connect to the RPC node". The default is now an archive-capable public RPC, and archive refusals show the historical-data message.
 
+Later runs caught two more, both from public RPCs refusing requests under load:
+
+- **Simulations failed when the default RPC rate-limited** ([#43](https://github.com/Timidan/hexkit/pull/43)). On the public default, a rate-limited simulation now retries on the next archive-capable public RPC.
+- **The transaction lookup before a replay could hang for 30 seconds** ([#45](https://github.com/Timidan/hexkit/pull/45)). A rate-limit reply asking the app to retry later made it wait until its timeout fired. On the public default, a refused or stalled call now moves to the next public RPC at once.
+
 ## Architecture
 
 HexKit follows a local-first architecture. The frontend communicates with a local EDB simulator bridge over WebSocket, which in turn drives the Rust-based REVM engine.
