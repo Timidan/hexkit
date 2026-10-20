@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://web3-toolkit.vercel.app">Live app</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
+  <a href="https://hexkit.app">Live app</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
 </p>
 
 ---
@@ -119,9 +119,19 @@ Full Solidity step-through debugger powered by the local EDB engine:
 
 ## Testing with TestSprite
 
-Every pull request is tested before it can merge. Vercel builds a preview of the PR. When that deployment completes, the [TestSprite](https://www.testsprite.com) GitHub App runs the suite against the preview, posts the results on the PR, and reports a status check that blocks the merge while tests fail. Nobody has to remember to run it.
+Nobody has to remember to run the tests. [TestSprite](https://www.testsprite.com) runs them at three points:
 
-The suite is 20 browser tests, generated in the TestSprite portal from a short product scope and tightened by hand to assert exact values from one real mainnet USDC transfer.
+| When | What runs | Against | What happens on failure |
+|---|---|---|---|
+| Every pull request | 20 browser tests | The PR's Vercel preview | The `TestSprite V3` check fails. It is required on `master`, so the PR cannot merge |
+| Every merge to `master` | 20 browser tests + 20 API tests | Production, https://hexkit.app | The run fails in the TestSprite portal |
+| Every night, 12:00 AM PT | 8 core browser flows (decode, replay, bad-hash message, explorer, signatures, LI.FI vaults) | Production | The run fails, and the result is emailed |
+
+The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly run catches what no pull request changes: a public RPC or an upstream API changing under the app.
+
+Both suites were generated in the TestSprite portal, from a short product scope and an [OpenAPI description](api/openapi.yaml), then tightened by hand. The browser tests assert exact values from one real mainnet USDC transfer, which lives in the production environment's variables.
+
+**Browser suite (20)**
 
 | Area | Tests | What they check |
 |---|---|---|
@@ -132,6 +142,15 @@ The suite is 20 browser tests, generated in the TestSprite portal from a short p
 | LI.FI Earn | 3 | Filtering vaults by chain and asset, vault details, positions for any address |
 | Local storage | 3 | Storage inventory, simulation history surviving a reload, clearing history |
 | Navigation | 3 | Source Tools and Integrations from home, Contract Explorer from the command palette |
+
+**API suite (20)**
+
+| Area | Tests | What they check |
+|---|---|---|
+| Simulator bridge | 4 | Health returns `status: ok` with its concurrency limits, with and without a same-origin request; PUT is refused with 405; CORS never grants a wildcard origin |
+| Path guard | 4 | Encoded traversal, double-encoded traversal and illegal characters return 400 `invalid_path`; an unknown safe path returns 404 |
+| LI.FI Earn proxy | 8 | Chains, vaults (with chain filter and limit), protocols and positions return the expected shapes; a bad address returns 400; POST returns 405; CORS never grants a wildcard origin |
+| Sourcify proxy | 4 | USDC's source on Ethereum is a runtime `match`; a short address and an unknown chain return 400; same-origin lookups work |
 
 Not covered: anything that needs a wallet signature (deposits, withdrawals, Live Interaction writes), the AI recommendation features, and the step debugger.
 
