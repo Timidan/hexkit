@@ -18,6 +18,8 @@ import type { Chain } from "../../types";
 import { getSimulatorBridgeUrl, getBridgeHeaders } from "../env";
 import { cacheRawTraceText } from "../traceRawTextCache";
 import { networkAccess } from "../../config/networkAccess";
+import type { RpcResolution } from "../../config/networkConfig";
+import { PUBLIC_ARCHIVE_RPC_FALLBACKS } from "../../chains/registry";
 import { classifySimulationError } from "../errorParser";
 import { lookupFunctionSignatures } from "../signatureDatabase";
 
@@ -194,6 +196,28 @@ export const postSimulatorJob = async (
       rawTrace: null,
     };
   }
+};
+
+const isRateLimited = (result: SimulationResult | null): boolean =>
+  !!result &&
+  result.success === false &&
+  /\b429\b|rate limit/i.test(`${result.technicalError ?? ""} ${result.error ?? ""}`);
+
+// Public RPCs rate-limit under load. On the public default only, retry the same job on the
+// next archive-capable public endpoint; a user's own RPC is never swapped out.
+const postSimulatorJobWithPublicFallback = async (
+  payload: Record<string, unknown>,
+  transactionMetadata: Parameters<typeof postSimulatorJob>[1],
+  chainId: number,
+  resolution: RpcResolution,
+): Promise<SimulationResult | null> => {
+  let result = await postSimulatorJob(payload, transactionMetadata);
+  if (resolution.mode !== "DEFAULT") return result;
+  for (const rpcUrl of PUBLIC_ARCHIVE_RPC_FALLBACKS[chainId] ?? []) {
+    if (!isRateLimited(result)) break;
+    result = await postSimulatorJob({ ...payload, rpcUrl }, transactionMetadata);
+  }
+  return result;
 };
 
 export const trySimulatorBridge = async (
@@ -495,7 +519,7 @@ export const trySimulatorBridge = async (
     type: txType,
   };
 
-  return postSimulatorJob(requestPayload, transactionMetadata);
+  return postSimulatorJobWithPublicFallback(requestPayload, transactionMetadata, chain.id, resolution);
 };
 
 export const replayTransactionWithSimulator = async (
@@ -611,5 +635,5 @@ export const replayTransactionWithSimulator = async (
     payload.blockTag = normalizedBlockTagVal;
   }
 
-  return postSimulatorJob(payload, transactionMetadata);
+  return postSimulatorJobWithPublicFallback(payload, transactionMetadata, chain.id, resolution);
 };

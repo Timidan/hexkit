@@ -548,3 +548,8 @@ export const getExplorerUrl = (chainId: number, type: "tx" | "address" | "block"
 
 /** Expose public RPC map for providers module */
 export const PUBLIC_RPC_MAP = PUBLIC_RPCS;
+
+/** Archive-capable public RPCs to try, in order, when the default one rate-limits a simulation. */
+export const PUBLIC_ARCHIVE_RPC_FALLBACKS: Record<number, string[]> = {
+  1: ["https://rpc.mevblocker.io", "https://eth-mainnet.public.blastapi.io"],
+};
