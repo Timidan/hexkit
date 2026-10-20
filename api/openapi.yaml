@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: HexKit serverless API
+  version: "1.0"
+  description: |
+    The Vercel serverless functions behind https://www.hexkit.app. They proxy HexKit's EVM simulator bridge (EDB)
+    and LI.FI Earn, and they guard both with an origin allowlist, a method allowlist and path validation.
+    No authentication: same-origin browser calls carry no Origin header; any foreign Origin is refused.
+    Out of scope: /api/llm-recommend (paid model calls) and /api/lifi-composer (builds deposit transactions).
+servers:
+  - url: https://www.hexkit.app
+paths:
+  /api/edb/health:
+    get:
+      summary: Simulator bridge health
+      description: Proxied to the EDB simulator bridge. Must return JSON with status "ok" and a concurrency object.
+      responses:
+        "200":
+          description: Bridge reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, concurrency]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  edbServerRunning: { type: boolean }
+                  activeSessions: { type: integer, minimum: 0 }
+                  concurrency:
+                    type: object
+                    properties:
+                      maxConcurrent: { type: integer, minimum: 1 }
+                      maxQueue: { type: integer, minimum: 1 }
+        "403":
+          description: Sent with a foreign Origin header (for example Origin https://evil.example). Body {"error":"origin_required"}.
+    put:
+      summary: Disallowed method
+      description: Only GET, POST and OPTIONS are allowed through the bridge proxy.
+      responses:
+        "405":
+          description: Body {"error":"method_not_allowed"}
+  /api/edb/{segment}:
+    get:
+      summary: Path validation on the bridge proxy
+      description: Each path segment must match [a-zA-Z0-9_\-:.] and must not be "." or "..". An encoded traversal such as "..%2Fsecret" is refused before anything reaches the bridge.
+      parameters:
+        - in: path
+          name: segment
+          required: true
+          schema: { type: string }
+          example: "..%2Fsecret"
+      responses:
+        "400":
+          description: Body {"error":"invalid_path"}
+  /api/lifi-earn/v1/chains:
+    get:
+      summary: Chains supported by LI.FI Earn
+      responses:
+        "200":
+          description: A non-empty array that includes chainId 1 (Ethereum) and 42161 (Arbitrum)
+          content:
+            application/json:
+              schema:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required: [chainId, name]
+                  properties:
+                    chainId: { type: integer }
+                    name: { type: string }
+                    networkCaip: { type: string }
+        "403":
+          description: Sent with a foreign Origin header. Body {"error":"Origin not allowed"}.
+  /api/lifi-earn/v1/vaults:
+    get:
+      summary: Yield vaults, filterable by chain
+      parameters:
+        - in: query
+          name: chainId
+          schema: { type: integer }
+          example: 42161
+        - in: query
+          name: limit
+          schema: { type: integer }
+          example: 2
+      responses:
+        "200":
+          description: Object with a data array of vaults; with chainId=42161 every returned vault is on chain 42161, and limit caps the count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, slug]
+                      properties:
+                        name: { type: string }
+                        slug: { type: string }
+    post:
+      summary: Disallowed method
+      responses:
+        "405":
+          description: Body {"error":"Method not allowed"}
+  /api/lifi-earn/v1/protocols:
+    get:
+      summary: Protocols with vaults on LI.FI Earn
+      responses:
+        "200":
+          description: A non-empty array of {id, name, url}; includes id "aave"
+  /api/lifi-earn/v1/portfolio/{address}/positions:
+    get:
+      summary: Earn positions for any address
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema: { type: string, pattern: "^0x[0-9a-fA-F]{40}$" }
+          example: "0x5A61acE11A12d2F661cE18d22F823C111aC87b77"
+      responses:
+        "200":
+          description: Object with a data array (possibly empty) and a numeric limit
+  /api/sourcify/server/v2/contract/{chainId}/{address}:
+    get:
+      summary: Verified-contract lookup through the Sourcify rewrite
+      parameters:
+        - in: path
+          name: chainId
+          required: true
+          schema: { type: integer }
+          example: 1
+        - in: path
+          name: address
+          required: true
+          schema: { type: string }
+          example: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+      responses:
+        "200":
+          description: The USDC proxy on Ethereum is verified; runtimeMatch is "match"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runtimeMatch]
+                properties:
+                  runtimeMatch: { type: string }
+                  creationMatch: { type: string }
