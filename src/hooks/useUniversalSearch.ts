@@ -216,8 +216,8 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
   const navigateToCalldataDecode = useCallback(
     (input: string) => {
       const params = new URLSearchParams();
-      params.set('tab', 'lookup');
-      params.set('tool', 'calldata');
+      params.set('tab', 'tools');
+      params.set('tool', 'decoder');
       params.set('q', input);
       navigate(`/database?${params.toString()}`);
     },

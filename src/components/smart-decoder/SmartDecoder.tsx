@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   CheckCircle,
   Sparkle,
@@ -296,6 +297,23 @@ const SmartDecoder: React.FC = () => {
     lookupAbortRef, abiCacheRef,
     toolkit, addDecodingStep, cancelActiveLookup, resetDecodingState,
   });
+
+  // Calldata handed over from the universal search (?tool=decoder&q=0x...) is filled in and decoded once.
+  const location = useLocation();
+  const pendingAutoDecode = useRef(false);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q')?.trim();
+    if (params.get('tool') !== 'decoder' || !q) return;
+    setDecodeMode('calldata');
+    setCalldata(q);
+    pendingAutoDecode.current = true;
+  }, [location.search]);
+  useEffect(() => {
+    if (!pendingAutoDecode.current || !calldata) return;
+    pendingAutoDecode.current = false;
+    handleSmartDecode();
+  }, [calldata, handleSmartDecode]);
 
   return (
     <div className="bg-background p-4 w-full max-w-5xl mx-auto">
