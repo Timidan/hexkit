@@ -8,6 +8,10 @@
   A local-first EVM developer toolkit for decoding, simulating, debugging smart contract transactions, and managing DeFi yield.
 </p>
 
+<p align="center">
+  <a href="https://web3-toolkit.vercel.app">Live app</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
+</p>
+
 ---
 
 ## Overview
@@ -112,6 +116,26 @@ Full Solidity step-through debugger powered by the local EDB engine:
 - Expression evaluator with a three-tier resolution chain: locals, storage-layout decode, and ABI getter fallback
 - Dual-layer snapshot system (opcode snapshots and hook snapshots)
 - Keep-alive sessions via the EDB bridge for long-running investigations
+
+## Testing with TestSprite
+
+Every pull request is tested before it can merge. Vercel builds a preview of the PR. When that deployment completes, the [TestSprite](https://www.testsprite.com) GitHub App runs the suite against the preview, posts the results on the PR, and reports a status check that blocks the merge while tests fail. Nobody has to remember to run it.
+
+The suite is 20 browser tests, generated in the TestSprite portal from a short product scope and tightened by hand to assert exact values from one real mainnet USDC transfer.
+
+| Area | Tests | What they check |
+|---|---|---|
+| Calldata decoding | 2 | Decoding from the home search and from the decoder shows `transfer(address,uint256)`, the recipient and the amount `2000000000` |
+| Transaction replay | 4 | A mainnet transfer replays to Success with USDC −2,000 / +2,000; the result tabs open; it reopens from history; a malformed hash explains itself |
+| Signature database | 3 | Selector → signature, event topic → signature, signature → selector |
+| Contract explorer | 2 | Verified source for the USDC proxy, with compiler and proxy details |
+| LI.FI Earn | 3 | Filtering vaults by chain and asset, vault details, positions for any address |
+| Local storage | 3 | Storage inventory, simulation history surviving a reload, clearing history |
+| Navigation | 3 | Source Tools and Integrations from home, Contract Explorer from the command palette |
+
+Not covered: anything that needs a wallet signature (deposits, withdrawals, Live Interaction writes), the AI recommendation features, and the step debugger.
+
+Keep branch names to 19 characters or fewer. Vercel shortens longer branch names in preview URLs with a hash, and the check then cannot find the preview.
 
 ## Architecture
 
