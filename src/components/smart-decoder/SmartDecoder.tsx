@@ -309,11 +309,12 @@ const SmartDecoder: React.FC = () => {
     setCalldata(q);
     pendingAutoDecode.current = true;
   }, [location.search]);
+  // A decode already in flight finishes first; the newest calldata decodes after it, so its result lands last.
   useEffect(() => {
-    if (!pendingAutoDecode.current || !calldata) return;
+    if (!pendingAutoDecode.current || !calldata || isDecoding) return;
     pendingAutoDecode.current = false;
     handleSmartDecode();
-  }, [calldata, handleSmartDecode]);
+  }, [calldata, handleSmartDecode, isDecoding]);
 
   return (
     <div className="bg-background p-4 w-full max-w-5xl mx-auto">
