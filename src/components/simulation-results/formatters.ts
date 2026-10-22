@@ -90,6 +90,56 @@ export const formatEth = (weiValue?: string | null) => {
   }
 };
 
+/**
+ * Format an already-decimal amount string for compact display while keeping the
+ * full value available (e.g. for a `title` tooltip). Turns the raw float tails
+ * like "-0.08999999999999997" into a readable "−0.0900".
+ */
+export const formatDisplayAmount = (
+  value?: string | null
+): { display: string; full: string } => {
+  const full = String(value ?? "").trim();
+  if (!full) return { display: "—", full: "" };
+
+  // Parse the decimal string directly. Going through Number() loses precision on
+  // large token amounts (9007199254740993 → …992) and yields scientific notation
+  // for tiny ones — both showed up in review.
+  const m = full.match(/^([+-]?)(\d+)(?:\.(\d+))?$/);
+  if (!m) return { display: full, full };
+
+  const intRaw = m[2].replace(/^0+(?=\d)/, "");
+  const fracTrimmed = (m[3] ?? "").replace(/0+$/, "");
+  const intIsZero = /^0+$/.test(intRaw);
+  if (intIsZero && !fracTrimmed) return { display: "0", full };
+
+  const sign = m[1] === "-" ? "−" : "+"; // U+2212 minus / + for positive
+  let body: string;
+
+  if (!intIsZero) {
+    // Magnitude ≥ 1.
+    if (intRaw.length <= 15) {
+      // Safe for Number — round to 4dp then regroup.
+      const r = Math.abs(Number(full)).toFixed(4).replace(/\.?0+$/, "");
+      const [ip, fp] = r.split(".");
+      body = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (fp ? `.${fp}` : "");
+    } else {
+      // Too large for Number — group the integer as a string, truncate the fraction.
+      const frac4 = fracTrimmed.slice(0, 4).replace(/0+$/, "");
+      const grouped = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      body = frac4 ? `${grouped}.${frac4}` : grouped;
+    }
+  } else {
+    // Magnitude < 1 — never scientific notation.
+    const firstSig = fracTrimmed.search(/[1-9]/);
+    body =
+      firstSig <= 2
+        ? Math.abs(Number(full)).toFixed(4) // 0.0900, 0.0010 (≥ 0.001)
+        : `0.${fracTrimmed.slice(0, firstSig + 3)}`; // 0.000108 (< 0.001, ~3 sig figs)
+  }
+
+  return { display: `${sign}${body}`, full };
+};
+
 export const calculateIntrinsicGas = (calldata?: string | null): number => {
   const INTRINSIC_BASE = 21000;
   if (!calldata || calldata === "0x") return INTRINSIC_BASE;
