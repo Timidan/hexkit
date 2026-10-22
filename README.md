@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://hexkit.app">Live app</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
+  <a href="https://hexkit.app">Live app</a> · <a href="https://youtu.be/YNzsIt0ea48">Demo video</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
 </p>
 
 ---
@@ -119,20 +119,20 @@ Full Solidity step-through debugger powered by the local EDB engine:
 
 ## Testing with TestSprite
 
-Nobody has to remember to run the tests. [TestSprite](https://www.testsprite.com) runs them at three points:
+Nobody has to remember to run the tests. [TestSprite](https://www.testsprite.com) runs them at every stage. The [82-second demo video](https://youtu.be/YNzsIt0ea48) walks through each TestSprite feature used here.
 
 | When | What runs | Against | What happens on failure |
 |---|---|---|---|
-| Every pull request | 20 browser tests | The PR's Vercel preview | The `TestSprite V3` check fails. It is required on `master`, so the PR cannot merge |
-| Every merge to `master` | 20 browser tests + 20 API tests | Production, https://hexkit.app | The run fails in the TestSprite portal |
+| Every pull request | 27 browser tests | The PR's Vercel preview | The `TestSprite V3` check fails. It is required on `master`, so the PR cannot merge |
+| Every merge to `master` | 27 browser tests + 20 API tests | Production, https://hexkit.app | The run fails in the TestSprite portal |
 | Every night, 12:00 AM PT | 8 core browser flows (decode, replay, bad-hash message, explorer, signatures, LI.FI vaults) | Production | The run fails, and the result is emailed |
 | Every night, 07:30 UTC | 20 API tests, from [GitHub Actions](.github/workflows/api-nightly.yml) with the TestSprite CLI | Production | The workflow run fails. Its summary lists every test, and a JUnit report is attached |
 
-The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly runs catch what no pull request changes: a public RPC or an upstream API changing under the app. The API suite's nightly results are public, in this repository's Actions tab.
+The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly runs catch what no pull request changes: a public RPC or an upstream API changing under the app. Each API run's result is in this repository's Actions tab; GitHub shows its job summary to signed-in users.
 
 Both suites were generated in the TestSprite portal, from a short product scope and an [OpenAPI description](api/openapi.yaml), then tightened by hand. The browser tests assert exact values from one real mainnet USDC transfer, which lives in the production environment's variables.
 
-**Browser suite (20)**
+**Browser suite (27)**
 
 | Area | Tests | What they check |
 |---|---|---|
@@ -140,7 +140,9 @@ Both suites were generated in the TestSprite portal, from a short product scope 
 | Transaction replay | 4 | A mainnet transfer replays to Success with USDC −2,000 / +2,000; the result tabs open; it reopens from history; a malformed hash explains itself |
 | Signature database | 3 | Selector → signature, event topic → signature, signature → selector |
 | Contract explorer | 2 | Verified source for the USDC proxy, with compiler and proxy details |
-| LI.FI Earn | 3 | Filtering vaults by chain and asset, vault details, positions for any address |
+| Contract diff and storage | 2 | WETH vs USDT runtime bytecode (3,081 vs 11,032 bytes, metadata stripped); WETH's storage layout rebuilt (WETH9, solc 0.4.19, name "Wrapped Ether", symbol "WETH", decimals 18) |
+| Hash and encoder tools | 3 | keccak256 and sha256 of `hello` match the known hashes; encoding `transfer(address,uint256)` gives exactly the calldata the decode tests use |
+| LI.FI Earn | 5 | Filtering vaults by chain and asset, vault details, positions for any address; a deposit Forecast is internally consistent (earnings = projected − deposit, shorter horizon earns less); flagged vaults show a caution notice first |
 | Local storage | 3 | Storage inventory, simulation history surviving a reload, clearing history |
 | Navigation | 3 | Source Tools and Integrations from home, Contract Explorer from the command palette |
 
