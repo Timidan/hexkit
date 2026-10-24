@@ -1,5 +1,16 @@
 {
+  "functions": {
+    "api/vara-sim-proxy.ts": { "maxDuration": 60 }
+  },
   "rewrites": [
+    {
+      "source": "/api/vara-sim",
+      "destination": "/api/vara-sim-proxy"
+    },
+    {
+      "source": "/api/vara-sim/:path*",
+      "destination": "/api/vara-sim-proxy?path=:path*"
+    },
     {
       "source": "/api/edb",
       "destination": "/api/edb-proxy"

@@ -1,0 +1,23 @@
+[package]
+name = "sails-tally"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone: not part of the simulator package. Feeds public/vara/sails-scenario.json.
+#   WASM: cargo rustc --release --lib --crate-type cdylib --target wasm32v1-none -- -C link-arg=--import-memory -C link-arg=--allow-undefined
+#         then copy target/wasm32v1-none/release/sails_tally.wasm to tally.wasm
+#   IDL:  cargo run --example idl
+[workspace]
+
+[dependencies]
+sails-rs = "=0.10.4"
+
+[dev-dependencies]
+sails-rs = { version = "=0.10.4", features = ["idl-gen"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

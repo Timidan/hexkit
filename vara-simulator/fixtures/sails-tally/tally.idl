@@ -1,0 +1,10 @@
+constructor {
+  New : ();
+};
+
+service Tally {
+  /// Adds `amount` and returns the new total.
+  Add : (amount: u32) -> u32;
+  query Total : () -> u32;
+};
+

@@ -5,25 +5,26 @@ import path from "path";
 import { handleEtherscanLookup } from "./api/explorer/etherscanShared";
 
 /**
- * Injects the EDB bridge origin into the CSP connect-src at build time.
- * Set VITE_SIMULATOR_BRIDGE_URL in your Vercel env vars and the CSP
- * automatically allows connections to that origin.
+ * Injects configured bridge origins into CSP connect-src at build time.
+ * Relative proxy URLs already use 'self'.
  */
-function injectBridgeCsp(): Plugin {
+function injectBridgeCsp(varaSimulatorUrl?: string): Plugin {
   return {
     name: "inject-bridge-csp",
     transformIndexHtml(html) {
       const bridgeUrl = process.env.VITE_SIMULATOR_BRIDGE_URL;
-      if (!bridgeUrl || bridgeUrl === "disabled") return html;
-      try {
+      if (bridgeUrl && bridgeUrl !== "disabled") try {
         const origin = new URL(bridgeUrl).origin;
-        return html.replace(
+        html = html.replace(
           /(connect-src\s[^"]*?)(;)/,
           `$1 ${origin} wss://${new URL(bridgeUrl).host}$2`,
         );
-      } catch {
-        return html;
-      }
+      } catch { /* Relative proxy URLs need no extra CSP origin. */ }
+      if (varaSimulatorUrl) try {
+        const url = new URL(varaSimulatorUrl);
+        if (["http:", "https:"].includes(url.protocol)) html = html.replace(/(connect-src\s[^"]*?)(;)/, `$1 ${url.origin}$2`);
+      } catch { /* Relative proxy URLs need no extra CSP origin. */ }
+      return html;
     },
   };
 }
@@ -149,7 +150,7 @@ export default defineConfig(({ mode }) => {
         include: "**/*.{jsx,tsx}",
       }),
       tailwindcss(),
-      injectBridgeCsp(),
+      injectBridgeCsp(env.VITE_VARA_SIMULATOR_URL),
       devExplorerProxy(),
       llmProxyPlugin(env),
     ],
@@ -198,11 +199,27 @@ export default defineConfig(({ mode }) => {
           // blows the inotify per-process instance cap on Linux.
           "**/edb/**",
           "**/starknet-sim/**",
+          "**/vara-simulator/target/**",
           "**/.claude/**",
           "**/.vercel/**",
         ],
       },
       proxy: {
+        "/api/vara-sim": {
+          target: env.VARA_SIMULATOR_BRIDGE_URL || "http://127.0.0.1:5791",
+          changeOrigin: true,
+          secure: true,
+          proxyTimeout: 50_000,
+          rewrite: (path) => path.replace(/^\/api\/vara-sim/, ""),
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq) => {
+              // Match the Vercel proxy: upstream receives only the server's key, no browser Origin.
+              proxyReq.removeHeader("Origin");
+              proxyReq.removeHeader("X-API-Key");
+              if (env.VARA_SIMULATOR_API_KEY) proxyReq.setHeader("X-API-Key", env.VARA_SIMULATOR_API_KEY);
+            });
+          },
+        },
         // Proxy for EDB bridge (strips /api/edb prefix, forwards to bridge)
         // Reads EDB_BRIDGE_URL from .env; falls back to localhost for local bridge dev.
         // Injects X-API-Key server-side so the browser never sees the secret —
