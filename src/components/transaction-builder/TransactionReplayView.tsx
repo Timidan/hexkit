@@ -478,6 +478,7 @@ export const TransactionReplayView: React.FC<{
 
   // Only enable replay when transaction has been verified to exist on the network
   const runDisabled = !txHash.trim() || isSimulating || txFetchStatus !== "found";
+  const hashFormatValid = /^0x[a-fA-F0-9]{64}$/.test(txHash.trim());
 
   return (
     <div style={replayShellStyle}>
@@ -582,7 +583,16 @@ export const TransactionReplayView: React.FC<{
                 </div>
               )}
 
-              {txHash.trim() && /^0x[a-fA-F0-9]{64}$/.test(txHash.trim()) && (
+              {txHash.trim() && !hashFormatValid && (
+                <div role="alert" className="flex items-center gap-3 rounded-lg border border-destructive/30 p-4 bg-destructive/10">
+                  <AlertTriangleIcon width={16} height={16} className="text-destructive" />
+                  <span className="text-sm text-destructive">
+                    This isn't a transaction hash. It should be 0x followed by 64 hexadecimal characters.
+                  </span>
+                </div>
+              )}
+
+              {txHash.trim() && hashFormatValid && (
                 <div className="rounded-lg border border-border/50 overflow-hidden">
                   {txFetchStatus === "fetching" && (
                     <div className="flex items-center gap-3 p-4 bg-muted/30">

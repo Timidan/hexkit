@@ -193,7 +193,9 @@ export const classifySimulationError = (rawError: string): ClassifiedSimulationE
   if (
     (lower.includes('historical state') && lower.includes('not available')) ||
     lower.includes('missing trie node') ||
-    lower.includes("state histories haven't been fully indexed yet")
+    lower.includes("state histories haven't been fully indexed yet") ||
+    lower.includes('archive requests require') ||
+    lower.includes('is pruned')
   ) {
     return {
       type: 'state',

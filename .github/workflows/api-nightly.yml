@@ -1,0 +1,45 @@
+# Runs the TestSprite API suite against production every night.
+# The API tests call https://www.hexkit.app from their own code, so there is no
+# preview to point them at. A nightly run catches an upstream change (LI.FI,
+# Sourcify, the simulator bridge) that no pull request makes.
+name: TestSprite API
+
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TESTSPRITE_API_KEY: ${{ secrets.TESTSPRITE_API_KEY }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm i -g @testsprite/testsprite-cli@latest
+
+      - name: Run the API suite against production
+        run: >-
+          testsprite ci run
+          --project 64b68673-1206-4461-9afb-b6a7f9e28f79
+          --fail-on-skipped
+          --summary-file testsprite-summary.json
+          --report junit
+          --report-file testsprite-junit.xml
+
+      - name: Upload TestSprite report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testsprite-api-results
+          path: |
+            testsprite-summary.json
+            testsprite-junit.xml
+          if-no-files-found: ignore

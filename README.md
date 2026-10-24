@@ -8,6 +8,10 @@
   A local-first EVM developer toolkit for decoding, simulating, debugging smart contract transactions, and managing DeFi yield.
 </p>
 
+<p align="center">
+  <a href="https://hexkit.app">Live app</a> · <a href="https://youtu.be/YNzsIt0ea48">Demo video</a> · <a href="#testing-with-testsprite">How every PR is tested</a>
+</p>
+
 ---
 
 ## Overview
@@ -138,6 +142,59 @@ Full Solidity step-through debugger powered by the local EDB engine:
 - Expression evaluator with a three-tier resolution chain: locals, storage-layout decode, and ABI getter fallback
 - Dual-layer snapshot system (opcode snapshots and hook snapshots)
 - Keep-alive sessions via the EDB bridge for long-running investigations
+
+## Testing with TestSprite
+
+Nobody has to remember to run the tests. [TestSprite](https://www.testsprite.com) runs them at every stage. The [82-second demo video](https://youtu.be/YNzsIt0ea48) walks through each TestSprite feature used here.
+
+| When | What runs | Against | What happens on failure |
+|---|---|---|---|
+| Every pull request | 27 browser tests | The PR's Vercel preview | The `TestSprite V3` check fails. It is required on `master`, so the PR cannot merge |
+| Every merge to `master` | 27 browser tests + 20 API tests | Production, https://hexkit.app | The run fails in the TestSprite portal |
+| Every night, 12:00 AM PT | 8 core browser flows (decode, replay, bad-hash message, explorer, signatures, LI.FI vaults) | Production | The run fails, and the result is emailed |
+| Every night, 07:30 UTC | 20 API tests, from [GitHub Actions](.github/workflows/api-nightly.yml) with the TestSprite CLI | Production | The workflow run fails. Its summary lists every test, and a JUnit report is attached |
+
+The PR and merge runs start from Vercel's own deployment events, through the TestSprite GitHub App. The API suite runs after merges, not on PRs. TestSprite's API tests carry their target URL in their own code, so on a PR they would test production rather than the preview, and their status would overwrite the browser suite's `TestSprite V3` check. The nightly runs catch what no pull request changes: a public RPC or an upstream API changing under the app. Each API run's result is in this repository's Actions tab; GitHub shows its job summary to signed-in users.
+
+Both suites were generated in the TestSprite portal, from a short product scope and an [OpenAPI description](api/openapi.yaml), then tightened by hand. The browser tests assert exact values from one real mainnet USDC transfer, which lives in the production environment's variables.
+
+**Browser suite (27)**
+
+| Area | Tests | What they check |
+|---|---|---|
+| Calldata decoding | 2 | Decoding from the home search and from the decoder shows `transfer(address,uint256)`, the recipient and the amount `2000000000` |
+| Transaction replay | 4 | A mainnet transfer replays to Success with USDC −2,000 / +2,000; the result tabs open; it reopens from history; a malformed hash explains itself |
+| Signature database | 3 | Selector → signature, event topic → signature, signature → selector |
+| Contract explorer | 2 | Verified source for the USDC proxy, with compiler and proxy details |
+| Contract diff and storage | 2 | WETH vs USDT runtime bytecode (3,081 vs 11,032 bytes, metadata stripped); WETH's storage layout rebuilt (WETH9, solc 0.4.19, name "Wrapped Ether", symbol "WETH", decimals 18) |
+| Hash and encoder tools | 3 | keccak256 and sha256 of `hello` match the known hashes; encoding `transfer(address,uint256)` gives exactly the calldata the decode tests use |
+| LI.FI Earn | 5 | Filtering vaults by chain and asset, vault details, positions for any address; a deposit Forecast is internally consistent (earnings = projected − deposit, shorter horizon earns less); flagged vaults show a caution notice first |
+| Local storage | 3 | Storage inventory, simulation history surviving a reload, clearing history |
+| Navigation | 3 | Source Tools and Integrations from home, Contract Explorer from the command palette |
+
+**API suite (20)**
+
+| Area | Tests | What they check |
+|---|---|---|
+| Simulator bridge | 4 | Health returns `status: ok` with its concurrency limits, with and without a same-origin request; PUT is refused with 405; CORS never grants a wildcard origin |
+| Path guard | 4 | Encoded traversal, double-encoded traversal and illegal characters return 400 `invalid_path`; an unknown safe path returns 404 |
+| LI.FI Earn proxy | 8 | Chains, vaults (with chain filter and limit), protocols and positions return the expected shapes; a bad address returns 400; POST returns 405; CORS never grants a wildcard origin |
+| Sourcify proxy | 4 | USDC's source on Ethereum is a runtime `match`; a short address and an unknown chain return 400; same-origin lookups work |
+
+Not covered: anything that needs a wallet signature (deposits, withdrawals, Live Interaction writes), the AI recommendation features, and the step debugger.
+
+Keep branch names to 19 characters or fewer. Vercel shortens longer branch names in preview URLs with a hash, and the check then cannot find the preview.
+
+What the suite caught on its first runs, fixed in [#41](https://github.com/Timidan/hexkit/pull/41):
+
+- **Decode Calldata from search never decoded.** It opened the 4-byte selector lookup with the whole calldata pasted in.
+- **A malformed replay hash failed silently.** Run Replay turned grey with no explanation.
+- **Replays of transactions older than about 25 minutes failed on default settings.** The default Ethereum RPC keeps no historical state, and the error wrongly said "Failed to connect to the RPC node". The default is now an archive-capable public RPC, and archive refusals show the historical-data message.
+
+Later runs caught two more, both from public RPCs refusing requests under load:
+
+- **Simulations failed when the default RPC rate-limited** ([#43](https://github.com/Timidan/hexkit/pull/43)). On the public default, a rate-limited simulation now retries on the next archive-capable public RPC.
+- **The transaction lookup before a replay could hang for 30 seconds** ([#45](https://github.com/Timidan/hexkit/pull/45)). A rate-limit reply asking the app to retry later made it wait until its timeout fired. On the public default, a refused or stalled call now moves to the next public RPC at once.
 
 ## Architecture
 
