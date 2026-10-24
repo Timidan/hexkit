@@ -4,6 +4,9 @@ import { Cube, Flask, Stack, type Icon } from "@phosphor-icons/react";
 /** `hidden` tools have no tab; search and links still open them in their group's workspace. */
 type Tool = { id: string; label: string; Component: LazyExoticComponent<ComponentType>; hidden?: boolean };
 
+/** Retired tool ids and where their links now open: Gas & Vouchers became the gas view of Message Simulation. */
+export const TOOL_ALIASES: Record<string, { tool: string; view: string }> = { resources: { tool: "simulator", view: "gas" } };
+
 /** The same groups drive desktop navigation, the mobile drawer, and tool panels. */
 export const toolGroups: { id: string; path: string; label: string; shortLabel: string; icon: Icon; tools: Tool[] }[] = [
   {
@@ -12,7 +15,6 @@ export const toolGroups: { id: string; path: string; label: string; shortLabel: 
       { id: "program", label: "Program Interaction", Component: lazy(() => import("../ProgramTool")) },
       { id: "simulator", label: "Message Simulation", Component: lazy(() => import("./SimulatorTool")) },
       { id: "scenarios", label: "Scenario Tests", Component: lazy(() => import("./ScenarioTool")) },
-      { id: "resources", label: "Gas & Vouchers", Component: lazy(() => import("./ResourceTool")) },
       { id: "message", label: "Message Inspector", Component: lazy(() => import("../MessageTool")) },
     ],
   },
