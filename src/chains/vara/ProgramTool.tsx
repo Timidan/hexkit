@@ -588,7 +588,7 @@ export default function ProgramTool() {
 
   return (
     <section className="mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6">
-      <ToolHeader title="Program interaction" aside={<Badge variant="outline">Mainnet</Badge>} />
+      <ToolHeader title="Program interaction" source="Vara mainnet" />
 
       <div className="space-y-2.5">
         <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void load(input); }}>
@@ -598,7 +598,7 @@ export default function ProgramTool() {
           </div>
           <Button type="submit" className="max-sm:w-full" loading={loading} disabled={!!busy} icon={<MagnifyingGlass size={16} />}>{loading ? "Loading program…" : "Load program"}</Button>
         </form>
-        <ProgramExamples disabled={loading || !!busy} onSelect={(id) => { setInput(id); void load(id); }} />
+        <ProgramExamples expanded={!info && !loading} disabled={loading || !!busy} onSelect={(id) => { setInput(id); void load(id); }} />
         {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
       </div>
 
@@ -809,7 +809,7 @@ export default function ProgramTool() {
                             <code data-testid="vara-encoded-payload" className="min-w-0 flex-1 break-all font-mono text-xs text-green-400">{target.payload}</code>
                             <CopyButton variant="ghost" size="icon-sm" value={target.payload} ariaLabel="Copy encoded payload" />
                           </div>
-                        ) : <p className="text-xs text-muted-foreground">Fill the parameters to encode the payload: {target.error}</p>}
+                        ) : <p className="text-xs text-muted-foreground">{forms[methodKey(method)] ? <>Fill the parameters to encode the payload: {target.error}</> : "Fill in the parameters to see the encoded payload."}</p>}
                       </div>
                     ) : raw && (
                       raw.node

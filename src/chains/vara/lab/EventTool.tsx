@@ -54,7 +54,7 @@ export default function EventTool() {
     finally { clearTimeout(timer); if (abort.current === controller) { setBusy(false); abort.current = null; } }
   }
   return <div className="space-y-5">
-    <ToolHeader title="Event explorer" />
+    <ToolHeader title="Event explorer" source="Vara mainnet" />
     <Panel footer={<>
       <Button disabled={busy} onClick={() => void inspect()}>{busy ? "Reading indexed events…" : "Inspect events"}</Button>{busy && <Button variant="outline" onClick={() => abort.current?.abort()}>Cancel</Button>}
 

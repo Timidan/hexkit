@@ -30,7 +30,7 @@ export default function ResourceTool() {
     finally { if (alive.current) setBusy(false); }
   }
   return <div className="space-y-5">
-    <ToolHeader title="Gas & vouchers" />
+    <ToolHeader title="Gas & vouchers" source="Vara mainnet" />
     <div className="grid items-start gap-4 lg:grid-cols-2">
     <Panel title="Call" actions={<Button variant="outline" size="sm" disabled={busy} onClick={() => setParams((p) => { p.set("tool", "simulator"); return p; })}>{input.program ? "Open this call in simulation" : "Choose a message sample"}</Button>} footer={<>
       <Button disabled={busy} onClick={() => void check()}>{busy ? "Checking resources…" : "Check gas & vouchers"}</Button>

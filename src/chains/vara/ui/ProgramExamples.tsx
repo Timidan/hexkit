@@ -19,8 +19,15 @@ export function ProgramMark({ id, small = false }: { id: string; small?: boolean
   </span>;
 }
 
-/** One-click mainnet examples as a compact chip row under the program input. */
-export function ProgramExamples({ onSelect, disabled }: { onSelect: (id: Hex) => void; disabled?: boolean }) {
+/** One-click mainnet examples: cards while nothing is loaded, then a compact chip row under the program input. */
+export function ProgramExamples({ onSelect, disabled, expanded = false }: { onSelect: (id: Hex) => void; disabled?: boolean; expanded?: boolean }) {
+  if (expanded) return <div className="grid gap-2 pt-1 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Example programs">
+    {PROGRAM_EXAMPLES.map((p) => <button type="button" key={p.id} disabled={disabled} onClick={() => onSelect(p.id)} title={shortHex(p.id)}
+      className="flex min-w-0 items-center gap-3 rounded-lg border border-border/70 bg-card/60 p-3 text-left transition-colors hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+      <ProgramMark id={p.id} />
+      <span className="min-w-0"><span className="block truncate text-sm font-medium">{p.name}</span><span className="line-clamp-2 text-xs text-muted-foreground">{p.program} · {p.description}</span></span>
+    </button>)}
+  </div>;
   return <details><summary className="min-h-9 cursor-pointer content-center text-sm text-muted-foreground">Example programs</summary><div className="flex flex-wrap items-center gap-1.5 py-2" role="group" aria-label="Example programs">
     {PROGRAM_EXAMPLES.map((p) => <button type="button" key={p.id} disabled={disabled} onClick={() => onSelect(p.id)} title={`${p.program} · ${p.description} · ${shortHex(p.id)}`}
       className="inline-flex h-8 items-center gap-2 rounded-md border border-border/70 pl-1 pr-2.5 text-xs transition-colors hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">

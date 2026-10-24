@@ -31,6 +31,7 @@ import { ValueTree } from "./ui/ValueTree";
 import IncidentPanel from "./lab/IncidentPanel";
 import { readInvestigations, saveInvestigation } from "./lab/incident";
 import type { SavedCase } from "./lab/incident";
+import RecentMessages from "./lab/RecentMessages";
 import basketExample from "./fixtures/case-36589852-1.json?raw";
 import traceExample from "./fixtures/case-36592237-1.json?raw";
 
@@ -256,7 +257,7 @@ export default function MessageTool() {
 
   return (
     <section className={`${SURFACE} mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6`}>
-      <ToolHeader title="Message inspector" />
+      <ToolHeader title="Message inspector" source="Vara mainnet" />
 
       <div className="space-y-2.5">
         <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void fetchExtrinsic(); }}>
@@ -284,12 +285,13 @@ export default function MessageTool() {
             if (file) void importIdl(file);
           }} />
         </form>
-        <details><summary className="min-h-9 cursor-pointer content-center text-sm text-muted-foreground">Saved snapshots</summary><div className="flex flex-wrap items-center gap-2 py-2" role="group" aria-label="Example investigations">
+        <details open={!c}><summary className="min-h-9 cursor-pointer content-center text-sm text-muted-foreground">Saved snapshots</summary><div className="flex flex-wrap items-center gap-2 py-2" role="group" aria-label="Example investigations">
           <Button variant="outline" size="sm" disabled={busy} onClick={() => { setTab("overview"); setDetail("payload"); void importCase(new File([basketExample], "case-36589852-1.json")); }}>Decoded call</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => { setTab("trace"); void importCase(new File([traceExample], "case-36592237-1.json")); }}>Wait & wake trace</Button>
           <span className="basis-full text-xs text-muted-foreground">Inspect, trace and dry run use RPC data.</span>
         </div></details>
         {error && <p id="vara-message-error" role="alert" className="max-w-md break-words text-sm text-red-400">{error}</p>}
+        {!c && !busy && <RecentMessages disabled={busy} onPick={(id) => { setInput(id); void fetchExtrinsic(id); }} />}
         {(saved.length > 0 || savedNotice) && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {/* A menu, not a <select>: arrow keys on a closed select fire change and would replace the open investigation. */}

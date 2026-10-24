@@ -1,5 +1,5 @@
 import { Buffer } from "buffer/";
-import { Sails, SailsProgram, getFnNamePrefix, getServiceNamePrefix } from "sails-js";
+import { Sails, SailsProgram, getCtorNamePrefix, getFnNamePrefix, getServiceNamePrefix } from "sails-js";
 import type { DecodedCall, DecodedEvent, DecodedReply, DecodedUnknown } from "sails-js";
 import { SailsIdlParser as SailsIdlParserV2 } from "sails-js/parser";
 import { SailsIdlParser } from "sails-js-parser";
@@ -57,14 +57,26 @@ function readRoute(payload: Hex): { service: string; name: string } | { error: s
   return { error: "Not a Sails payload" };
 }
 
+/** A legacy constructor payload is the constructor name and its arguments, with no service prefix. */
+function decodeCtor(payload: Hex, sails: Sails | null): Decoded | null {
+  try {
+    const name = getCtorNamePrefix(payload), ctor = sails?.ctors?.[name];
+    return ctor ? { service: null, name, value: ctor.decodePayload<unknown>(payload), error: null } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function decodeCall(payload: Hex, sails: SailsIdl | null): Decoded {
   const mismatch = v2Mismatch(payload, sails);
   if (mismatch) return mismatch;
   if (sails instanceof SailsProgram) return fromV2(sails.decodeCall(payload));
   const route = readRoute(payload);
-  if ("error" in route) return { service: null, name: null, value: null, error: route.error };
+  if ("error" in route) return decodeCtor(payload, sails) ?? { service: null, name: null, value: null, error: route.error };
   const decoded: Decoded = { ...route, value: null, error: null };
   if (!sails) return decoded;
+  // A constructor's first argument can read as a method name, so a payload naming no known service is tried as one.
+  if (!sails.services[route.service]) { const ctor = decodeCtor(payload, sails); if (ctor) return ctor; }
   try {
     const fn = sails.services[route.service]?.functions[route.name] ?? sails.services[route.service]?.queries[route.name];
     if (!fn) decoded.error = `${route.service}.${route.name} not in IDL`;

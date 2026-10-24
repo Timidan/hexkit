@@ -23,7 +23,7 @@ export default function InterfaceTool() {
     finally { setBusy(false); }
   }
   return <div className="space-y-5">
-    <ToolHeader title="IDL comparison" aside={<Button variant="outline" size="sm" disabled={busy} onClick={() => {
+    <ToolHeader title="IDL comparison" source="In your browser" aside={<Button variant="outline" size="sm" disabled={busy} onClick={() => {
         setBefore(example.idl); setAfter(example.idl.replace("FinalizeSettlement : (basket_id: u64)", "FinalizeSettlement : (basket_id: u32)"));
         setPayloads(example.call.payload); setResult(null); setError("");
       }}>Load breaking-change example</Button>} />

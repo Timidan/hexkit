@@ -72,7 +72,7 @@ function PayloadEditor({ program, payload, onPayload }: { program?: ScenarioProg
         </select>
       </label>
       {!method && hasBytes && <div className="space-y-1 text-sm">
-        <p>{known ? <>Encoded call: <code className="break-all font-mono text-xs">{route}({args.join(", ")})</code></> : "Encoded call: raw bytes, not a service method in this interface."}</p>
+        <p>{known ? <>{known.service ? "Encoded call" : "Constructor"}: <code className="break-all font-mono text-xs">{route}({args.join(", ")})</code></> : "Encoded call: raw bytes, not a service method in this interface."}</p>
         <p className="text-xs text-muted-foreground">Selecting a method resets its arguments.</p>
       </div>}
       {method?.params.map((p, i) => <FieldEditor key={`${key}.${p.name}`} schema={p.schema} value={values[i]} label={p.name} path={`scenario.${p.name}`} onChange={(v) => { const next = [...values]; next[i] = v; encode(next); }} />)}
@@ -154,7 +154,7 @@ export default function ScenarioTool() {
   const decodedReply = result && replyIdl && sent?.kind === "send" && replyOf?.payload && replyOf.payload !== "0x" ? decodeReply(replyOf.payload as Hex, decodeCall(sent.payload as Hex, replyIdl), replyIdl) : null;
   return <div className="space-y-5">
     <ToolHeader title="Scenario tests"
-      aside={<Badge variant={ready ? "success" : "outline"}>{IS_LOCAL_SIMULATOR ? (ready === null ? "Checking local runtime…" : ready ? "Local · connected" : "Local runtime required") : (ready === null ? "Checking hosted runtime…" : ready ? "Hosted · connected" : "Hosted runtime unavailable")}</Badge>} />
+      source={<Badge variant={ready ? "success" : "outline"}>{IS_LOCAL_SIMULATOR ? (ready === null ? "Checking local runtime…" : ready ? "Local · connected" : "Local runtime required") : (ready === null ? "Checking hosted runtime…" : ready ? "Hosted · connected" : "Hosted runtime unavailable")}</Badge>} />
     {ready === false && <div className="inline-flex max-w-md flex-wrap items-center gap-2 rounded-md border border-border/70 bg-card px-3 py-2 text-sm">{IS_LOCAL_SIMULATOR ? <><span>Start the runtime in the HexKit directory:</span><code className="break-all rounded bg-muted px-2 py-0.5 font-mono text-xs">npm run vara:simulator</code></> : <span>The hosted simulator is unavailable. Retry, or contact the HexKit operator if it stays offline.</span>}<Button size="sm" variant="outline" onClick={() => void health()}>Check connection</Button></div>}
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-card p-3" role="group" aria-label="Scenario file">
       <label className="min-w-0 flex-1 basis-full sm:basis-60"><span className="sr-only">Scenario name</span><Input disabled={running || loadingExample} value={scenario.name} maxLength={120} onChange={(e) => change({ ...scenario, name: e.target.value })} /></label>
@@ -186,7 +186,7 @@ export default function ScenarioTool() {
     {notice && <p role="status" className="max-w-md text-sm text-teal-400">{notice}</p>}{error && <p role="alert" className="max-w-md whitespace-pre-wrap break-words text-sm text-red-400">{error}</p>}
     <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
     <fieldset disabled={running || loadingExample} className="min-w-0 space-y-4">
-      <details className="rounded-lg border border-border/70 bg-card p-4" open={!scenario.programs.every((p) => p.wasm || p.mock)}><summary className="cursor-pointer font-medium">Programs & accounts <span className="ml-2 text-xs font-normal text-muted-foreground">{scenario.programs.length} programs · {scenario.accounts.length} senders</span></summary>
+      <details className="rounded-lg border border-border/70 bg-card p-4" open={!scenario.programs.every((p) => p.wasm || p.mock)}><summary className="cursor-pointer font-medium">Programs & accounts <span className="ml-2 text-xs font-normal text-muted-foreground">{scenario.programs.length} program{scenario.programs.length === 1 ? "" : "s"} · {scenario.accounts.length} sender{scenario.accounts.length === 1 ? "" : "s"}</span></summary>
         <div className="mt-4 space-y-5">
           {scenario.programs.map((p, i) => <div key={i} className="space-y-3 border-t border-border/60 pt-4 first:border-0 first:pt-0">
             <div className="grid gap-3 sm:grid-cols-[1fr_2fr_1fr]"><label className="space-y-1 text-xs">Name<Input value={p.name} onChange={(e) => updateProgram(i, { name: e.target.value })} /></label><label className="space-y-1 text-xs">Actor id<Input className="font-mono text-xs" value={p.id} onChange={(e) => updateProgram(i, { id: e.target.value })} /></label><AmountInput label="Initial balance" value={p.balance} onChange={(balance) => updateProgram(i, { balance })} /></div>

@@ -32,7 +32,7 @@ export default function AddressTool() {
 
   return (
     <section className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
-      <ToolHeader title="Address converter" aside={<Button variant="outline" size="sm" onClick={() => setInput(example.call.signer)}>Try an example</Button>} />
+      <ToolHeader title="Address converter" source="In your browser" aside={<Button variant="outline" size="sm" onClick={() => setInput(example.call.signer)}>Try an example</Button>} />
       <Panel>
       <div className="space-y-2">
         <label htmlFor="vara-address" className="text-sm font-medium">SS58 address or ActorId</label>

@@ -49,7 +49,7 @@ export default function SimulatorTool() {
     setParams((p) => { for (const [key, value] of Object.entries({ tool: "resources", program: input.program, origin: input.origin, payload: input.payload, value: input.value, gas: input.gasLimit, block: input.block })) p.set(key, value); return p; });
   }
   return <div className="space-y-5">
-    <ToolHeader title="Message simulation" aside={<Badge variant="outline">Read-only · mainnet</Badge>} />
+    <ToolHeader title="Message simulation" source="Vara mainnet" />
     <details><summary className="min-h-9 cursor-pointer content-center text-sm text-muted-foreground">Choose a recent message</summary><div className="pt-2"><RecentMessages disabled={busy || sampleLoading} onLoading={setSampleLoading} onSelect={(next, source) => {
       // The sample finished loading after the user left this tool: applying it would rewrite the URL of the tool now on screen.
       if (window.location.pathname !== "/vara/transactions" || new URLSearchParams(window.location.search).get("tool") !== "simulator") return;

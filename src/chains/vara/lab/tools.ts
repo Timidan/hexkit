@@ -1,8 +1,11 @@
-import { lazy } from "react";
-import { Cube, Flask, Stack } from "@phosphor-icons/react";
+import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import { Cube, Flask, Stack, type Icon } from "@phosphor-icons/react";
+
+/** `hidden` tools have no tab; search and links still open them in their group's workspace. */
+type Tool = { id: string; label: string; Component: LazyExoticComponent<ComponentType>; hidden?: boolean };
 
 /** The same groups drive desktop navigation, the mobile drawer, and tool panels. */
-export const toolGroups = [
+export const toolGroups: { id: string; path: string; label: string; shortLabel: string; icon: Icon; tools: Tool[] }[] = [
   {
     id: "transactions", path: "/transactions", label: "Programs & messages", shortLabel: "Programs", icon: Flask,
     tools: [
@@ -18,13 +21,14 @@ export const toolGroups = [
     tools: [
       { id: "interfaces", label: "IDL Comparison", Component: lazy(() => import("./InterfaceTool")) },
       { id: "events", label: "Event Explorer", Component: lazy(() => import("./EventTool")) },
-      { id: "address", label: "Address Converter", Component: lazy(() => import("../AddressTool")) },
+      // Search converts any pasted address, so this is a destination, not a tab.
+      { id: "address", label: "Address Converter", hidden: true, Component: lazy(() => import("../AddressTool")) },
     ],
   },
   {
     id: "integrations", path: "/integrations", label: "Vara.eth", shortLabel: "Vara.eth", icon: Stack,
     tools: [
-      { id: "settlement", label: "Vara.eth Settlement", Component: lazy(() => import("./SettlementTool")) },
+      { id: "settlement", label: "Settlement", Component: lazy(() => import("./SettlementTool")) },
     ],
   },
 ];

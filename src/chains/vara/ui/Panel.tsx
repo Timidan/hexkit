@@ -1,18 +1,23 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "../../../lib/utils";
+import { Badge } from "../../../components/ui/badge";
 
 /** Root classes for a Vara tool: visible focus, an AA-contrast primary fill, and 44px controls with 16px text on phones. */
 export const SURFACE = "[&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-ring [&_button[data-variant=default]]:bg-[oklch(0.54_0.18_250)] [&_button[data-variant=default]]:text-white [&_button[data-variant=default]:hover]:bg-[oklch(0.50_0.18_250)] max-md:[&_button]:min-h-11 max-md:[&_button]:min-w-11 max-md:[&_input:not([type=file]):not([type=checkbox]):not([type=radio])]:min-h-11 max-md:[&_select]:min-h-11 max-md:[&_input:not([type=file])]:text-base max-md:[&_select]:text-base max-md:[&_textarea]:text-base max-md:[&_[data-slot=tabs-list]]:h-auto";
 
-/** Page title for a Vara tool: one h1, one short line of context, optional controls on the right. */
-export function ToolHeader({ title, description, aside }: { title: string; description?: ReactNode; aside?: ReactNode }) {
+/** Page title for a Vara tool: one h1, one short line of context, optional controls, and where its data comes from as
+ *  the last item on the right. A string source is a plain badge; a live status passes its own badge. */
+export function ToolHeader({ title, description, aside, source }: { title: string; description?: ReactNode; aside?: ReactNode; source?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 max-w-prose">
         <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {aside}
+      {(aside || source) && <div className="flex flex-wrap items-center gap-2">
+        {aside}
+        {typeof source === "string" ? <Badge variant="outline">{source}</Badge> : source}
+      </div>}
     </header>
   );
 }

@@ -21,7 +21,7 @@ export const vara: ChainPlugin = {
       path: group.path,
       nav: {
         label: group.label, shortLabel: group.shortLabel, icon: group.icon,
-        subTabs: group.tools.map((tool) => ({ id: tool.id, label: tool.label, paramKey: "tool" })),
+        subTabs: group.tools.filter((tool) => !tool.hidden).map((tool) => ({ id: tool.id, label: tool.label, paramKey: "tool" })),
       },
       Component: Workspace,
     })),

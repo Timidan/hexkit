@@ -49,3 +49,8 @@ it("round-trips a TinyPoll IDL v2 call and separates malformed payloads", async 
   expect(decodeCall("0x1234", v2).error).toMatch(/^Malformed Sails v2 payload/);
   expect(decodeCall(call, v2).error).toBe("Legacy Sails payload, but the loaded IDL is v2");
 });
+
+it("reads a legacy constructor payload as its constructor, not raw bytes", async () => {
+  const tally = await loadIdl(readFileSync("vara-simulator/fixtures/sails-tally/tally.idl", "utf8"));
+  expect(decodeCall("0x0c4e6577", tally)).toEqual({ service: null, name: "New", value: {}, error: null });
+});
