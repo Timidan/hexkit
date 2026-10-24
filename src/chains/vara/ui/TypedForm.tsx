@@ -171,7 +171,7 @@ export function FieldEditor({ schema, value, onChange, label, path, disabled }: 
     return (
       <div className="min-w-0 space-y-2">
         <p className="text-sm">{label}<TypeHint s={schema} /></p>
-        <ToggleGroup type="single" variant="outline" size="sm" value={ok ? "ok" : "err"} disabled={disabled}
+        <ToggleGroup type="single" variant="outline" size="sm" aria-label={label} value={ok ? "ok" : "err"} disabled={disabled}
           onValueChange={(v) => { if (v) onChange({ ok: v === "ok", value: emptyValue(v === "ok" ? schema.ok : schema.err) }); }}>
           <ToggleGroupItem value="ok">Ok</ToggleGroupItem>
           <ToggleGroupItem value="err">Err</ToggleGroupItem>

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
 import { MagnifyingGlass, CaretRight } from "@phosphor-icons/react";
 import type { ChainTool } from "../chains/plugin";
-import { resolvePath } from "../chains/plugins";
+import { contextSearch, resolvePath } from "../chains/plugins";
 import { cn } from "@/lib/utils";
 
 interface MobileDrawerProps {
@@ -27,7 +27,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
   };
 
   const handleToolClick = (route: string) => {
-    navigate(plugin.basePath + route);
+    navigate({ pathname: plugin.basePath + route, search: contextSearch(plugin, location.search) });
     onOpenChange(false);
   };
 
@@ -43,7 +43,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
       return;
     }
 
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(contextSearch(plugin, location.search));
     params.set(paramKey, subId);
     navigate(
       { pathname: plugin.basePath + tool.path, search: `?${params.toString()}` },
@@ -88,6 +88,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
               <div key={tool.id}>
                 <button
                   type="button"
+                  aria-current={isActive ? "true" : undefined}
                   onClick={() => handleToolClick(tool.path)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
@@ -116,6 +117,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ open, onOpenChange }) => {
                       return (
                         <button
                           key={sub.id}
+                          aria-current={isSubActive ? "page" : undefined}
                           type="button"
                           onClick={() =>
                             handleSubTabClick(tool, sub.id, sub.paramKey)

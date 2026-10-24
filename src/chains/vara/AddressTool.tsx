@@ -1,11 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { CopyButton } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
+import { Button } from "../../components/ui/button";
 import { decodeSs58, encodeSs58, VARA_SS58_PREFIX } from "./address";
+import { Panel, ToolHeader } from "./ui/Panel";
+import example from "./fixtures/case-36589852-1.json";
 
 export default function AddressTool() {
-  const [input, setInput] = useState("");
+  const [params] = useSearchParams();
+  const incoming = params.get("address");
+  const [input, setInput] = useState(incoming ?? "");
+  useEffect(() => { if (incoming) setInput(incoming); }, [incoming]);
   const value = input.trim();
   let actorId = "";
   let address = "";
@@ -25,12 +32,8 @@ export default function AddressTool() {
 
   return (
     <section className="mx-auto w-full max-w-[1280px] space-y-6 px-4 py-6">
-      <div>
-        <h1 className="text-xl font-semibold">Address</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Convert an SS58 address or hex ActorId to a Vara address.
-        </p>
-      </div>
+      <ToolHeader title="Address converter" aside={<Button variant="outline" size="sm" onClick={() => setInput(example.call.signer)}>Try an example</Button>} />
+      <Panel>
       <div className="space-y-2">
         <label htmlFor="vara-address" className="text-sm font-medium">SS58 address or ActorId</label>
         <Input
@@ -44,10 +47,10 @@ export default function AddressTool() {
           aria-invalid={!!error}
           aria-describedby={error ? "vara-address-error" : undefined}
         />
-        {error && <p id="vara-address-error" role="alert" className="text-sm text-red-400">{error}</p>}
+        {error && <p id="vara-address-error" className="max-w-md break-words text-sm text-red-400">{error}</p>}
       </div>
       {value && !error && (
-        <dl className="space-y-4 rounded-lg border border-border bg-card p-4">
+        <dl className="space-y-4 border-t border-border/60 pt-4">
           <div>
             <dt className="text-xs text-muted-foreground">ActorId</dt>
             <dd className="mt-1 flex items-center gap-2">
@@ -64,6 +67,7 @@ export default function AddressTool() {
           </div>
         </dl>
       )}
+      </Panel>
     </section>
   );
 }

@@ -39,6 +39,10 @@ export interface ChainPlugin {
   /** "" for the default chain (owns the flat routes), "/<id>" for every other chain. */
   basePath: string;
   tools: ChainTool[];
+  /** Shared call fields carried between this chain’s tools. */
+  contextParams?: string[];
+  /** Uses the shell’s EVM RPC settings and debugger bridge. */
+  evmServices?: boolean;
   /** Mounted once around the router, always (keeps wallet state across chain switches). */
   Provider?: ComponentType<{ children: ReactNode }>;
   WalletButton?: ComponentType;

@@ -4,6 +4,9 @@ import type { GenericExtrinsic, Option, Vec } from "@polkadot/types";
 import type { Call, DispatchError, MultiAddress } from "@polkadot/types/interfaces";
 import type { FrameSystemEventRecord } from "@polkadot/types/lookup";
 import { z } from "zod";
+import { getIdl } from "./idlStore";
+import { ideaIdl, ideaMessageBlock, ideaProgram } from "./idea";
+import type { Hex as HexId } from "./model";
 
 const VARA_RPC = "wss://archive-rpc.vara.network";
 const ZERO = `0x${"00".repeat(32)}`;
@@ -33,6 +36,30 @@ export function explainRpcError(err: unknown, block: number | string): string {
   const panic = /panicked with '(.*)'/.exec(message);
   if (panic) return `The program panics: ${panic[1].replace(/'+"?$/, "")}`;
   return message;
+}
+
+export async function findMessage(messageId: HexId, hint?: { block: number; hash: HexId }): Promise<{ block: number; index: number; messageIndex: number } | null> {
+  const hit = hint ? { id: messageId, ...hint } : await ideaMessageBlock(messageId);
+  if (!hit) return null;
+  const api = await getVaraApi();
+  const apiAt = await api.at(hit.hash);
+  const records = await apiAt.query.system.events();
+  const counts = new Map<number, number>();
+  for (const { phase, event } of records) {
+    if (!phase.isApplyExtrinsic || event.section !== "gear" || event.method !== "MessageQueued") continue;
+    const index = phase.asApplyExtrinsic.toNumber();
+    const messageIndex = counts.get(index) ?? 0;
+    if (event.data[0].toHex().toLowerCase() === hit.id.toLowerCase()) return { block: hit.block, index, messageIndex };
+    counts.set(index, messageIndex + 1);
+  }
+  return null;
+}
+
+export async function resolveIdl(programId: HexId, codeId: HexId | null): Promise<{ text: string; source: "local" | "idea" } | null> {
+  const local = getIdl(programId);
+  if (local !== null) return { text: local, source: "local" };
+  const text = await ideaIdl(codeId ?? (await ideaProgram(programId))?.codeId ?? null);
+  return text === null ? null : { text, source: "idea" };
 }
 
 const Hex = z.custom<`0x${string}`>((v) => typeof v === "string" && /^0x([0-9a-fA-F]{2})*$/.test(v));

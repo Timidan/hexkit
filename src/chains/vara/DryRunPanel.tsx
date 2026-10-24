@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hexToBytes } from "@noble/hashes/utils";
-import type { Sails } from "sails-js";
+import { Terminal } from "@phosphor-icons/react";
+import type { SailsIdl } from "./decode";
 import { Button } from "../../components/ui/button";
 import { CopyButton } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
@@ -9,7 +10,9 @@ import { Textarea } from "../../components/ui/textarea";
 import type { RunResultT, Runs, VaraCase } from "./case";
 import { decodeCall, decodeReply, encodeArgs } from "./decode";
 import { dryRun, parseInput, sendMessage } from "./dryRun";
+import { varaWalletCalculateReply } from "./links";
 import { useVaraWallet } from "./wallet";
+import { Panel } from "./ui/Panel";
 
 type Hex = `0x${string}`;
 type Slot = "a" | "b";
@@ -23,7 +26,7 @@ function failedReply(reply: NonNullable<RunResultT["reply"]>): string {
   return `${reply.code} ${text}`;
 }
 
-function replyString(result: RunResultT | null, slotPayload: string, sails: Sails | null): string {
+function replyString(result: RunResultT | null, slotPayload: string, sails: SailsIdl | null): string {
   if (result?.error) return result.error;
   const reply = result?.reply;
   if (!reply) return "—";
@@ -34,7 +37,7 @@ function replyString(result: RunResultT | null, slotPayload: string, sails: Sail
   return decoded.error ?? JSON.stringify(decoded.value, null, 2);
 }
 
-function queryString(result: RunResultT | null, q: Runs["query"], sails: Sails | null): string {
+function queryString(result: RunResultT | null, q: Runs["query"], sails: SailsIdl | null): string {
   const query = result?.query;
   if (!query) return "—";
   if ("error" in query) return query.error;
@@ -47,7 +50,7 @@ function queryString(result: RunResultT | null, q: Runs["query"], sails: Sails |
   }
 }
 
-export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; sails: Sails | null; runs: Runs; update: (f: (prev: Runs) => Runs) => void }) {
+export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; sails: SailsIdl | null; runs: Runs; update: (f: (prev: Runs) => Runs) => void }) {
   const { account } = useVaraWallet();
   const [argsText, setArgsText] = useState<Record<Slot, string | null>>({ a: null, b: null });
   const [queryArgs, setQueryArgs] = useState<string | null>(null);
@@ -73,6 +76,13 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
     } catch (err) {
       setErrors((p) => ({ ...p, [slot]: err instanceof Error ? err.message : String(err) }));
     }
+  }
+
+  /** The same dry run from Gear's vara-wallet CLI. A pinned block uses the hash of the last run at that block. */
+  function walletCommand(slot: Slot): string {
+    const { input, result } = runs[slot];
+    const atHash = input.block === "latest" ? null : result?.block && String(result.block.number) === input.block ? result.block.hash : null;
+    return varaWalletCalculateReply({ programId: c.call.destination as Hex, payload: input.payload as Hex, origin: input.origin as Hex, atHash, value: input.value || "0" });
   }
 
   async function run(slot: Slot) {
@@ -135,32 +145,41 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
   });
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
-      <div>
-        <h2 className="font-semibold">Dry run</h2>
-        <p className="mt-1 text-sm text-muted-foreground">gear_calculateReplyForHandle at a pinned block</p>
-        <p className="mt-1 max-w-prose text-xs text-muted-foreground">Each run replays the message against the state at the end of the chosen block. Messages that ran earlier inside the original block are not included, so a run can succeed where the original failed.</p>
-      </div>
+    <Panel title="Dry run" actions={<Button variant="outline" size="sm" disabled={busy.a || busy.b} onClick={() => { void run("a"); void run("b"); }}>Run both</Button>}>
+      <p className="max-w-prose text-xs text-muted-foreground"><code className="font-mono">gear_calculateReplyForHandle</code> at a pinned block. Each run replays the message against the state at the end of the chosen block. Messages that ran earlier inside the original block are not included, so a run can succeed where the original failed.</p>
       <div className="grid gap-6 md:grid-cols-2">
         {(["a", "b"] as const).map((slot) => (
-          <div key={slot} className="min-w-0 space-y-3">
-            <h3 className="text-sm font-semibold">{slot.toUpperCase()}</h3>
-            {(["block", "origin", "value", "gasLimit"] as const).map((field) => (
-              <div key={field} className="space-y-1">
-                <label htmlFor={`vara-${slot}-${field}`} className="text-xs text-muted-foreground">{{ block: "Block", origin: "Origin", value: "Value", gasLimit: "Gas limit" }[field]}</label>
-                <Input id={`vara-${slot}-${field}`} value={runs[slot].input[field]} disabled={busy[slot]} className="font-mono" spellCheck={false} onChange={(event) => {
-                  const value = event.target.value;
-                  update((p) => ({ ...p, [slot]: { ...p[slot], input: { ...p[slot].input, [field]: value } } }));
-                }} />
-              </div>
-            ))}
+          <div key={slot} className="min-w-0 space-y-3 rounded-md bg-background/40 p-3">
+            <h3 className="text-sm font-semibold">Snapshot <span className="font-mono">{slot.toUpperCase()}</span></h3>
             <div className="space-y-1">
-              <label htmlFor={`vara-${slot}-payload`} className="text-xs text-muted-foreground">Payload</label>
-              <Textarea id={`vara-${slot}-payload`} value={runs[slot].input.payload} disabled={busy[slot]} className="break-all font-mono" spellCheck={false} onChange={(event) => {
-                const payload = event.target.value;
-                update((p) => ({ ...p, [slot]: { ...p[slot], input: { ...p[slot].input, payload } } }));
+              <label htmlFor={`vara-${slot}-block`} className="text-xs text-muted-foreground">Block (number or latest)</label>
+              <Input id={`vara-${slot}-block`} value={runs[slot].input.block} disabled={busy[slot]} className="font-mono" spellCheck={false} onChange={(event) => {
+                const value = event.target.value;
+                update((p) => ({ ...p, [slot]: { ...p[slot], input: { ...p[slot].input, block: value } } }));
               }} />
             </div>
+            {/* Less-used inputs stay one click away so the two slots stay short. */}
+            <details open={!sails}>
+              <summary className="min-h-8 cursor-pointer select-none content-center text-xs text-muted-foreground hover:text-foreground">More inputs: origin, value, gas{sails ? ", raw payload" : ""}</summary>
+              <div className="space-y-3 pt-2">
+                {(["origin", "value", "gasLimit"] as const).map((field) => (
+                  <div key={field} className="space-y-1">
+                    <label htmlFor={`vara-${slot}-${field}`} className="text-xs text-muted-foreground">{{ origin: "Origin", value: "Value", gasLimit: "Gas limit" }[field]}</label>
+                    <Input id={`vara-${slot}-${field}`} value={runs[slot].input[field]} disabled={busy[slot]} className="font-mono" spellCheck={false} onChange={(event) => {
+                      const value = event.target.value;
+                      update((p) => ({ ...p, [slot]: { ...p[slot], input: { ...p[slot].input, [field]: value } } }));
+                    }} />
+                  </div>
+                ))}
+                <div className="space-y-1">
+                  <label htmlFor={`vara-${slot}-payload`} className="text-xs text-muted-foreground">Payload (hex)</label>
+                  <Textarea id={`vara-${slot}-payload`} value={runs[slot].input.payload} disabled={busy[slot]} className="break-all font-mono" spellCheck={false} onChange={(event) => {
+                    const payload = event.target.value;
+                    update((p) => ({ ...p, [slot]: { ...p[slot], input: { ...p[slot].input, payload } } }));
+                  }} />
+                </div>
+              </div>
+            </details>
             {sails && <div className="space-y-2">
               <label htmlFor={`vara-${slot}-args`} className="text-xs text-muted-foreground">Args (JSON)</label>
               <Textarea id={`vara-${slot}-args`} value={displayedArgs(slot)} disabled={busy[slot]} className="font-mono" spellCheck={false} onChange={(event) => {
@@ -169,9 +188,13 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
               }} />
               <Button variant="outline" size="sm" disabled={busy[slot]} onClick={() => encode(slot)}>Encode</Button>
             </div>}
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled={busy[slot]} onClick={() => void run(slot)}>Run</Button>
-              <Button variant="outline" disabled={!account || busy[slot]} onClick={() => void send(slot)}>Send as transaction</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" disabled={busy[slot]} onClick={() => void run(slot)}>Run {slot.toUpperCase()}</Button>
+              <Button variant="outline" size="sm" disabled={!account || busy[slot]} onClick={() => void send(slot)}>Send transaction</Button>
+              <span className="inline-flex h-8 items-center gap-1 rounded-md border border-border/70 pl-2.5 text-xs text-muted-foreground" title="Copy this dry run as a Gear vara-wallet command">
+                <Terminal size={14} aria-hidden />vara-wallet
+                <CopyButton variant="ghost" size="icon-sm" ariaLabel={`Copy ${slot.toUpperCase()} as a vara-wallet command`} getValue={() => walletCommand(slot)} />
+              </span>
             </div>
             {busy[slot] && !status[slot] && <p role="status" className="text-sm text-muted-foreground">Working…</p>}
             {status[slot] && <p role="status" className="text-sm text-muted-foreground">{status[slot]}</p>}
@@ -183,7 +206,7 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
           </div>
         ))}
       </div>
-      {account && <p className="text-xs text-muted-foreground">Sends a real Vara mainnet transaction from {account.name ?? `${account.address.slice(0, 6)}…${account.address.slice(-4)}`}</p>}
+      <p className="text-xs text-muted-foreground">{account ? `Send transaction submits a real Vara mainnet transaction from ${account.name ?? `${account.address.slice(0, 6)}…${account.address.slice(-4)}`}` : "Connect a Vara wallet (top right) to send."}</p>
       {sails && <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label htmlFor="vara-query" className="text-xs text-muted-foreground">State query</label>
@@ -206,7 +229,6 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
           <Input id="vara-query-args" value={queryArgs ?? JSON.stringify(runs.query?.args ?? [])} disabled={!runs.query || busy.a || busy.b} className="font-mono" spellCheck={false} onChange={(event) => setQueryArgs(event.target.value)} />
         </div>
       </div>}
-      <Button variant="outline" disabled={busy.a || busy.b} onClick={() => { void run("a"); void run("b"); }}>Run both</Button>
       {/* Desktop: side-by-side table. Phones: one stacked card per row. */}
       <div className="hidden sm:block">
         <table className="w-full table-fixed text-left text-sm">
@@ -235,6 +257,6 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
           );
         })}
       </dl>
-    </section>
+    </Panel>
   );
 }

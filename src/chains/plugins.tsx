@@ -26,3 +26,13 @@ export function ChainProviders({ children }: { children: ReactNode }) {
     children,
   );
 }
+
+/** Tool-specific tabs and result IDs are not shared call context. */
+export function contextSearch(plugin: ChainPlugin, search: string): string {
+  const current = new URLSearchParams(search), next = new URLSearchParams();
+  for (const key of plugin.contextParams ?? []) {
+    const value = current.get(key);
+    if (value !== null) next.set(key, value);
+  }
+  return next.toString();
+}

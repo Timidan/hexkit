@@ -30,6 +30,32 @@ The application pairs a React frontend with a local Rust-powered EDB (EVM Debugg
 
 ## Features
 
+### Vara tools
+
+Select **Vara** in the chain switcher. Its tools sit under three tabs, each with sub-tools: **Transaction Simulator** (`/vara/transactions`), **Program Tools** (`/vara/program-tools`) and **Integrations** (`/vara/integrations`). They are isolated from the EVM runtime:
+
+- **Program Interaction**: load a mainnet program by id, SS58 address, or Gear IDEA/Subscan link, then query it or simulate its functions through typed forms built from its Sails IDL (fetched from Gear IDEA or loaded from a file). Sending a message needs a connected Vara wallet. Recent messages open in Message Inspector.
+- **Message Simulation**: compose a raw or typed Sails message, calculate its reply at a selected chain snapshot, and compare another block without signing.
+- **Scenario Tests**: run uploaded Gear WASM locally, keep state across messages, use multiple programs and senders, advance blocks, inject an explicitly marked mock failure, and assert replies, processing status, or balances. Import/export scenario JSON and export a standalone Rust regression test. The Sails example runs a compiled Sails program (source under `vara-simulator/fixtures/sails-tally`) and shows each reply decoded with its IDL.
+- **Gas & Vouchers**: inspect gas estimates, fees, balances, voucher scope, expiry, and funding. Reports distinguish snapshot balances/replies from current-head gas estimates; eligibility is not a guarantee of execution.
+- **IDL Comparison**: compare Sails service signatures (legacy or IDL v2) and check saved message payloads against both interfaces using an exact decode/encode round trip.
+- **Event Explorer**: inspect a bounded indexed block range, decode Sails events, map output columns, export data, and generate a typed TypeScript handler.
+- **Vara.eth Settlement**: correlate Mirror requests and replies by message ID and inspect Ethereum finality. Supports bounded log searches or a supplied settlement receipt. Unavailable evidence is reported separately from an absent reply.
+
+**Message Inspector** (`/vara/transactions?tool=message`, previously “Message Case”) adds separate inclusion, processing, reply, and application statuses, evidence-based diagnoses, an observed program timeline, locally saved investigations, and a handoff into Scenario Tests. Program forms can open the simulator, gas check, or event explorer with their current inputs. **Address** (`/vara/program-tools?tool=address`) converts between SS58 addresses and hex ActorIds. Older links (`/vara/message`, `/vara/address`, `/vara/program`, `/vara/lab`) redirect to these locations.
+
+Start the local scenario runtime in a second terminal:
+
+```bash
+npm run dev
+# In another terminal (Rust required; initial compilation takes several minutes):
+npm run vara:simulator
+```
+
+The runtime uses `gtest = 2.0.0` at `127.0.0.1:5791`; it needs no wallet or deployed program. **Load working example** exercises state changes and a trap; **Load two-program example** exercises a delayed cross-program reply with two senders. See [the runtime README](vara-simulator/README.md) for limits, exports, and checks.
+
+Limits: local scenarios start from supplied fixtures, not reconstructed historical chain state. The RPC simulator calculates a message reply, not the inclusion of a signed extrinsic. Interfaces load as legacy Sails IDL or IDL v2 (via sails-js 1.0.0); generic user types in IDL v2 forms resolve one level deep. Event coverage depends on SQD availability. Public Ethereum providers may restrict archival logs and state; direct receipt inspection remains available. Vara.eth validator state requires a local node, and pre-confirmation signatures are not verified. No new tool sends transactions.
+
 ### Smart Decoder
 
 Paste raw calldata and HexKit resolves the selector against the OpenChain signature database and decodes the parameters. An args-only mode decodes ABI-encoded blobs with no selector. Supports custom ABI input for decoding private or unregistered functions; a local signature cache lets previously resolved selectors decode offline. (To decode an on-chain transaction by hash, use Transaction Replay.)

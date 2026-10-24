@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, GitBranch } from "@phosphor-icons/react";
-import type { Sails } from "sails-js";
+import { ArrowClockwise, ArrowRight, GitBranch, Stop } from "@phosphor-icons/react";
+import type { SailsIdl } from "./decode";
 import AnimatedProgressBar from "../../components/smoothui/ui/AnimatedProgressBar";
 import AnimatedTooltip from "../../components/smoothui/ui/AnimatedTooltip";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { StepStatusIcon } from "../../components/ui/step-status-icon";
 import type { StepVisualStatus } from "../../components/ui/step-status-icon";
 import { cn } from "../../lib/utils";
 import type { VaraCase } from "./case";
 import { decodeCall, decodeEvent, decodeReply, loadIdl } from "./decode";
-import { getIdl } from "./idlStore";
+import { resolveIdl } from "./case";
+import { ideaProgramUrl, subscanAccount } from "./links";
+import { ExplorerLinks } from "./ui/ExplorerLinks";
+import { IconAction } from "./ui/IconAction";
+import { FlowDiagram } from "./ui/FlowDiagram";
+import { useProgramNames } from "./ui/useProgramNames";
 import type { Decoded } from "./decode";
 import type { Hex, Trace, TraceNode, TraceStep } from "./model";
 import { traceMessage } from "./trace";
@@ -20,6 +26,9 @@ import { ValueTree } from "./ui/ValueTree";
 
 const ZERO = `0x${"00".repeat(32)}`;
 const RANGES = [20, 100, 600] as const;
+type TraceView = "flow" | "tree" | "lifecycle";
+/** Tab panels are focusable (Radix); keep a visible ring for keyboard users. */
+const PANEL = "mt-3 rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 const MAX_DEPTH = 4;
 
 function utf8(hex: string): string | null {
@@ -72,7 +81,7 @@ function Derivation({ node, parentShort }: { node: TraceNode; parentShort: strin
   );
 }
 
-function NodePayload({ node, rootCall, sails, programId, calleeIdls }: { node: TraceNode; rootCall: Decoded; sails: Sails | null; programId: Hex; calleeIdls: Map<string, Sails> }) {
+function NodePayload({ node, rootCall, sails, programId, calleeIdls }: { node: TraceNode; rootCall: Decoded; sails: SailsIdl | null; programId: Hex; calleeIdls: Map<string, SailsIdl>; names: Map<string, string> }) {
   if (!node.payload) return null;
   if (node.payload === "0x") return <p className="text-sm text-muted-foreground">Empty payload</p>;
   if (node.kind === "reply" && node.replySuccess === false) {
@@ -97,7 +106,8 @@ function NodePayload({ node, rootCall, sails, programId, calleeIdls }: { node: T
   );
 }
 
-function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent: Map<string, TraceNode[]>; depth: number; rootCall: Decoded; sails: Sails | null; programId: Hex; calleeIdls: Map<string, Sails> }) {
+function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent: Map<string, TraceNode[]>; depth: number; rootCall: Decoded; sails: SailsIdl | null; programId: Hex; calleeIdls: Map<string, SailsIdl>; names: Map<string, string> }) {
+  const { names } = ctx;
   // Traces are one level deep by construction; the cap guards against cycles in imported files.
   const children = depth < MAX_DEPTH ? byParent.get(node.id.toLowerCase()) ?? [] : [];
   const hidden = node.kind === "hidden";
@@ -115,7 +125,8 @@ function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent
           node.destination ? (
             <div className="space-y-2">
               <p className="text-sm">
-                Call into <HexChip value={node.destination} label="callee program" /> (nonce {node.derivation?.nonce}).
+                Call into {names.get(node.destination.toLowerCase()) && <span className="font-medium">{names.get(node.destination.toLowerCase())} </span>}<HexChip value={node.destination} label="callee program" /> (nonce {node.derivation?.nonce}).
+                <ExplorerLinks className="ml-1 align-middle" links={[{ label: "IDEA", href: ideaProgramUrl(node.destination), title: "Open the callee in Gear IDEA" }]} />
               </p>
               <p className="text-xs text-muted-foreground">Destination proven by the callee's own event below, whose id derives from this call's id. The call's payload is not on-chain.</p>
             </div>
@@ -160,27 +171,30 @@ function NodeCard({ node, byParent, depth, ...ctx }: { node: TraceNode; byParent
   );
 }
 
-export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; sails: Sails | null; trace: Trace | null; onTrace: (t: Trace | null) => void }) {
+export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; sails: SailsIdl | null; trace: Trace | null; onTrace: (t: Trace | null) => void }) {
   const [range, setRange] = useState<number>(RANGES[0]);
+  const [view, setView] = useState<TraceView>("flow");
   const [progress, setProgress] = useState<{ scanned: number; total: number } | null>(null);
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
-  // IDLs remembered for programs that emitted events in this trace (callees), keyed lowercase.
-  const [calleeIdls, setCalleeIdls] = useState<Map<string, Sails>>(new Map());
+  // IDLs for programs that emitted events in this trace (callees): local first, else published on Gear IDEA.
+  const [calleeIdls, setCalleeIdls] = useState<Map<string, SailsIdl>>(new Map());
   useEffect(() => {
     if (!trace) return;
     let cancelled = false;
     const sources = [...new Set(trace.nodes.map((n) => n.source?.toLowerCase()).filter((s): s is string => !!s && s !== trace.programId.toLowerCase()))];
     void Promise.all(sources.map(async (s) => {
-      const text = getIdl(s as Hex);
-      if (!text) return null;
-      try { return [s, await loadIdl(text)] as const; } catch { return null; }
+      const resolved = await resolveIdl(s as Hex, null);
+      if (!resolved) return null;
+      try { return [s, await loadIdl(resolved.text)] as const; } catch { return null; }
     })).then((loaded) => {
-      if (!cancelled) setCalleeIdls(new Map(loaded.filter((e): e is readonly [string, Sails] => e !== null)));
+      if (!cancelled) setCalleeIdls(new Map(loaded.filter((e): e is readonly [string, SailsIdl] => e !== null)));
     });
     return () => { cancelled = true; };
   }, [trace]);
+
+  const names = useProgramNames([c.message?.programId, ...(trace?.nodes.flatMap((n) => [n.source, n.destination]) ?? [])]);
 
   const message = c.message;
   if (!message) return <p className="text-sm text-muted-foreground">This extrinsic queued no message, so there is nothing to trace.</p>;
@@ -229,8 +243,10 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
             <SelectContent>{RANGES.map((r) => <SelectItem key={r} value={String(r)}>{r} blocks (~{Math.round((r * 3) / 60) || 1} min)</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <Button variant="outline" loading={!!progress} onClick={() => void run(range)}>{trace ? "Re-trace" : "Trace message"}</Button>
-        {progress && <Button variant="ghost" onClick={() => abort.current?.abort()}>Stop</Button>}
+        {trace
+          ? <IconAction variant="outline" size="icon" label="Re-trace" loading={!!progress} onClick={() => void run(range)}>{!progress && <ArrowClockwise size={16} />}</IconAction>
+          : <Button variant="outline" loading={!!progress} icon={<GitBranch size={16} />} onClick={() => void run(range)}>Trace message</Button>}
+        {progress && <IconAction size="icon" label="Stop tracing" onClick={() => abort.current?.abort()}><Stop size={16} weight="fill" /></IconAction>}
       </div>
 
       {progress && (
@@ -250,7 +266,7 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
       {trace && root && (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={trace.complete ? "success" : "warning"}>{trace.complete ? "Complete" : "Incomplete"}</Badge>
+            <Badge variant={trace.complete ? "success" : "warning"}>{trace.complete ? "Root dispatch observed" : "Partial observations"}</Badge>
             <Badge variant="outline">{proven} proven link{proven === 1 ? "" : "s"}</Badge>
             {rootHidden > 0 && <Badge variant="outline">{rootHidden} hidden call{rootHidden === 1 ? "" : "s"}</Badge>}
             {provenCallees > 0 && <Badge variant="teal">{provenCallees} callee{provenCallees === 1 ? "" : "s"} proven</Badge>}
@@ -258,54 +274,67 @@ export default function TracePanel({ c, sails, trace, onTrace }: { c: VaraCase; 
           </div>
           {!trace.complete && (
             <p className="max-w-prose text-sm text-muted-foreground">
-              The message had not finished by block {trace.toBlock}. Widen the scan window to keep following it.
+              Completion was not established in the observed window through block {trace.toBlock}. Widen the scan window to look for later evidence.
             </p>
           )}
+          <p className="max-w-prose text-xs text-muted-foreground">The trace probes a bounded set of derived message ids. Root dispatch and observed replies do not establish a complete downstream execution graph or the application’s expected outcome.</p>
 
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Lifecycle</h3>
-            {(() => {
-              const pauses = root.steps.filter((s) => s.kind === "waited").length;
-              if (pauses === 0) return null;
-              return (
-                <p className="max-w-prose text-sm text-muted-foreground">
-                  {pauses === rootHidden
-                    ? `Paused ${pauses} time${pauses === 1 ? "" : "s"}, once per hidden call: the program called another program and waited for its reply before continuing.`
-                    : `Paused ${pauses} time${pauses === 1 ? "" : "s"} waiting for replies from other programs.`}
-                </p>
-              );
-            })()}
-            <ol className="relative space-y-3 border-l border-border/60 pl-4">
-              {root.steps.map((s, i) => (
-                <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                  <span className="-ml-[26px] flex h-5 w-5 items-center justify-center rounded-full bg-background"><StepStatusIcon status={stepStatus(s)} /></span>
-                  <span>{describe(s)}</span>
-                  <span className="font-mono text-xs text-muted-foreground">#{s.block}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Causal tree</h3>
-            <ul className="space-y-3">
-              <NodeCard node={root} byParent={byParent} depth={0} rootCall={rootCall} sails={sails} programId={trace.programId} calleeIdls={calleeIdls} />
-            </ul>
-          </section>
-
-          {trace.stateChanges.length > 0 && (
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Programs whose state changed</h3>
-              <ul className="space-y-1.5">
-                {trace.stateChanges.map((s) => (
-                  <li key={s.block} className="flex flex-wrap items-center gap-2 text-sm">
+          <Tabs value={view} onValueChange={(v) => setView(v as TraceView)}>
+            <TabsList aria-label="Trace views" className="h-auto max-w-full flex-wrap">
+              <TabsTrigger value="flow">Flow</TabsTrigger>
+              <TabsTrigger value="tree">Causal tree <span className="ml-1 font-mono text-xs text-muted-foreground">{trace.nodes.length}</span></TabsTrigger>
+              <TabsTrigger value="lifecycle">Lifecycle <span className="ml-1 font-mono text-xs text-muted-foreground">{root.steps.length}</span></TabsTrigger>
+            </TabsList>
+            <TabsContent value="flow" className={PANEL}>
+              <FlowDiagram trace={trace} sender={c.call.signer} rootPayload={c.call.payload} names={names} />
+            </TabsContent>
+            <TabsContent value="tree" className={PANEL}>
+              <ul className="space-y-3" aria-label="Causal tree">
+                <NodeCard node={root} byParent={byParent} depth={0} rootCall={rootCall} sails={sails} programId={trace.programId} calleeIdls={calleeIdls} names={names} />
+              </ul>
+            </TabsContent>
+            <TabsContent value="lifecycle" className={cn(PANEL, "space-y-5")}>
+              {(() => {
+                const pauses = root.steps.filter((s) => s.kind === "waited").length;
+                if (pauses === 0) return null;
+                return (
+                  <p className="max-w-prose text-sm text-muted-foreground">
+                    {pauses === rootHidden
+                      ? `Paused ${pauses} time${pauses === 1 ? "" : "s"}, once per hidden call: the program called another program and waited for its reply before continuing.`
+                      : `Paused ${pauses} time${pauses === 1 ? "" : "s"} waiting for replies from other programs.`}
+                  </p>
+                );
+              })()}
+              <ol className="relative space-y-3 border-l border-border/60 pl-4" aria-label="Lifecycle steps">
+                {root.steps.map((s, i) => (
+                  <li key={i} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                    <span className="-ml-[26px] flex h-5 w-5 items-center justify-center rounded-full bg-background"><StepStatusIcon status={stepStatus(s)} /></span>
+                    <span>{describe(s)}</span>
                     <span className="font-mono text-xs text-muted-foreground">#{s.block}</span>
-                    {s.programs.map((p) => <HexChip key={p} value={p} label="program" />)}
                   </li>
                 ))}
-              </ul>
-            </section>
-          )}
+              </ol>
+              {trace.stateChanges.length > 0 && (
+                <section className="space-y-2">
+                  <h2 className="text-sm font-semibold">Programs whose state changed</h2>
+                  <ul className="space-y-1.5">
+                    {trace.stateChanges.map((s) => (
+                      <li key={s.block} className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">#{s.block}</span>
+                        {s.programs.map((p) => (
+                          <span key={p} className="inline-flex items-center gap-1">
+                            {names.get(p.toLowerCase()) && <span className="text-sm">{names.get(p.toLowerCase())}</span>}
+                            <HexChip value={p} label="program" />
+                            <ExplorerLinks links={[{ label: "Subscan", href: subscanAccount(p), title: "Open the program account in Subscan" }]} />
+                          </span>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>

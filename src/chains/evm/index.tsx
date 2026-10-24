@@ -21,6 +21,7 @@ const IntegrationsHub = React.lazy(() => import("../../components/integrations/I
 export const evm: ChainPlugin = {
   id: "evm",
   name: "EVM",
+  evmServices: true,
   Mark,
   basePath: "",
   Provider,

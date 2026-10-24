@@ -1,0 +1,101 @@
+{
+  "accounts": [
+    {
+      "balance": "1000000000000000000",
+      "id": "0xa186010000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "name": "Counter: state, blocks, and an expected failure",
+  "programs": [
+    {
+      "balance": "10000000000000",
+      "id": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "idl": null,
+      "mock": null,
+      "name": "Counter",
+      "wasm": "0x0061736d01000000010b0260047f7f7f7f00600000022c0303656e76066d656d6f727902000103656e760767725f72656164000003656e760867725f7265706c790000030302010107110204696e697400020668616e646c6500030a3d0202000b380041004101412041c000100041202d000041ff01460440000b41800241800228020041202d00006a3602004180024104417f41c00010010b0015046e616d65010e0200047265616401057265706c79"
+    }
+  ],
+  "steps": [
+    {
+      "blocks": 1,
+      "gasLimit": "200000000000",
+      "kind": "send",
+      "label": "Initialize the counter",
+      "payload": "0x",
+      "program": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "sender": "0xa186010000000000000000000000000000000000000000000000000000000000",
+      "value": "0"
+    },
+    {
+      "blocks": 1,
+      "gasLimit": "200000000000",
+      "kind": "send",
+      "label": "Increment once",
+      "payload": "0x01",
+      "program": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "sender": "0xa186010000000000000000000000000000000000000000000000000000000000",
+      "value": "0"
+    },
+    {
+      "kind": "expectReply",
+      "label": "Counter is 1",
+      "message": 1,
+      "payload": "0x01000000"
+    },
+    {
+      "blocks": 3,
+      "kind": "advance",
+      "label": "Advance three blocks"
+    },
+    {
+      "blocks": 1,
+      "gasLimit": "200000000000",
+      "kind": "send",
+      "label": "Increment again",
+      "payload": "0x01",
+      "program": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "sender": "0xa186010000000000000000000000000000000000000000000000000000000000",
+      "value": "0"
+    },
+    {
+      "kind": "expectReply",
+      "label": "State persisted: counter is 2",
+      "message": 4,
+      "payload": "0x02000000"
+    },
+    {
+      "blocks": 1,
+      "gasLimit": "200000000000",
+      "kind": "send",
+      "label": "Trigger a WASM trap",
+      "payload": "0xff",
+      "program": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "sender": "0xa186010000000000000000000000000000000000000000000000000000000000",
+      "value": "0"
+    },
+    {
+      "kind": "expectStatus",
+      "label": "Failure was observed",
+      "message": 6,
+      "status": "failed"
+    },
+    {
+      "blocks": 1,
+      "gasLimit": "200000000000",
+      "kind": "send",
+      "label": "Read after the failure",
+      "payload": "0x00",
+      "program": "0x0100000000000000000000000000000000000000000000000000000000000000",
+      "sender": "0xa186010000000000000000000000000000000000000000000000000000000000",
+      "value": "0"
+    },
+    {
+      "kind": "expectReply",
+      "label": "Counter still equals 2",
+      "message": 8,
+      "payload": "0x02000000"
+    }
+  ],
+  "version": 1
+}

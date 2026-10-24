@@ -188,6 +188,9 @@ const PersistentTools: React.FC = () => {
   );
 
   if (!activeRoute) {
+    // A trailing slash names the same page: strip it instead of falling back to the default tool.
+    const trimmed = location.pathname.replace(/\/+$/, "");
+    if (trimmed && trimmed !== location.pathname) return <Navigate to={{ pathname: trimmed, search: location.search, hash: location.hash }} replace />;
     return <Navigate to={plugin.basePath + firstNavTool(plugin).path} replace />;
   }
 

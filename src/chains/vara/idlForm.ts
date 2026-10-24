@@ -1,7 +1,8 @@
 import { bytesToHex } from "@noble/hashes/utils";
-import type { ISailsPrimitiveDef, ISailsTypeDef, Sails } from "sails-js";
+import { SailsProgram } from "sails-js";
+import type { ISailsPrimitiveDef, ISailsTypeDef, IStructField, TypeDecl } from "sails-js";
 import { decodeSs58 } from "./address";
-import { loadIdl } from "./decode";
+import { loadIdl, type SailsIdl } from "./decode";
 import type { FieldSchema, FormValue, Hex, IdlModel, MethodSchema, PrimitiveName } from "./model";
 
 const primitives: [keyof ISailsPrimitiveDef, PrimitiveName][] = [
@@ -13,8 +14,66 @@ const primitives: [keyof ISailsPrimitiveDef, PrimitiveName][] = [
   ["isActorId", "actor_id"], ["isCodeId", "code_id"], ["isMessageId", "message_id"], ["isH256", "h256"], ["isH160", "h160"],
 ];
 
-export async function loadIdlModel(text: string): Promise<{ sails: Sails; model: IdlModel }> {
+const V2_PRIMITIVES: Record<string, PrimitiveName> = {
+  bool: "bool", char: "char", String: "str", u8: "u8", u16: "u16", u32: "u32", u64: "u64", u128: "u128", U256: "u256",
+  i8: "i8", i16: "i16", i32: "i32", i64: "i64", i128: "i128", ActorId: "actor_id", CodeId: "code_id", MessageId: "message_id", H256: "h256", H160: "h160",
+  NonZeroU8: "nat8", NonZeroU16: "nat16", NonZeroU32: "nat32", NonZeroU64: "nat64", NonZeroU128: "nat128", NonZeroU256: "nat256",
+};
+
+/** IDL v2: walks `TypeDecl`s, resolving user types in the service's scope. */
+function modelV2(program: SailsProgram): IdlModel {
+  return { services: Object.entries(program.services).map(([serviceName, service]) => {
+    function map(decl: TypeDecl, stack: string[] = [], generics: Record<string, TypeDecl> = {}): FieldSchema {
+      if (typeof decl === "string") {
+        if (decl === "()") return { kind: "null" };
+        const type = V2_PRIMITIVES[decl];
+        if (!type) throw new Error(`Unsupported IDL primitive: ${decl}`);
+        return { kind: "primitive", type };
+      }
+      if (decl.kind === "slice") return { kind: "vec", inner: map(decl.item, stack, generics) };
+      if (decl.kind === "array") return { kind: "array", inner: map(decl.item, stack, generics), len: decl.len };
+      if (decl.kind === "tuple") return decl.types.length ? { kind: "struct", name: null, tuple: true, fields: decl.types.map((t, i) => ({ name: String(i), schema: map(t, stack, generics) })) } : { kind: "null" };
+      if (decl.kind === "generic") {
+        if (!generics[decl.name]) throw new Error(`Unsupported IDL type: unbound generic ${decl.name}`);
+        return map(generics[decl.name], stack, generics);
+      }
+      const args = decl.generics ?? [];
+      if (decl.name === "Option") return { kind: "option", inner: map(args[0], stack, generics) };
+      if (decl.name === "Result") return { kind: "result", ok: map(args[0], stack, generics), err: map(args[1], stack, generics) };
+      if (V2_PRIMITIVES[decl.name]) return map(decl.name as TypeDecl, stack, generics);
+      if (stack.includes(decl.name)) return { kind: "recursive", name: decl.name };
+      const type = program.resolveInService(serviceName, { kind: "named", name: decl.name }) ?? program.programTypes.get(decl.name);
+      if (!type) throw new Error(`Unknown IDL type: ${decl.name}`);
+      const next = [...stack, decl.name];
+      // shortcut: nested generic-of-generic user types are unsupported; extend substitution when a real interface needs them.
+      const bound: Record<string, TypeDecl> = {};
+      (type.type_params ?? []).forEach((p, i) => {
+        const arg = args[i] ?? p.ty;
+        if (arg) bound[p.name] = typeof arg !== "string" && arg.kind === "generic" ? generics[arg.name] ?? arg : arg;
+      });
+      if (type.kind === "alias") return map(type.target, next, bound);
+      if (type.kind === "struct") return fields(type.fields, next, bound, decl.name) ?? { kind: "struct", name: decl.name, tuple: false, fields: [] };
+      return { kind: "enum", name: decl.name, variants: type.variants.map((v) => ({ name: v.name, schema: fields(v.fields, next, bound, null) })) };
+    }
+    function fields(list: IStructField[], stack: string[], generics: Record<string, TypeDecl>, name: string | null): FieldSchema | null {
+      if (!list.length) return null;
+      if (list.length === 1 && !list[0].name && name === null) return map(list[0].type, stack, generics);
+      const tuple = list.some((f) => !f.name);
+      return { kind: "struct", name, tuple, fields: list.map((f, i) => ({ name: f.name ?? String(i), schema: map(f.type, stack, generics) })) };
+    }
+    type Fn = { args: { name: string; typeDef: TypeDecl }[]; returnTypeDef: TypeDecl; docs?: string };
+    const methods = (kind: "function" | "query") => Object.entries<Fn>(kind === "query" ? service.queries : service.functions).map(([name, fn]) => ({
+      service: serviceName, name, kind, docs: fn.docs || null,
+      params: fn.args.map((arg) => ({ name: arg.name, schema: map(arg.typeDef) })), returns: map(fn.returnTypeDef),
+    }));
+    return { name: serviceName, methods: [...methods("function"), ...methods("query")],
+      events: Object.entries(service.events).map(([name, event]) => ({ name, schema: fields(event.typeDef.fields ?? [], [], {}, null) })) };
+  }) };
+}
+
+export async function loadIdlModel(text: string): Promise<{ sails: SailsIdl; model: IdlModel }> {
   const sails = await loadIdl(text);
+  if (sails instanceof SailsProgram) return { sails, model: modelV2(sails) };
   const program = sails.program;
   function map(def: ISailsTypeDef, stack: string[] = [], name: string | null = null): FieldSchema {
     if (def.isUserDefined) {
@@ -144,6 +203,6 @@ export function toArgs(method: MethodSchema, values: FormValue[]): unknown[] {
   return method.params.map((param, i) => toArg(param.schema, values[i], param.name));
 }
 
-export function encodeMethod(sails: Sails, method: MethodSchema, values: FormValue[]): Hex {
+export function encodeMethod(sails: SailsIdl, method: MethodSchema, values: FormValue[]): Hex {
   return sails.services[method.service][method.kind === "query" ? "queries" : "functions"][method.name].encodePayload(...toArgs(method, values));
 }

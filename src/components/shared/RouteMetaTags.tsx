@@ -8,6 +8,10 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
     description:
       "Free open-source Ethereum developer toolkit. Decode transactions, simulate calls, explore smart contract storage, look up function signatures, and build calldata.",
   },
+  "/vara": {
+    title: "Vara Developer Toolkit",
+    description: "Inspect Vara programs and messages, simulate calls, and test Gear program interactions.",
+  },
   "/database": {
     title: "Signature Database — Function & Event Lookup",
     description:

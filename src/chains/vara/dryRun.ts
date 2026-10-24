@@ -8,8 +8,11 @@ type Hex = `0x${string}`;
 
 export function parseInput(i: RunInputT): { block: number | "latest"; origin: Hex; payload: Hex; value: bigint; gasLimit: bigint } {
   if (i.block !== "latest" && !/^\d+$/.test(i.block)) throw new Error("Block must be a number or latest");
+  if (i.block !== "latest" && !Number.isSafeInteger(Number(i.block))) throw new Error("Block number is too large");
   if (!/^0x[0-9a-fA-F]{64}$/.test(i.origin)) throw new Error("Origin must be 32-byte hex");
   if (!/^0x([0-9a-fA-F]{2})*$/.test(i.payload)) throw new Error("Payload must be hex");
+  if (!/^\d+$/.test(i.value) || BigInt(i.value) >= 2n ** 128n) throw new Error("Value must be an unsigned u128 integer");
+  if (!/^\d+$/.test(i.gasLimit) || BigInt(i.gasLimit) >= 2n ** 64n) throw new Error("Gas limit must be an unsigned u64 integer");
   return { block: i.block === "latest" ? "latest" : Number(i.block), origin: i.origin as Hex, payload: i.payload as Hex, value: BigInt(i.value), gasLimit: BigInt(i.gasLimit) };
 }
 

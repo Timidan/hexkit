@@ -2,7 +2,7 @@
   "name": "web3-toolkit",
   "private": true,
   "version": "0.0.0",
-  "description": "HexKit — Ethereum/EVM developer toolkit with simulation, debugging, decoder, and DeFi yield concierge.",
+  "description": "HexKit \u2014 Ethereum/EVM developer toolkit with simulation, debugging, decoder, and DeFi yield concierge.",
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -16,6 +16,9 @@
     "test:run": "NODE_OPTIONS='--max-old-space-size=8192' vitest run",
     "test:coverage": "NODE_OPTIONS='--max-old-space-size=8192' vitest run --coverage",
     "simulator:server": "node scripts/simulator-bridge.mjs",
+    "vara:build": "cargo build --manifest-path vara-simulator/Cargo.toml -j 2",
+    "vara:simulator": "npm run vara:build && node scripts/vara-simulator.mjs",
+    "vara:check": "cargo test --manifest-path vara-simulator/Cargo.toml -j 2 && vitest run src/chains/vara",
     "preview": "vite preview",
     "check:inline-copy": "node scripts/check-inline-copy.mjs",
     "check:chains": "node scripts/check-chain-boundaries.mjs"
@@ -48,6 +51,7 @@
     "@xyflow/react": "^12.10.2",
     "animejs": "^4.3.5",
     "axios": "^1.11.0",
+    "buffer": "6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

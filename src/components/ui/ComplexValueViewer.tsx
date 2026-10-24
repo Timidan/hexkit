@@ -59,6 +59,7 @@ interface ComplexValueViewerProps {
   options?: ViewerOptions;
   className?: string;
   showControls?: boolean;
+  heading?: string;
 }
 
 type GlobalAction = {
@@ -120,6 +121,7 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
   options,
   className,
   showControls = true,
+  heading = 'Decoded Parameters',
 }) => {
   const resolvedMetadata = useMemo<ComplexValueMetadata | undefined>(() => {
     if (!metadata && !label) return metadata;
@@ -166,7 +168,7 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
       {showControls && node.children && node.children.length > 0 && (
         <div className="relative flex items-center justify-between px-3 py-2 border-b border-neutral-800/60 bg-transparent">
           <span className="text-[10px] uppercase tracking-widest text-slate-500 font-medium">
-            Decoded Parameters
+            {heading}
           </span>
           <HoverCard>
             <HoverCardTrigger asChild>
@@ -174,6 +176,7 @@ const ComplexValueViewer: React.FC<ComplexValueViewerProps> = ({
                 variant="ghost"
                 size="icon-sm"
                 className="h-6 w-6 text-slate-500 hover:text-slate-300 hover:bg-neutral-800/60"
+                aria-label={isAllExpanded ? 'Collapse all' : 'Expand all'}
                 onClick={() => {
                   const next = isAllExpanded ? 'collapse' : 'expand';
                   setIsAllExpanded(!isAllExpanded);
@@ -312,6 +315,7 @@ const NodeRendererComponent: React.FC<NodeRendererProps> = ({
                 !collapsed && 'text-slate-400'
               )}
               onClick={(e) => e.stopPropagation()}
+              aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.label}`}
             >
               {collapsed ? (
                 <CaretRight className="h-3.5 w-3.5" />

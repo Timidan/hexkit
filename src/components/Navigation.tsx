@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useMotionValue, useSpring, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import type { ChainSubTab, ChainTool } from "../chains/plugin";
-import { resolvePath } from "../chains/plugins";
+import { contextSearch, resolvePath } from "../chains/plugins";
 
 function getActiveSubTabId(tool: ChainTool, params: URLSearchParams, rel: string): string | null {
   const resolved = tool.resolveSubTab?.(rel, params);
@@ -110,26 +110,26 @@ const Navigation: React.FC = () => {
   const syncMainIndicator = useCallback(() => {
     const m = measureBtn(mainRowRef.current, activeToolId, "tool");
     if (!m) return;
-    if (!hasMountedRef.current) {
+    if (!hasMountedRef.current || reduce) {
       mainLeft.jump(m.left);
       mainWidth.jump(m.width);
     } else {
       mainLeft.set(m.left);
       mainWidth.set(m.width);
     }
-  }, [activeToolId, mainLeft, mainWidth]);
+  }, [activeToolId, mainLeft, mainWidth, reduce]);
 
   const syncSubIndicator = useCallback(() => {
     const m = measureBtn(subRowRef.current, activeSubId, "sub");
     if (!m) return;
-    if (!hasMountedRef.current) {
+    if (!hasMountedRef.current || reduce) {
       subLeft.jump(m.left);
       subWidth.jump(m.width);
     } else {
       subLeft.set(m.left);
       subWidth.set(m.width);
     }
-  }, [activeSubId, subLeft, subWidth]);
+  }, [activeSubId, subLeft, subWidth, reduce]);
 
   const syncIndicators = useCallback(() => {
     syncMainIndicator();
@@ -191,7 +191,7 @@ const Navigation: React.FC = () => {
 
   const handleToolClick = (tool: ChainTool) => {
     if (tool.id === activeToolId) return;
-    navigate(plugin.basePath + tool.path);
+    navigate({ pathname: plugin.basePath + tool.path, search: contextSearch(plugin, location.search) });
   };
 
   const handleSubTabClick = (sub: ChainSubTab) => {
@@ -217,7 +217,7 @@ const Navigation: React.FC = () => {
   };
 
   return (
-    <div className="flex justify-center px-1 pt-3 sm:px-0">
+    <nav aria-label={`${plugin.name} tools`} className={`flex justify-center px-1 pt-3 sm:px-0 ${plugin.id}-navigation`}>
       <div
         ref={capsuleRef}
         className="capsule-nav"
@@ -258,6 +258,7 @@ const Navigation: React.FC = () => {
               key={tool.id}
               type="button"
               data-tool={tool.id}
+              aria-current={tool.id === activeToolId ? "true" : undefined}
               className={`capsule-tab${tool.id === activeToolId ? " active" : ""}`}
               onClick={() => handleToolClick(tool)}
               onPointerDown={() => setPressedTab(tool.id)}
@@ -296,10 +297,11 @@ const Navigation: React.FC = () => {
                       key={sub.id}
                       type="button"
                       data-sub={sub.id}
+                      aria-current={sub.id === activeSubId ? "page" : undefined}
                       className={`capsule-sub-tab${sub.id === activeSubId ? " active" : ""}`}
                       onClick={() => handleSubTabClick(sub)}
                       variants={hasInitialRender ? undefined : subItemVariant}
-                      whileTap={reduce ? undefined : { scale: 0.94 }}
+                      whileTap={reduce ? undefined : { scale: 0.96 }}
                     >
                       {sub.icon}
                       <span className="hidden sm:inline">{sub.label}</span>
@@ -312,7 +314,7 @@ const Navigation: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </nav>
   );
 };
 

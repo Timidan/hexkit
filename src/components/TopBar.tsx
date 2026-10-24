@@ -40,7 +40,7 @@ const TopBar: React.FC<TopBarProps> = ({
   const { config } = useNetworkConfig();
 
   const needsKeys =
-    config.etherscanKeyMode === "personal" && !config.etherscanApiKey?.trim();
+    plugin.evmServices && config.etherscanKeyMode === "personal" && !config.etherscanApiKey?.trim();
 
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -193,7 +193,7 @@ const TopBar: React.FC<TopBarProps> = ({
 
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
-          className="pointer-events-auto w-full max-w-[460px]"
+          className="pointer-events-auto w-full max-w-[300px] lg:max-w-[460px]"
           onOpenRpcSettings={onOpenRpcSettings}
           onOpenStorageManager={onOpenStorageManager}
         />
@@ -235,7 +235,7 @@ const TopBar: React.FC<TopBarProps> = ({
         >
           <HardDrive size={15} />
         </Button>
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        {plugin.evmServices && <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
           <PopoverTrigger asChild>
             <Button
               type="button"
@@ -282,7 +282,7 @@ const TopBar: React.FC<TopBarProps> = ({
               </div>
             </PopoverContent>
           )}
-        </Popover>
+        </Popover>}
         {isMobile && onToggleMobileMenu && (
           <Button
             type="button"

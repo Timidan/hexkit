@@ -165,7 +165,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.66 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -202,6 +202,14 @@
   50% { border-color: hsl(var(--primary) / 0.4); opacity: 1; }
 }
 .slot-badge-shimmer { animation: slot-badge-shimmer 1.5s ease-in-out infinite; }
+
+/* Vara: run-result entrance, and a lighter fade for frequent tool switches. No fill mode, so no transform remains afterwards. */
+@keyframes vara-enter {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes vara-fade {
+  from { opacity: 0; }
+}
 
 /* iOS Safari zooms the page when a focused input's font-size is under 16px.
    Unlayered, so it wins over Tailwind text-* utilities and per-component CSS
