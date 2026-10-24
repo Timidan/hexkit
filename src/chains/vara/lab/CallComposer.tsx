@@ -17,6 +17,7 @@ import { FieldEditor } from "../ui/TypedForm";
 import { parseVaraInput } from "../links";
 import type { FormValue } from "../model";
 import { errorText, readText } from "./files";
+import { selectClass } from "../ui/Panel";
 
 export interface CallInput { program: string; origin: string; payload: string; value: string; gasLimit: string; block: string }
 export function useCallInput() {
@@ -31,7 +32,6 @@ export function useCallInput() {
   return [input, update] as const;
 }
 
-export const selectClass = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 /** A file input's <label> styled as a small outline button. */
 export const fileButtonClass = cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer focus-within:ring-2 focus-within:ring-ring max-md:min-h-11 has-[:disabled]:pointer-events-none has-[:disabled]:opacity-50");
 

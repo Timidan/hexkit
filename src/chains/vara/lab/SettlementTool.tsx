@@ -3,7 +3,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { ETH_NETWORKS, inspectSettlement } from "./settlement";
 import type { SettlementInput } from "./settlement";
-import { selectClass } from "./CallComposer";
+import { selectClass } from "../ui/Panel";
 import { download, errorText, jsonText } from "./files";
 import { ValueTree } from "../ui/ValueTree";
 import { DownloadSimple } from "@phosphor-icons/react";

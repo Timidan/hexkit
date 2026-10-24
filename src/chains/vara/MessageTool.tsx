@@ -269,12 +269,16 @@ export default function MessageTool() {
               aria-describedby={error ? "vara-message-error" : undefined} />
           </div>
           <Button type="submit" loading={busy} icon={<MagnifyingGlass size={16} />}>Inspect</Button>
-          <div className="flex items-center" role="group" aria-label="Investigation files">
-            <IconAction type="button" size="icon" label="Save investigation in this browser" disabled={!c || busy} onClick={() => { if (!c) return; try { setSaved(saveInvestigation({ ...c, idl: idlText, ...(trace ? { trace } : {}), ...(runs ? { runs } : {}) })); setSavedNotice("Investigation saved in this browser."); } catch (err) { setSavedNotice(err instanceof Error ? err.message : String(err)); } }}><FloppyDisk size={16} /></IconAction>
-            <IconAction type="button" size="icon" label="Import an investigation" disabled={busy} onClick={() => caseInput.current?.click()}><UploadSimple size={16} /></IconAction>
-            <IconAction type="button" size="icon" label="Export this investigation" disabled={!c || busy} onClick={exportCase}><DownloadSimple size={16} /></IconAction>
-            <IconAction type="button" size="icon" label="Load an IDL file" disabled={busy} onClick={() => idlInput.current?.click()}><FileCode size={16} /></IconAction>
-          </div>
+          {/* One labelled menu for the investigation's files instead of four unlabelled icons. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" disabled={busy}>Investigation<CaretDown /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="[&_[role=menuitem]]:min-h-11 md:[&_[role=menuitem]]:min-h-9">
+              <DropdownMenuItem disabled={!c} onSelect={() => { if (!c) return; try { setSaved(saveInvestigation({ ...c, idl: idlText, ...(trace ? { trace } : {}), ...(runs ? { runs } : {}) })); setSavedNotice("Investigation saved in this browser."); } catch (err) { setSavedNotice(err instanceof Error ? err.message : String(err)); } }}><FloppyDisk size={16} />Save in this browser</DropdownMenuItem>
+              <DropdownMenuItem disabled={!c} onSelect={exportCase}><DownloadSimple size={16} />Export as a file</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => caseInput.current?.click()}><UploadSimple size={16} />Open an investigation file…</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => idlInput.current?.click()}><FileCode size={16} />Load an IDL file…</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <input ref={caseInput} type="file" accept=".json,application/json" hidden onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";

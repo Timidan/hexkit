@@ -26,7 +26,7 @@ export default function LabTool() {
     <nav aria-label="Current workspace" className="mx-auto w-full max-w-[1280px] space-y-1.5 px-4 pt-4 md:hidden">
       <label htmlFor={`vara-${group.id}-tool`} className="sr-only">Vara tool</label>
       <select id={`vara-${group.id}-tool`} value={selected} onChange={(e) => { const target = toolGroups.find((g) => g.tools.some((t) => t.id === e.target.value))!; const next = new URLSearchParams(params); next.set("tool", e.target.value); navigate({ pathname: `/vara${target.path}`, search: next.toString() }); }}
-        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        className="select-chevron min-h-11 w-full rounded-md border border-input bg-background pl-3 pr-8 text-base font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {toolGroups.map((g) => <optgroup key={g.id} label={g.label}>{g.tools.filter((t) => !t.hidden || t.id === selected).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</optgroup>)}
       </select>
     </nav>
