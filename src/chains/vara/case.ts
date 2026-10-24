@@ -6,6 +6,7 @@ import type { FrameSystemEventRecord } from "@polkadot/types/lookup";
 import { z } from "zod";
 import { getIdl } from "./idlStore";
 import { ideaIdl, ideaMessageBlock, ideaProgram } from "./idea";
+import { registryIdl } from "./registry";
 import type { Hex as HexId } from "./model";
 
 const VARA_RPC = "wss://archive-rpc.vara.network";
@@ -55,11 +56,20 @@ export async function findMessage(messageId: HexId, hint?: { block: number; hash
   return null;
 }
 
-export async function resolveIdl(programId: HexId, codeId: HexId | null): Promise<{ text: string; source: "local" | "idea" } | null> {
+export type IdlSource = "local" | "registry" | "idea";
+export const IDL_SOURCE_LABEL: Record<IdlSource, string> = { local: "Local IDL", registry: "IDL from agents registry", idea: "IDL from Gear IDEA" };
+/** Comments and whitespace only: IDEA accepts any text for a code id, including placeholders like that. */
+const emptyIdl = (text: string) => text.replace(/\/\/.*$/gm, "").trim() === "";
+
+/** A saved local IDL first; then the IDL the agents registry declares, when its hash matches; then Gear IDEA's,
+ *  which anyone can attach to a code id, so an empty one is treated as none. */
+export async function resolveIdl(programId: HexId, codeId: HexId | null): Promise<{ text: string; source: IdlSource } | null> {
   const local = getIdl(programId);
   if (local !== null) return { text: local, source: "local" };
-  const text = await ideaIdl(codeId ?? (await ideaProgram(programId))?.codeId ?? null);
-  return text === null ? null : { text, source: "idea" };
+  // Asked together, so a slow registry does not delay programs it does not list.
+  const [declared, text] = await Promise.all([registryIdl(programId), (async () => ideaIdl(codeId ?? (await ideaProgram(programId))?.codeId ?? null))()]);
+  if (declared !== null && !emptyIdl(declared)) return { text: declared, source: "registry" };
+  return text === null || emptyIdl(text) ? null : { text, source: "idea" };
 }
 
 const Hex = z.custom<`0x${string}`>((v) => typeof v === "string" && /^0x([0-9a-fA-F]{2})*$/.test(v));

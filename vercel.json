@@ -4,6 +4,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/vara-agents",
+      "destination": "https://agents-explorer.vara.network/graphql"
+    },
+    {
       "source": "/api/vara-sim",
       "destination": "/api/vara-sim-proxy"
     },

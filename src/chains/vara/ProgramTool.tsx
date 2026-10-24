@@ -34,7 +34,8 @@ import { IconAction } from "./ui/IconAction";
 import { CopyButton } from "../../components/ui/copy-button";
 import type { ActivityItem, FormValue, Hex, IdlModel, MethodSchema, ProgramInfo } from "./model";
 import { estimateGas, loadProgram, recentActivity } from "./program";
-import { explainRpcError, findMessage, resolveIdl } from "./case";
+import { IDL_SOURCE_LABEL, explainRpcError, findMessage, resolveIdl } from "./case";
+import type { IdlSource } from "./case";
 import type { RunResultT } from "./case";
 import { useVaraWallet } from "./wallet";
 import { Field, HexChip, shortHex } from "./ui/HexChip";
@@ -353,7 +354,7 @@ export default function ProgramTool() {
   const [info, setInfo] = useState<ProgramInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [idl, setIdlState] = useState<{ sails: SailsIdl; model: IdlModel; text: string; source: "local" | "idea" } | null>(null);
+  const [idl, setIdlState] = useState<{ sails: SailsIdl; model: IdlModel; text: string; source: IdlSource } | null>(null);
   const [ideaInfo, setIdeaInfo] = useState<IdeaProgram | null>(null);
   const [idlError, setIdlError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -439,7 +440,7 @@ export default function ProgramTool() {
     if (next) { setSelected(methodKey(next)); setOutcome(null); }
   }
 
-  async function applyIdl(id: Hex, text: string | null, source: "local" | "idea" = "local") {
+  async function applyIdl(id: Hex, text: string | null, source: IdlSource = "local") {
     setIdlError("");
     if (!text) { setIdlState(null); return; }
     try {
@@ -627,7 +628,7 @@ export default function ProgramTool() {
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border/60 px-4 py-2">
               {idl ? (
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <Badge variant={idl.source === "idea" ? "teal" : "outline"}>{idl.source === "idea" ? "IDL from Gear IDEA" : "Local IDL"}</Badge>
+                  <Badge variant={idl.source === "local" ? "outline" : "teal"}>{IDL_SOURCE_LABEL[idl.source]}</Badge>
                   <span>{idl.model.services.length} service{idl.model.services.length === 1 ? "" : "s"} · {methods.length} methods</span>
                   <span className="inline-flex">
                     <IconAction label="Download IDL" onClick={() => downloadIdl(idl.text, idlFileName)}><DownloadSimple size={16} /></IconAction>

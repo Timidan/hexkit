@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { cn } from "../../lib/utils";
 import { encodeSs58, VARA_SS58_PREFIX } from "./address";
-import { caseFromJson, explainRpcError, fetchCase, findMessage, resolveIdl } from "./case";
+import { IDL_SOURCE_LABEL, caseFromJson, explainRpcError, fetchCase, findMessage, resolveIdl } from "./case";
+import type { IdlSource } from "./case";
 import { ideaHead } from "./idea";
 import { ideaCodeUrl, ideaMessageUrl, ideaProgramUrl, parseVaraInput, subscanAccount, subscanBlock, subscanExtrinsic } from "./links";
 import { ExplorerLinks } from "./ui/ExplorerLinks";
@@ -73,7 +74,7 @@ export default function MessageTool() {
   const [idlText, setIdlText] = useState<string | null>(null);
   /** Program the loaded IDL belongs to; null while it is not yet bound to a fetched case. */
   const [idlFor, setIdlFor] = useState<string | null>(null);
-  const [idlSource, setIdlSource] = useState<"local" | "idea" | null>(null);
+  const [idlSource, setIdlSource] = useState<IdlSource | null>(null);
   const [sails, setSails] = useState<SailsIdl | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -92,7 +93,7 @@ export default function MessageTool() {
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
-  async function applyIdl(text: string | null, programId: string | null, source: "local" | "idea" = "local") {
+  async function applyIdl(text: string | null, programId: string | null, source: IdlSource = "local") {
     setIdlText(text);
     setIdlFor(text ? programId : null);
     setIdlSource(text ? source : null);
@@ -303,7 +304,7 @@ export default function MessageTool() {
         )}
         {sails && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-            <Badge variant={idlSource === "idea" ? "teal" : "outline"}>{idlSource === "idea" ? "IDL from Gear IDEA" : "Local IDL"}</Badge>
+            <Badge variant={idlSource === "local" || !idlSource ? "outline" : "teal"}>{IDL_SOURCE_LABEL[idlSource ?? "local"]}</Badge>
             <span>{Object.keys(sails.services).length} service{Object.keys(sails.services).length === 1 ? "" : "s"}</span>
             <IconAction label="Clear the IDL" disabled={busy} onClick={() => { setSails(null); setIdlText(null); setIdlFor(null); setIdlSource(null); setError(""); }}><X size={16} /></IconAction>
             <span className="text-xs">{sails instanceof SailsProgram ? "Sails IDL v2" : "Legacy Sails IDL"}</span>

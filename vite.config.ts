@@ -205,6 +205,14 @@ export default defineConfig(({ mode }) => {
         ],
       },
       proxy: {
+        // The agents registry answers CORS preflights but not the request itself, so the app reaches it same-origin.
+        "/api/vara-agents": {
+          target: "https://agents-explorer.vara.network",
+          changeOrigin: true,
+          secure: true,
+          rewrite: () => "/graphql",
+          configure: (proxy) => { proxy.on("proxyReq", (proxyReq) => proxyReq.removeHeader("Origin")); },
+        },
         "/api/vara-sim": {
           target: env.VARA_SIMULATOR_BRIDGE_URL || "http://127.0.0.1:5791",
           changeOrigin: true,
