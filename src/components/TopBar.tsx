@@ -1,5 +1,5 @@
 import React, { Suspense, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   GearSix as SettingsIcon,
   HardDrive,
@@ -10,7 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import RainbowKitWallet from "./RainbowKitWallet";
+import { CHAIN_PLUGINS, firstNavTool, resolvePath } from "../chains/plugins";
 
 import UniversalSearchBar from "./UniversalSearchBar";
 import { useNetworkConfig } from "@/contexts/NetworkConfigContext";
@@ -32,11 +32,15 @@ const TopBar: React.FC<TopBarProps> = ({
   onToggleMobileMenu,
   isMobileMenuOpen,
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { plugin } = resolvePath(location.pathname);
+  const Wallet = plugin.WalletButton;
   const { isMobile } = useBreakpoint();
   const { config } = useNetworkConfig();
 
   const needsKeys =
-    config.etherscanKeyMode === "personal" && !config.etherscanApiKey?.trim();
+    plugin.evmServices && config.etherscanKeyMode === "personal" && !config.etherscanApiKey?.trim();
 
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -171,10 +175,25 @@ const TopBar: React.FC<TopBarProps> = ({
           HEXKIT
         </span>
       </Link>
+      {CHAIN_PLUGINS.length > 1 && (
+        <nav aria-label="Chain" className="inline-flex shrink-0 items-center rounded-md border border-border/40 bg-muted/30 p-0.5">
+          {CHAIN_PLUGINS.map((p) => {
+            const active = p.id === plugin.id;
+            return (
+              <button key={p.id} type="button" aria-label={p.name} title={p.name} aria-pressed={active}
+                onClick={() => { if (!active) navigate(p.basePath + firstNavTool(p).path); }}
+                className={cn("flex h-7 w-7 items-center justify-center rounded transition-colors",
+                  active ? "bg-foreground/10" : "opacity-55 hover:bg-foreground/5 hover:opacity-100")}>
+                <p.Mark size={16} />
+              </button>
+            );
+          })}
+        </nav>
+      )}
 
       <div className="pointer-events-none absolute inset-0 hidden md:flex items-center justify-center px-2">
         <UniversalSearchBar
-          className="pointer-events-auto w-full max-w-[460px]"
+          className="pointer-events-auto w-full max-w-[300px] lg:max-w-[460px]"
           onOpenRpcSettings={onOpenRpcSettings}
           onOpenStorageManager={onOpenStorageManager}
         />
@@ -204,7 +223,7 @@ const TopBar: React.FC<TopBarProps> = ({
             <MagnifyingGlass size={16} />
           </Button>
         )}
-        <RainbowKitWallet />
+        {Wallet && <Wallet />}
         <Button
           type="button"
           variant="icon-borderless"
@@ -216,7 +235,7 @@ const TopBar: React.FC<TopBarProps> = ({
         >
           <HardDrive size={15} />
         </Button>
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        {plugin.evmServices && <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
           <PopoverTrigger asChild>
             <Button
               type="button"
@@ -263,7 +282,7 @@ const TopBar: React.FC<TopBarProps> = ({
               </div>
             </PopoverContent>
           )}
-        </Popover>
+        </Popover>}
         {isMobile && onToggleMobileMenu && (
           <Button
             type="button"

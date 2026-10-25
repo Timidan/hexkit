@@ -191,7 +191,7 @@ export function buildSummary(node: ComplexValueNode): string {
     return '';
   }
 
-  if (node.type && node.type.includes('[]')) {
+  if ((node.type && node.type.includes('[]')) || node.children.every((child) => /^\[\d+\]$/.test(child.label ?? ''))) {
     return `${node.children.length} item${node.children.length === 1 ? '' : 's'}`;
   }
 

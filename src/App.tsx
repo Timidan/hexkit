@@ -2,7 +2,7 @@ import React, { Suspense, useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import "./App.css";
-import { useApplyRainbowKitTheme } from "./config/rainbowkit";
+import { resolvePath } from "./chains/plugins";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
 import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
@@ -36,14 +36,13 @@ function App() {
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
 
-  useApplyRainbowKitTheme();
-
   const hasUserOverride =
     (config.rpcMode === "CUSTOM" && config.customRpcUrl?.trim()) ||
     (config.rpcMode === "ALCHEMY" && config.alchemyApiKey?.trim()) ||
     (config.rpcMode === "INFURA" && config.infuraProjectId?.trim());
 
-  const showRpcSetupGate = !hasUserOverride && !hasAcknowledgedDefaults;
+  const { plugin } = resolvePath(location.pathname);
+  const showRpcSetupGate = plugin.evmServices && !hasUserOverride && !hasAcknowledgedDefaults;
 
   return (
     <ToolkitProvider>
@@ -53,6 +52,7 @@ function App() {
             <ErrorBoundary>
               <RouteMetaTags />
               <ConstellationBackground />
+              <a href="#main-content" className="skip-link">Skip to content</a>
               {/* Global top bar — visible on every route */}
               <TopBar
                 onOpenRpcSettings={() => setIsRpcModalOpen(true)}
@@ -79,10 +79,10 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                 </Routes>
               ) : (
-                <div className={cn("app", (location.pathname.startsWith("/explorer") || location.pathname.startsWith("/builder") || location.pathname.startsWith("/integrations")) && "app-fullwidth")}>
+                <div data-chain={plugin.id} className={cn("app", resolvePath(location.pathname).tool?.fullWidth && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
 
-                  <main className="content">
+                  <main id="main-content" tabIndex={-1} className="content">
                     <Routes>
                       <Route path="/*" element={<PersistentTools />} />
                     </Routes>
@@ -179,7 +179,7 @@ function App() {
               )}
 
               {/* Global footer — docs at far left, EDB status at far right */}
-              <footer className="app-footer">
+              <footer data-chain={plugin.id} className="app-footer">
                 <a
                   className="app-footer-docs"
                   href="https://hexdocs.thally.app"
@@ -188,7 +188,7 @@ function App() {
                 >
                   Documentation
                 </a>
-                <EdbBridgeStatus />
+                {plugin.evmServices && <EdbBridgeStatus />}
               </footer>
 
               {isRpcModalOpen && (

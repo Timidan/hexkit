@@ -1,0 +1,261 @@
+{
+  "format": "hexkit.vara.case",
+  "version": 1,
+  "network": {
+    "genesisHash": "0xfe1b4c55fd4d668101126434206571a7838a8b6b93a6d1b95d607e78e6c53763",
+    "specVersion": 11000,
+    "endpoint": "wss://archive-rpc.vara.network"
+  },
+  "block": {
+    "number": 36592237,
+    "hash": "0xc5602636a048e20e4553875b4ccfc1e11684bfabb4704dd1def98d3aba208bfe"
+  },
+  "extrinsicIndex": 1,
+  "call": {
+    "section": "gear",
+    "method": "sendMessage",
+    "signer": "0xdcc9b747fee4d055db6ce8faf6a330cbd61acfd324098ed679d04718ceab9f53",
+    "args": {
+      "destination": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+      "payload": "0x445365727669636553796e635570646174651c50726f6365737382fce9000000000081fce90000000000796c21000000000051c4369b3660b6b54cb4d41a13f8dea096b274180bd96c673547f2d31b12026a49cc3c0cf32fa47928c896be1d294e639ef8ee2d9a2223420c38da6501f73fae6a1d94430de18ca10084e808e93c3a7d5f2c7a44f93e7e9a3e29a3a46e34996140fce9000000000093c72100000000003f9ea2209c3a03671c4b5827b558926cb970b26b9e09dad0bc771d594f619730fbf8201b2fe23363dded94b570c5299fe8ac7cd7a6ac60a72f01375312f0a63b2dd792d0926e1df282201aad3a974d6e0ce5118cce82876eebb6edbb5d597007102bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f004bfded2f0a01c5114061fe456a62bc396bc27e932fd37e2ee8485503b0c67cbbbebfafb4f3bc637830a50d40cbf6dfb0faceb4dd80bb441b83886ccc36dbd5b5298c513aaa9380a0e8325059d54394a434fba25d4dd41d747f6315b2c074e410000001ce24f070000000000000000000000000000000000000000000000000000000000279e468a49c14a3be9925fd625752be453e25f3e67d707688bc0b3bbb766effba636c481be00b4a8117b0dc48226ce0644c1d52734c441beaac0abfe8c94052fd8cf0779b65acddd5fb96675447001cba8e7f7ab3e75976e53ebd061e107a52e73b7cf745092060bf1df74dd05a9053917d31d997d979f67887fd56e8de7106950f44ebe98f007d474d3101f54270bb7a6b2ce0da3c2a9203bb92c7cd0bfaf5a79d70bff938a4ded7572e3fc1e64cd02383153ae90c1c47ab986efeae445497c89020108fffffffffffffffffffbffffeffff7fffffefdfb7cfffb7fdebdff79fff9fbffffffffffffffffffffffffffffffffffffbfedff7f7fbffb7fffafebff7fffd5902bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f0",
+      "gas_limit": 712500000000,
+      "value": 0,
+      "keep_alive": false
+    },
+    "destination": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+    "payload": "0x445365727669636553796e635570646174651c50726f6365737382fce9000000000081fce90000000000796c21000000000051c4369b3660b6b54cb4d41a13f8dea096b274180bd96c673547f2d31b12026a49cc3c0cf32fa47928c896be1d294e639ef8ee2d9a2223420c38da6501f73fae6a1d94430de18ca10084e808e93c3a7d5f2c7a44f93e7e9a3e29a3a46e34996140fce9000000000093c72100000000003f9ea2209c3a03671c4b5827b558926cb970b26b9e09dad0bc771d594f619730fbf8201b2fe23363dded94b570c5299fe8ac7cd7a6ac60a72f01375312f0a63b2dd792d0926e1df282201aad3a974d6e0ce5118cce82876eebb6edbb5d597007102bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f004bfded2f0a01c5114061fe456a62bc396bc27e932fd37e2ee8485503b0c67cbbbebfafb4f3bc637830a50d40cbf6dfb0faceb4dd80bb441b83886ccc36dbd5b5298c513aaa9380a0e8325059d54394a434fba25d4dd41d747f6315b2c074e410000001ce24f070000000000000000000000000000000000000000000000000000000000279e468a49c14a3be9925fd625752be453e25f3e67d707688bc0b3bbb766effba636c481be00b4a8117b0dc48226ce0644c1d52734c441beaac0abfe8c94052fd8cf0779b65acddd5fb96675447001cba8e7f7ab3e75976e53ebd061e107a52e73b7cf745092060bf1df74dd05a9053917d31d997d979f67887fd56e8de7106950f44ebe98f007d474d3101f54270bb7a6b2ce0da3c2a9203bb92c7cd0bfaf5a79d70bff938a4ded7572e3fc1e64cd02383153ae90c1c47ab986efeae445497c89020108fffffffffffffffffffbffffeffff7fffffefdfb7cfffb7fdebdff79fff9fbffffffffffffffffffffffffffffffffffffbfedff7f7fbffb7fffafebff7fffd5902bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f0",
+    "gasLimit": "712500000000",
+    "value": "0",
+    "keepAlive": false
+  },
+  "result": {
+    "success": true,
+    "error": null
+  },
+  "message": {
+    "id": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+    "programId": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+    "codeId": "0x5a9b1b657da98af44097b6688346a04201a6421000d6dcb4014848bd1820b8bc",
+    "dispatchStatus": "Success",
+    "reply": {
+      "id": "0x55bd3fa5039c674d48a8cf0a61b55ce4d978e7667332f9442961b493a2ec34d6",
+      "code": "{\"success\":\"Manual\"}",
+      "success": true,
+      "payload": "0x445365727669636553796e635570646174651c50726f6365737300"
+    },
+    "programEvents": [
+      {
+        "id": "0x65b4866a8000efc0e1d0ab9e1f2e5011f40567db9865c11735f0637a33695bcd",
+        "payload": "0x445365727669636553796e63557064617465344e6577436865636b706f696e7440fce900000000001eba6f20fddbf32ea68498b0519eea324de6d288ae743577b584b4dec2e2811c"
+      }
+    ]
+  },
+  "idl": null,
+  "runs": {
+    "a": {
+      "input": {
+        "block": "36592236",
+        "origin": "0xdcc9b747fee4d055db6ce8faf6a330cbd61acfd324098ed679d04718ceab9f53",
+        "payload": "0x445365727669636553796e635570646174651c50726f6365737382fce9000000000081fce90000000000796c21000000000051c4369b3660b6b54cb4d41a13f8dea096b274180bd96c673547f2d31b12026a49cc3c0cf32fa47928c896be1d294e639ef8ee2d9a2223420c38da6501f73fae6a1d94430de18ca10084e808e93c3a7d5f2c7a44f93e7e9a3e29a3a46e34996140fce9000000000093c72100000000003f9ea2209c3a03671c4b5827b558926cb970b26b9e09dad0bc771d594f619730fbf8201b2fe23363dded94b570c5299fe8ac7cd7a6ac60a72f01375312f0a63b2dd792d0926e1df282201aad3a974d6e0ce5118cce82876eebb6edbb5d597007102bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f004bfded2f0a01c5114061fe456a62bc396bc27e932fd37e2ee8485503b0c67cbbbebfafb4f3bc637830a50d40cbf6dfb0faceb4dd80bb441b83886ccc36dbd5b5298c513aaa9380a0e8325059d54394a434fba25d4dd41d747f6315b2c074e410000001ce24f070000000000000000000000000000000000000000000000000000000000279e468a49c14a3be9925fd625752be453e25f3e67d707688bc0b3bbb766effba636c481be00b4a8117b0dc48226ce0644c1d52734c441beaac0abfe8c94052fd8cf0779b65acddd5fb96675447001cba8e7f7ab3e75976e53ebd061e107a52e73b7cf745092060bf1df74dd05a9053917d31d997d979f67887fd56e8de7106950f44ebe98f007d474d3101f54270bb7a6b2ce0da3c2a9203bb92c7cd0bfaf5a79d70bff938a4ded7572e3fc1e64cd02383153ae90c1c47ab986efeae445497c89020108fffffffffffffffffffbffffeffff7fffffefdfb7cfffb7fdebdff79fff9fbffffffffffffffffffffffffffffffffffffbfedff7f7fbffb7fffafebff7fffd5902bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f0",
+        "value": "0",
+        "gasLimit": "712500000000"
+      },
+      "result": null
+    },
+    "b": {
+      "input": {
+        "block": "latest",
+        "origin": "0xdcc9b747fee4d055db6ce8faf6a330cbd61acfd324098ed679d04718ceab9f53",
+        "payload": "0x445365727669636553796e635570646174651c50726f6365737382fce9000000000081fce90000000000796c21000000000051c4369b3660b6b54cb4d41a13f8dea096b274180bd96c673547f2d31b12026a49cc3c0cf32fa47928c896be1d294e639ef8ee2d9a2223420c38da6501f73fae6a1d94430de18ca10084e808e93c3a7d5f2c7a44f93e7e9a3e29a3a46e34996140fce9000000000093c72100000000003f9ea2209c3a03671c4b5827b558926cb970b26b9e09dad0bc771d594f619730fbf8201b2fe23363dded94b570c5299fe8ac7cd7a6ac60a72f01375312f0a63b2dd792d0926e1df282201aad3a974d6e0ce5118cce82876eebb6edbb5d597007102bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f004bfded2f0a01c5114061fe456a62bc396bc27e932fd37e2ee8485503b0c67cbbbebfafb4f3bc637830a50d40cbf6dfb0faceb4dd80bb441b83886ccc36dbd5b5298c513aaa9380a0e8325059d54394a434fba25d4dd41d747f6315b2c074e410000001ce24f070000000000000000000000000000000000000000000000000000000000279e468a49c14a3be9925fd625752be453e25f3e67d707688bc0b3bbb766effba636c481be00b4a8117b0dc48226ce0644c1d52734c441beaac0abfe8c94052fd8cf0779b65acddd5fb96675447001cba8e7f7ab3e75976e53ebd061e107a52e73b7cf745092060bf1df74dd05a9053917d31d997d979f67887fd56e8de7106950f44ebe98f007d474d3101f54270bb7a6b2ce0da3c2a9203bb92c7cd0bfaf5a79d70bff938a4ded7572e3fc1e64cd02383153ae90c1c47ab986efeae445497c89020108fffffffffffffffffffbffffeffff7fffffefdfb7cfffb7fdebdff79fff9fbffffffffffffffffffffffffffffffffffffbfedff7f7fbffb7fffafebff7fffd5902bba3046626bc9df17e39109863d2da7eb858be83350b3a8b3ca73858d83bc18632d84e67958fa16fa8572ce11cf30112f386970602248f6fc858872aaa0916db3b2f728a94d7fd860a9c93588274f844267f76427c1d007ff54585216c1f0",
+        "value": "0",
+        "gasLimit": "712500000000"
+      },
+      "result": null
+    },
+    "query": null
+  },
+  "trace": {
+    "root": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+    "programId": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+    "fromBlock": 36592237,
+    "toBlock": 36592257,
+    "nodes": [
+      {
+        "id": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "parent": null,
+        "kind": "root",
+        "derivation": null,
+        "source": null,
+        "destination": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+        "block": 36592237,
+        "payload": null,
+        "value": null,
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": [
+          {
+            "kind": "queued",
+            "block": 36592237,
+            "detail": null
+          },
+          {
+            "kind": "waited",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WaitUpToCalledFull\"}"
+          },
+          {
+            "kind": "woken",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WakeCalled\"}"
+          },
+          {
+            "kind": "waited",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WaitUpToCalledFull\"}"
+          },
+          {
+            "kind": "woken",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WakeCalled\"}"
+          },
+          {
+            "kind": "waited",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WaitUpToCalledFull\"}"
+          },
+          {
+            "kind": "woken",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WakeCalled\"}"
+          },
+          {
+            "kind": "waited",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WaitUpToCalledFull\"}"
+          },
+          {
+            "kind": "woken",
+            "block": 36592237,
+            "detail": "{\"runtime\":\"WakeCalled\"}"
+          },
+          {
+            "kind": "dispatched",
+            "block": 36592237,
+            "detail": "Success"
+          }
+        ]
+      },
+      {
+        "id": "0x65b4866a8000efc0e1d0ab9e1f2e5011f40567db9865c11735f0637a33695bcd",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "event",
+        "derivation": {
+          "salt": "outgoing",
+          "nonce": 4
+        },
+        "source": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+        "destination": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "block": 36592237,
+        "payload": "0x445365727669636553796e63557064617465344e6577436865636b706f696e7440fce900000000001eba6f20fddbf32ea68498b0519eea324de6d288ae743577b584b4dec2e2811c",
+        "value": "0",
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": []
+      },
+      {
+        "id": "0x55bd3fa5039c674d48a8cf0a61b55ce4d978e7667332f9442961b493a2ec34d6",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "reply",
+        "derivation": {
+          "salt": "reply",
+          "nonce": null
+        },
+        "source": "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029",
+        "destination": "0xdcc9b747fee4d055db6ce8faf6a330cbd61acfd324098ed679d04718ceab9f53",
+        "block": 36592237,
+        "payload": "0x445365727669636553796e635570646174651c50726f6365737300",
+        "value": "0",
+        "replyCode": "{\"success\":\"Manual\"}",
+        "replySuccess": true,
+        "steps": []
+      },
+      {
+        "id": "0x6067be1a6bc9699b01fefd92e4d1b84276b47be348c675866cf5e07be06c09a9",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "hidden",
+        "derivation": {
+          "salt": "outgoing",
+          "nonce": 0
+        },
+        "source": null,
+        "destination": null,
+        "block": null,
+        "payload": null,
+        "value": null,
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": []
+      },
+      {
+        "id": "0x7114cee9dbfe1b215c7dcc8cc8278be792bdefe7fd66f90bd4d63a0ca3547f66",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "hidden",
+        "derivation": {
+          "salt": "outgoing",
+          "nonce": 1
+        },
+        "source": null,
+        "destination": null,
+        "block": null,
+        "payload": null,
+        "value": null,
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": []
+      },
+      {
+        "id": "0xda4600a58045aaae0e057c7dcb3bc2e6109770b32d965193426078ce2bad0e7c",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "hidden",
+        "derivation": {
+          "salt": "outgoing",
+          "nonce": 2
+        },
+        "source": null,
+        "destination": null,
+        "block": null,
+        "payload": null,
+        "value": null,
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": []
+      },
+      {
+        "id": "0x3720ac03c551925e6a091b27efcb87e09f01920f31ee53b156dc87b8d93d88ef",
+        "parent": "0xc76a6ab2c9a1723a05a2644e7310e61f508b134093a1d4effd51fd009bb7ea6b",
+        "kind": "hidden",
+        "derivation": {
+          "salt": "outgoing",
+          "nonce": 3
+        },
+        "source": null,
+        "destination": null,
+        "block": null,
+        "payload": null,
+        "value": null,
+        "replyCode": null,
+        "replySuccess": null,
+        "steps": []
+      }
+    ],
+    "complete": true,
+    "stateChanges": [
+      {
+        "block": 36592237,
+        "programs": [
+          "0xbdc6cbde7047f3a742c589a0073412cecdb56bd541a7d2b1810d134794d82029"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+
+!@sails: 1.0.0
+
+service TinyPoll@0x6a4830ea7ef29aab {
+    functions {
+        ClosePoll(poll_id: u64) -> Result<(), TinyPollError>;
+        CreatePoll(input: PollInput) -> Result<u64, TinyPollError>;
+        @query
+        GetPoll(poll_id: u64) -> Option<Poll>;
+        @query
+        GetPollResult(poll_id: u64) -> Option<PollResult>;
+        Vote(poll_id: u64, option_index: u8, evidence_hash: [u8; 32]) -> Result<(), TinyPollError>;
+    }
+    types {
+        struct Poll {
+            id: u64,
+            creator: ActorId,
+            input: PollInput,
+            closed: bool,
+        }
+        struct PollInput {
+            question_hash: [u8; 32],
+            option_labels: [String],
+            closes_at: u64,
+        }
+        struct PollResult {
+            poll_id: u64,
+            counts: [u64],
+            closed: bool,
+        }
+        enum TinyPollError {
+            ZeroQuestionHash,
+            ZeroEvidenceHash,
+            InvalidOptionCount,
+            OptionTooLong,
+            UnknownPoll,
+            PollClosed,
+            InvalidOption,
+            AlreadyVoted,
+            NotCreator,
+        }
+    }
+}
+
+program SailsClient {
+    constructors {
+        Create();
+    }
+    services {
+        TinyPoll@0x6a4830ea7ef29aab,
+    }
+}

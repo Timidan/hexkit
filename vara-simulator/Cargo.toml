@@ -1,0 +1,19 @@
+[package]
+name = "hexkit-vara-simulator"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+gtest = "=2.0.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = "0.4"
+
+[dev-dependencies]
+wat = "1"
+
+[profile.dev]
+debug = 0
+incremental = false
+

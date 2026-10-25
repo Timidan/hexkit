@@ -165,7 +165,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.66 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -203,6 +203,14 @@
 }
 .slot-badge-shimmer { animation: slot-badge-shimmer 1.5s ease-in-out infinite; }
 
+/* Vara: run-result entrance, and a lighter fade for frequent tool switches. No fill mode, so no transform remains afterwards. */
+@keyframes vara-enter {
+  from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes vara-fade {
+  from { opacity: 0; }
+}
+
 /* iOS Safari zooms the page when a focused input's font-size is under 16px.
    Unlayered, so it wins over Tailwind text-* utilities and per-component CSS
    on small screens; md+ keeps each input's own size. */
@@ -211,5 +219,16 @@
   textarea,
   select {
     font-size: 16px;
+  }
+}
+
+/* Native selects keep the platform picker but draw the same chevron as the custom pickers. */
+@layer components {
+  .select-chevron {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23a1a1aa'%3E%3Cpath d='M213.66 101.66l-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
   }
 }

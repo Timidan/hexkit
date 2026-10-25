@@ -74,3 +74,13 @@ video/out
 .superpowers
 /docs
 @docs
+
+# Focused Vara lab regression checks
+!src/chains/vara/lab/workbench.test.ts
+
+# Sails format and typed-form regressions
+!src/chains/vara/decode.test.ts
+!src/chains/vara/idlForm.test.ts
+
+# Imported scenario payload regression
+!src/chains/vara/lab/demo.test.tsx

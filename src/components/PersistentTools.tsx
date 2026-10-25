@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { CHAIN_PLUGINS, firstNavTool, resolvePath } from "../chains/plugins";
 import PageSkeleton from "./shared/PageSkeleton";
 
 interface ToolRoute {
@@ -9,19 +10,13 @@ interface ToolRoute {
   prefix?: boolean;
 }
 
-const TransactionBuilderHub = React.lazy(() => import("./TransactionBuilderHub"));
-const SignatureDatabase = React.lazy(() => import("./SignatureDatabase"));
-const SimulationHistoryPage = React.lazy(() => import("./SimulationHistoryPage"));
-const SourceTools = React.lazy(() => import("./explorer/SourceTools"));
-const IntegrationsHub = React.lazy(() => import("./integrations/IntegrationsHub"));
-
-const TOOL_ROUTES: ToolRoute[] = [
-  { path: "/database", render: () => <SignatureDatabase /> },
-  { path: "/builder", render: () => <TransactionBuilderHub /> },
-  { path: "/simulations", render: () => <SimulationHistoryPage /> },
-  { path: "/explorer", render: () => <SourceTools /> },
-  { path: "/integrations", render: () => <IntegrationsHub />, prefix: true },
-];
+const TOOL_ROUTES: ToolRoute[] = CHAIN_PLUGINS.flatMap((p) =>
+  p.tools.map((t) => ({
+    path: p.basePath + t.path,
+    prefix: t.prefix,
+    render: () => <t.Component />,
+  })),
+);
 
 function routeMatches(route: ToolRoute, pathname: string): boolean {
   return route.prefix ? pathname.startsWith(route.path) : route.path === pathname;
@@ -36,6 +31,7 @@ const ENTER_EASE = "cubic-bezier(0.23,1,0.32,1)";
 
 const PersistentTools: React.FC = () => {
   const location = useLocation();
+  const { plugin } = resolvePath(location.pathname);
   const elementsRef = useRef<Record<string, React.ReactElement>>({});
   const lastVisitRef = useRef<Record<string, number>>({});
   const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -192,7 +188,10 @@ const PersistentTools: React.FC = () => {
   );
 
   if (!activeRoute) {
-    return <Navigate to="/database" replace />;
+    // A trailing slash names the same page: strip it instead of falling back to the default tool.
+    const trimmed = location.pathname.replace(/\/+$/, "");
+    if (trimmed && trimmed !== location.pathname) return <Navigate to={{ pathname: trimmed, search: location.search, hash: location.hash }} replace />;
+    return <Navigate to={plugin.basePath + firstNavTool(plugin).path} replace />;
   }
 
   const ensureElement = (route: ToolRoute) => {

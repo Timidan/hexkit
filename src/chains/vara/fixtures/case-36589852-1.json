@@ -1,0 +1,121 @@
+{
+  "format": "hexkit.vara.case",
+  "version": 1,
+  "network": {
+    "genesisHash": "0xfe1b4c55fd4d668101126434206571a7838a8b6b93a6d1b95d607e78e6c53763",
+    "specVersion": 11000,
+    "endpoint": "wss://archive-rpc.vara.network"
+  },
+  "block": {
+    "number": 36589852,
+    "hash": "0xd986a335a154fb6a2f7aad90f7be1d9f2a0c690eb86070fc8a42ee1d45bb8be1"
+  },
+  "extrinsicIndex": 1,
+  "call": {
+    "section": "gear",
+    "method": "sendMessage",
+    "signer": "0xb2b013409822741dd78353d8d1f7f68a469c81e42335baeb3d8bf802514e2148",
+    "args": {
+      "destination": "0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba",
+      "payload": "0x304261736b65744d61726b65744846696e616c697a65536574746c656d656e746106000000000000",
+      "gas_limit": 2493696360,
+      "value": 0,
+      "keep_alive": true
+    },
+    "destination": "0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba",
+    "payload": "0x304261736b65744d61726b65744846696e616c697a65536574746c656d656e746106000000000000",
+    "gasLimit": "2493696360",
+    "value": "0",
+    "keepAlive": true
+  },
+  "result": {
+    "success": true,
+    "error": null
+  },
+  "message": {
+    "id": "0x5fafdd20fcd19d3f40fa43262bd9b8729f4a2dee43aa6242143e166685993605",
+    "programId": "0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba",
+    "codeId": "0x44920f0b31951683314fe3222edaff33d543c70631060bc24105cac1c78b51f9",
+    "dispatchStatus": "Success",
+    "reply": {
+      "id": "0x050d98f6a04d5068976dbaa1b6d907700e08eec647c2f3038271b0b6fbf331f1",
+      "code": "{\"success\":\"Auto\"}",
+      "success": true,
+      "payload": "0x"
+    },
+    "programEvents": [
+      {
+        "id": "0xc0dd7a14bb46b02e3604f7dfb3465be25cbe3d5bba2ebc0c848b2ceba8ae156b",
+        "payload": "0x304261736b65744d61726b65744c536574746c656d656e7446696e616c697a6564610600000000000001b0c4c5f5a001000010270000000000000000000000000000"
+      }
+    ]
+  },
+  "idl": "type BasketMarketInit = struct {\n  admin_role: actor_id,\n  settler_role: actor_id,\n  liveness_ms: u64,\n  quote_signer: actor_id,\n  bet_cutoff_ms: u64,\n};\n\ntype SignedVaraBetQuote = struct {\n  payload: VaraBetQuotePayload,\n  signature: vec u8,\n};\n\ntype VaraBetQuotePayload = struct {\n  target_program_id: actor_id,\n  user: actor_id,\n  basket_id: u64,\n  amount: u128,\n  quoted_index_bps: u16,\n  earliest_end_timestamp: u64,\n  deadline_ms: u64,\n  nonce: u128,\n};\n\ntype BasketItem = struct {\n  poly_market_id: str,\n  poly_slug: str,\n  weight_bps: u16,\n  selected_outcome: Outcome,\n  end_timestamp: u64,\n};\n\ntype Outcome = enum {\n  YES,\n  NO,\n};\n\ntype BasketAssetKind = enum {\n  Vara,\n  Bet,\n};\n\ntype AgentInfo = struct {\n  address: actor_id,\n  name: str,\n  registered_at: u64,\n  name_updated_at: u64,\n};\n\ntype Basket = struct {\n  id: u64,\n  creator: actor_id,\n  name: str,\n  description: str,\n  items: vec BasketItem,\n  created_at: u64,\n  status: BasketStatus,\n  asset_kind: BasketAssetKind,\n};\n\ntype BasketStatus = enum {\n  Active,\n  SettlementPending,\n  Settled,\n};\n\ntype Position = struct {\n  basket_id: u64,\n  user: actor_id,\n  shares: u128,\n  claimed: bool,\n  index_at_creation_bps: u16,\n};\n\ntype Settlement = struct {\n  basket_id: u64,\n  proposer: actor_id,\n  item_resolutions: vec ItemResolution,\n  payout_per_share: u128,\n  payload: str,\n  proposed_at: u64,\n  challenge_deadline: u64,\n  finalized_at: opt u64,\n  status: SettlementStatus,\n};\n\ntype ItemResolution = struct {\n  item_index: u8,\n  resolved: Outcome,\n  poly_slug: str,\n  poly_condition_id: opt str,\n  poly_price_yes: u16,\n  poly_price_no: u16,\n};\n\ntype SettlementStatus = enum {\n  Proposed,\n  Finalized,\n};\n\ntype BasketMarketConfig = struct {\n  admin_role: actor_id,\n  settler_role: actor_id,\n  liveness_ms: u64,\n  vara_enabled: bool,\n  min_items_per_basket: u32,\n  quote_signer: actor_id,\n  bet_cutoff_ms: u64,\n};\n\ntype BasketMarketError = enum {\n  Unauthorized,\n  Paused,\n  MigrationRequiresPause,\n  MigrationBatchTooLarge,\n  BasketNotFound,\n  BasketNotActive,\n  BasketAssetMismatch,\n  NoItems,\n  NotEnoughItems,\n  InvalidWeights,\n  DuplicateBasketItem,\n  TooManyItems,\n  NameTooLong,\n  DescriptionTooLong,\n  MarketIdTooLong,\n  SlugTooLong,\n  PayloadTooLong,\n  VaraDisabled,\n  SettlementAlreadyExists,\n  SettlementNotFound,\n  SettlementNotProposed,\n  SettlementNotFinalized,\n  ChallengeDeadlineNotPassed,\n  InvalidIndexAtCreation,\n  QuoteSignerNotConfigured,\n  QuoteTargetMismatch,\n  QuoteUserMismatch,\n  QuoteBasketMismatch,\n  QuoteAmountMismatch,\n  QuoteExpired,\n  QuoteNonceAlreadyUsed,\n  InvalidQuoteSignature,\n  InvalidQuoteSigner,\n  QuoteVerificationFailed,\n  BetCutoffReached,\n  QuoteExpiryMismatch,\n  InvalidBetAmount,\n  InvalidFreebetAmount,\n  InvalidResolutionCount,\n  DuplicateResolutionIndex,\n  ResolutionIndexOutOfBounds,\n  ResolutionSlugMismatch,\n  InvalidResolution,\n  AlreadyClaimed,\n  NothingToClaim,\n  TransferFailed,\n  FreebetLedgerNotConfigured,\n  FreebetLedgerReturnFailed,\n  MathOverflow,\n  EventEmitFailed,\n  InvalidConfig,\n  AgentNameTooShort,\n  AgentNameTooLong,\n  AgentNameInvalid,\n  AgentNameTaken,\n  AgentRenameCooldown,\n};\n\ntype MigrationEntityKind = enum {\n  Baskets,\n  Settlements,\n  Positions,\n  Agents,\n};\n\nconstructor {\n  New : (init: BasketMarketInit);\n};\n\nservice BasketMarket {\n  AdminWithdrawVara : (to: actor_id, amount: u128) -> u128;\n  BetOnBasket : (basket_id: u64, signed_quote: SignedVaraBetQuote) -> u128;\n  BetOnBasketFromFreebetLedger : (user: actor_id, basket_id: u64, signed_quote: SignedVaraBetQuote) -> u128;\n  Claim : (basket_id: u64) -> u128;\n  CreateBasket : (name: str, description: str, items: vec BasketItem, asset_kind: BasketAssetKind) -> u64;\n  FinalizeSettlement : (basket_id: u64) -> null;\n  ImportAgents : (agents: vec AgentInfo) -> u32;\n  ImportBaskets : (baskets: vec Basket) -> u32;\n  ImportPositions : (positions: vec Position) -> u32;\n  ImportSettlements : (settlements: vec Settlement) -> u32;\n  Pause : () -> null;\n  ProposeSettlement : (basket_id: u64, item_resolutions: vec ItemResolution, payload: str) -> null;\n  /// Register an agent with a display name, or rename if already registered.\n  /// Input is normalized to lowercase. Names must be 3-20 chars, alphanumeric\n  /// and hyphens only, no leading/trailing hyphens. Rename has a 7-day cooldown.\n  RegisterAgent : (name: str) -> null;\n  Resume : () -> null;\n  SetConfig : (config: BasketMarketConfig) -> null;\n  SetFreebetLedger : (ledger_id: actor_id) -> null;\n  SetVaraEnabled : (enabled: bool) -> null;\n  query GetAgent : (address: actor_id) -> opt AgentInfo;\n  query GetAgentCount : () -> u64;\n  query GetAllAgents : () -> vec AgentInfo;\n  query GetBasket : (basket_id: u64) -> result (Basket, BasketMarketError);\n  query GetBasketCount : () -> u64;\n  query GetConfig : () -> BasketMarketConfig;\n  query GetFreebetLedger : () -> actor_id;\n  query GetFreebetPositions : (user: actor_id) -> vec Position;\n  query GetPositions : (user: actor_id) -> vec Position;\n  query GetSettlement : (basket_id: u64) -> result (Settlement, BasketMarketError);\n  query IsPaused : () -> bool;\n  query IsVaraEnabled : () -> bool;\n\n  events {\n    BasketCreated: struct {\n      basket_id: u64,\n      creator: actor_id,\n      asset_kind: BasketAssetKind,\n    };\n    VaraBetPlaced: struct {\n      basket_id: u64,\n      user: actor_id,\n      amount: u128,\n      user_total: u128,\n      index_at_creation_bps: u16,\n      quote_nonce: u128,\n    };\n    FreebetBetPlaced: struct {\n      basket_id: u64,\n      user: actor_id,\n      amount: u128,\n      user_total: u128,\n      index_at_creation_bps: u16,\n      quote_nonce: u128,\n    };\n    SettlementProposed: struct {\n      basket_id: u64,\n      asset_kind: BasketAssetKind,\n      proposer: actor_id,\n      payout_per_share: u128,\n      challenge_deadline: u64,\n    };\n    SettlementFinalized: struct {\n      basket_id: u64,\n      asset_kind: BasketAssetKind,\n      finalized_at: u64,\n      payout_per_share: u128,\n    };\n    Claimed: struct {\n      basket_id: u64,\n      user: actor_id,\n      amount: u128,\n    };\n    AdminVaraWithdrawn: struct {\n      to: actor_id,\n      amount: u128,\n    };\n    AgentRegistered: struct {\n      agent: actor_id,\n      name: str,\n    };\n    AgentRenamed: struct {\n      agent: actor_id,\n      old_name: str,\n      new_name: str,\n    };\n    VaraSupportUpdated: struct {\n      enabled: bool\n    };\n    ConfigUpdated: struct {\n      config: BasketMarketConfig\n    };\n    Paused;\n    Resumed;\n    MigrationBatchImported: struct {\n      entity: MigrationEntityKind,\n      count: u32,\n    };\n  }\n};\n\n",
+  "runs": {
+    "a": {
+      "input": {
+        "block": "36589851",
+        "origin": "0xb2b013409822741dd78353d8d1f7f68a469c81e42335baeb3d8bf802514e2148",
+        "payload": "0x304261736b65744d61726b65744846696e616c697a65536574746c656d656e746106000000000000",
+        "value": "0",
+        "gasLimit": "2493696360"
+      },
+      "result": {
+        "block": {
+          "number": 36589851,
+          "hash": "0xa6554d01be62e32f86b4c2e6d524459c2e6ad54d4c24476a7ea7cd3d1c9d785e"
+        },
+        "specVersion": 11000,
+        "reply": {
+          "code": "{\"success\":\"Auto\"}",
+          "success": true,
+          "payload": "0x",
+          "value": "0"
+        },
+        "query": {
+          "code": "{\"success\":\"Manual\"}",
+          "success": true,
+          "payload": "0x304261736b65744d61726b657434476574536574746c656d656e74006106000000000000b2b013409822741dd78353d8d1f7f68a469c81e42335baeb3d8bf802514e2148080001050177696c6c2d7468652d70726963652d6f662d626974636f696e2d62652d6c6573732d7468616e2d36383030302d6f6e2d73657074656d6265722d31392d32303236011c34343938313231000010270101a877696c6c2d657468657265756d2d72656163682d343030302d696e2d73657074656d6265722d32303236011c343035323434340000102710270000000000000000000000000000e5067b2274696d657374616d70223a22323032362d31302d30315430343a34323a31312e3339335a222c226261736b65745f6964223a313633332c226d61726b657473223a5b7b226964223a2234343938313231222c22736c7567223a2277696c6c2d7468652d70726963652d6f662d626974636f696e2d62652d6c6573732d7468616e2d36383030302d6f6e2d73657074656d6265722d31392d32303236222c227175657374696f6e223a2257696c6c20746865207072696365206f6620426974636f696e206265206c657373207468616e202436382c303030206f6e2053657074656d6265722031393f222c22636c6f736564223a747275652c226f7574636f6d65507269636573223a5b2230222c2231225d7d2c7b226964223a2234303532343434222c22736c7567223a2277696c6c2d657468657265756d2d72656163682d343030302d696e2d73657074656d6265722d32303236222c227175657374696f6e223a2257696c6c20457468657265756d2072656163682024342c30303020696e2053657074656d6265723f222c22636c6f736564223a747275652c226f7574636f6d65507269636573223a5b2230222c2231225d7d5d7d582cc5f5a00100001038c5f5a00100000000",
+          "value": "0"
+        },
+        "error": null
+      }
+    },
+    "b": {
+      "input": {
+        "block": "latest",
+        "origin": "0xb2b013409822741dd78353d8d1f7f68a469c81e42335baeb3d8bf802514e2148",
+        "payload": "0x304261736b65744d61726b65744846696e616c697a65536574746c656d656e746106000000000000",
+        "value": "0",
+        "gasLimit": "2493696360"
+      },
+      "result": {
+        "block": {
+          "number": 36591938,
+          "hash": "0xd9cb8bb78940a7ed4932031dabecc3203f9a2891163e0d9701837637c18d4203"
+        },
+        "specVersion": 11000,
+        "reply": {
+          "code": "{\"error\":{\"execution\":\"UserspacePanic\"}}",
+          "success": false,
+          "payload": "0x70616e69636b65642077697468202763616c6c65642060526573756c743a3a756e77726170282960206f6e20616e2060457272602076616c75653a20536574746c656d656e744e6f7450726f706f73656427",
+          "value": "0"
+        },
+        "query": {
+          "code": "{\"success\":\"Manual\"}",
+          "success": true,
+          "payload": "0x304261736b65744d61726b657434476574536574746c656d656e74006106000000000000b2b013409822741dd78353d8d1f7f68a469c81e42335baeb3d8bf802514e2148080001050177696c6c2d7468652d70726963652d6f662d626974636f696e2d62652d6c6573732d7468616e2d36383030302d6f6e2d73657074656d6265722d31392d32303236011c34343938313231000010270101a877696c6c2d657468657265756d2d72656163682d343030302d696e2d73657074656d6265722d32303236011c343035323434340000102710270000000000000000000000000000e5067b2274696d657374616d70223a22323032362d31302d30315430343a34323a31312e3339335a222c226261736b65745f6964223a313633332c226d61726b657473223a5b7b226964223a2234343938313231222c22736c7567223a2277696c6c2d7468652d70726963652d6f662d626974636f696e2d62652d6c6573732d7468616e2d36383030302d6f6e2d73657074656d6265722d31392d32303236222c227175657374696f6e223a2257696c6c20746865207072696365206f6620426974636f696e206265206c657373207468616e202436382c303030206f6e2053657074656d6265722031393f222c22636c6f736564223a747275652c226f7574636f6d65507269636573223a5b2230222c2231225d7d2c7b226964223a2234303532343434222c22736c7567223a2277696c6c2d657468657265756d2d72656163682d343030302d696e2d73657074656d6265722d32303236222c227175657374696f6e223a2257696c6c20457468657265756d2072656163682024342c30303020696e2053657074656d6265723f222c22636c6f736564223a747275652c226f7574636f6d65507269636573223a5b2230222c2231225d7d5d7d582cc5f5a00100001038c5f5a001000001b0c4c5f5a001000001",
+          "value": "0"
+        },
+        "error": null
+      }
+    },
+    "query": {
+      "service": "BasketMarket",
+      "name": "GetSettlement",
+      "args": [
+        1633
+      ]
+    }
+  }
+}

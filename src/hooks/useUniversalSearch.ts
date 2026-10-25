@@ -1,8 +1,16 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { resolvePath } from '@/chains/plugins';
+import { parseVaraInput } from '@/chains/vara/links';
+import { decodeSs58 } from '@/chains/vara/address';
 import { ethers } from 'ethers';
 
 export type InputType =
+  | 'actorid'
+  | 'ss58'
+  | 'program'
+  | 'message'
+  | 'extrinsic'
   | 'address'
   | 'txhash'
   | 'selector'
@@ -57,9 +65,14 @@ export interface UseUniversalSearchReturn {
 /** Regex for Solidity-style function/event signatures: name(type,type,...) */
 const SIGNATURE_RE = /^[a-zA-Z_][a-zA-Z0-9_]*\(.*\)$/;
 
-function detectInputType(input: string): InputType {
+function detectInputType(input: string, isVara: boolean): InputType {
   const trimmed = input.trim();
   if (!trimmed) return 'empty';
+  if (isVara) {
+    if (/^0x[0-9a-fA-F]{64}$/.test(trimmed)) return 'actorid';
+    try { decodeSs58(trimmed); return 'ss58'; } catch { /* Try explorer links next. */ }
+    return parseVaraInput(trimmed, 'program')?.kind ?? 'unknown';
+  }
 
   // Text signatures: transfer(address,uint256), etc.
   if (SIGNATURE_RE.test(trimmed)) return 'signature';
@@ -115,7 +128,7 @@ function saveRecentSearch(entry: RecentSearch): void {
     (s) => !(s.query === entry.query && s.toolId === entry.toolId),
   );
   const updated = [entry, ...filtered].slice(0, MAX_RECENT_SEARCHES);
-  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  try { localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated)); } catch { /* History must not prevent navigation. */ }
 }
 
 const pages: PageDefinition[] = [
@@ -136,10 +149,13 @@ const pages: PageDefinition[] = [
 
 export function useUniversalSearch(): UseUniversalSearchReturn {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const { plugin } = resolvePath(pathname);
+  const isVara = plugin.id === 'vara';
   const [query, setQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(loadRecentSearches);
 
-  const inputType = useMemo(() => detectInputType(query), [query]);
+  const inputType = useMemo(() => detectInputType(query, isVara), [query, isVara]);
 
   const navigateToExplorer = useCallback(
     (input: string) => {
@@ -271,7 +287,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
     [navigate, persistTxReplayIntent],
   );
 
-  const tools: ToolDefinition[] = useMemo(
+  const evmTools: ToolDefinition[] = useMemo(
     () => [
       // --- Address tools ---
       {
@@ -373,6 +389,22 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
     ],
   );
 
+  const varaTools: ToolDefinition[] = useMemo(() => [
+    { id: 'vara-program', name: 'Open program', description: 'Inspect the program and compose a call', icon: 'Code2', accepts: ['actorid', 'program'],
+      navigate: (input) => navigate(`/vara/transactions?${new URLSearchParams({ tool: 'program', program: input })}`) },
+    { id: 'vara-message', name: 'Inspect message', description: 'Inspect execution, replies and trace', icon: 'ListTree', accepts: ['actorid', 'message', 'extrinsic'],
+      navigate: (input) => navigate(`/vara/transactions?${new URLSearchParams({ tool: 'message', id: input })}`) },
+    { id: 'vara-address', name: 'Convert address', description: 'Convert between ActorId and SS58', icon: 'Hash', accepts: ['actorid', 'ss58'],
+      navigate: (input) => navigate(`/vara/program-tools?${new URLSearchParams({ tool: 'address', address: input })}`) },
+  ], [navigate]);
+  const tools = isVara ? varaTools : evmTools;
+  const chainPages = isVara ? plugin.tools.flatMap((tool) =>
+    (tool.nav?.subTabs ?? []).map((tab) => ({
+      id: `vara-${tab.id}`, name: tab.label, description: '', icon: 'Wrench',
+      route: `${plugin.basePath}${tool.path}?${new URLSearchParams({ [tab.paramKey]: tab.id })}`,
+      keywords: [tool.nav!.label, 'vara'],
+    }))) : pages;
+
   const matchingTools = useMemo(() => {
     if (inputType === 'empty' || inputType === 'unknown') return [];
     return tools.filter((t) => t.accepts.includes(inputType));
@@ -385,7 +417,7 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
   const addToRecentSearches = useCallback(
     (toolId: string, toolName: string, queryOverride?: string) => {
       const effectiveQuery = (queryOverride ?? query).trim();
-      const effectiveType = queryOverride ? detectInputType(queryOverride) : inputType;
+      const effectiveType = queryOverride ? detectInputType(queryOverride, isVara) : inputType;
       const entry: RecentSearch = {
         query: effectiveQuery,
         inputType: effectiveType,
@@ -396,19 +428,19 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
       saveRecentSearch(entry);
       setRecentSearches(loadRecentSearches());
     },
-    [query, inputType],
+    [query, inputType, isVara],
   );
 
   const executeTool = useCallback(
     (toolId: string, inputOverride?: string) => {
       const tool = tools.find((t) => t.id === toolId);
-      if (tool) {
-        const input = inputOverride?.trim() ?? getEffectiveInput();
+      const input = inputOverride?.trim() ?? getEffectiveInput();
+      if (tool && tool.accepts.includes(detectInputType(input, isVara))) {
         addToRecentSearches(tool.id, tool.name, inputOverride);
         tool.navigate(input);
       }
     },
-    [tools, getEffectiveInput, addToRecentSearches],
+    [tools, getEffectiveInput, addToRecentSearches, isVara],
   );
 
   const reset = useCallback(() => {
@@ -427,8 +459,8 @@ export function useUniversalSearch(): UseUniversalSearchReturn {
     matchingTools,
     executeTool,
     reset,
-    recentSearches,
+    recentSearches: recentSearches.filter((entry) => entry && typeof entry.query === 'string' && tools.some((tool) => tool.id === entry.toolId)),
     clearRecentSearches,
-    pages,
+    pages: chainPages,
   };
 }

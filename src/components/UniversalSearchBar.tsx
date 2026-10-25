@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   CommandDialog,
   CommandEmpty,
@@ -9,6 +9,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "./ui/command";
+import { contextSearch, resolvePath } from "@/chains/plugins";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,16 @@ interface TypeBadgeConfig {
 
 function getInputBadge(type: InputType): TypeBadgeConfig | null {
   switch (type) {
+    case "actorid":
+      return { label: "32-byte ID", variant: "info" };
+    case "ss58":
+      return { label: "SS58 address", variant: "info" };
+    case "program":
+      return { label: "Program", variant: "info" };
+    case "message":
+      return { label: "Message", variant: "teal" };
+    case "extrinsic":
+      return { label: "Extrinsic", variant: "teal" };
     case "address":
       return { label: "Address", variant: "info" };
     case "txhash":
@@ -92,6 +103,9 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { plugin } = resolvePath(location.pathname);
+  const isVara = plugin.id === "vara";
 
   const {
     query,
@@ -116,13 +130,13 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen);
-      if (!nextOpen) setTimeout(reset, 200);
-    },
-    [reset],
-  );
+  const handleOpenChange = setOpen;
+
+  useEffect(() => {
+    if (open) return;
+    const timer = setTimeout(reset, 200);
+    return () => clearTimeout(timer);
+  }, [open, reset]);
 
   const handleToolSelect = useCallback(
     (toolId: string) => {
@@ -134,10 +148,12 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
 
   const handlePageSelect = useCallback(
     (route: string) => {
-      navigate(route);
+      const target = new URL(route, window.location.origin);
+      new URLSearchParams(contextSearch(plugin, location.search)).forEach((value, key) => target.searchParams.set(key, value));
+      navigate(target.pathname + target.search);
       handleOpenChange(false);
     },
-    [navigate, handleOpenChange],
+    [navigate, handleOpenChange, plugin, location.search],
   );
 
   const handleRecentSelect = useCallback(
@@ -181,11 +197,11 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
         open={open}
         onOpenChange={handleOpenChange}
         title="Command Palette"
-        description="Search for addresses, transactions, selectors, or navigate to pages"
+        description="Find a tool or paste an identifier to open it"
         showCloseButton={false}
       >
         <CommandInput
-          placeholder="Search address, tx, command..."
+          placeholder={isVara ? "Search tools, program, message, SS58…" : "Search address, tx, command..."}
           value={query}
           onValueChange={setQuery}
         />
@@ -202,7 +218,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
           {matchingTools.length === 0 && (
             <CommandEmpty>
               {inputType === "unknown" && query.trim()
-                ? "Input not recognized. Try: address, tx hash, selector, signature, or calldata"
+                ? (isVara ? "No matching tool. Try a 32-byte ID, SS58 address, block-index, or explorer link." : "No matching tool. Try an address, tx hash, selector, signature, or calldata.")
                 : "Type to search..."}
             </CommandEmpty>
           )}
@@ -216,6 +232,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
                   onSelect={() => handleRecentSelect(recent)}
                 >
                   <ArrowCounterClockwise className="mr-2 size-4 opacity-50" />
+                  <span className="shrink-0 text-xs">{recent.toolName}</span>
                   <span className="font-mono text-xs truncate">
                     {recent.query}
                   </span>
@@ -277,7 +294,7 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
           <CommandSeparator />
 
           <CommandGroup heading="Actions">
-            <CommandItem
+            {plugin.evmServices && <CommandItem
               value="action:wallet:Connect Wallet"
               keywords={["wallet", "connect", "metamask"]}
               onSelect={() => {
@@ -291,8 +308,8 @@ const UniversalSearchBar: React.FC<UniversalSearchBarProps> = ({
             >
               <Wallet className="mr-2 size-4 opacity-70" />
               <span>Connect Wallet</span>
-            </CommandItem>
-            {onOpenRpcSettings && (
+            </CommandItem>}
+            {plugin.evmServices && onOpenRpcSettings && (
               <CommandItem
                 value="action:rpc:RPC Settings"
                 keywords={[

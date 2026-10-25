@@ -1166,3 +1166,21 @@ wui-tooltip {
   border-radius: 7px;
   gap: 4px;
 }
+
+/* Vara workspace sizing; navigation uses the shared capsule styling. */
+.app[data-chain="vara"] { max-width: 1320px; padding-top: 16px; gap: 0; }
+.vara-navigation :is(.capsule-tab, .capsule-sub-tab):not(.active):not(:hover) { color: var(--text-secondary); }
+.vara-navigation button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+/* One capsule width for every group, so switching groups never resizes or re-centers it and the top-level tabs keep their place. */
+.vara-navigation .capsule-nav { width: min(100%, 48rem); }
+.vara-navigation .capsule-main-row { justify-content: center; }
+.vara-navigation .capsule-tab { font-weight: 600; }
+/* A sub-tab row wider than the capsule scrolls as a whole (indicator included) instead of clipping buttons. */
+.vara-navigation .capsule-sub-inner { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.vara-navigation .capsule-sub-row { width: max-content; min-width: 100%; }
+@media (max-width: 767px) { .app[data-chain="vara"] { padding: 4px 0 20px; } }
+
+.app-footer[data-chain="vara"] { position: relative; padding: 12px 20px; }
+
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px 16px; border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); }
+.skip-link:focus { top: 16px; outline: 2px solid currentColor; outline-offset: 2px; }

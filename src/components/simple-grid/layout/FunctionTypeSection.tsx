@@ -5,12 +5,9 @@ import React from "react";
 import {
   GemIcon,
   DiamondExplodeIcon,
-  AnimatedBookFlipIcon,
-  AnimatedPenWriteIcon,
   AlertTriangleIcon,
 } from "../../icons/IconLibrary";
-import { RadioGroup, RadioGroupItem } from "../../ui/radio-group";
-import { Tabs, TabsList, TabsTrigger } from "../../ui/tabs";
+import { FunctionModeToggle, FunctionTypeTabs } from "../../FunctionControls";
 import { Label } from "../../ui/label";
 import { Button } from "../../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
@@ -312,70 +309,25 @@ export default function FunctionTypeSection({ children }: { children?: React.Rea
       )}
 
       {/* Function Mode Selection */}
-      <RadioGroup
+      <FunctionModeToggle
         value={functionMode}
-        onValueChange={(value) => setFunctionMode(value as "function" | "raw")}
-        className="grid grid-cols-2 gap-2 mb-3"
-      >
-        <Label
-          className={`flex items-center gap-2 p-2.5 rounded-md border cursor-pointer transition-colors ${
-            functionMode === "function"
-              ? "bg-purple-500/10 border-purple-500/50"
-              : "bg-muted/30 border-border hover:bg-muted/50"
-          }`}
-        >
-          <RadioGroupItem value="function" className="h-3 w-3" />
-          <div>
-            <div className="text-xs font-medium text-foreground">Choose function</div>
-            <div className="text-[10px] text-muted-foreground">Select from ABI</div>
-          </div>
-        </Label>
-        <Label
-          className={`flex items-center gap-2 p-2.5 rounded-md border cursor-pointer transition-colors ${
-            functionMode === "raw"
-              ? "bg-purple-500/10 border-purple-500/50"
-              : "bg-muted/30 border-border hover:bg-muted/50"
-          }`}
-        >
-          <RadioGroupItem value="raw" className="h-3 w-3" />
-          <div>
-            <div className="text-xs font-medium text-foreground">Raw input data</div>
-            <div className="text-[10px] text-muted-foreground">Direct calldata</div>
-          </div>
-        </Label>
-      </RadioGroup>
+        onChange={setFunctionMode}
+        functionHint="Select from ABI"
+        rawLabel="Raw input data"
+        rawHint="Direct calldata"
+      />
 
       {functionMode === "function" && (
         <div className="mb-3">
           <Label className="text-xs text-muted-foreground mb-1.5 block">
             Function Type
           </Label>
-          <Tabs
-            value={selectedFunctionType ?? undefined}
-            onValueChange={(value) => setSelectedFunctionType(value as "read" | "write")}
-            className="w-full"
-          >
-            <TabsList className="w-full grid grid-cols-2 h-9 bg-muted/30 p-0.5">
-              {filteredReadFunctions.length > 0 && (
-                <TabsTrigger
-                  value="read"
-                  className="gap-1.5 text-xs data-[state=active]:bg-green-500/20 data-[state=active]:text-green-500 data-[state=active]:border data-[state=active]:border-green-500/50"
-                >
-                  <AnimatedBookFlipIcon width={14} height={14} />
-                  Read ({filteredReadFunctions.length})
-                </TabsTrigger>
-              )}
-              {filteredWriteFunctions.length > 0 && (
-                <TabsTrigger
-                  value="write"
-                  className="gap-1.5 text-xs data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-500 data-[state=active]:border data-[state=active]:border-amber-500/50"
-                >
-                  <AnimatedPenWriteIcon width={14} height={14} />
-                  Write ({filteredWriteFunctions.length})
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
+          <FunctionTypeTabs
+            value={selectedFunctionType}
+            onChange={setSelectedFunctionType}
+            readCount={filteredReadFunctions.length}
+            writeCount={filteredWriteFunctions.length}
+          />
         </div>
       )}
 
