@@ -31,6 +31,7 @@ import type { SqdMessage } from "./sqd";
 import { ideaCodeUrl, ideaProgramUrl, parseVaraInput, subscanAccount, subscanBlock, varaWalletCall } from "./links";
 import { ExplorerLinks } from "./ui/ExplorerLinks";
 import { IconAction } from "./ui/IconAction";
+import { useProgramNames } from "./ui/useProgramNames";
 import { CopyButton } from "../../components/ui/copy-button";
 import type { ActivityItem, FormValue, Hex, IdlModel, MethodSchema, ProgramInfo } from "./model";
 import { estimateGas, loadProgram, recentActivity } from "./program";
@@ -571,7 +572,8 @@ export default function ProgramTool() {
     }
   }
 
-  const idlFileName = `${(ideaInfo?.name ?? programId ?? "program").replace(/[^\w.-]+/g, "-")}.idl`;
+  const programName = useProgramNames([programId]).get(programId?.toLowerCase() ?? "");
+  const idlFileName = `${(programName ?? programId ?? "program").replace(/[^\w.-]+/g, "-")}.idl`;
   let walletCommand = "";
   let walletError = "";
   if (method && programId) {
@@ -613,7 +615,7 @@ export default function ProgramTool() {
                 <ProgramMark id={programId} />
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h2 className="min-w-0 truncate text-lg font-semibold">{example ? `${example.name} · ${example.program}` : ideaInfo?.name ?? "Unnamed program"}</h2>
+                    <h2 className="min-w-0 truncate text-lg font-semibold">{example ? `${example.name} · ${example.program}` : programName ?? "Unnamed program"}</h2>
                     <Badge variant={info.status === "active" ? "success" : info.status === "missing" ? "outline" : "warning"}>{info.status}</Badge>
                   </div>
                   <HexChip value={programId} label="program id" />
