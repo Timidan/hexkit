@@ -102,8 +102,10 @@ export function exportRust(scenario: Scenario): string {
     if (p.wasm) lines.push(`    Program::from_binary_with_id(&sys, ${a(p.id)}, ${b(p.wasm)});`);
     else lines.push(`    Program::mock_with_id(&sys, ${a(p.id)}, Dependency { reply: ${b(p.mock!.reply)}, fail: ${p.mock!.fail} });`);
   }
+  // A send no assertion reads is bound as _m<i>, so the exported test compiles without warnings.
+  const read = new Set(s.steps.flatMap((step) => "message" in step ? [step.message] : []));
   s.steps.forEach((step, i) => {
-    if (step.kind === "send") lines.push(`    let m${i} = sys.get_program(${a(step.program)}).unwrap().send_bytes_with_gas(${a(step.sender)}, ${b(step.payload)}, ${step.gasLimit}_u64, ${step.value}_u128);`);
+    if (step.kind === "send") lines.push(`    let ${read.has(i) ? "" : "_"}m${i} = sys.get_program(${a(step.program)}).unwrap().send_bytes_with_gas(${a(step.sender)}, ${b(step.payload)}, ${step.gasLimit}_u64, ${step.value}_u128);`);
     if ("blocks" in step) lines.push(`    for _ in 0..${step.blocks} { blocks.push(sys.run_next_block()); }`);
     if (step.kind === "expectReply") lines.push(`    assert!(blocks.iter().flat_map(|b| b.log()).any(|l| l.reply_to() == Some(m${step.message}) && l.reply_code().is_some_and(|c| c.is_success()) && l.payload() == ${b(step.payload)}), "Reply assertion, step ${i + 1}");`);
     if (step.kind === "expectStatus") lines.push(step.status === "failed" ? `    assert!(blocks.iter().any(|b| b.failed.contains(&m${step.message})), "Failure assertion, step ${i + 1}");` : `    assert!(!blocks.iter().any(|b| b.failed.contains(&m${step.message})) && blocks.iter().any(|b| b.succeed.contains(&m${step.message})), "Success assertion, step ${i + 1}");`);

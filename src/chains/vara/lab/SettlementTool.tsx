@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
-import { ETH_NETWORKS, inspectSettlement } from "./settlement";
+import { ETH_NETWORKS, inspectSettlement, settlementError } from "./settlement";
 import type { SettlementInput } from "./settlement";
 import { selectClass } from "../ui/Panel";
-import { download, errorText, jsonText } from "./files";
+import { download, jsonText } from "./files";
 import { ValueTree } from "../ui/ValueTree";
 import { DownloadSimple } from "@phosphor-icons/react";
 import { IconAction } from "../ui/IconAction";
@@ -19,7 +19,7 @@ export default function SettlementTool() {
     const controller = new AbortController(); abort.current = controller;
     setBusy(true); setResult(null); setError("");
     try { const report = await inspectSettlement(input, controller.signal); if (!controller.signal.aborted) setResult(report); }
-    catch (err) { if (!controller.signal.aborted) setError(errorText(err)); }
+    catch (err) { if (!controller.signal.aborted) setError(settlementError(err)); }
     finally { if (abort.current === controller) { setBusy(false); abort.current = null; } }
   }
   return <div className="space-y-5">

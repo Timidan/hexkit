@@ -2,6 +2,14 @@ import { createPublicClient, decodeEventLog, http, isAddress, parseAbi } from "v
 import type { Address, Hex, Log } from "viem";
 import { errorText } from "./files";
 
+/** Public RPCs refuse reads at older blocks and keep receipts for a limited time: say that, not the RPC's raw error. */
+export function settlementError(err: unknown, next = "") {
+  const text = errorText(err);
+  if (/archive requests|personal token/i.test(text)) return `The public Ethereum RPC only serves recent blocks, so this older read could not run.${next}`;
+  if (/receipt with hash .* could not be found/i.test(text)) return "The public Ethereum RPC returned no receipt for this transaction. It may be older than the history the RPC keeps.";
+  return text;
+}
+
 // Gear IMirror.sol: request ids and Reply.replyTo, never temporal proximity, join the stages.
 export const MIRROR_ABI = parseAbi([
   "event MessageQueueingRequested(bytes32 id, address indexed source, bytes payload, uint128 value, bool callReply)",
@@ -77,7 +85,7 @@ export async function inspectSettlement(input: SettlementInput, signal: AbortSig
     }
   } catch (err) {
     if (signal.aborted) throw err;
-    scanError = errorText(err);
+    scanError = settlementError(err, " Supply the known settlement transaction to read its receipt directly.");
   }
   let finalized: bigint | null = null;
   try { finalized = (await client.getBlock({ blockTag: "finalized" })).number; } catch { /* Finality may be unavailable on this provider. */ }
@@ -95,7 +103,7 @@ export async function inspectSettlement(input: SettlementInput, signal: AbortSig
       if (data.result === undefined) throw new Error("Invalid validator response");
       state = { stateHash, exited, block: to, validatorState: data.result };
     }
-  } catch (err) { stateError = errorText(err); }
+  } catch (err) { stateError = settlementError(err); }
   return { network: network.name, chainId: network.chainId, rpc: network.rpc, mirror, message, request, from, to, head, finalized, replies, deliveryFailures, stateChanges, state, stateError, scanError, coveredThrough, settlementTransaction: input.settlementTransaction || null,
     requestStatus: request ? "Observed on Ethereum" : "Not supplied; message id only",
     executionStatus: replies.length ? "Reply observed on Ethereum" : "Not established by the scanned evidence",

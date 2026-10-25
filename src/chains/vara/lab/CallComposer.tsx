@@ -23,11 +23,12 @@ export interface CallInput { program: string; origin: string; payload: string; v
 export function useCallInput() {
   const [params, setParams] = useSearchParams();
   const input: CallInput = { program: params.get("program") ?? "", origin: params.get("origin") ?? "", payload: params.get("payload") ?? "0x", value: params.get("value") ?? "0", gasLimit: params.get("gas") ?? "0", block: params.get("block") ?? "latest" };
+  /** Writes from the live URL: a sample sets its call and its view in one event, and each write starting from the
+   *  render's params would drop the other. */
   function update(next: CallInput) {
-    setParams((p) => {
-      for (const [key, value] of Object.entries(next)) p.set(key === "gasLimit" ? "gas" : key, value);
-      return p;
-    }, { replace: true });
+    const p = new URLSearchParams(window.location.search);
+    for (const [key, value] of Object.entries(next)) p.set(key === "gasLimit" ? "gas" : key, value);
+    setParams(p, { replace: true });
   }
   return [input, update] as const;
 }

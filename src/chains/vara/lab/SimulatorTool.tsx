@@ -38,8 +38,19 @@ export default function SimulatorTool() {
   const [params, setParams] = useSearchParams();
   // One call, two readings of it: the dry-run reply, or gas, balances and vouchers at the same snapshot.
   const view = params.get("view") === "gas" ? "gas" : "reply";
-  function showView(next: "reply" | "gas") { setParams((p) => { if (next === "gas") p.set("view", "gas"); else p.delete("view"); return p; }, { replace: true }); }
+  // From the live URL, like useCallInput: a sample writes its call and its view in the same event.
+  function showView(next: "reply" | "gas") { const p = new URLSearchParams(window.location.search); if (next === "gas") p.set("view", "gas"); else p.delete("view"); setParams(p, { replace: true }); }
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // A replayed sample runs before its program's IDL has loaded: decode the reply as soon as the IDL arrives.
+  useEffect(() => {
+    const reply = result?.run.reply;
+    if (!idl || !result || result.decoded !== null || !reply?.success) return;
+    let live = true;
+    void loadIdl(idl).then((sails) => {
+      if (live) setResult((r) => r === result ? { ...r, decoded: decodeReply(reply.payload, decodeCall(prepareCall(r.input).input.payload, sails), sails) } : r);
+    }).catch(() => { /* the raw reply stays on screen */ });
+    return () => { live = false; };
+  }, [idl, result]);
   async function simulate(current = input, interfaceText = idl, comparison = compare) {
     const signature = JSON.stringify(current);
     setBusy(true); setError(""); setResult(null); setOther(null);

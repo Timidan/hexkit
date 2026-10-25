@@ -14,7 +14,7 @@ it("compares the bundled call against the edited example interface", async () =>
   render(<InterfaceTool />);
   fireEvent.click(screen.getByRole("button", { name: "Load breaking-change example" }));
   fireEvent.click(screen.getByRole("button", { name: "Compare interfaces" }));
-  await screen.findByRole("heading", { name: "1 interface changes" });
+  await screen.findByRole("heading", { name: "1 interface change" });
   expect(screen.getByText("BasketMarket.FinalizeSettlement", { selector: "code" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "Saved call 1 · Before: round-trip matches · After: invalid" })).toBeTruthy();
 });
