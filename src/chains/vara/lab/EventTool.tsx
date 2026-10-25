@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { SailsProgram } from "sails-js";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Textarea } from "../../../components/ui/textarea";
@@ -24,7 +25,7 @@ export default function EventTool() {
   const setProgram = (value: string) => setParams((p) => { p.set("program", value); return p; }, { replace: true });
   const [from, setFrom] = useState(""), [to, setTo] = useState("");
   const [idl, setIdl] = useState(""), [mapping, setMapping] = useState('{"id":"id","block":"block","service":"decoded.service","event":"decoded.name","data":"decoded.value"}');
-  const [result, setResult] = useState<{ events: (SqdEvent & { decoded: ReturnType<typeof decodeEvent> })[]; rows: Record<string, unknown>[]; handler: string; from: number; to: number; head: number; idl: string; program: string } | null>(null);
+  const [result, setResult] = useState<{ events: (SqdEvent & { decoded: ReturnType<typeof decodeEvent> })[]; rows: Record<string, unknown>[]; handler: string | null; from: number; to: number; head: number; idl: string; program: string } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   useEffect(() => { setIdl(""); setResult(null); }, [program]);
   const abort = useRef<AbortController | null>(null);
@@ -49,7 +50,8 @@ export default function EventTool() {
       const raw = await sqdEventsFrom(parsed.id, start, end, controller.signal);
       const events = raw.map((e) => ({ ...e, decoded: decodeEvent(e.payload, loaded.sails) }));
       controller.signal.throwIfAborted();
-      setResult({ events, rows: events.map((e) => transformEvent(e, map)), handler: exportEventHandler(parsed.id, text, loaded.model, map), from: start, to: end, head, idl: text, program: parsed.id });
+      setResult({ events, rows: events.map((e) => transformEvent(e, map)), // The handler template reads IDL v1 only.
+      handler: loaded.sails instanceof SailsProgram ? null : exportEventHandler(parsed.id, text, loaded.model, map), from: start, to: end, head, idl: text, program: parsed.id });
     } catch (err) { if (!controller.signal.aborted || controller.signal.reason instanceof Error && controller.signal.reason.name !== "AbortError") setError(errorText(err)); }
     finally { clearTimeout(timer); if (abort.current === controller) { setBusy(false); abort.current = null; } }
   }
@@ -72,6 +74,6 @@ export default function EventTool() {
 
     {result && !result.events.length && <p className="max-w-md text-sm text-muted-foreground">Try an earlier block range or <Link className="underline underline-offset-4" to={`/vara/transactions?${new URLSearchParams({ tool: "program", program: result.program })}`}>open the program workspace</Link> to explore its activity.</p>}
     <p role="status" className="sr-only">{result ? `${result.events.length} events · blocks ${result.from}–${result.to}` : ""}</p>
-    {result && <section className="space-y-4 rounded-lg border border-border/70 bg-card p-4"><div className="flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">{result.events.length} events · blocks {result.from}–{result.to}</h2><Button size="sm" variant="outline" onClick={() => download("vara-events.json", jsonText(result))}><DownloadSimple />Export evidence</Button><Button size="sm" variant="outline" onClick={() => download("vara-event-handler.ts", result.handler, "text/plain")}><DownloadSimple />Export handler</Button></div><p className="text-xs text-muted-foreground">Indexer head: {result.head}. Only messages from this program to the zero address without reply details are included. Decode failures remain visible.</p>{!result.events.length && <p className="text-sm">No program events were found in the covered range. The handler is still available for export.</p>}<div className="space-y-3">{result.events.slice(0, 100).map((e, i) => <details key={`${e.hash}:${e.id}`} className="rounded-lg border border-border/70 bg-card"><summary className="min-h-11 cursor-pointer content-center px-4 py-2 text-sm"><h3 className="inline text-sm font-medium">Block {e.block} · {e.decoded.service}.{e.decoded.name}</h3>{e.decoded.error && <span className="ml-2 text-xs text-amber-400">Decode failed</span>}</summary><div className="space-y-2 border-t border-border/60 p-4">{e.decoded.error && <p className="text-sm text-amber-400">{e.decoded.error}</p>}<div className="grid gap-4 lg:grid-cols-2"><ValueTree value={e} rootLabel="event" /><ValueTree value={result.rows[i]} rootLabel="output row" /></div></div></details>)}</div>{result.events.length > 100 && <p className="text-xs text-muted-foreground">Previewing the first 100 events. The export includes all {result.events.length}.</p>}</section>}
+    {result && <section className="space-y-4 rounded-lg border border-border/70 bg-card p-4"><div className="flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">{result.events.length} events · blocks {result.from}–{result.to}</h2><Button size="sm" variant="outline" onClick={() => download("vara-events.json", jsonText(result))}><DownloadSimple />Export evidence</Button>{result.handler && <Button size="sm" variant="outline" onClick={() => download("vara-event-handler.ts", result.handler ?? "", "text/plain")}><DownloadSimple />Export handler</Button>}</div><p className="text-xs text-muted-foreground">Indexer head: {result.head}. Only messages from this program to the zero address without reply details are included. Decode failures remain visible.</p>{!result.events.length && <p className="text-sm">No program events were found in the covered range.{result.handler && " The handler is still available for export."}</p>}<div className="space-y-3">{result.events.slice(0, 100).map((e, i) => <details key={`${e.hash}:${e.id}`} className="rounded-lg border border-border/70 bg-card"><summary className="min-h-11 cursor-pointer content-center px-4 py-2 text-sm"><h3 className="inline text-sm font-medium">Block {e.block} · {e.decoded.service}.{e.decoded.name}</h3>{e.decoded.error && <span className="ml-2 text-xs text-amber-400">Decode failed</span>}</summary><div className="space-y-2 border-t border-border/60 p-4">{e.decoded.error && <p className="text-sm text-amber-400">{e.decoded.error}</p>}<div className="grid gap-4 lg:grid-cols-2"><ValueTree value={e} rootLabel="event" /><ValueTree value={result.rows[i]} rootLabel="output row" /></div></div></details>)}</div>{result.events.length > 100 && <p className="text-xs text-muted-foreground">Previewing the first 100 events. The export includes all {result.events.length}.</p>}</section>}
   </div>;
 }

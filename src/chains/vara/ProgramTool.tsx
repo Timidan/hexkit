@@ -20,7 +20,7 @@ import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
 import { serializeNode } from "../../utils/complexValueBuilder";
 import type { ComplexValueNode } from "../../utils/complexValueBuilder";
 import { decodeSs58, encodeSs58, VARA_SS58_PREFIX } from "./address";
-import { decodeCall, decodeEvent, decodeReply } from "./decode";
+import { decodeCall, decodeEvent, decodeReply, isV2Payload } from "./decode";
 import { dryRun, parseInput, sendMessage } from "./dryRun";
 import { getIdl, setIdl } from "./idlStore";
 import { defaultFormValue, encodeMethod, loadIdlModel, toArgs } from "./idlForm";
@@ -159,13 +159,15 @@ function decodeRaw(text: string, as: DecodeAs, sails: SailsIdl, model: IdlModel,
     const node = d.error ? null : schema ? toNode(schema, d.value, label) : { label, type: "event", value: "no data" };
     return { payload, method: null, route: d.service ? label : null, node, error: d.error };
   }
-  const route = decodeCall(payload, as === "call" ? sails : null);
+  // A legacy reply repeats its call's route, read without the IDL; a v2 reply's header needs the loaded interface.
+  const v2Reply = as === "reply" && isV2Payload(payload);
+  const route = v2Reply ? decodeReply(payload, { service: null, name: null, value: null, error: null }, sails) : decodeCall(payload, as === "call" ? sails : null);
   const method = methods.find((m) => m.service === route.service && m.name === route.name) ?? null;
   const name = route.service ? `${route.service}.${route.name}` : null;
   if (route.error) return { payload, method, route: name, node: null, error: route.error };
   if (!method) return { payload, method, route: name, node: null, error: `${name} is not in this program's IDL` };
   if (as === "call") return { payload, method, route: name, node: toNode({ kind: "struct", name: method.kind, tuple: false, fields: method.params }, route.value, name ?? method.name), error: null };
-  const reply = decodeReply(payload, route, sails);
+  const reply = v2Reply ? route : decodeReply(payload, route, sails);
   return { payload, method, route: name, node: reply.error ? null : toNode(method.returns, reply.value, method.name), error: reply.error };
 }
 
@@ -848,7 +850,7 @@ export default function ProgramTool() {
                   <ToggleGroupItem value="history">History (SQD Portal)</ToggleGroupItem>
                 </ToggleGroup>
                 {activitySource === "live"
-                  ? <Activity programId={programId} sails={idl?.sails ?? null} onOpenTrace={openTrace} />
+                  ? <Activity key={programId} programId={programId} sails={idl?.sails ?? null} onOpenTrace={openTrace} />
                   : <History programId={programId} createdBlock={ideaInfo?.createdBlock ?? null} onOpen={openIndexed} />}
               </div>
             </TabsContent>

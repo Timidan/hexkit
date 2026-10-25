@@ -28,7 +28,7 @@ export async function loadIdl(text: string): Promise<SailsIdl> {
   }
 }
 
-const isV2Payload = (payload: Hex) => payload.toLowerCase().startsWith("0x474d");
+export const isV2Payload = (payload: Hex) => payload.toLowerCase().startsWith("0x474d");
 /** Maps a sails-js v2 decode result to the shared shape; a missing interface or entry is reported apart from malformed bytes. */
 function fromV2(r: DecodedCall | DecodedReply | DecodedEvent | DecodedUnknown): Decoded {
   if (r.kind === "unknown") {
