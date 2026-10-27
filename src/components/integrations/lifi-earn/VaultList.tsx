@@ -868,6 +868,14 @@ export function VaultCard({
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Total APY</span>
             </InfoTip>
           )}
+          {/* Always rendered, not in the hover panel, so touch, keyboard and test runners can reach it. */}
+          {!compact && (
+            <VaultForecastButton
+              vault={vault}
+              onOpenChange={setForecastOpen}
+              triggerClassName="flex items-center gap-1 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            />
+          )}
         </div>
         <span
           className={`${
@@ -1033,7 +1041,6 @@ export function VaultCard({
                     Protocol
                   </button>
                 )}
-                <VaultForecastButton vault={vault} onOpenChange={setForecastOpen} />
                 <div
                   className="flex-1 flex items-center justify-center gap-1.5 bg-primary/90
                              rounded-md py-2 text-xs font-medium text-primary-foreground
