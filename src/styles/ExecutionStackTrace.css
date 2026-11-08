@@ -491,9 +491,12 @@
   transition: all 0.15s;
 }
 
-.exec-search-category-item:hover {
+.exec-search-category-item:hover,
+.exec-search-category-item:focus,
+.exec-search-category-item[data-highlighted] {
   background: rgba(255, 255, 255, 0.08);
   color: var(--tst-text);
+  outline: none;
 }
 
 .exec-search-category-item.active {

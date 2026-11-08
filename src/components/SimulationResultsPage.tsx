@@ -180,7 +180,7 @@ const SimulationResultsPage: React.FC<SimulationResultsPageProps> = (props) => {
               </TabsList>
             </nav>
 
-            <AnimatedTabContent activeKey={activeTab} className="sim-tab-content responsive-scroll">
+            <AnimatedTabContent activeKey={activeTab} className="sim-tab-content">
               {activeTab === "summary" && (
                 <SummaryTab
                   result={result}
