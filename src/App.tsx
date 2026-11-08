@@ -1,9 +1,10 @@
 import React, { Suspense, useState } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import "./App.css";
 import { resolvePath } from "./chains/plugins";
 import LoadingSpinner from "./components/shared/LoadingSpinner";
+import { useRouteLoading } from "./hooks/useRouteLoading";
 import PersistentTools from "./components/PersistentTools";
 import { ToolkitProvider } from "./contexts/ToolkitContext";
 import { SimulationProvider } from "./contexts/SimulationContext";
@@ -25,6 +26,25 @@ const SimulationResultsPage = React.lazy(() => import("./components/SimulationRe
 const RpcSettingsModal = React.lazy(() => import("./components/RpcSettingsModal"));
 const StorageManagerModal = React.lazy(() => import("./components/StorageManagerModal"));
 
+/** Visible placeholder while a lazily-loaded modal chunk is fetched. */
+const ModalLoadingFallback: React.FC = () => (
+  <div
+    role="status"
+    aria-live="polite"
+    style={{
+      position: "fixed",
+      inset: 0,
+      zIndex: 2100,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(0,0,0,0.45)",
+    }}
+  >
+    <LoadingSpinner text="Loading" />
+  </div>
+);
+
 function App() {
   const [isRpcModalOpen, setIsRpcModalOpen] = useState(false);
   const [isStorageModalOpen, setIsStorageModalOpen] = useState(false);
@@ -35,6 +55,15 @@ function App() {
 
   const isSimulationPage = location.pathname.startsWith("/simulation/");
   const isHomePage = location.pathname === "/";
+
+  // The app shell owns the loader for Home and Simulation. Tool routes are
+  // gated inside PersistentTools so their mounted panels stay alive underneath.
+  const appRouteKey = isHomePage
+    ? `home:${location.search}`
+    : isSimulationPage
+      ? `simulation:${location.pathname}${location.search}`
+      : null;
+  const isAppRouteLoading = useRouteLoading(appRouteKey);
 
   const hasUserOverride =
     (config.rpcMode === "CUSTOM" && config.customRpcUrl?.trim()) ||
@@ -69,15 +98,25 @@ function App() {
               )}
 
               {isSimulationPage ? (
-                <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
-                  <Routes>
-                    <Route path="/simulation/:id" element={<SimulationResultsPage />} />
-                  </Routes>
-                </Suspense>
+                <>
+                  {isAppRouteLoading && <LoadingSpinner text="Loading" fullPage />}
+                  <div style={{ display: isAppRouteLoading ? "none" : undefined }}>
+                    <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
+                      <Routes>
+                        <Route path="/simulation/:id" element={<SimulationResultsPage />} />
+                      </Routes>
+                    </Suspense>
+                  </div>
+                </>
               ) : isHomePage ? (
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                </Routes>
+                <>
+                  {isAppRouteLoading && <LoadingSpinner text="Loading" fullPage />}
+                  <div style={{ display: isAppRouteLoading ? "none" : undefined }}>
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                    </Routes>
+                  </div>
+                </>
               ) : (
                 <div data-chain={plugin.id} className={cn("app", resolvePath(location.pathname).tool?.fullWidth && "app-fullwidth")}>
                   {!isMobile && <Navigation />}
@@ -192,7 +231,7 @@ function App() {
               </footer>
 
               {isRpcModalOpen && (
-                <Suspense fallback={null}>
+                <Suspense fallback={<ModalLoadingFallback />}>
                   <RpcSettingsModal
                     isOpen={isRpcModalOpen}
                     onClose={() => setIsRpcModalOpen(false)}
@@ -201,7 +240,7 @@ function App() {
               )}
 
               {isStorageModalOpen && (
-                <Suspense fallback={null}>
+                <Suspense fallback={<ModalLoadingFallback />}>
                   <StorageManagerModal
                     isOpen={isStorageModalOpen}
                     onClose={() => setIsStorageModalOpen(false)}

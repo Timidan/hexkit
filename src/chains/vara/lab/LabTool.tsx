@@ -2,6 +2,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { TOOL_ALIASES, toolGroups } from "./tools";
 import { SURFACE } from "../ui/Panel";
+import LoadingSpinner from "../../../components/shared/LoadingSpinner";
+import { MIN_SUBTAB_LOADER_MS, useRouteLoading } from "../../../hooks/useRouteLoading";
 
 export default function LabTool() {
   const { pathname } = useLocation();
@@ -20,6 +22,10 @@ export default function LabTool() {
     setVisited((v) => v.has(requested.id) ? v : new Set([...v, requested.id]));
   }, [pathname, group.path, requested.id]);
 
+  // Cover inner tool switches with the same loader contract as top-level pages.
+  // The previous section stays mounted while hidden.
+  const isToolLoading = useRouteLoading(requested.id, MIN_SUBTAB_LOADER_MS);
+
   if (alias) { const next = new URLSearchParams(params); next.set("tool", alias.tool); next.set("view", alias.view); return <Navigate replace to={{ pathname, search: next.toString() }} />; }
 
   return <>
@@ -30,13 +36,17 @@ export default function LabTool() {
         {toolGroups.map((g) => <optgroup key={g.id} label={g.label}>{g.tools.filter((t) => !t.hidden || t.id === selected).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</optgroup>)}
       </select>
     </nav>
-    {group.tools.map(({ id, label, Component }) => visited.has(id) &&
-    // The entrance replays whenever `hidden` lifts (display: none → block), without remounting the tool.
-    <section key={id} aria-label={label} hidden={selected !== id}
-      className={`${SURFACE} motion-safe:animate-[vara-fade_150ms_ease-out] ${id === "program" || id === "message" || id === "address" ? "" : "mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6"}`}>
-      <Suspense fallback={<p role="status" className="px-4 py-8 text-sm text-muted-foreground">Loading tool…</p>}><Component /></Suspense>
-    </section>
-  )}</>;
+    {isToolLoading && <div className="flex justify-center px-4 py-8"><LoadingSpinner text="Loading tool" /></div>}
+    <div style={{ display: isToolLoading ? "none" : "contents" }}>
+      {group.tools.map(({ id, label, Component }) => visited.has(id) &&
+      // The entrance replays whenever `hidden` lifts (display: none → block), without remounting the tool.
+      <section key={id} aria-label={label} hidden={selected !== id}
+        className={`${SURFACE} motion-safe:animate-[vara-fade_150ms_ease-out] ${id === "program" || id === "message" || id === "address" ? "" : "mx-auto w-full max-w-[1280px] space-y-5 px-4 py-6"}`}>
+        <Suspense fallback={<div className="px-4 py-8"><LoadingSpinner text="Loading tool" /></div>}><Component /></Suspense>
+      </section>
+    )}
+    </div>
+  </>;
 }
 
 /** Preserve bookmarked URLs while giving every tool one canonical workspace. */

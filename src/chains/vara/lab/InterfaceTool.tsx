@@ -28,7 +28,7 @@ export default function InterfaceTool() {
         setPayloads(example.call.payload); setResult(null); setError("");
       }}>Load breaking-change example</Button>} />
     <Panel footer={<>
-      <Button disabled={busy || !before.trim() || !after.trim()} onClick={() => void compare()}>{busy ? "Comparing…" : "Compare interfaces"}</Button>
+      <Button disabled={busy || !before.trim() || !after.trim()} loading={busy} onClick={() => void compare()}>{busy ? "Comparing…" : "Compare interfaces"}</Button>
 
     </>}>
     {error && <p role="alert" className="max-w-md break-words text-sm text-red-400">{error}</p>}

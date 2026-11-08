@@ -95,7 +95,7 @@ const EdbBridgeStatus: React.FC<EdbBridgeStatusProps> = ({ className = "" }) => 
         ? "Down"
         : status === "disabled"
           ? "Off"
-          : "Check";
+          : "Checking";
 
   const tooltip =
     status === "connected"
@@ -111,6 +111,7 @@ const EdbBridgeStatus: React.FC<EdbBridgeStatusProps> = ({ className = "" }) => 
       className={`edb-status-indicator ${className}`.trim()}
       title={tooltip}
       aria-label={tooltip}
+      aria-busy={status === "checking"}
     >
       <span className={`edb-status-dot is-${status}`} aria-hidden />
       <span className="edb-status-label">EDB</span>

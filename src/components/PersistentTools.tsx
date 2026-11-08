@@ -1,7 +1,8 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { CHAIN_PLUGINS, firstNavTool, resolvePath } from "../chains/plugins";
-import PageSkeleton from "./shared/PageSkeleton";
+import PageSkeleton, { type PageSkeletonVariant } from "./shared/PageSkeleton";
+import { useRouteLoading } from "../hooks/useRouteLoading";
 
 interface ToolRoute {
   path: string;
@@ -31,7 +32,7 @@ const ENTER_EASE = "cubic-bezier(0.23,1,0.32,1)";
 
 const PersistentTools: React.FC = () => {
   const location = useLocation();
-  const { plugin } = resolvePath(location.pathname);
+  const { plugin, tool } = resolvePath(location.pathname);
   const elementsRef = useRef<Record<string, React.ReactElement>>({});
   const lastVisitRef = useRef<Record<string, number>>({});
   const panelRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -47,6 +48,7 @@ const PersistentTools: React.FC = () => {
   });
 
   const [visiblePath, setVisiblePath] = useState(location.pathname);
+  const visiblePathRef = useRef(location.pathname);
   const animatingRef = useRef(false);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const enterRafRef = useRef<number | undefined>(undefined);
@@ -107,20 +109,65 @@ const PersistentTools: React.FC = () => {
   // trigger a full panel transition — only top-level tool switches do.
   const activeRouteKey = useMemo(() => {
     const r = TOOL_ROUTES.find((route) => routeMatches(route, location.pathname));
-    return r?.path ?? location.pathname;
-  }, [location.pathname]);
+    return r ? `${r.path}${location.search}` : `${location.pathname}${location.search}`;
+  }, [location.pathname, location.search]);
+
+  // Cover every tool/page change with a loader before the page paints.
+  // Panels stay mounted underneath, so scroll position and page state survive.
+  const isPageLoading = useRouteLoading(activeRouteKey);
+  const skeletonVariant: PageSkeletonVariant = tool?.fullWidth ? "fullWidth" : "default";
+
+  const panelRouteKey = useMemo(() => location.pathname, [location.pathname]);
 
   useEffect(() => {
-    const targetPath = activeRouteKey;
-    if (targetPath === visiblePath && !animatingRef.current) return;
-    if (targetPath === visiblePath) return;
+    const targetPath = panelRouteKey;
+    const oldPath = visiblePathRef.current;
 
-    // Abort any in-flight animation
+    // Abort any in-flight animation.
     clearTimeout(cleanupTimerRef.current);
     if (enterRafRef.current) cancelAnimationFrame(enterRafRef.current);
 
-    const oldPanel = panelRefs.current[visiblePath];
-    const oldPath = visiblePath;
+    const resetPanelStyles = (panel: HTMLDivElement | null) => {
+      if (!panel) return;
+      panel.style.transition = "none";
+      panel.style.opacity = "";
+      panel.style.transform = "";
+      panel.style.pointerEvents = "";
+      panel.style.display = "none";
+    };
+
+    // A rapid A → B → A change can land back on the panel that is already
+    // showing. Restore it immediately instead of leaving an interrupted
+    // animation behind (which would leave the page dim or blank).
+    if (targetPath === oldPath) {
+      Object.entries(panelRefs.current).forEach(([path, panel]) => {
+        if (!panel) return;
+        if (path === targetPath) {
+          panel.style.transition = "none";
+          panel.style.opacity = "";
+          panel.style.transform = "";
+          panel.style.pointerEvents = "";
+          panel.style.display = "block";
+        } else {
+          resetPanelStyles(panel);
+        }
+      });
+      visiblePathRef.current = targetPath;
+      animatingRef.current = false;
+      return;
+    }
+
+    // Make sure only the outgoing panel is visible while it animates out.
+    Object.entries(panelRefs.current).forEach(([path, panel]) => {
+      if (!panel) return;
+      panel.style.transition = "none";
+      panel.style.opacity = "";
+      panel.style.transform = "";
+      panel.style.pointerEvents = "";
+      panel.style.display = path === oldPath ? "block" : "none";
+    });
+
+    const oldPanel = panelRefs.current[oldPath];
 
     animatingRef.current = true;
 
@@ -148,6 +195,7 @@ const PersistentTools: React.FC = () => {
         newPanel.style.transform = "scale(0.97) translateY(12px)";
       }
 
+      visiblePathRef.current = targetPath;
       setVisiblePath(targetPath);
 
       enterRafRef.current = requestAnimationFrame(() => {
@@ -203,30 +251,33 @@ const PersistentTools: React.FC = () => {
 
   return (
     <>
-      {TOOL_ROUTES.map((route) => {
-        if (!visitedPaths.has(route.path) && route.path !== activeRoute.path) {
-          return null;
-        }
+      {isPageLoading && <PageSkeleton variant={skeletonVariant} />}
+      <div style={{ display: isPageLoading ? "none" : "contents" }}>
+        {TOOL_ROUTES.map((route) => {
+          if (!visitedPaths.has(route.path) && route.path !== activeRoute.path) {
+            return null;
+          }
 
-        const element = ensureElement(route);
-        const isVisible = route.path === visiblePath;
+          const element = ensureElement(route);
+          const isVisible = route.path === visiblePath;
 
-        return (
-          <div
-            key={route.path}
-            ref={(el) => { panelRefs.current[route.path] = el; }}
-            data-panel-route={route.path}
-            style={{
-              display: isVisible ? "block" : "none",
-              width: "100%",
-            }}
-          >
-            <Suspense fallback={<PageSkeleton />}>
-              {element}
-            </Suspense>
-          </div>
-        );
-      })}
+          return (
+            <div
+              key={route.path}
+              ref={(el) => { panelRefs.current[route.path] = el; }}
+              data-panel-route={route.path}
+              style={{
+                display: isVisible ? "block" : "none",
+                width: "100%",
+              }}
+            >
+              <Suspense fallback={<PageSkeleton />}>
+                {element}
+              </Suspense>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 };

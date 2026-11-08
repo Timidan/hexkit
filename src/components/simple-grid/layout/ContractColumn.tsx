@@ -8,6 +8,7 @@
  */
 import React from "react";
 import { ClockCounterClockwise } from "@phosphor-icons/react";
+import LoadingSpinner from "../../shared/LoadingSpinner";
 import {
   Select,
   SelectContent,
@@ -51,6 +52,19 @@ export default function ContractColumn(): React.ReactElement {
     navigate,
     tokenInfo,
   } = ctx;
+
+  const [savedOpening, setSavedOpening] = React.useState<number | null>(null);
+
+  const openSavedContract = async (contract: any, index: number) => {
+    setSavedOpening(index);
+    try {
+      await loadContractFromStorage(contract);
+      setContractSource("address");
+      setShowSavedContracts(false);
+    } finally {
+      setSavedOpening(null);
+    }
+  };
 
   return (
     <>
@@ -102,11 +116,11 @@ export default function ContractColumn(): React.ReactElement {
             <>
               <div className="flex flex-wrap gap-3 items-center">
                 <Select
-                  onValueChange={async (value) => {
+                  disabled={savedOpening !== null}
+                  onValueChange={(value) => {
                     const index = parseInt(value);
                     if (!isNaN(index) && savedContracts[index]) {
-                      await loadContractFromStorage(savedContracts[index]);
-                      setContractSource("address");
+                      void openSavedContract(savedContracts[index], index);
                     }
                   }}
                 >
@@ -141,13 +155,15 @@ export default function ContractColumn(): React.ReactElement {
                     {savedContracts.map((contract: any, index: number) => (
                       <div
                         key={index}
-                        className="p-2 rounded border border-border/40 bg-background/50 hover:bg-accent/30 hover:border-primary/40 cursor-pointer transition-all text-left"
-                        onClick={async () => {
-                          await loadContractFromStorage(contract);
-                          setContractSource("address");
-                          setShowSavedContracts(false);
-                        }}
+                        aria-busy={savedOpening === index}
+                        className="relative p-2 rounded border border-border/40 bg-background/50 hover:bg-accent/30 hover:border-primary/40 cursor-pointer transition-all text-left"
+                        onClick={() => void openSavedContract(contract, index)}
                       >
+                        {savedOpening === index && (
+                          <span className="absolute inset-0 z-10 flex items-center justify-center rounded bg-background/70">
+                            <LoadingSpinner size="sm" />
+                          </span>
+                        )}
                         <div className="font-medium text-foreground text-[11px] truncate">
                           {contract.name || "Unnamed"}
                         </div>

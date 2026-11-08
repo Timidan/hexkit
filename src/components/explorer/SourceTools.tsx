@@ -2,6 +2,8 @@ import React, { useState, Suspense, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { AnimatedTabContent } from '../ui/animated-tabs';
+import LoadingSpinner from '../shared/LoadingSpinner';
+import { MIN_SUBTAB_LOADER_MS, useRouteLoading } from '../../hooks/useRouteLoading';
 import ContractExplorer from './ContractExplorer';
 import { Code, GitDiff, Database } from '@phosphor-icons/react';
 
@@ -55,15 +57,24 @@ const SourceTools: React.FC<SourceToolsProps> = ({ initialTool = 'explorer' }) =
     );
   }, [location.pathname, location.search, navigate]);
 
+  // Loader on sub-tool changes; the previous view stays mounted while hidden.
+  // Prefer the URL value so an external sub-tab click is covered immediately,
+  // before the state-sync effect runs.
+  const requestedTool = new URLSearchParams(location.search).get('tool');
+  const gateTool = isSourceSubTool(requestedTool) ? requestedTool : activeTool;
+  const isToolLoading = useRouteLoading(gateTool, MIN_SUBTAB_LOADER_MS);
+
   return (
     <div className="h-full flex flex-col gap-2">
       {/* Sub-tool selector is now in the capsule Navigation — driven via ?tool= URL param */}
 
-      <div className="tool-content-container flex-1 min-h-0 overflow-hidden">
+      {isToolLoading && <LoadingSpinner text="Loading" fullPage />}
+
+      <div className="tool-content-container flex-1 min-h-0 overflow-hidden" style={{ display: isToolLoading ? "none" : undefined }}>
         {/* Storage tab rendered outside AnimatePresence to avoid react-resizable-panels measurement issues */}
         {activeTool === 'storage' ? (
           <div className="h-full w-full">
-            <Suspense fallback={<div className="text-xs text-muted-foreground text-center py-12">Loading storage viewer...</div>}>
+            <Suspense fallback={<LoadingSpinner text="Loading storage viewer" />}>
               <StorageLayoutViewer />
             </Suspense>
           </div>
@@ -71,7 +82,7 @@ const SourceTools: React.FC<SourceToolsProps> = ({ initialTool = 'explorer' }) =
           <AnimatedTabContent activeKey={activeTool} className="h-full w-full">
             {activeTool === 'explorer' && <ContractExplorer />}
             {activeTool === 'diff' && (
-              <Suspense fallback={<div className="text-xs text-muted-foreground text-center py-12">Loading diff tool...</div>}>
+              <Suspense fallback={<LoadingSpinner text="Loading diff tool" />}>
                 <ContractDiff />
               </Suspense>
             )}

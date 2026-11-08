@@ -2,6 +2,8 @@ import React from "react";
 import { WarningCircle } from "@phosphor-icons/react";
 import { AnimatedTabContent } from "./ui/animated-tabs";
 import { Alert, AlertDescription } from "./ui/alert";
+import LoadingSpinner from "./shared/LoadingSpinner";
+import { MIN_SUBTAB_LOADER_MS, useRouteLoading } from "../hooks/useRouteLoading";
 import "../styles/SignatureDatabase.css";
 
 import {
@@ -22,10 +24,14 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
   initialToolSubTab = "selector",
 }) => {
   const db = useSignatureDatabase(initialTab, initialToolSubTab);
+  // Loader between signature-database tabs; tab panels stay mounted while hidden.
+  const isTabLoading = useRouteLoading(db.activeTab, MIN_SUBTAB_LOADER_MS);
 
   return (
     <div className="bg-background px-2 py-3 sm:px-3 md:px-3 max-w-4xl mx-auto">
       <div className="tool-content-container responsive-scroll">
+        {isTabLoading && <LoadingSpinner text="Loading" />}
+        <div style={{ display: isTabLoading ? "none" : undefined }}>
         <AnimatedTabContent activeKey={db.activeTab}>
           {db.activeTab === "lookup" && (
             <LookupTab
@@ -103,6 +109,7 @@ const SignatureDatabase: React.FC<SignatureDatabaseProps> = ({
             />
           )}
         </AnimatedTabContent>
+        </div>
 
         {db.error && db.activeTab !== "search" && (
           <Alert variant="destructive" className="mt-3 py-2">
