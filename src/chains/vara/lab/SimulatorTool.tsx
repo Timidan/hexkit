@@ -80,8 +80,8 @@ export default function SimulatorTool() {
     }} /></div></details>
     <div className="grid items-start gap-4 lg:grid-cols-2">
     <Panel title="Call" footer={<>
-      <Button disabled={busy || sampleLoading} onClick={() => { showView("reply"); void simulate(); }}><Play weight="fill" />{sampleLoading ? "Loading sample…" : busy && view === "reply" ? "Simulating…" : "Simulate message"}</Button>
-      <Button variant="outline" disabled={busy || sampleLoading} onClick={() => void checkGas()}>{busy && view === "gas" ? "Checking…" : "Check gas & vouchers"}</Button>
+      <Button disabled={busy || sampleLoading} loading={sampleLoading || (busy && view === "reply")} onClick={() => { showView("reply"); void simulate(); }}><Play weight="fill" />{sampleLoading ? "Loading sample…" : busy && view === "reply" ? "Simulating…" : "Simulate message"}</Button>
+      <Button variant="outline" disabled={busy || sampleLoading} loading={busy && view === "gas"} onClick={() => void checkGas()}>{busy && view === "gas" ? "Checking…" : "Check gas & vouchers"}</Button>
       {(result || gas || busy) && <a href="#vara-simulation-result" className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4 lg:hidden">View result</a>}
     </>}>
       {sample && sample.signature === JSON.stringify(input) && <p className="rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-xs leading-relaxed" role="status">

@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { ethers } from "ethers";
 import LoadingSpinner from "./shared/LoadingSpinner";
+import { MIN_SUBTAB_LOADER_MS, useRouteLoading } from "../hooks/useRouteLoading";
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 import { LayoutTransitionWrapper } from "./ui/animated-tabs";
 import { useSimulation } from "../contexts/SimulationContext";
@@ -121,12 +122,22 @@ const TransactionBuilderHub: React.FC = () => {
     setMode(value as BuilderMode);
   };
 
+  // A loader on mode switches too, so the next view never appears before it
+  // has rendered. Prefer the URL intent so external mode links are covered
+  // immediately, before the state-sync effect runs. Content remains mounted.
+  const modeGateKey = urlIntentMode
+    ? (urlIntentMode === "live" ? "live" : "simulation")
+    : mode;
+  const isModeLoading = useRouteLoading(modeGateKey, MIN_SUBTAB_LOADER_MS);
+
   return (
     <div className="transaction-builder-hub px-1 py-2 sm:px-3 sm:py-3">
       {/* Mode selector is now in the capsule Navigation — sub-tabs driven via ?mode= URL param */}
 
+      {isModeLoading && <LoadingSpinner text="Loading" fullPage />}
+
       {/* Content - animated layout transition for mode switch */}
-      <div className="tool-content-container">
+      <div className="tool-content-container" style={{ display: isModeLoading ? "none" : undefined }}>
         <LayoutTransitionWrapper activeKey={mode}>
           <Suspense fallback={<LoadingSpinner text="Loading" fullPage />}>
             {mode === "live" ? <SimpleGridUI mode="live" initialContractData={liveInitialContractData} /> : <TransactionBuilderWagmi />}

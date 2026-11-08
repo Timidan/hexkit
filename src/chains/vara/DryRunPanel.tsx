@@ -5,6 +5,7 @@ import type { SailsIdl } from "./decode";
 import { Button } from "../../components/ui/button";
 import { CopyButton } from "../../components/ui/copy-button";
 import { Input } from "../../components/ui/input";
+import LoadingSpinner from "../../components/shared/LoadingSpinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Textarea } from "../../components/ui/textarea";
 import type { RunResultT, Runs, VaraCase } from "./case";
@@ -56,6 +57,7 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
   const [queryArgs, setQueryArgs] = useState<string | null>(null);
   const [errors, setErrors] = useState({ a: "", b: "" });
   const [busy, setBusy] = useState({ a: false, b: false });
+  const [busyAction, setBusyAction] = useState<Record<Slot, "run" | "send" | null>>({ a: null, b: null });
   const [status, setStatus] = useState({ a: "", b: "" });
   const [included, setIncluded] = useState({ a: "", b: "" });
   const alive = useRef(true);
@@ -87,6 +89,7 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
 
   async function run(slot: Slot) {
     setErrors((p) => ({ ...p, [slot]: "" }));
+    setBusyAction((p) => ({ ...p, [slot]: "run" }));
     try {
       const input = parseInput(runs[slot].input);
       let queryPayload: Hex | null = null;
@@ -105,7 +108,10 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
       if (!alive.current) return;
       setErrors((p) => ({ ...p, [slot]: err instanceof Error ? err.message : String(err) }));
     } finally {
-      if (alive.current) setBusy((p) => ({ ...p, [slot]: false }));
+      if (alive.current) {
+        setBusy((p) => ({ ...p, [slot]: false }));
+        setBusyAction((p) => ({ ...p, [slot]: null }));
+      }
     }
   }
 
@@ -114,6 +120,7 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
     setErrors((p) => ({ ...p, [slot]: "" }));
     setStatus((p) => ({ ...p, [slot]: "" }));
     setIncluded((p) => ({ ...p, [slot]: "" }));
+    setBusyAction((p) => ({ ...p, [slot]: "send" }));
     try {
       const input = parseInput(runs[slot].input);
       setBusy((p) => ({ ...p, [slot]: true }));
@@ -129,7 +136,10 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
       setErrors((p) => ({ ...p, [slot]: err instanceof Error ? err.message : String(err) }));
       setStatus((p) => ({ ...p, [slot]: "" }));
     } finally {
-      if (alive.current) setBusy((p) => ({ ...p, [slot]: false }));
+      if (alive.current) {
+        setBusy((p) => ({ ...p, [slot]: false }));
+        setBusyAction((p) => ({ ...p, [slot]: null }));
+      }
     }
   }
 
@@ -189,14 +199,14 @@ export default function DryRunPanel({ c, sails, runs, update }: { c: VaraCase; s
               <Button variant="outline" size="sm" disabled={busy[slot]} onClick={() => encode(slot)}>Encode</Button>
             </div>}
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" disabled={busy[slot]} onClick={() => void run(slot)}>Run {slot.toUpperCase()}</Button>
-              <Button variant="outline" size="sm" disabled={!account || busy[slot]} onClick={() => void send(slot)}>Send transaction</Button>
+              <Button variant="outline" size="sm" disabled={busy[slot]} loading={busyAction[slot] === "run"} onClick={() => void run(slot)}>Run {slot.toUpperCase()}</Button>
+              <Button variant="outline" size="sm" disabled={!account || busy[slot]} loading={busyAction[slot] === "send"} onClick={() => void send(slot)}>Send transaction</Button>
               <span className="inline-flex h-8 items-center gap-1 rounded-md border border-border/70 pl-2.5 text-xs text-muted-foreground" title="Copy this dry run as a Gear vara-wallet command">
                 <Terminal size={14} aria-hidden />vara-wallet
                 <CopyButton variant="ghost" size="icon-sm" ariaLabel={`Copy ${slot.toUpperCase()} as a vara-wallet command`} getValue={() => walletCommand(slot)} />
               </span>
             </div>
-            {busy[slot] && !status[slot] && <p role="status" className="text-sm text-muted-foreground">Working…</p>}
+            {busy[slot] && !status[slot] && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><LoadingSpinner size="sm" />Working…</p>}
             {status[slot] && <p role="status" className="text-sm text-muted-foreground">{status[slot]}</p>}
             {included[slot] && <div role="status" className="flex items-center gap-2 text-sm">
               <span>Included in <span className="font-mono">{included[slot]}</span></span>

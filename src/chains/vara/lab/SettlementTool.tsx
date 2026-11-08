@@ -25,7 +25,7 @@ export default function SettlementTool() {
   return <div className="space-y-5">
     <ToolHeader title="Vara.eth settlement inspector" source={`Ethereum · ${ETH_NETWORKS[input.network].name}`} />
     <Panel footer={<>
-      <Button disabled={busy} onClick={() => void inspect()}>{busy ? "Inspecting Ethereum evidence…" : "Inspect settlement"}</Button>{busy && <Button variant="outline" onClick={() => abort.current?.abort()}>Cancel</Button>}
+      <Button disabled={busy} loading={busy} onClick={() => void inspect()}>{busy ? "Inspecting Ethereum evidence…" : "Inspect settlement"}</Button>{busy && <Button variant="outline" onClick={() => abort.current?.abort()}>Cancel</Button>}
 
     </>}>
     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}

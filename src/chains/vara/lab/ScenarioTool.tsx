@@ -177,7 +177,7 @@ export default function ScenarioTool() {
       </DropdownMenu>
       <IconAction label="Save on this device" disabled={running || loadingExample} onClick={() => { try { localStorage.setItem(STORAGE, JSON.stringify(scenario)); sessionStorage.removeItem("hexkit.vara.scenario.handoff"); setNotice("Scenario saved on this device"); } catch { setError("Browser storage is full or unavailable. Export JSON to keep this scenario."); } }}><FloppyDisk size={16} /></IconAction>
       <input ref={importInput} type="file" hidden accept=".json" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void importFile(file); }} />
-      <Button className="ml-auto" disabled={running || loadingExample} onClick={() => void run()} title={`${IS_LOCAL_SIMULATOR ? "Local" : "Hosted"} execution; no network transaction`}><Play weight="fill" />{running ? "Executing…" : "Run scenario"}</Button>
+      <Button className="ml-auto" disabled={running || loadingExample} loading={running} onClick={() => void run()} title={`${IS_LOCAL_SIMULATOR ? "Local" : "Hosted"} execution; no network transaction`}><Play weight="fill" />{running ? "Executing…" : "Run scenario"}</Button>
       {running && <Button variant="outline" onClick={() => abort.current?.abort()}><Stop />Cancel</Button>}
       {report && <a href="#scenario-execution" className="text-sm text-primary underline underline-offset-4 lg:hidden">Results</a>}
     </div>

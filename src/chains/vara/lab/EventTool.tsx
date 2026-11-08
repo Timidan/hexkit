@@ -58,7 +58,7 @@ export default function EventTool() {
   return <div className="space-y-5">
     <ToolHeader title="Event explorer" source="Vara mainnet" />
     <Panel footer={<>
-      <Button disabled={busy} onClick={() => void inspect()}>{busy ? "Reading indexed events…" : "Inspect events"}</Button>{busy && <Button variant="outline" onClick={() => abort.current?.abort()}>Cancel</Button>}
+      <Button disabled={busy} loading={busy} onClick={() => void inspect()}>{busy ? "Reading indexed events…" : "Inspect events"}</Button>{busy && <Button variant="outline" onClick={() => abort.current?.abort()}>Cancel</Button>}
 
     </>}>
     {error && <p role="alert" className="max-w-md break-words text-sm text-red-400">{error}</p>}

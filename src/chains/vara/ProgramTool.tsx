@@ -8,6 +8,7 @@ import type { FunctionKind, FunctionMode } from "../../components/FunctionContro
 import { AnimatedPlayIcon } from "../../components/icons/IconLibrary";
 import AnimatedProgressBar from "../../components/smoothui/ui/AnimatedProgressBar";
 import Skeleton from "../../components/smoothui/ui/Skeleton";
+import LoadingSpinner from "../../components/shared/LoadingSpinner";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import ComplexValueViewer from "../../components/ui/ComplexValueViewer";
@@ -331,7 +332,7 @@ function History({ programId, createdBlock, onOpen }: { programId: Hex; createdB
                 <span className="col-span-2 row-start-2 min-w-0 truncate font-mono text-xs sm:col-span-1 sm:row-start-auto">{shortHex(m.id, 6, 4)}</span>
                 <span className="hidden text-xs text-muted-foreground sm:block">{new Date(m.timestamp).toLocaleString()}</span>
                 <span className="col-start-2 row-start-1 inline-flex items-center gap-1.5 sm:col-start-auto sm:row-start-auto">
-                  {opening === m.id && <span className="text-xs text-muted-foreground">Opening…</span>}
+                  {opening === m.id && <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><LoadingSpinner size="sm" />Opening…</span>}
                   <Badge variant="outline">{m.entry}</Badge>
                 </span>
               </button>

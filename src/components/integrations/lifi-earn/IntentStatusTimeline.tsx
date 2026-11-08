@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Warning } from "@phosphor-icons/react";
+import { CircleNotch, Warning } from "@phosphor-icons/react";
 import { AnimatedValue } from "../../ui/animated-value";
 import { StepStatusIcon } from "../../ui/step-status-icon";
 import type { Hex } from "viem";
@@ -165,8 +165,9 @@ export function IntentStatusTimeline({
             type="button"
             onClick={() => void onRefund()}
             disabled={!canRefund || refundDisabled || refundPending}
-            className="rounded border border-border/40 bg-muted/30 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded border border-border/40 bg-muted/30 px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
           >
+            {refundPending && <CircleNotch className="h-3 w-3 animate-spin" aria-hidden />}
             {refundPending ? "Refunding…" : "Refund"}
           </button>
         </div>
