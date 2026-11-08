@@ -52,7 +52,7 @@ body:has(.sim-results-page) > #root {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px clamp(20px, 4vw, 40px);
+  padding: 12px clamp(16px, 3vw, 32px);
   background: var(--sim-bg);
   border-bottom: 1px solid var(--sim-border);
   flex-wrap: wrap;
@@ -105,33 +105,34 @@ body:has(.sim-results-page) > #root {
    ============================================ */
 
 .sim-summary-section {
-  padding: 8px clamp(16px, 3vw, 32px);
+  padding: 18px clamp(16px, 3vw, 32px);
   background: transparent;
   border-bottom: 1px solid var(--sim-border);
 }
 
 .sim-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px 32px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px 48px;
 }
 
 .sim-summary-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .sim-summary-row {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 8px;
+  grid-template-columns: 115px 1fr;
+  gap: 12px;
   align-items: center;
-  min-height: 22px;
+  min-height: 26px;
 }
 
 .sim-summary-label {
-  font-size: 0.7125rem;
+  font-size: 0.725rem;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sim-text-muted, #6b6b7b);
@@ -512,8 +513,9 @@ body:has(.sim-results-page) > #root {
   }
 
   .sim-summary-row {
-    grid-template-columns: 100px 1fr;
-    gap: 8px;
+    grid-template-columns: 105px 1fr;
+    gap: 10px;
+    min-height: 24px;
   }
 
   .sim-tab-content {
