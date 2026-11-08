@@ -287,6 +287,21 @@ function migrateSecretsToMemory(): void {
   }
 }
 
+// Alchemy & Infura Key Sanitizers
+export function extractAlchemyKey(key: string | undefined): string {
+  if (!key) return '';
+  const trimmed = key.trim();
+  const match = trimmed.match(/\/v2\/([^/?#\s]+)/);
+  return match ? match[1] : trimmed;
+}
+
+export function extractInfuraId(id: string | undefined): string {
+  if (!id) return '';
+  const trimmed = id.trim();
+  const match = trimmed.match(/\/v3\/([^/?#\s]+)/);
+  return match ? match[1] : trimmed;
+}
+
 // Alchemy chain support
 const ALCHEMY_ENDPOINTS: Record<number, (key: string) => string> = {
   1: (key) => `https://eth-mainnet.g.alchemy.com/v2/${key}`,
@@ -480,7 +495,7 @@ export const networkConfigManager = {
 
     // Handle ALCHEMY mode
     if (config.rpcMode === 'ALCHEMY') {
-      const apiKey = config.alchemyApiKey?.trim();
+      const apiKey = extractAlchemyKey(config.alchemyApiKey);
       const builder = ALCHEMY_ENDPOINTS[chainId];
 
       if (!apiKey) {
@@ -532,7 +547,7 @@ export const networkConfigManager = {
 
     // Handle INFURA mode
     if (config.rpcMode === 'INFURA') {
-      const projectId = config.infuraProjectId?.trim();
+      const projectId = extractInfuraId(config.infuraProjectId);
       const builder = INFURA_ENDPOINTS[chainId];
 
       if (!projectId) {
@@ -626,12 +641,12 @@ export const networkConfigManager = {
 
   isAlchemyAvailable(chainId: number): boolean {
     const config = readConfig();
-    return !!(config.alchemyApiKey?.trim() && ALCHEMY_ENDPOINTS[chainId]);
+    return !!(extractAlchemyKey(config.alchemyApiKey) && ALCHEMY_ENDPOINTS[chainId]);
   },
 
   isInfuraAvailable(chainId: number): boolean {
     const config = readConfig();
-    return !!(config.infuraProjectId?.trim() && INFURA_ENDPOINTS[chainId]);
+    return !!(extractInfuraId(config.infuraProjectId) && INFURA_ENDPOINTS[chainId]);
   },
 
   /**

@@ -43,6 +43,16 @@ type FormState = {
 type ErrorKey = RpcProviderMode | "ETHERSCAN";
 type AutoSaveState = "idle" | "saving" | "saved" | "error";
 
+const cleanAlchemyKey = (raw: string) => {
+  const match = raw.trim().match(/\/v2\/([^/?#\s]+)/);
+  return match ? match[1] : raw.trim();
+};
+
+const cleanInfuraId = (raw: string) => {
+  const match = raw.trim().match(/\/v3\/([^/?#\s]+)/);
+  return match ? match[1] : raw.trim();
+};
+
 const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
   isOpen,
   onClose,
@@ -97,8 +107,8 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
         const fs = formStateRef.current;
         networkConfigManager.saveConfig({
           rpcMode: fs.mode,
-          alchemyApiKey: fs.alchemyApiKey.trim(),
-          infuraProjectId: fs.infuraProjectId.trim(),
+          alchemyApiKey: cleanAlchemyKey(fs.alchemyApiKey),
+          infuraProjectId: cleanInfuraId(fs.infuraProjectId),
           customRpcUrl: fs.customRpcUrl.trim(),
           etherscanKeyMode: fs.etherscanKeyMode,
           rememberPersonalEtherscanKey: fs.rememberPersonalEtherscanKey,
@@ -110,10 +120,10 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
 
   const computeErrors = (state: FormState) => {
     const nextErrors: typeof errors = {};
-    if (state.mode === "ALCHEMY" && !state.alchemyApiKey.trim()) {
+    if (state.mode === "ALCHEMY" && !cleanAlchemyKey(state.alchemyApiKey)) {
       nextErrors.ALCHEMY = "API key required";
     }
-    if (state.mode === "INFURA" && !state.infuraProjectId.trim()) {
+    if (state.mode === "INFURA" && !cleanInfuraId(state.infuraProjectId)) {
       nextErrors.INFURA = "Project ID required";
     }
     if (state.mode === "CUSTOM") {
@@ -153,8 +163,8 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
       autoSaveTimer.current = null;
       networkConfigManager.saveConfig({
         rpcMode: formState.mode,
-        alchemyApiKey: formState.alchemyApiKey.trim(),
-        infuraProjectId: formState.infuraProjectId.trim(),
+        alchemyApiKey: cleanAlchemyKey(formState.alchemyApiKey),
+        infuraProjectId: cleanInfuraId(formState.infuraProjectId),
         customRpcUrl: formState.customRpcUrl.trim(),
         etherscanKeyMode: formState.etherscanKeyMode,
         rememberPersonalEtherscanKey: formState.rememberPersonalEtherscanKey,
@@ -248,7 +258,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                   onChange={(e) =>
                     setFormState((prev) => ({
                       ...prev,
-                      alchemyApiKey: e.target.value,
+                      alchemyApiKey: cleanAlchemyKey(e.target.value),
                     }))
                   }
                   placeholder="Enter API key..."
@@ -265,7 +275,7 @@ const RpcSettingsModal: React.FC<RpcSettingsModalProps> = ({
                   onChange={(e) =>
                     setFormState((prev) => ({
                       ...prev,
-                      infuraProjectId: e.target.value,
+                      infuraProjectId: cleanInfuraId(e.target.value),
                     }))
                   }
                   placeholder="Enter project ID..."
