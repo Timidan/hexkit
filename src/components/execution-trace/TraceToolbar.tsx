@@ -1,9 +1,15 @@
-import React, { useState, useRef, useEffect } from "react";
+import React from "react";
 import { Bug } from "@phosphor-icons/react";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "../ui/dropdown-menu";
 import type { TraceFilters, SearchCategory } from "./traceTypes";
 import { SEARCH_CATEGORIES } from "./traceTypes";
 
@@ -36,20 +42,6 @@ const TraceToolbar: React.FC<TraceToolbarProps> = ({
   debugSession,
   openDebugAtRevert,
 }) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!dropdownOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [dropdownOpen]);
-
   const activeLabel = SEARCH_CATEGORIES.find(c => c.value === searchCategory)?.label || "All";
 
   return (
@@ -62,31 +54,32 @@ const TraceToolbar: React.FC<TraceToolbarProps> = ({
           onChange={(e) => onSearchChange(e.target.value)}
           className="exec-search-input"
         />
-        <div className="exec-search-category-wrapper" ref={dropdownRef}>
-          <Button
-            variant="outline"
-            size="sm"
-            className={`exec-dropdown-btn exec-all-btn${searchCategory !== 'all' ? ' exec-all-btn--active' : ''}`}
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-          >
-            {activeLabel} <span className="exec-dropdown-caret">&#9662;</span>
-          </Button>
-          {dropdownOpen && (
-            <div className="exec-search-category-dropdown">
+        <div className="exec-search-category-wrapper">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={`exec-dropdown-btn exec-all-btn${searchCategory !== 'all' ? ' exec-all-btn--active' : ''}`}
+              >
+                {activeLabel} <span className="exec-dropdown-caret">&#9662;</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="min-w-[140px] bg-[#1e1f26] border-[var(--tst-border)] p-1 z-[120]"
+            >
               {SEARCH_CATEGORIES.map((cat) => (
-                <button
+                <DropdownMenuItem
                   key={cat.value}
-                  className={`exec-search-category-item${searchCategory === cat.value ? ' active' : ''}`}
-                  onClick={() => {
-                    onSearchCategoryChange(cat.value);
-                    setDropdownOpen(false);
-                  }}
+                  className={`exec-search-category-item cursor-pointer${searchCategory === cat.value ? ' active' : ''}`}
+                  onClick={() => onSearchCategoryChange(cat.value)}
                 >
                   {cat.label}
-                </button>
+                </DropdownMenuItem>
               ))}
-            </div>
-          )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
